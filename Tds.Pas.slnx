@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Installer/">
+    <Project Path="src/Installer/Tds.Pas.Setup/Tds.Pas.Setup.csproj" />
+  </Folder>
+  <Folder Name="/src/Platform/">
+    <Project Path="src/Platform/Tds.Pas.Core/Tds.Pas.Core.csproj" />
+    <Project Path="src/Platform/Tds.Pas.Messaging/Tds.Pas.Messaging.csproj" />
+    <Project Path="src/Platform/Tds.Pas.Web/Tds.Pas.Web.csproj" />
+  </Folder>
+</Solution>

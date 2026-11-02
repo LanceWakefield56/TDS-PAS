@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Company>Tasman Day Surgery</Company>
+    <Product>TDS PAS</Product>
+    <Copyright>Copyright © Tasman Day Surgery</Copyright>
+    <Version>0.0.1</Version>
+  </PropertyGroup>
+</Project>
