@@ -5,7 +5,7 @@ Status: ☐ to do · ◐ in progress · ☑ done
 ## Phase 0 – Foundations (started 2026-11-02, specification v1.6 approved)
 - ☑ Enable NuGet package access for the build environment (api.nuget.org, globalcdn.nuget.org)
 - ☑ Test projects (xUnit) – 41 tests
-- ☐ SQL Server test container (needs `*.data.mcr.microsoft.com` allowed) – SQLite used meanwhile
+- ☑ SQL Server 2022 test container + opt-in integration tests (`PAS_TEST_SQLSERVER`)
 - ◐ Module framework: manifest, dependency resolution, safe disable ☑ · module loading, per-module schema/migrations ☐
 - ☐ Identity: accounts, passkeys/FIDO2, TOTP, roles and permissions, break-glass
 - ☑ Audit: hash chain + SQL Server append-only ledger table + writer (ADR 0003)
