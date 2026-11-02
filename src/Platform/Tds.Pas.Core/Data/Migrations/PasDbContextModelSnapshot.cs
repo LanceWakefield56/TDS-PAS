@@ -197,6 +197,36 @@ namespace Tds.Pas.Core.Data.Migrations
                     b.ToTable("Sites", "core");
                 });
 
+            modelBuilder.Entity("Tds.Pas.Core.Setup.SetupState", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("BootstrapCodeCreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("BootstrapCodeHash")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("BootstrapCodeUsedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("InstalledAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("InstalledVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SetupState", "core", t =>
+                        {
+                            t.HasCheckConstraint("CK_SetupState_SingleRow", "[Id] = 1");
+                        });
+                });
+
             modelBuilder.Entity("Tds.Pas.Core.Organisation.Facility", b =>
                 {
                     b.HasOne("Tds.Pas.Core.Organisation.Site", null)

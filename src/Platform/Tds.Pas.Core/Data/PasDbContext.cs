@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Tds.Pas.Core.Audit;
 using Tds.Pas.Core.Organisation;
+using Tds.Pas.Core.Setup;
 
 namespace Tds.Pas.Core.Data;
 
@@ -14,6 +15,14 @@ public sealed class PasDbContext(DbContextOptions<PasDbContext> options) : DbCon
     public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<SetupState> SetupState => Set<SetupState>();
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // SQLite (used only for fast tests) cannot compare or sort DateTimeOffset; store as sortable binary there.
+        if (Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+            configurationBuilder.Properties<DateTimeOffset>().HaveConversion<Microsoft.EntityFrameworkCore.Storage.ValueConversion.DateTimeOffsetToBinaryConverter>();
+    }
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -63,6 +72,15 @@ public sealed class PasDbContext(DbContextOptions<PasDbContext> options) : DbCon
             e.Property(x => x.Hash).HasMaxLength(64);
             e.HasIndex(x => x.PatientId);
             e.HasIndex(x => x.OccurredAt);
+        });
+
+        b.Entity<SetupState>(e =>
+        {
+            e.ToTable("SetupState");
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.BootstrapCodeHash).HasMaxLength(200);
+            e.Property(x => x.InstalledVersion).HasMaxLength(50);
+            e.ToTable(t => t.HasCheckConstraint("CK_SetupState_SingleRow", "[Id] = 1"));
         });
     }
 }

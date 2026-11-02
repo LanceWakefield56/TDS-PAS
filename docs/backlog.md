@@ -6,15 +6,15 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Enable NuGet package access for the build environment (api.nuget.org, globalcdn.nuget.org)
 - ☑ Test projects (xUnit) – 41 tests
 - ☑ SQL Server 2022 test container + opt-in integration tests (`PAS_TEST_SQLSERVER`)
-- ◐ Module framework: manifest, dependency resolution, safe disable ☑ · module loading, per-module schema/migrations ☐
-- ☐ Identity: accounts, passkeys/FIDO2, TOTP, roles and permissions, break-glass
+- ☑ Module framework: manifest, dependency resolution, safe disable, module loading, per-module schemas and migrations
+- ◐ Identity: accounts, TOTP MFA + recovery codes, lockout, password policy, roles/permissions, break-glass, first-admin bootstrap ☑ (ADR 0005) · passkeys/FIDO2, cookie sign-in for the UI ☐
 - ☑ Audit: hash chain + SQL Server append-only ledger table + writer (ADR 0003)
 - ☑ Organisation model + TDS default setup (Theatre 1 active, Theatre 2 inactive) + initial migration
-- ◐ Patient core: NHI validation (old + new formats) ☑ · patient register, alerts ☐
+- ☑ Patients module: register, NHI validation, MRN, duplicate checks (macron-insensitive), search, alerts, audit
 - ☐ Messaging and workflow engine core: message store, queues, retry, dashboard
-- ☐ UI shell (React + TypeScript): role-based "My work today" home, navigation, accessibility baseline
-- ☐ IIS hardening script and security headers
-- ◐ Guided platform installer: Setup.exe step 1 prerequisite checks ☑ (ADR 0004) · IIS setup, database creation, first admin + MFA, health check ☐
+- ☐ UI shell (React + TypeScript): sign-in + MFA screens, first-admin screen, role-based "My work today" home, accessibility baseline (next)
+- ◐ IIS/TLS hardening scripts in Setup ☑ · app security headers ☑ · verification in sandbox ☐
+- ◐ Guided platform installer: checks ☑ · IIS install + hardening ☑ · database + schema ☑ · first-admin code ☑ (ADR 0006) · deploy web app to IIS (site, app pool, certificate) ☐
 - ☐ Setup Centre (browser-based module installer)
 - ☐ Developer guide and data dictionary generation
 

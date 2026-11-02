@@ -3,13 +3,20 @@
   <Folder Name="/src/Installer/">
     <Project Path="src/Installer/Tds.Pas.Setup/Tds.Pas.Setup.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/Tds.Pas.Modules.Patients/Tds.Pas.Modules.Patients.csproj" />
+  </Folder>
   <Folder Name="/src/Platform/">
     <Project Path="src/Platform/Tds.Pas.Core/Tds.Pas.Core.csproj" />
+    <Project Path="src/Platform/Tds.Pas.Identity/Tds.Pas.Identity.csproj" />
     <Project Path="src/Platform/Tds.Pas.Messaging/Tds.Pas.Messaging.csproj" />
+    <Project Path="src/Platform/Tds.Pas.Shared/Tds.Pas.Shared.csproj" />
     <Project Path="src/Platform/Tds.Pas.Web/Tds.Pas.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Tds.Pas.Core.Tests/Tds.Pas.Core.Tests.csproj" />
+    <Project Path="tests/Tds.Pas.Identity.Tests/Tds.Pas.Identity.Tests.csproj" />
+    <Project Path="tests/Tds.Pas.Modules.Patients.Tests/Tds.Pas.Modules.Patients.Tests.csproj" />
     <Project Path="tests/Tds.Pas.Setup.Tests/Tds.Pas.Setup.Tests.csproj" />
   </Folder>
 </Solution>

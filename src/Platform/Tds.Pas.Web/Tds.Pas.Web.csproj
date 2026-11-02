@@ -3,6 +3,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Tds.Pas.Core\Tds.Pas.Core.csproj" />
     <ProjectReference Include="..\Tds.Pas.Messaging\Tds.Pas.Messaging.csproj" />
+    <ProjectReference Include="..\Tds.Pas.Identity\Tds.Pas.Identity.csproj" />
+    <ProjectReference Include="..\..\Modules\Tds.Pas.Modules.Patients\Tds.Pas.Modules.Patients.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
