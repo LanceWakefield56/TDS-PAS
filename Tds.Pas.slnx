@@ -8,4 +8,8 @@
     <Project Path="src/Platform/Tds.Pas.Messaging/Tds.Pas.Messaging.csproj" />
     <Project Path="src/Platform/Tds.Pas.Web/Tds.Pas.Web.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Tds.Pas.Core.Tests/Tds.Pas.Core.Tests.csproj" />
+    <Project Path="tests/Tds.Pas.Setup.Tests/Tds.Pas.Setup.Tests.csproj" />
+  </Folder>
 </Solution>
