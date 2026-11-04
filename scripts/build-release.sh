@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds a release: UI, web package (Galenica-Web-<version>.zip) and the guided installer (Setup-<version>.exe).
+# Builds a release: UI, web package (Galenica-Web-<version>.zip), guided installer (Galenica-Setup-<version>.exe) and the installation guide (.docx).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 VERSION=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)
@@ -23,4 +23,7 @@ dotnet publish src/Installer/Galenica.Setup -c Release -r win-x64 -o "$SPUB" --n
 cp "$SPUB/Setup.exe" "$OUT/Galenica-Setup-$VERSION.exe"
 rm -rf "$SPUB"
 cp docs/installer.md "$OUT/Installer guide.md"
+
+echo "== Installation guide"
+NODE_PATH=$(npm root -g) node scripts/docs/install-guide.js "$OUT/Galenica-Installation-Guide-$VERSION.docx" "$VERSION"
 ls -la "$OUT"

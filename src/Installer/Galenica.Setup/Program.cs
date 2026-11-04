@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Galenica.Setup.Checks;
 using Galenica.Setup.Install;
 using Galenica.Setup.Security;
+using Galenica.Setup.Support;
 
 // Galenica – guided installer and security self-test.
 //   Setup.exe                         interactive menu
@@ -11,6 +12,7 @@ using Galenica.Setup.Security;
 //                            [--install-dir PATH] [--host-name NAME] [--https-port 443] [--certificate-thumbprint THUMB]
 //                            [--app-windows-login DOMAIN\ACCOUNT$]
 //   Setup.exe security-test  [--url https://server/] [--sql-server NAME] [--database Galenica] [--no-rate-limit-tests]
+//   Setup.exe diagnostics    (collects logs and settings into one zip file to send for help)
 //   Common: --verbose (show every detail on screen), --quiet (no prompts)
 //   SQL password for --sql-user without prompts: environment variable GALENICA_SQL_PASSWORD (never on the command line).
 Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -27,14 +29,15 @@ if (command is null && interactive)
     Console.WriteLine("2. Install or upgrade Galenica");
     Console.WriteLine("3. Preview installation (shows what would happen, changes nothing)");
     Console.WriteLine("4. Security, penetration and audit self-test (changes nothing)");
-    Console.Write("\nType 1, 2, 3 or 4 and press Enter: ");
+    Console.WriteLine("5. Collect diagnostics to send for help (changes nothing)");
+    Console.Write("\nType 1, 2, 3, 4 or 5 and press Enter: ");
     var choice = Console.ReadLine()?.Trim();
-    command = choice switch { "2" or "3" => "install", "4" => "security-test", _ => "check" };
+    command = choice switch { "2" or "3" => "install", "4" => "security-test", "5" => "diagnostics", _ => "check" };
     if (choice == "3") cli = cli with { Install = cli.Install with { WhatIf = true } };
 }
 command ??= "check";
 
-using var log = new InstallLog(InstallLog.DefaultPath(command switch { "install" => cli.Install.WhatIf ? "Preview" : "Install", "security-test" => "SecurityTest", _ => "Check" }), cli.Verbose);
+using var log = new InstallLog(InstallLog.DefaultPath(command switch { "install" => cli.Install.WhatIf ? "Preview" : "Install", "security-test" => "SecurityTest", "diagnostics" => "Diagnostics", _ => "Check" }), cli.Verbose);
 log.AddSecret(cli.Install.SqlPassword);
 WriteHeader(log, command, args);
 
@@ -45,6 +48,7 @@ try
     {
         "install" => await RunInstallAsync(),
         "security-test" => await RunSecurityTestAsync(cli.Install),
+        "diagnostics" => await Diagnostics.CollectAsync(new ProcessRunner(), log, cli.Web) is null ? 2 : 0,
         _ => RunCheck()
     };
 }
@@ -60,7 +64,12 @@ if (log.FilePath is not null)
     Console.WriteLine($"\nFull log file: {log.FilePath}");
     try { File.Copy(log.FilePath, Path.Combine(AppContext.BaseDirectory, Path.GetFileName(log.FilePath)), overwrite: true); Console.WriteLine($"(A copy is also next to Setup.exe.)"); }
     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-    if (exit != 0) Console.WriteLine("If you need help, send this log file. Passwords and codes are masked in it.");
+    if (exit != 0 && command != "diagnostics")
+    {
+        Console.WriteLine("If you need help, send this log file. Passwords and codes are masked in it.");
+        if (interactive && Ui.YesNo("Collect a full diagnostics zip (logs, event log, IIS settings) to send as well?", true))
+            await Diagnostics.CollectAsync(new ProcessRunner(), log, cli.Web);
+    }
 }
 if (interactive) { Console.WriteLine("\nPress Enter to close."); Console.ReadLine(); }
 return exit;
@@ -223,7 +232,7 @@ internal sealed record Cli(string? Command, InstallOptions Install, WebDeployOpt
             string Next() => i + 1 < args.Length ? args[++i] : throw new ArgumentException($"{args[i]} needs a value.");
             switch (a)
             {
-                case "check" or "install" or "security-test": command = a; break;
+                case "check" or "install" or "security-test" or "diagnostics": command = a; break;
                 case "--sql-server": o = o with { SqlServer = Next() }; break;
                 case "--database": o = o with { Database = Next() }; break;
                 case "--sql-user": o = o with { SqlUser = Next(), IntegratedSecurity = false }; break;
