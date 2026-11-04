@@ -482,5 +482,5 @@ $RECYCLE.BIN/
 *.swp
 
 # Generated UI build output (built by scripts/build-release.sh)
-src/Platform/Tds.Pas.Web/wwwroot/
+src/Platform/Galenica.Web/wwwroot/
 artifacts/

@@ -27,10 +27,10 @@ A log `setup-install-<date>.log` is saved next to Setup.exe. Restart the server 
 ## Command line
 ```
 Setup.exe check   [--sql-server PAS-SQL[:1433]] [--drive D:\] [--quiet]
-Setup.exe install --sql-server PAS-SQL [--database TdsPas] [--sql-user USER] [--trust-server-certificate]
+Setup.exe install --sql-server PAS-SQL [--database Galenica] [--sql-user USER] [--trust-server-certificate]
                   [--skip-iis] [--what-if] [--ignore-prerequisites] [--quiet]
 ```
-In quiet mode the SQL password comes from the environment variable `TDS_PAS_SQL_PASSWORD` (never put passwords on the command line).
+In quiet mode the SQL password comes from the environment variable `GALENICA_SQL_PASSWORD` (never put passwords on the command line).
 Exit codes: 0 success/ready · 1 ready with warnings · 2 failed/not ready.
 
 ## Coming next

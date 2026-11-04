@@ -1,4 +1,4 @@
-# TDS PAS – Patient Administration System
+# Galenica – Patient Administration System
 
 Tasman Day Surgery's locally hosted patient administration system, with eMR, billing, rostering, assets/CSSD, quality management, endoscopy, and a TDS-developed messaging and workflow engine.
 
@@ -10,13 +10,13 @@ Tasman Day Surgery's locally hosted patient administration system, with eMR, bil
 
 | Folder | Contents |
 |---|---|
-| `src/Platform/Tds.Pas.Core` | Shared core: identity, audit, organisation model, patients, module framework |
-| `src/Platform/Tds.Pas.Identity` | Accounts, MFA, roles/permissions, break-glass, first-admin set-up |
-| `src/Platform/Tds.Pas.Shared` | Small shared helpers (also used by Setup) |
-| `src/Platform/Tds.Pas.Messaging` | Messaging and workflow engine (HL7, FHIR, DICOM, workflows) |
-| `src/Platform/Tds.Pas.Web` | Web host (IIS / ASP.NET Core) |
+| `src/Platform/Galenica.Core` | Shared core: identity, audit, organisation model, patients, module framework |
+| `src/Platform/Galenica.Identity` | Accounts, MFA, roles/permissions, break-glass, first-admin set-up |
+| `src/Platform/Galenica.Shared` | Small shared helpers (also used by Setup) |
+| `src/Platform/Galenica.Messaging` | Messaging and workflow engine (HL7, FHIR, DICOM, workflows) |
+| `src/Platform/Galenica.Web` | Web host (IIS / ASP.NET Core) |
 | `src/Modules/` | One self-contained project per module |
-| `src/Installer/Tds.Pas.Setup` | Guided platform and module installers |
+| `src/Installer/Galenica.Setup` | Guided platform and module installers |
 | `tests/` | Automated tests (SQL Server integration tests run when `PAS_TEST_SQLSERVER` is set) |
 | `scripts/` | Build helpers (e.g. regenerate installer schema scripts) |
 | `docs/` | Specification, developer guide, data dictionary, decision records (ADRs), backlog |
