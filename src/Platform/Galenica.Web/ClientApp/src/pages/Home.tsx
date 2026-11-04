@@ -49,7 +49,8 @@ export default function Home() {
         {can(Perm.UsersManage) && (
           <section className="card">
             <h2>Administration</h2>
-            <p>User accounts, roles and settings screens are coming next. As System Administrator you do not have access to patient records.</p>
+            <p>Create staff accounts, set roles and help locked-out users. As System Administrator you do not have access to patient records.</p>
+            <Link className="btn btn-primary btn-big" to="/admin/users">Manage user accounts</Link>
           </section>
         )}
         <section className="card subtle">

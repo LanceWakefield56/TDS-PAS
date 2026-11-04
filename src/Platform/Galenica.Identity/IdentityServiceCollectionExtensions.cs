@@ -37,6 +37,7 @@ public static class IdentityServiceCollectionExtensions
         services.AddScoped<SignInService>();
         services.AddScoped<BreakGlassService>();
         services.AddScoped<FirstAdminService>();
+        services.AddScoped<UserAdminService>();
         services.AddSingleton<IBreakGlassNotifier, NoOpBreakGlassNotifier>();
         return services;
     }

@@ -64,3 +64,29 @@ public class AuditChainTests
         Assert.Null(AuditChain.FindFirstBreak(stored));
     }
 }
+
+public class AuditQueryTests
+{
+    [Fact]
+    public async Task Verification_reports_intact_chain_and_detects_a_tampered_record()
+    {
+        await using var conn = new SqliteConnection("DataSource=:memory:");
+        await conn.OpenAsync();
+        var options = new DbContextOptionsBuilder<PasDbContext>().UseSqlite(conn).Options;
+        await using var db = new PasDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var writer = new AuditWriter(db, TimeProvider.System);
+        for (var i = 0; i < 12; i++) await writer.WriteAsync("u" + i, "View", "Patient", "P" + i, "P" + i);
+
+        var q = new AuditQueryService(db, TimeProvider.System);
+        var ok = await q.VerifyAsync();
+        Assert.True(ok.Intact);
+        Assert.Equal(12, ok.Records);
+        Assert.Equal(3, (await q.SearchAsync(null, null, "View", take: 3)).Count);
+
+        await db.Database.ExecuteSqlRawAsync("UPDATE AuditEvents SET UserId = 'intruder' WHERE Sequence = 7");
+        var bad = await q.VerifyAsync();
+        Assert.False(bad.Intact);
+        Assert.Equal(7, bad.FirstBrokenSequence);
+    }
+}

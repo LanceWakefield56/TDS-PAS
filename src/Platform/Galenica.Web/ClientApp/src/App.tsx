@@ -8,6 +8,8 @@ import Home from './pages/Home';
 import PatientSearch from './pages/PatientSearch';
 import PatientRegister from './pages/PatientRegister';
 import PatientView from './pages/PatientView';
+import AdminUsers from './pages/AdminUsers';
+import AuditLog from './pages/AuditLog';
 
 interface Session { me: Me | null; refresh: () => Promise<void>; signOut: () => Promise<void>; can: (perm: string) => boolean }
 const SessionContext = createContext<Session>(null!);
@@ -61,6 +63,8 @@ export default function App() {
           <Route path="/patients" element={<PatientSearch />} />
           <Route path="/patients/new" element={<PatientRegister />} />
           <Route path="/patients/:id" element={<PatientView />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/audit" element={<AuditLog />} />
           <Route path="*" element={<div className="card"><h1>Page not found</h1><p>Use the menu to find what you need.</p></div>} />
         </Route>
       </Routes>

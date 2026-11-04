@@ -21,7 +21,8 @@ public sealed class AuditWriter(PasDbContext db, TimeProvider clock)
                 var last = await db.AuditEvents.AsNoTracking().OrderByDescending(x => x.Sequence).FirstOrDefaultAsync(token);
                 e = AuditChain.Seal(new AuditEvent
                 {
-                    OccurredAt = clock.GetUtcNow(),
+                    // Millisecond precision: stored exactly by every supported database, so hashes re-verify after reload.
+                    OccurredAt = TruncateToMilliseconds(clock.GetUtcNow()),
                     UserId = userId, Action = action, EntityType = entityType, EntityId = entityId,
                     PatientId = patientId, Reason = reason, Workstation = workstation,
                     PreviousHash = string.Empty, Hash = string.Empty
@@ -38,4 +39,7 @@ public sealed class AuditWriter(PasDbContext db, TimeProvider clock)
             }
         }, ct);
     }
+
+    private static DateTimeOffset TruncateToMilliseconds(DateTimeOffset t) =>
+        new(t.UtcTicks - t.UtcTicks % TimeSpan.TicksPerMillisecond, TimeSpan.Zero);
 }

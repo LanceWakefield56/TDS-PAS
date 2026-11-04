@@ -33,6 +33,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(new PasDatabaseOptions(UseSql));
 builder.Services.AddDbContext<PasDbContext>(o => UseSql(o, PasDbContext.Schema));
 builder.Services.AddScoped<AuditWriter>();
+builder.Services.AddScoped<AuditQueryService>();
 builder.Services.AddPasIdentity(o => UseSql(o, PasIdentityDbContext.Schema));
 builder.Services.AddPasModules([new PatientsModule()]);
 builder.Services.AddPasAuthentication(builder.Environment);
@@ -109,6 +110,7 @@ setup.MapPost("/complete", async (CompleteFirstAdmin req, FirstAdminService svc)
 app.MapAuthEndpoints();
 app.MapPatientEndpoints();
 app.MapOrganisationEndpoints();
+app.MapAdminEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.
 app.MapFallback("/api/{**rest}", () => Results.NotFound());

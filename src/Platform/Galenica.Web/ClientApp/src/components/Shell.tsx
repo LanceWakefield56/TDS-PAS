@@ -21,7 +21,8 @@ export default function Shell() {
           {can(Perm.PatientRegister) && <NavLink to="/patients/new">Register a patient</NavLink>}
           <span className="nav-soon" title="Coming in Phase 1">Theatre lists</span>
           <span className="nav-soon" title="Coming in Phase 1">Bookings</span>
-          {can(Perm.UsersManage) && <span className="nav-soon" title="Coming next">Administration</span>}
+          {can(Perm.UsersManage) && <NavLink to="/admin/users">User accounts</NavLink>}
+          {can(Perm.AuditView) && <NavLink to="/audit">Audit log</NavLink>}
         </nav>
         <main className="content" id="main"><Outlet /></main>
       </div>

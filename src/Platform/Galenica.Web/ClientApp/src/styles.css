@@ -95,3 +95,9 @@ label.check { flex-direction: row; align-items: center; font-weight: 400; } .che
   .content { padding: 1rem; } .user-role { display: none; }
 }
 @media print { .topbar, .sidenav, .btn, .auth-footer { display: none !important; } .auth-page { background: none; } }
+
+.notice { color: #1B5E20; background: #E8F5E9; border-radius: 8px; padding: .6rem .8rem; margin: 0; }
+.badge.ok { background: #E8F5E9; color: #1B5E20; } .badge.warn { background: var(--warn-bg); color: var(--warn); } .badge.off { background: #ECEFF1; color: #546E7A; }
+.actions { white-space: nowrap; } .actions .btn-link { min-height: 32px; padding: 0 .4rem; } .btn-link.danger { color: var(--danger); }
+fieldset.roles { border: 1px solid var(--line); border-radius: 8px; padding: .75rem 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: .5rem; }
+fieldset.roles legend { font-weight: 700; padding: 0 .3rem; }
