@@ -480,3 +480,7 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Generated UI build output (built by scripts/build-release.sh)
+src/Platform/Tds.Pas.Web/wwwroot/
+artifacts/

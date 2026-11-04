@@ -18,5 +18,6 @@
     <Project Path="tests/Tds.Pas.Identity.Tests/Tds.Pas.Identity.Tests.csproj" />
     <Project Path="tests/Tds.Pas.Modules.Patients.Tests/Tds.Pas.Modules.Patients.Tests.csproj" />
     <Project Path="tests/Tds.Pas.Setup.Tests/Tds.Pas.Setup.Tests.csproj" />
+    <Project Path="tests/Tds.Pas.Web.Tests/Tds.Pas.Web.Tests.csproj" />
   </Folder>
 </Solution>

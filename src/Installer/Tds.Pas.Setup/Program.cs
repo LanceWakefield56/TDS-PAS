@@ -6,6 +6,8 @@ using Tds.Pas.Setup.Install;
 //   Setup.exe check   [--sql-server NAME[:PORT]] [--drive C:\] [--quiet]
 //   Setup.exe install --sql-server NAME [--database TdsPas] [--sql-user USER] [--trust-server-certificate] [--skip-iis] [--what-if] [--quiet]
 //                     [--ignore-prerequisites]   (test labs only)
+//                     [--skip-web] [--web-package PATH] [--install-dir PATH] [--host-name NAME] [--https-port 443]
+//                     [--certificate-thumbprint THUMB] [--app-windows-login DOMAIN\PAS-WEB$]
 //   SQL password for --sql-user in quiet mode: environment variable TDS_PAS_SQL_PASSWORD
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 var cli = Cli.Parse(args);
@@ -46,7 +48,7 @@ if (command == "install")
         }
     }
     var log = new ConsoleInstallLog();
-    var context = new InstallContext(o, SystemProbeBase.Create(), new ProcessRunner(), log, TimeProvider.System);
+    var context = new InstallContext(o, SystemProbeBase.Create(), new ProcessRunner(), log, TimeProvider.System, cli.Web);
     var records = await Installer.RunAsync(Installer.PlatformSteps(), context);
     var failed = records.Any(r => r.Result.Outcome == StepOutcome.Failed);
 
@@ -62,6 +64,12 @@ if (command == "install")
             Ui.Colour(ConsoleColor.Yellow, $"\n        {context.BootstrapCode}\n");
             Console.WriteLine("Write it down now – it is not saved anywhere and cannot be shown again.");
             Console.WriteLine("If it is lost, run Setup again to create a new one.");
+        }
+        if (context.SiteUrl is not null)
+        {
+            Console.WriteLine($"\nOpen the PAS from a staff computer:  {context.SiteUrl}");
+            if (context.SelfSignedCertificate)
+                Console.WriteLine("(Sandbox: the certificate is self-signed, so browsers will warn. Install a proper certificate before live use.)");
         }
         if (context.RebootRequired) Ui.Colour(ConsoleColor.Yellow, "\nRestart this server to finish applying the security settings.");
     }
@@ -86,12 +94,13 @@ else
 if (interactive) { Console.WriteLine("\nPress Enter to close."); Console.ReadLine(); }
 return exit;
 
-internal sealed record Cli(string? Command, InstallOptions Install, bool Quiet)
+internal sealed record Cli(string? Command, InstallOptions Install, WebDeployOptions Web, bool Quiet)
 {
     public static Cli Parse(string[] args)
     {
         string? command = null;
         var o = new InstallOptions();
+        var w = new WebDeployOptions();
         var quiet = false;
         for (var i = 0; i < args.Length; i++)
         {
@@ -107,6 +116,13 @@ internal sealed record Cli(string? Command, InstallOptions Install, bool Quiet)
                 case "--skip-iis": o = o with { SkipIis = true }; break;
                 case "--what-if": o = o with { WhatIf = true }; break;
                 case "--ignore-prerequisites": o = o with { IgnorePrerequisites = true }; break;
+                case "--skip-web": o = o with { SkipWeb = true }; break;
+                case "--web-package": w = w with { PackagePath = Next() }; break;
+                case "--install-dir": w = w with { InstallDir = Next() }; break;
+                case "--host-name": w = w with { HostName = Next() }; break;
+                case "--https-port": w = w with { HttpsPort = int.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture) }; break;
+                case "--certificate-thumbprint": w = w with { CertificateThumbprint = Next().Replace(" ", "") }; break;
+                case "--app-windows-login": w = w with { AppWindowsLogin = Next() }; break;
                 case "--drive": o = o with { Drive = Next() }; break;
                 case "--quiet": quiet = true; break;
             }
@@ -114,7 +130,7 @@ internal sealed record Cli(string? Command, InstallOptions Install, bool Quiet)
         // Password only from the environment in quiet mode (never on the command line, where it would be logged).
         var pw = Environment.GetEnvironmentVariable("TDS_PAS_SQL_PASSWORD");
         if (o.SqlUser is not null && pw is not null) o = o with { SqlPassword = pw };
-        return new Cli(command, o, quiet);
+        return new Cli(command, o, w, quiet);
     }
 }
 

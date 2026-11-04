@@ -32,6 +32,7 @@ public static class IdentityServiceCollectionExtensions
             .AddPasswordValidator<PasPasswordValidator>();
 
         services.AddScoped<RoleSeeder>();
+        services.AddScoped<PasClaimsFactory>();
         services.AddScoped<MfaService>();
         services.AddScoped<SignInService>();
         services.AddScoped<BreakGlassService>();

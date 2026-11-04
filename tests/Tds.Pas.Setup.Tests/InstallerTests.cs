@@ -10,6 +10,7 @@ public class InstallerTests
     {
         public List<string> Scripts { get; } = [];
         public Task<ProcessResult> RunPowerShellAsync(string script, CancellationToken ct) { Scripts.Add(script); return Task.FromResult(new ProcessResult(exitCode, output)); }
+        public Task<ProcessResult> RunAsync(string fileName, string arguments, CancellationToken ct) { Scripts.Add(fileName + " " + arguments); return Task.FromResult(new ProcessResult(exitCode, output)); }
     }
 
     private sealed class ListLog : IInstallLog
@@ -56,7 +57,7 @@ public class InstallerTests
         var runner = new FakeRunner();
         var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL", WhatIf = true }, new WindowsProbe(), runner, new ListLog(), TimeProvider.System);
         var records = await Installer.RunAsync(Installer.PlatformSteps(), ctx);
-        Assert.Equal(7, records.Count);
+        Assert.Equal(12, records.Count);
         Assert.Empty(runner.Scripts);
         Assert.All(records.Skip(1), r => Assert.Equal(StepOutcome.WhatIf, r.Result.Outcome));
     }
@@ -92,6 +93,44 @@ public class InstallerTests
         var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL", Database = "Tds; DROP DATABASE x" }, new WindowsProbe(), new FakeRunner(), new ListLog(), TimeProvider.System);
         var r = await new CreateDatabaseStep().RunAsync(ctx, CancellationToken.None);
         Assert.Equal(StepOutcome.Failed, r.Outcome);
+    }
+
+    [Fact]
+    public void Web_package_finder_picks_the_highest_version()
+    {
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        foreach (var v in new[] { "0.3.0", "0.10.0", "0.9.1" }) File.WriteAllText(Path.Combine(dir, $"TDS-PAS-Web-{v}.zip"), "x");
+        Assert.EndsWith("TDS-PAS-Web-0.10.0.zip", WebPackage.Find(null, dir));
+        Assert.Null(WebPackage.Find(Path.Combine(dir, "missing.zip"), dir));
+    }
+
+    [Fact]
+    public void Generated_app_password_is_long_and_complex()
+    {
+        var p = WebPackage.GeneratePassword();
+        Assert.Equal(32, p.Length);
+        Assert.Contains(p, char.IsUpper); Assert.Contains(p, char.IsLower); Assert.Contains(p, char.IsDigit);
+        Assert.Contains(p, ch => !char.IsLetterOrDigit(ch));
+        Assert.NotEqual(p, WebPackage.GeneratePassword());
+    }
+
+    [Fact]
+    public void Production_settings_contain_connection_string_and_key_path()
+    {
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        WebPackage.WriteProductionSettings(dir, "Server=x;Password=a\"b", @"C:\ProgramData\TDS PAS\keys");
+        using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, "appsettings.Production.json")));
+        Assert.Equal("Server=x;Password=a\"b", doc.RootElement.GetProperty("ConnectionStrings").GetProperty("Pas").GetString());
+        Assert.Equal(@"C:\ProgramData\TDS PAS\keys", doc.RootElement.GetProperty("DataProtection").GetProperty("KeysPath").GetString());
+    }
+
+    [Fact]
+    public void Site_script_escapes_values_and_uses_https_only()
+    {
+        var ps = PowerShellScripts.ConfigureSite("TDS PAS", "TDS PAS", @"C:\Program Files\TDS PAS\Web", "o'brien.local", 443, null);
+        Assert.Contains("'o''brien.local'", ps);
+        Assert.Contains("-Ssl", ps);
+        Assert.Contains("Where-Object { $_.protocol -ne 'https' } | Remove-WebBinding", ps);
     }
 
     [Fact]
@@ -151,6 +190,26 @@ public class InstallerDatabaseTests
             Assert.Equal("APPEND_ONLY_LEDGER_TABLE", rd.GetString(0));
             await rd.NextResultAsync(); await rd.ReadAsync();
             Assert.Equal(1, rd.GetInt32(0));
+            await rd.CloseAsync();
+
+            // Application login: can read and write data, cannot change the schema.
+            var appCtx = new InstallContext(options, new NonWindowsSystemProbe(), new ProcessRunner(), new NoLog(), TimeProvider.System,
+                new WebDeployOptions { AppSqlLogin = "tds_pas_app_" + dbName[^6..] });
+            Assert.Equal(StepOutcome.Done, (await new AppDatabaseLoginStep().RunAsync(appCtx, CancellationToken.None)).Outcome);
+            await using var app = new SqlConnection(appCtx.AppConnectionString);
+            await app.OpenAsync();
+            await using (var read = new SqlCommand("SELECT COUNT(*) FROM core.Locations", app)) await read.ExecuteScalarAsync();
+            await using (var write = new SqlCommand("INSERT core.Organisations (Id, Name) VALUES (NEWID(), 'Test org')", app)) Assert.Equal(1, await write.ExecuteNonQueryAsync());
+            await Assert.ThrowsAsync<SqlException>(async () => { await using var ddl = new SqlCommand("CREATE TABLE core.Hack (Id int)", app); await ddl.ExecuteNonQueryAsync(); });
+            await Assert.ThrowsAsync<SqlException>(async () => { await using var del = new SqlCommand("DELETE FROM core.AuditEvents", app); await del.ExecuteNonQueryAsync(); });
+            // Running again refreshes the password; the new connection string works.
+            Assert.Equal(StepOutcome.Done, (await new AppDatabaseLoginStep().RunAsync(appCtx, CancellationToken.None)).Outcome);
+            await using var app2 = new SqlConnection(appCtx.AppConnectionString);
+            await app2.OpenAsync();
+            await app.CloseAsync(); await app2.CloseAsync();
+            SqlConnection.ClearAllPools();
+            await using var dropLogin = new SqlCommand($"DROP USER [{appCtx.Web.AppSqlLogin}]; USE master; DROP LOGIN [{appCtx.Web.AppSqlLogin}];", conn);
+            await dropLogin.ExecuteNonQueryAsync();
         }
         finally
         {

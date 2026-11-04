@@ -8,7 +8,8 @@ public static class Installer
     public static IReadOnlyList<IInstallStep> PlatformSteps() =>
     [
         new CheckPrerequisitesStep(), new InstallIisStep(), new HardenTlsStep(), new HardenIisStep(),
-        new CreateDatabaseStep(), new ApplySchemaStep(), new BootstrapCodeStep()
+        new CreateDatabaseStep(), new ApplySchemaStep(), new BootstrapCodeStep(),
+        new HostingBundleStep(), new AppDatabaseLoginStep(), new DeployWebFilesStep(), new ConfigureIisSiteStep(), new WebHealthCheckStep()
     ];
 
     public static async Task<IReadOnlyList<StepRecord>> RunAsync(IEnumerable<IInstallStep> steps, InstallContext c, CancellationToken ct = default)

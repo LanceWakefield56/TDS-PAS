@@ -13,6 +13,8 @@ public sealed record InstallOptions
     /// <summary>Only for the sandbox when SQL Server uses a self-signed certificate.</summary>
     public bool TrustServerCertificate { get; init; }
     public bool SkipIis { get; init; }
+    /// <summary>Install only the platform and database (no web application).</summary>
+    public bool SkipWeb { get; init; }
     public bool WhatIf { get; init; }
     /// <summary>Test labs only: continue even if prerequisite checks fail. Recorded in the log; never for production.</summary>
     public bool IgnorePrerequisites { get; init; }
@@ -56,13 +58,20 @@ public sealed record StepResult(StepOutcome Outcome, string Message)
 }
 
 /// <summary>Everything a step needs; external effects go through replaceable interfaces so steps are testable.</summary>
-public sealed class InstallContext(InstallOptions options, ISystemProbe probe, IProcessRunner processes, IInstallLog log, TimeProvider clock)
+public sealed class InstallContext(InstallOptions options, ISystemProbe probe, IProcessRunner processes, IInstallLog log, TimeProvider clock, WebDeployOptions? web = null, string? setupFolder = null)
 {
     public InstallOptions Options { get; } = options;
     public ISystemProbe Probe { get; } = probe;
     public IProcessRunner Processes { get; } = processes;
     public IInstallLog Log { get; } = log;
     public TimeProvider Clock { get; } = clock;
+    public WebDeployOptions Web { get; } = web ?? new WebDeployOptions();
+    /// <summary>Folder containing Setup.exe (where the web package and Hosting Bundle installer are looked for).</summary>
+    public string SetupFolder { get; } = setupFolder ?? AppContext.BaseDirectory;
+    /// <summary>Connection string for the web application's own least-privilege login (never logged).</summary>
+    public string? AppConnectionString { get; set; }
+    public string? SiteUrl { get; set; }
+    public bool SelfSignedCertificate { get; set; }
     /// <summary>Set by the bootstrap step so the final summary can show it.</summary>
     public string? BootstrapCode { get; set; }
     public bool RebootRequired { get; set; }
@@ -94,6 +103,7 @@ public sealed record ProcessResult(int ExitCode, string Output);
 public interface IProcessRunner
 {
     Task<ProcessResult> RunPowerShellAsync(string script, CancellationToken ct);
+    Task<ProcessResult> RunAsync(string fileName, string arguments, CancellationToken ct);
 }
 
 public sealed class ProcessRunner : IProcessRunner
@@ -107,6 +117,16 @@ public sealed class ProcessRunner : IProcessRunner
         using var p = System.Diagnostics.Process.Start(psi) ?? throw new InvalidOperationException("Could not start PowerShell.");
         await p.StandardInput.WriteAsync(script);
         p.StandardInput.Close();
+        var stdout = p.StandardOutput.ReadToEndAsync(ct);
+        var stderr = p.StandardError.ReadToEndAsync(ct);
+        await p.WaitForExitAsync(ct);
+        return new ProcessResult(p.ExitCode, ((await stdout) + (await stderr)).Trim());
+    }
+
+    public async Task<ProcessResult> RunAsync(string fileName, string arguments, CancellationToken ct)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo(fileName, arguments) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+        using var p = System.Diagnostics.Process.Start(psi) ?? throw new InvalidOperationException($"Could not start {fileName}.");
         var stdout = p.StandardOutput.ReadToEndAsync(ct);
         var stderr = p.StandardError.ReadToEndAsync(ct);
         await p.WaitForExitAsync(ct);
