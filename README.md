@@ -3,7 +3,7 @@
 Tasman Day Surgery's locally hosted patient administration system, with eMR, billing, rostering, assets/CSSD, quality management, endoscopy, and a TDS-developed messaging and workflow engine.
 
 - **Specification:** `docs/spec/TDS-PAS-Specification-v1.6.docx` (TDS-PAS-1.0)
-- **Status:** Phase 0 in progress (v0.2.0). Specification v1.6 approved.
+- **Status:** Phase 0 in progress (v0.3.0). Specification v1.6 approved.
 - **Owner:** Tasman Day Surgery. Product owner: Lance Wakefield.
 
 ## Structure

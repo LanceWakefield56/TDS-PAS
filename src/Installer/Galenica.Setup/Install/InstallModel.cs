@@ -38,6 +38,15 @@ public sealed record InstallOptions
         return b.ConnectionString;
     }
 
+    /// <summary>True when SQL Server runs on this same machine (single-server installation).</summary>
+    public bool IsLocalSqlServer()
+    {
+        var host = SplitHost(SqlServer).Host.Split('\\')[0].Trim().ToLowerInvariant();
+        if (host is "localhost" or "." or "(local)" or "127.0.0.1" or "::1") return true;
+        var machine = Environment.MachineName.ToLowerInvariant();
+        return host == machine || host.StartsWith(machine + ".", StringComparison.Ordinal);
+    }
+
     public static (string Host, int Port) SplitHost(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return ("localhost", 1433);
@@ -89,13 +98,11 @@ public interface IInstallLog
 {
     void Info(string message);
     void Detail(string message);
-}
-
-public sealed class ConsoleInstallLog : IInstallLog
-{
-    public List<string> Lines { get; } = [];
-    public void Info(string message) { Lines.Add(message); Console.WriteLine(message); }
-    public void Detail(string message) { Lines.Add("    " + message); Console.ForegroundColor = ConsoleColor.DarkGray; Console.WriteLine("    " + message); Console.ResetColor(); }
+    void Debug(string message);
+    void Warn(string message);
+    void Error(string message, Exception? ex = null);
+    void Block(string title, string text);
+    void AddSecret(string? secret);
 }
 
 public sealed record ProcessResult(int ExitCode, string Output);
@@ -115,13 +122,22 @@ public sealed class ProcessRunner : IProcessRunner
             RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true
         };
         using var p = System.Diagnostics.Process.Start(psi) ?? throw new InvalidOperationException("Could not start PowerShell.");
-        await p.StandardInput.WriteAsync(script);
+        await p.StandardInput.WriteAsync(Wrap(script));
         p.StandardInput.Close();
         var stdout = p.StandardOutput.ReadToEndAsync(ct);
         var stderr = p.StandardError.ReadToEndAsync(ct);
         await p.WaitForExitAsync(ct);
         return new ProcessResult(p.ExitCode, ((await stdout) + (await stderr)).Trim());
     }
+
+    /// <summary>
+    /// Wraps a script so that any failure reports the exact error, the line it happened on and the script stack,
+    /// and exits with code 1. Verbose PowerShell output is included.
+    /// </summary>
+    public static string Wrap(string script) =>
+        "$VerbosePreference = 'Continue'\n$ProgressPreference = 'SilentlyContinue'\ntry {\n" + script +
+        "\n} catch {\n  Write-Output ('ERROR: ' + $_.Exception.Message)\n  Write-Output ('WHERE: ' + $_.InvocationInfo.PositionMessage)\n" +
+        "  Write-Output ('CATEGORY: ' + $_.CategoryInfo)\n  Write-Output ('STACK: ' + $_.ScriptStackTrace)\n  exit 1\n}\nexit 0\n";
 
     public async Task<ProcessResult> RunAsync(string fileName, string arguments, CancellationToken ct)
     {

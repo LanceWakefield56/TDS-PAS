@@ -1,136 +1,253 @@
+using System.Runtime.InteropServices;
 using Galenica.Setup.Checks;
 using Galenica.Setup.Install;
+using Galenica.Setup.Security;
 
-// Galenica – guided platform installer.
-//   Setup.exe                      interactive menu
-//   Setup.exe check   [--sql-server NAME[:PORT]] [--drive C:\] [--quiet]
-//   Setup.exe install --sql-server NAME [--database Galenica] [--sql-user USER] [--trust-server-certificate] [--skip-iis] [--what-if] [--quiet]
-//                     [--ignore-prerequisites]   (test labs only)
-//                     [--skip-web] [--web-package PATH] [--install-dir PATH] [--host-name NAME] [--https-port 443]
-//                     [--certificate-thumbprint THUMB] [--app-windows-login DOMAIN\PAS-WEB$]
-//   SQL password for --sql-user in quiet mode: environment variable GALENICA_SQL_PASSWORD
+// Galenica – guided installer and security self-test.
+//   Setup.exe                         interactive menu
+//   Setup.exe check          [--sql-server NAME[:PORT]] [--drive C:\]
+//   Setup.exe install        --sql-server NAME [--database Galenica] [--sql-user USER] [--trust-server-certificate]
+//                            [--skip-iis] [--skip-web] [--what-if] [--ignore-prerequisites] [--web-package PATH]
+//                            [--install-dir PATH] [--host-name NAME] [--https-port 443] [--certificate-thumbprint THUMB]
+//                            [--app-windows-login DOMAIN\ACCOUNT$]
+//   Setup.exe security-test  [--url https://server/] [--sql-server NAME] [--database Galenica] [--no-rate-limit-tests]
+//   Common: --verbose (show every detail on screen), --quiet (no prompts)
+//   SQL password for --sql-user without prompts: environment variable GALENICA_SQL_PASSWORD (never on the command line).
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 var cli = Cli.Parse(args);
 var interactive = !cli.Quiet && !Console.IsInputRedirected;
+var version = cli.Install.Version;
 
-Ui.Title($"Galenica Setup {cli.Install.Version}");
+Ui.Title($"Galenica Setup {version}");
 
 var command = cli.Command;
 if (command is null && interactive)
 {
     Console.WriteLine("1. Check this server (changes nothing)");
-    Console.WriteLine("2. Install or upgrade the PAS platform");
-    Console.WriteLine("3. Preview installation (what would happen, changes nothing)");
-    Console.Write("\nChoose 1, 2 or 3: ");
+    Console.WriteLine("2. Install or upgrade Galenica");
+    Console.WriteLine("3. Preview installation (shows what would happen, changes nothing)");
+    Console.WriteLine("4. Security, penetration and audit self-test (changes nothing)");
+    Console.Write("\nType 1, 2, 3 or 4 and press Enter: ");
     var choice = Console.ReadLine()?.Trim();
-    command = choice switch { "2" => "install", "3" => "install", _ => "check" };
+    command = choice switch { "2" or "3" => "install", "4" => "security-test", _ => "check" };
     if (choice == "3") cli = cli with { Install = cli.Install with { WhatIf = true } };
 }
 command ??= "check";
 
+using var log = new InstallLog(InstallLog.DefaultPath(command switch { "install" => cli.Install.WhatIf ? "Preview" : "Install", "security-test" => "SecurityTest", _ => "Check" }), cli.Verbose);
+log.AddSecret(cli.Install.SqlPassword);
+WriteHeader(log, command, args);
+
 int exit;
-if (command == "install")
+try
+{
+    exit = command switch
+    {
+        "install" => await RunInstallAsync(),
+        "security-test" => await RunSecurityTestAsync(cli.Install),
+        _ => RunCheck()
+    };
+}
+catch (Exception ex)
+{
+    log.Error($"Setup stopped because of an unexpected error: {ex.Message}", ex);
+    exit = 3;
+}
+
+log.Debug($"Setup finished with exit code {exit}.");
+if (log.FilePath is not null)
+{
+    Console.WriteLine($"\nFull log file: {log.FilePath}");
+    try { File.Copy(log.FilePath, Path.Combine(AppContext.BaseDirectory, Path.GetFileName(log.FilePath)), overwrite: true); Console.WriteLine($"(A copy is also next to Setup.exe.)"); }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    if (exit != 0) Console.WriteLine("If you need help, send this log file. Passwords and codes are masked in it.");
+}
+if (interactive) { Console.WriteLine("\nPress Enter to close."); Console.ReadLine(); }
+return exit;
+
+int RunCheck()
+{
+    var sql = cli.Install.SqlServer;
+    if (sql is null && interactive) sql = Ui.Ask("SQL Server name to test (on a single server type localhost; press Enter to skip)", "localhost");
+    var (host, port) = InstallOptions.SplitHost(sql);
+    var probe = SystemProbeBase.Create();
+    LogProbe(log, probe, cli.Install.Drive);
+    var report = CheckRunner.Run(PrerequisiteChecks.All(), new SetupContext(cli.Install.Drive, sql is null ? null : host, port), probe, TimeProvider.System);
+    Ui.PrintReport(report);
+    foreach (var o in report.Outcomes) log.Debug($"[{CheckReport.Label(o.Result.Status)}] {o.Check.Category} | {o.Check.Name} | {o.Result.Detail}{(o.Result.Fix is null ? "" : " | Fix: " + o.Result.Fix)}");
+    return report.ExitCode;
+}
+
+async Task<int> RunInstallAsync()
 {
     var o = cli.Install;
     if (interactive)
     {
-        o = o with { SqlServer = o.SqlServer ?? Ui.Ask("SQL Server name (e.g. PAS-SQL)", null) };
+        Console.WriteLine("Answer the questions below. Press Enter to accept the value in [brackets].\n");
+        o = o with { SqlServer = o.SqlServer ?? Ui.Ask("SQL Server name (single server: localhost)", "localhost") };
         o = o with { Database = Ui.Ask("Database name", o.Database) ?? o.Database };
-        if (o.SqlUser is null && !Ui.YesNo("Use Windows authentication to SQL Server?", true))
-            o = o with { IntegratedSecurity = false, SqlUser = Ui.Ask("SQL login name", null) };
-        if (o.SqlUser is not null && o.SqlPassword is null) o = o with { IntegratedSecurity = false, SqlPassword = Ui.Secret("SQL password") };
+        if (o.SqlUser is null && !Ui.YesNo("Connect to SQL Server with your Windows account (recommended)?", true))
+            o = o with { IntegratedSecurity = false, SqlUser = Ui.Ask("SQL login name", "sa") };
+        if (o.SqlUser is not null && o.SqlPassword is null) o = o with { IntegratedSecurity = false, SqlPassword = Ui.Secret("SQL password (hidden as you type)") };
         if (!o.TrustServerCertificate)
-            o = o with { TrustServerCertificate = Ui.YesNo("Does SQL Server use a self-signed certificate (sandbox only)?", false) };
-        if (!o.WhatIf && !Ui.YesNo("\nReady to install. This will change this server's IIS and security settings. Continue?", false))
+            o = o with { TrustServerCertificate = Ui.YesNo("Is SQL Server using its own self-signed certificate (normal for a new sandbox install)?", true) };
+        if (!o.WhatIf && !Ui.YesNo("\nReady to install. This changes this server's IIS and security settings. Continue?", false))
         {
-            Console.WriteLine("Cancelled. Nothing was changed.");
+            log.Info("Cancelled by the user. Nothing was changed.");
             return 0;
         }
     }
-    var log = new ConsoleInstallLog();
-    var context = new InstallContext(o, SystemProbeBase.Create(), new ProcessRunner(), log, TimeProvider.System, cli.Web);
+    log.AddSecret(o.SqlPassword);
+    log.Debug($"Install options: SqlServer={o.SqlServer}; Database={o.Database}; WindowsAuth={o.IntegratedSecurity}; SqlUser={o.SqlUser ?? "-"}; TrustServerCertificate={o.TrustServerCertificate}; " +
+              $"LocalSql={o.IsLocalSqlServer()}; SkipIis={o.SkipIis}; SkipWeb={o.SkipWeb}; WhatIf={o.WhatIf}; IgnorePrerequisites={o.IgnorePrerequisites}");
+    log.Debug($"Web options: InstallDir={cli.Web.InstallDir}; DataDir={cli.Web.DataDir}; Site={cli.Web.SiteName}; Pool={cli.Web.AppPoolName}; Host={cli.Web.HostName ?? "(this server)"}; " +
+              $"Port={cli.Web.HttpsPort}; Certificate={cli.Web.CertificateThumbprint ?? "(self-signed)"}; AppWindowsLogin={cli.Web.AppWindowsLogin ?? "(automatic)"}; Package={cli.Web.PackagePath ?? "(search next to Setup.exe)"}");
+
+    var probe = SystemProbeBase.Create();
+    LogProbe(log, probe, o.Drive);
+    var context = new InstallContext(o, probe, new ProcessRunner(), log, TimeProvider.System, cli.Web);
     var records = await Installer.RunAsync(Installer.PlatformSteps(), context);
+    if (context.BootstrapCode is not null) log.AddSecret(context.BootstrapCode.Replace("-", string.Empty));
     var failed = records.Any(r => r.Result.Outcome == StepOutcome.Failed);
 
     Console.WriteLine();
-    if (failed) Ui.Colour(ConsoleColor.Red, "INSTALLATION STOPPED – fix the problem above and run Setup again (completed steps are skipped safely).");
-    else if (o.WhatIf) Ui.Colour(ConsoleColor.Cyan, "PREVIEW COMPLETE – nothing was changed.");
-    else
+    log.Debug("Summary: " + string.Join(" | ", records.Select(r => $"{r.Step.Name}: {r.Result.Outcome}")));
+    if (failed)
     {
-        Ui.Colour(ConsoleColor.Green, "PLATFORM INSTALLATION COMPLETE.");
-        if (context.BootstrapCode is not null)
-        {
-            Console.WriteLine("\nOne-time code for setting up the first administrator (valid 7 days):");
-            Ui.Colour(ConsoleColor.Yellow, $"\n        {context.BootstrapCode}\n");
-            Console.WriteLine("Write it down now – it is not saved anywhere and cannot be shown again.");
-            Console.WriteLine("If it is lost, run Setup again to create a new one.");
-        }
-        if (context.SiteUrl is not null)
-        {
-            Console.WriteLine($"\nOpen the PAS from a staff computer:  {context.SiteUrl}");
-            if (context.SelfSignedCertificate)
-                Console.WriteLine("(Sandbox: the certificate is self-signed, so browsers will warn. Install a proper certificate before live use.)");
-        }
-        if (context.RebootRequired) Ui.Colour(ConsoleColor.Yellow, "\nRestart this server to finish applying the security settings.");
+        Ui.Colour(ConsoleColor.Red, "INSTALLATION STOPPED – read the red message above. Fix the problem and run Setup again (finished steps are skipped safely).");
+        return 2;
     }
-    var logPath = Path.Combine(AppContext.BaseDirectory, $"setup-install-{DateTime.Now:yyyyMMdd-HHmmss}.log");
-    try { File.WriteAllLines(logPath, log.Lines); Console.WriteLine($"\nLog saved: {logPath}"); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-    exit = failed ? 2 : 0;
+    if (o.WhatIf) { Ui.Colour(ConsoleColor.Cyan, "PREVIEW COMPLETE – nothing was changed."); return 0; }
+
+    Ui.Colour(ConsoleColor.Green, "INSTALLATION COMPLETE.");
+    if (context.BootstrapCode is not null)
+    {
+        Console.WriteLine("\nOne-time code for setting up the first administrator (valid 7 days):");
+        Ui.Colour(ConsoleColor.Yellow, $"\n        {context.BootstrapCode}\n");
+        Console.WriteLine("Write it down now. It is NOT saved in the log and cannot be shown again.");
+        Console.WriteLine("If it is lost, run Setup again to make a new one (until the first administrator is set up).");
+    }
+    if (context.SiteUrl is not null)
+    {
+        Console.WriteLine($"\nOpen Galenica from the Windows 11 workstation:  {context.SiteUrl}");
+        if (context.SelfSignedCertificate) Console.WriteLine("(Sandbox: the certificate is self-signed – see the installation guide for trusting it on the workstation.)");
+    }
+    if (context.RebootRequired) Ui.Colour(ConsoleColor.Yellow, "\nRESTART this server when convenient to finish applying the security settings.");
+
+    if (interactive && context.SiteUrl is not null && Ui.YesNo("\nRun the security, penetration and audit self-test now?", true))
+        await RunSecurityTestAsync(o, context.SiteUrl.Replace(System.Net.Dns.GetHostName(), "localhost", StringComparison.OrdinalIgnoreCase));
+    return 0;
 }
-else
+
+async Task<int> RunSecurityTestAsync(InstallOptions db, string? url = null)
 {
-    var (host, port) = InstallOptions.SplitHost(cli.Install.SqlServer);
-    var sql = cli.Install.SqlServer;
-    if (sql is null && interactive) sql = Ui.Ask("SQL Server name to test (press Enter to skip)", null);
-    if (sql is not null) (host, port) = InstallOptions.SplitHost(sql);
-    var report = CheckRunner.Run(PrerequisiteChecks.All(), new SetupContext(cli.Install.Drive, sql is null ? null : host, port), SystemProbeBase.Create(), TimeProvider.System);
-    Ui.PrintReport(report);
-    var reportPath = Path.Combine(AppContext.BaseDirectory, $"setup-report-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
-    try { File.WriteAllText(reportPath, report.ToText()); Console.WriteLine($"Report saved: {reportPath}"); }
-    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Console.WriteLine("The report could not be saved next to Setup."); }
-    exit = report.ExitCode;
+    if (interactive && cli.Command == "security-test" || (interactive && cli.Command is null && url is null))
+    {
+        db = db with { SqlServer = db.SqlServer ?? Ui.Ask("SQL Server name (single server: localhost)", "localhost") };
+        db = db with { Database = Ui.Ask("Database name", db.Database) ?? db.Database };
+        if (db.SqlUser is null && !Ui.YesNo("Connect to SQL Server with your Windows account?", true))
+            db = db with { IntegratedSecurity = false, SqlUser = Ui.Ask("SQL login name", "sa") };
+        if (db.SqlUser is not null && db.SqlPassword is null) db = db with { IntegratedSecurity = false, SqlPassword = Ui.Secret("SQL password (hidden)") };
+        if (!db.TrustServerCertificate) db = db with { TrustServerCertificate = Ui.YesNo("Is SQL Server using its own self-signed certificate?", true) };
+        url ??= cli.SecurityUrl ?? Ui.Ask("Galenica website address", "https://localhost/");
+    }
+    log.AddSecret(db.SqlPassword);
+    var options = new SecurityTestOptions { Url = url ?? cli.SecurityUrl ?? "https://localhost/", Database = db, Web = cli.Web, IncludeRateLimitTests = !cli.NoRateLimitTests };
+    log.Info($"\nSECURITY, PENETRATION AND AUDIT SELF-TEST against {options.Url}");
+    log.Detail("Safe and read-only: it sends the same requests an attacker might, but changes nothing. Failed sign-in attempts by 'sectest-…' will appear in the audit log.");
+    var report = await SecurityTester.RunAsync(options, new ProcessRunner(), log);
+
+    Console.WriteLine();
+    foreach (var g in report.Findings.GroupBy(f => f.Area))
+    {
+        Ui.Colour(ConsoleColor.White, g.Key);
+        foreach (var f in g)
+        {
+            Console.ForegroundColor = f.Status switch { FindingStatus.Pass => ConsoleColor.Green, FindingStatus.Warn => ConsoleColor.Yellow, FindingStatus.Fail => ConsoleColor.Red, FindingStatus.Info => ConsoleColor.Cyan, _ => ConsoleColor.DarkGray };
+            Console.Write($"  [{SecurityReport.Label(f.Status)}] ");
+            Console.ResetColor();
+            Console.WriteLine($"{f.Test}: {f.Detail}");
+            if (f.Fix is not null) Console.WriteLine($"         What to do: {f.Fix}");
+        }
+    }
+    Console.WriteLine();
+    Ui.Colour(report.ExitCode == 2 ? ConsoleColor.Red : report.ExitCode == 1 ? ConsoleColor.Yellow : ConsoleColor.Green, $"RESULT: {report.Verdict}.");
+    var dir = OperatingSystem.IsWindows() ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Galenica", "Reports") : AppContext.BaseDirectory;
+    try
+    {
+        Directory.CreateDirectory(dir);
+        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        var html = Path.Combine(dir, $"Galenica-Security-Report-{stamp}.html");
+        File.WriteAllText(html, report.ToHtml());
+        File.WriteAllText(Path.ChangeExtension(html, ".txt"), report.ToText());
+        Console.WriteLine($"Report saved: {html}  (open it in a web browser)");
+        try { File.Copy(html, Path.Combine(AppContext.BaseDirectory, Path.GetFileName(html)), true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { log.Warn($"Could not save the report: {ex.Message}"); }
+    Console.WriteLine(SecurityReport.Disclaimer);
+    return report.ExitCode;
 }
 
-if (interactive) { Console.WriteLine("\nPress Enter to close."); Console.ReadLine(); }
-return exit;
+static void WriteHeader(InstallLog log, string command, string[] args)
+{
+    log.Debug(new string('=', 100));
+    log.Debug($"Galenica Setup {typeof(Cli).Assembly.GetName().Version} – command '{command}'");
+    log.Debug($"Started {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz} on {Environment.MachineName} as {Environment.UserDomainName}\\{Environment.UserName}");
+    log.Debug($"Operating system: {RuntimeInformation.OSDescription} ({RuntimeInformation.OSArchitecture}); .NET {Environment.Version}; process {(Environment.Is64BitProcess ? 64 : 32)}-bit");
+    log.Debug($"Setup folder: {AppContext.BaseDirectory}; working folder: {Environment.CurrentDirectory}");
+    log.Debug($"Command line: {string.Join(' ', args)}");
+    log.Debug($"Time zone: {TimeZoneInfo.Local.Id}; culture: {System.Globalization.CultureInfo.CurrentCulture.Name}");
+    log.Debug(new string('=', 100));
+}
 
-internal sealed record Cli(string? Command, InstallOptions Install, WebDeployOptions Web, bool Quiet)
+static void LogProbe(InstallLog log, ISystemProbe p, string drive)
+{
+    log.Debug($"Probe: IsWindows={p.IsWindows}; OsVersion={p.OsVersion}; InstallationType={p.WindowsInstallationType ?? "-"}; 64bit={p.Is64Bit}; Admin={p.IsAdministrator}; " +
+              $"MemoryGB={p.TotalMemoryBytes / 1073741824.0:0.0}; FreeDiskGB({drive})={(p.FreeDiskBytes(drive) ?? 0) / 1073741824.0:0.0}; IIS={p.IisMajorVersion?.ToString() ?? "none"}; " +
+              $"ANCMv2={p.AspNetCoreModuleV2Installed}; AspNetCore=[{string.Join(", ", p.AspNetCoreRuntimeVersions)}]; TimeZone={p.TimeZoneId}");
+    foreach (var proto in new[] { "SSL 3.0", "TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3" })
+        log.Debug($"Probe: SCHANNEL {proto} server enabled = {p.TlsProtocolServerEnabled(proto)?.ToString() ?? "OS default"}");
+}
+
+internal sealed record Cli(string? Command, InstallOptions Install, WebDeployOptions Web, bool Quiet, bool Verbose, string? SecurityUrl, bool NoRateLimitTests)
 {
     public static Cli Parse(string[] args)
     {
-        string? command = null;
+        string? command = null, url = null;
         var o = new InstallOptions();
         var w = new WebDeployOptions();
-        var quiet = false;
+        bool quiet = false, verbose = false, noRate = false;
         for (var i = 0; i < args.Length; i++)
         {
             var a = args[i].ToLowerInvariant();
             string Next() => i + 1 < args.Length ? args[++i] : throw new ArgumentException($"{args[i]} needs a value.");
             switch (a)
             {
-                case "check" or "install": command = a; break;
+                case "check" or "install" or "security-test": command = a; break;
                 case "--sql-server": o = o with { SqlServer = Next() }; break;
                 case "--database": o = o with { Database = Next() }; break;
                 case "--sql-user": o = o with { SqlUser = Next(), IntegratedSecurity = false }; break;
                 case "--trust-server-certificate": o = o with { TrustServerCertificate = true }; break;
                 case "--skip-iis": o = o with { SkipIis = true }; break;
+                case "--skip-web": o = o with { SkipWeb = true }; break;
                 case "--what-if": o = o with { WhatIf = true }; break;
                 case "--ignore-prerequisites": o = o with { IgnorePrerequisites = true }; break;
-                case "--skip-web": o = o with { SkipWeb = true }; break;
+                case "--drive": o = o with { Drive = Next() }; break;
                 case "--web-package": w = w with { PackagePath = Next() }; break;
                 case "--install-dir": w = w with { InstallDir = Next() }; break;
                 case "--host-name": w = w with { HostName = Next() }; break;
                 case "--https-port": w = w with { HttpsPort = int.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture) }; break;
                 case "--certificate-thumbprint": w = w with { CertificateThumbprint = Next().Replace(" ", "") }; break;
                 case "--app-windows-login": w = w with { AppWindowsLogin = Next() }; break;
-                case "--drive": o = o with { Drive = Next() }; break;
+                case "--url": url = Next(); break;
+                case "--no-rate-limit-tests": noRate = true; break;
+                case "--verbose": verbose = true; break;
                 case "--quiet": quiet = true; break;
             }
         }
-        // Password only from the environment in quiet mode (never on the command line, where it would be logged).
         var pw = Environment.GetEnvironmentVariable("GALENICA_SQL_PASSWORD");
         if (o.SqlUser is not null && pw is not null) o = o with { SqlPassword = pw };
-        return new Cli(command, o, w, quiet);
+        return new Cli(command, o, w, quiet, verbose, url, noRate);
     }
 }
 

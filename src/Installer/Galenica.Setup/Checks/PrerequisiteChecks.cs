@@ -78,7 +78,7 @@ public static class PrerequisiteChecks
             if (string.IsNullOrWhiteSpace(c.SqlServerHost)) return CheckResult.Skip("No SQL Server specified (use --sql-server).");
             return p.CanConnectTcp(c.SqlServerHost, c.SqlServerPort, TimeSpan.FromSeconds(5))
                 ? CheckResult.Pass($"Connected to {c.SqlServerHost}:{c.SqlServerPort}.")
-                : CheckResult.Fail($"Cannot reach {c.SqlServerHost}:{c.SqlServerPort}.", "Check the server name, that SQL Server is running with TCP enabled, and the firewall allows port 1433 from this server.");
+                : CheckResult.Fail($"Cannot reach {c.SqlServerHost}:{c.SqlServerPort}.", "Check: (1) the 'SQL Server (MSSQLSERVER)' service is Running (open services.msc); (2) TCP/IP is enabled – SQL Server Configuration Manager → SQL Server Network Configuration → Protocols for MSSQLSERVER → TCP/IP → Enable, then restart the SQL Server service; (3) on a separate SQL server, the firewall allows TCP 1433.");
         }),
     ];
 

@@ -1,6 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
-
 namespace Galenica.Core.Audit;
 
 /// <summary>
@@ -9,19 +6,13 @@ namespace Galenica.Core.Audit;
 /// </summary>
 public static class AuditChain
 {
-    public const string GenesisHash = "GENESIS";
+    public const string GenesisHash = Galenica.Shared.AuditHash.Genesis;
 
     public static string ComputeHash(AuditEvent e, string previousHash)
     {
         ArgumentNullException.ThrowIfNull(e);
-        // Unit separator (U+001F) between fields prevents ambiguity between adjacent values.
-        var canonical = string.Join('\u001F',
-            e.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            e.OccurredAt.UtcDateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
-            e.UserId, e.Action, e.EntityType, e.EntityId,
-            e.PatientId ?? string.Empty, e.Reason ?? string.Empty, e.Workstation ?? string.Empty,
-            previousHash);
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+        return Galenica.Shared.AuditHash.Compute(e.Sequence, e.OccurredAt, e.UserId, e.Action, e.EntityType, e.EntityId,
+            e.PatientId, e.Reason, e.Workstation, previousHash);
     }
 
     /// <summary>Fills in sequence, previous hash and hash for a new record appended after <paramref name="last"/>.</summary>

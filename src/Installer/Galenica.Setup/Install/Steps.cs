@@ -15,8 +15,11 @@ public sealed class CheckPrerequisitesStep : IInstallStep
     {
         var report = CheckRunner.Run(PrerequisiteChecks.All(), new SetupContext(c.Options.Drive, c.Options.SqlServer is null ? null : InstallOptions.SplitHost(c.Options.SqlServer).Host, InstallOptions.SplitHost(c.Options.SqlServer).Port), c.Probe, c.Clock);
         var blocking = report.Outcomes.Where(o => o.Result.Status == CheckStatus.Fail && !FixedLater.Contains(o.Check.Name)).ToList();
-        foreach (var o in report.Outcomes.Where(o => o.Result.Status is CheckStatus.Fail or CheckStatus.Warning))
-            c.Log.Detail($"[{CheckReport.Label(o.Result.Status)}] {o.Check.Name}: {o.Result.Detail}");
+        foreach (var o in report.Outcomes)
+        {
+            var text = $"[{CheckReport.Label(o.Result.Status)}] {o.Check.Category} – {o.Check.Name}: {o.Result.Detail}" + (o.Result.Fix is null ? "" : $" | What to do: {o.Result.Fix}");
+            if (o.Result.Status is CheckStatus.Fail or CheckStatus.Warning) c.Log.Detail(text); else c.Log.Debug(text);
+        }
         if (blocking.Count > 0 && c.Options.IgnorePrerequisites)
             return Task.FromResult(StepResult.Done($"WARNING: {blocking.Count} prerequisite problem(s) ignored (--ignore-prerequisites, test lab only – not supported for production)."));
         return Task.FromResult(blocking.Count == 0
@@ -36,13 +39,17 @@ public abstract class PowerShellStep(string script) : IInstallStep
     {
         if (!c.Probe.IsWindows) return StepResult.Skip("Not running on Windows.");
         if (ShouldSkip(c, out var reason)) return StepResult.Skip(reason);
-        if (c.Options.WhatIf)
-        {
-            foreach (var line in script.Split('\n').Take(6)) c.Log.Detail(line.TrimEnd());
-            return StepResult.Planned("Would run the PowerShell script above (first lines shown).");
-        }
+        c.Log.Block($"PowerShell script for '{Name}'", script);
+        if (c.Options.WhatIf) return StepResult.Planned("Would run the PowerShell script shown in the log.");
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         var r = await c.Processes.RunPowerShellAsync(script, ct);
-        if (r.ExitCode != 0) return StepResult.Fail($"PowerShell reported an error: {r.Output}");
+        c.Log.Debug($"PowerShell exit code {r.ExitCode} after {watch.Elapsed.TotalSeconds:0.0}s.");
+        c.Log.Block("PowerShell output", r.Output);
+        if (r.ExitCode != 0)
+        {
+            foreach (var l in r.Output.Split('\n').Where(l => l.StartsWith("ERROR:") || l.StartsWith("WHERE:") || l.StartsWith("CATEGORY:"))) c.Log.Detail(l.Trim());
+            return StepResult.Fail($"PowerShell reported an error (exit code {r.ExitCode}). The full output is in the log file.");
+        }
         AfterSuccess(c, r.Output);
         return StepResult.Done(r.Output.Split('\n').LastOrDefault()?.Trim() ?? "Done.");
     }
@@ -83,8 +90,15 @@ public sealed class CreateDatabaseStep : IInstallStep
             return StepResult.Fail("Database name may only contain letters, digits and underscores.");
         if (c.Options.WhatIf) return StepResult.Planned($"Would create database [{db}] on {c.Options.SqlServer} if missing.");
 
+        c.Log.Debug($"Connecting: {c.Options.ConnectionString("master")}");
         await using var conn = new SqlConnection(c.Options.ConnectionString("master"));
-        await conn.OpenAsync(ct);
+        try { await conn.OpenAsync(ct); }
+        catch (SqlException ex)
+        {
+            c.Log.Error($"Could not connect to SQL Server '{c.Options.SqlServer}': SQL error {ex.Number}: {ex.Message}", ex);
+            return StepResult.Fail(SqlHelp.For(ex));
+        }
+        c.Log.Debug($"Connected to SQL Server {conn.ServerVersion} as {(c.Options.IntegratedSecurity ? "Windows user " + Environment.UserDomainName + "\\" + Environment.UserName : "SQL login " + c.Options.SqlUser)}.");
         await using (var check = new SqlCommand("SELECT DB_ID(@n)", conn))
         {
             check.Parameters.AddWithValue("@n", db);
@@ -101,6 +115,17 @@ public sealed class CreateDatabaseStep : IInstallStep
     }
 }
 
+internal static class SqlHelp
+{
+    public static string For(SqlException ex) => ex.Number switch
+    {
+        18456 => "SQL Server refused the login (error 18456). Check the username/password, or that your Windows account was added as a SQL administrator during SQL Server installation.",
+        -2 or 2 or 53 or 40 => "Cannot reach SQL Server. Check the server name, that the 'SQL Server (MSSQLSERVER)' service is running, and that TCP/IP is enabled in SQL Server Configuration Manager.",
+        -2146893019 or 0 when ex.Message.Contains("certificate", StringComparison.OrdinalIgnoreCase) => "SQL Server's certificate is not trusted. In the sandbox, answer 'yes' to the self-signed certificate question (or use --trust-server-certificate).",
+        _ => $"SQL Server error {ex.Number}: {ex.Message}"
+    };
+}
+
 public sealed class ApplySchemaStep : IInstallStep
 {
     public string Name => "Create or upgrade the database tables";
@@ -112,16 +137,29 @@ public sealed class ApplySchemaStep : IInstallStep
         if (scripts.Count == 0) return StepResult.Fail("No schema scripts are embedded in this Setup build.");
         if (c.Options.WhatIf) return StepResult.Planned($"Would apply {scripts.Count} schema script(s): {string.Join(", ", scripts.Select(s => s.Name))}.");
 
+        c.Log.Debug($"Connecting: {c.Options.ConnectionString()}");
         await using var conn = new SqlConnection(c.Options.ConnectionString());
         await conn.OpenAsync(ct);
+        c.Log.Debug($"Connected to SQL Server {conn.ServerVersion}, database {conn.Database}.");
         foreach (var (name, sql) in scripts)
         {
             var batches = SqlScripts.SplitBatches(sql);
-            foreach (var batch in batches)
+            for (var b = 0; b < batches.Count; b++)
             {
+                var batch = batches[b];
+                var firstLine = batch.Split('\n').FirstOrDefault(l => l.Trim().Length > 0)?.Trim() ?? "";
                 await using var cmd = new SqlCommand(batch, conn) { CommandTimeout = 300 };
-                try { await cmd.ExecuteNonQueryAsync(ct); }
-                catch (SqlException ex) { return StepResult.Fail($"{name}: {ex.Message}"); }
+                try
+                {
+                    var rows = await cmd.ExecuteNonQueryAsync(ct);
+                    c.Log.Debug($"{name} batch {b + 1}/{batches.Count} OK (rows {rows}): {firstLine}");
+                }
+                catch (SqlException ex)
+                {
+                    c.Log.Error($"{name} batch {b + 1}/{batches.Count} failed: SQL error {ex.Number} (state {ex.State}, severity {ex.Class}, line {ex.LineNumber}): {ex.Message}", ex);
+                    c.Log.Block($"Failing SQL batch ({name} #{b + 1})", batch);
+                    return StepResult.Fail($"{name}: SQL error {ex.Number}: {ex.Message}");
+                }
             }
             c.Log.Detail($"{name}: {batches.Count} batch(es) applied.");
         }

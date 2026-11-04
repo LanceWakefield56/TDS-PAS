@@ -13,12 +13,6 @@ public class InstallerTests
         public Task<ProcessResult> RunAsync(string fileName, string arguments, CancellationToken ct) { Scripts.Add(fileName + " " + arguments); return Task.FromResult(new ProcessResult(exitCode, output)); }
     }
 
-    private sealed class ListLog : IInstallLog
-    {
-        public List<string> Lines { get; } = [];
-        public void Info(string m) => Lines.Add(m);
-        public void Detail(string m) => Lines.Add(m);
-    }
 
     private sealed class WindowsProbe : ISystemProbe
     {
@@ -55,7 +49,7 @@ public class InstallerTests
     public async Task Preview_changes_nothing_and_plans_every_step()
     {
         var runner = new FakeRunner();
-        var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL", WhatIf = true }, new WindowsProbe(), runner, new ListLog(), TimeProvider.System);
+        var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL", WhatIf = true }, new WindowsProbe(), runner, new InstallLog(null, false, console: false), TimeProvider.System);
         var records = await Installer.RunAsync(Installer.PlatformSteps(), ctx);
         Assert.Equal(12, records.Count);
         Assert.Empty(runner.Scripts);
@@ -65,12 +59,15 @@ public class InstallerTests
     [Fact]
     public async Task Installation_stops_at_the_first_failure()
     {
-        var runner = new FakeRunner(exitCode: 1, output: "Install-WindowsFeature : access denied");
-        var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL" }, new WindowsProbe(), runner, new ListLog(), TimeProvider.System);
+        var runner = new FakeRunner(exitCode: 1, output: "ERROR: Install-WindowsFeature : access denied\nWHERE: line 5");
+        var log = new InstallLog(null, false, console: false);
+        var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL" }, new WindowsProbe(), runner, log, TimeProvider.System);
         var records = await Installer.RunAsync(Installer.PlatformSteps(), ctx);
         Assert.Equal(StepOutcome.Failed, records[^1].Result.Outcome);
         Assert.Equal("Install IIS (web server)", records[^1].Step.Name);
-        Assert.Contains("access denied", records[^1].Result.Message);
+        Assert.Contains("exit code 1", records[^1].Result.Message);
+        Assert.Contains(log.Lines, l => l.Contains("ERROR: Install-WindowsFeature : access denied") && l.Contains("[INFO ]"));
+        Assert.Contains(log.Lines, l => l.Contains("[DEBUG]") && l.Contains("Install-WindowsFeature -Name $features"));
         Assert.Single(runner.Scripts);
     }
 
@@ -78,7 +75,7 @@ public class InstallerTests
     public async Task Skip_iis_option_skips_iis_steps_but_still_secures_tls()
     {
         var runner = new FakeRunner();
-        var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL", SkipIis = true }, new WindowsProbe(), runner, new ListLog(), TimeProvider.System);
+        var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL", SkipIis = true }, new WindowsProbe(), runner, new InstallLog(null, false, console: false), TimeProvider.System);
         var steps = Installer.PlatformSteps().Take(4);
         var records = await Installer.RunAsync(steps, ctx);
         Assert.Equal(StepOutcome.Skipped, records[1].Result.Outcome);
@@ -90,9 +87,70 @@ public class InstallerTests
     [Fact]
     public async Task Invalid_database_name_is_refused()
     {
-        var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL", Database = "Tds; DROP DATABASE x" }, new WindowsProbe(), new FakeRunner(), new ListLog(), TimeProvider.System);
+        var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL", Database = "Tds; DROP DATABASE x" }, new WindowsProbe(), new FakeRunner(), new InstallLog(null, false, console: false), TimeProvider.System);
         var r = await new CreateDatabaseStep().RunAsync(ctx, CancellationToken.None);
         Assert.Equal(StepOutcome.Failed, r.Outcome);
+    }
+
+    [Fact]
+    public void Log_masks_registered_secrets_and_connection_string_passwords()
+    {
+        var log = new InstallLog(null, false, console: false);
+        log.AddSecret("K7QM3XRPWD9TH2BN");
+        log.Info("Server=PAS;User ID=sa;Password=Sup3r$ecret;Encrypt=True and code K7QM3XRPWD9TH2BN");
+        var line = log.Lines.Single();
+        Assert.DoesNotContain("Sup3r$ecret", line);
+        Assert.DoesNotContain("K7QM3XRPWD9TH2BN", line);
+        Assert.Contains("Password=********", line);
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} .* \[INFO \]", line);
+    }
+
+    [Fact]
+    public void Log_writes_debug_detail_to_file_but_not_console_unless_verbose()
+    {
+        var path = Path.Combine(Directory.CreateTempSubdirectory().FullName, "setup.log");
+        using (var log = new InstallLog(path, verbose: false, console: false))
+        {
+            log.Block("PowerShell output", "line one\nERROR: boom");
+            log.Error("It failed", new InvalidOperationException("inner detail"));
+        }
+        var text = File.ReadAllText(path);
+        Assert.Contains("| ERROR: boom", text);
+        Assert.Contains("[DEBUG]", text);
+        Assert.Contains("[ERROR] It failed", text);
+    }
+
+    [Fact]
+    public void PowerShell_wrapper_reports_error_location_and_exit_code()
+    {
+        var w = ProcessRunner.Wrap("throw 'x'");
+        Assert.Contains("try {", w);
+        Assert.Contains("WHERE: ", w);
+        Assert.Contains("exit 1", w);
+    }
+
+    [Theory]
+    [InlineData("localhost", true)]
+    [InlineData(".", true)]
+    [InlineData("(local)", true)]
+    [InlineData("127.0.0.1:1433", true)]
+    [InlineData("PAS-SQL", false)]
+    public void Detects_single_server_sql(string server, bool local) =>
+        Assert.Equal(local, new InstallOptions { SqlServer = server }.IsLocalSqlServer());
+
+    [Fact]
+    public void Security_report_counts_findings_and_renders_html_safely()
+    {
+        var r = new Galenica.Setup.Security.SecurityReport();
+        r.Pass("Area", "A", "ok");
+        r.Warn("Area", "B", "<script>bad</script>", "fix it");
+        Assert.Equal(1, r.ExitCode);
+        r.Fail("Area", "C", "broken", "fix");
+        Assert.Equal(2, r.ExitCode);
+        var html = r.ToHtml();
+        Assert.DoesNotContain("<script>bad</script>", html);
+        Assert.Contains("&lt;script&gt;", html);
+        Assert.Contains("FAIL", r.ToText());
     }
 
     [Fact]
@@ -152,7 +210,6 @@ public sealed class SqlServerFactAttribute : FactAttribute
 
 public class InstallerDatabaseTests
 {
-    private sealed class NoLog : IInstallLog { public void Info(string m) { } public void Detail(string m) { } }
 
     [SqlServerFact]
     public async Task Database_steps_create_schema_and_bootstrap_code_and_can_run_twice()
@@ -167,12 +224,12 @@ public class InstallerDatabaseTests
         var steps = new IInstallStep[] { new CreateDatabaseStep(), new ApplySchemaStep(), new BootstrapCodeStep() };
         try
         {
-            var first = new InstallContext(options, new NonWindowsSystemProbe(), new ProcessRunner(), new NoLog(), TimeProvider.System);
+            var first = new InstallContext(options, new NonWindowsSystemProbe(), new ProcessRunner(), new InstallLog(null, false, console: false), TimeProvider.System);
             var r1 = await Installer.RunAsync(steps, first);
             Assert.All(r1, r => Assert.Equal(StepOutcome.Done, r.Result.Outcome));
             Assert.NotNull(first.BootstrapCode);
 
-            var second = new InstallContext(options, new NonWindowsSystemProbe(), new ProcessRunner(), new NoLog(), TimeProvider.System);
+            var second = new InstallContext(options, new NonWindowsSystemProbe(), new ProcessRunner(), new InstallLog(null, false, console: false), TimeProvider.System);
             var r2 = await Installer.RunAsync(steps, second);
             Assert.Equal(StepOutcome.AlreadyDone, r2[0].Result.Outcome);
             Assert.Equal(StepOutcome.Done, r2[1].Result.Outcome); // idempotent re-apply
@@ -193,7 +250,7 @@ public class InstallerDatabaseTests
             await rd.CloseAsync();
 
             // Application login: can read and write data, cannot change the schema.
-            var appCtx = new InstallContext(options, new NonWindowsSystemProbe(), new ProcessRunner(), new NoLog(), TimeProvider.System,
+            var appCtx = new InstallContext(options, new NonWindowsSystemProbe(), new ProcessRunner(), new InstallLog(null, false, console: false), TimeProvider.System,
                 new WebDeployOptions { AppSqlLogin = "galenica_app_" + dbName[^6..] });
             Assert.Equal(StepOutcome.Done, (await new AppDatabaseLoginStep().RunAsync(appCtx, CancellationToken.None)).Outcome);
             await using var app = new SqlConnection(appCtx.AppConnectionString);

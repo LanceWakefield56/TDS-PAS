@@ -21,14 +21,20 @@ public static class Installer
             var step = list[i];
             c.Log.Info($"\nStep {i + 1} of {list.Count}: {step.Name}");
             c.Log.Detail(step.Description);
+            c.Log.Debug($"Step '{step.GetType().Name}' starting.");
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             StepResult result;
             try { result = await step.RunAsync(c, ct); }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                result = StepResult.Fail($"Unexpected error: {ex.Message}");
+                c.Log.Error($"Unexpected error in step '{step.Name}': {ex.Message}", ex);
+                result = StepResult.Fail($"Unexpected error: {ex.GetType().Name}: {ex.Message}");
             }
+            watch.Stop();
             records.Add(new StepRecord(step, result));
-            c.Log.Info($"  -> {Label(result.Outcome)}: {result.Message}");
+            var line = $"  -> {Label(result.Outcome)}: {result.Message}";
+            if (result.Outcome == StepOutcome.Failed) c.Log.Error(line); else c.Log.Info(line);
+            c.Log.Debug($"Step '{step.GetType().Name}' finished: {result.Outcome} in {watch.Elapsed.TotalSeconds:0.0}s.");
             if (result.Outcome == StepOutcome.Failed) break;
         }
         return records;

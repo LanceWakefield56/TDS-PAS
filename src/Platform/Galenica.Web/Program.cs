@@ -45,7 +45,6 @@ builder.Services.AddRateLimiter(o =>
     o.AddFixedWindowLimiter("setup", w => { w.PermitLimit = 10; w.Window = TimeSpan.FromMinutes(1); w.QueueLimit = 0; });
     o.AddFixedWindowLimiter("auth", w => { w.PermitLimit = 30; w.Window = TimeSpan.FromMinutes(1); w.QueueLimit = 0; });
 });
-builder.Services.AddHsts(o => { o.MaxAge = TimeSpan.FromDays(365); o.IncludeSubDomains = true; });
 
 var app = builder.Build();
 
@@ -61,7 +60,6 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-if (!app.Environment.IsDevelopment()) app.UseHsts();
 app.UseHttpsRedirection();
 app.Use(async (ctx, next) =>
 {
@@ -72,6 +70,8 @@ app.Use(async (ctx, next) =>
     h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
     h["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
     if (ctx.Request.Path.StartsWithSegments("/api")) h["Cache-Control"] = "no-store";
+    // HSTS: browsers must only ever use HTTPS for this site (set directly so it also applies to https://localhost).
+    if (ctx.Request.IsHttps && !app.Environment.IsDevelopment()) h["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
     await next();
 });
 app.UseDefaultFiles();

@@ -81,7 +81,10 @@ public sealed class HostingBundleStep : IInstallStep
         if (installer is null)
             return StepResult.Fail("The .NET 10 Hosting Bundle is not installed. Download 'ASP.NET Core 10 Runtime – Windows Hosting Bundle' from Microsoft (dotnet.microsoft.com), place the file next to Setup.exe or install it, then run Setup again.");
         if (c.Options.WhatIf) return StepResult.Planned($"Would run {Path.GetFileName(installer)} quietly, then restart IIS.");
-        var r = await c.Processes.RunAsync(installer, "/install /quiet /norestart", ct);
+        var logFile = Path.Combine(Path.GetTempPath(), $"Galenica-HostingBundle-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+        c.Log.Detail($"Running {Path.GetFileName(installer)} (its own log: {logFile}). This can take a few minutes.");
+        var r = await c.Processes.RunAsync(installer, $"/install /quiet /norestart /log \"{logFile}\"", ct);
+        c.Log.Debug($"Hosting Bundle installer exit code {r.ExitCode}.");
         if (r.ExitCode is not (0 or 3010)) return StepResult.Fail($"Hosting Bundle installer returned code {r.ExitCode}.");
         if (r.ExitCode == 3010) c.RebootRequired = true;
         var restart = await c.Processes.RunPowerShellAsync("$ErrorActionPreference='Stop'; net stop was /y | Out-Null; net start w3svc | Out-Null; 'IIS restarted.'", ct);
@@ -103,20 +106,39 @@ public sealed class AppDatabaseLoginStep : IInstallStep
             return StepResult.Planned(w.AppWindowsLogin is null ? $"Would create/refresh SQL login [{w.AppSqlLogin}] with a new random password." : $"Would create Windows login [{w.AppWindowsLogin}].");
 
         var db = c.Options.Database;
+        // Single-server installation: the website's own Windows identity (IIS APPPOOL\<pool>) logs in to the local
+        // SQL Server – no password exists anywhere. The app pool must exist first so that Windows knows the account.
+        var windowsLogin = w.AppWindowsLogin;
+        if (windowsLogin is null && c.Probe.IsWindows && c.Options.IsLocalSqlServer())
+        {
+            windowsLogin = $"IIS APPPOOL\\{w.AppPoolName}";
+            c.Log.Detail($"SQL Server is on this machine: the website will connect as Windows account '{windowsLogin}' (no password).");
+            var ensurePool = $"Import-Module WebAdministration; if (-not (Test-Path 'IIS:\\AppPools\\{w.AppPoolName.Replace("'", "''")}')) {{ New-WebAppPool -Name '{w.AppPoolName.Replace("'", "''")}' | Out-Null }}; 'App pool ready.'";
+            c.Log.Block("PowerShell (create app pool before SQL login)", ensurePool);
+            var pr = await c.Processes.RunPowerShellAsync(ensurePool, ct);
+            c.Log.Block("PowerShell output", pr.Output);
+            if (pr.ExitCode != 0) return StepResult.Fail("Could not create the IIS application pool (is IIS installed?). See the log file.");
+        }
+
+        c.Log.Debug($"Connecting: {c.Options.ConnectionString("master")}");
         await using var conn = new SqlConnection(c.Options.ConnectionString("master"));
         await conn.OpenAsync(ct);
         string login;
-        if (w.AppWindowsLogin is not null)
+        if (windowsLogin is not null)
         {
-            login = w.AppWindowsLogin;
+            login = windowsLogin;
+            c.Log.Debug($"Ensuring Windows login [{login}] exists.");
             await Exec(conn, $"IF SUSER_ID(@l) IS NULL EXEC('CREATE LOGIN ' + @q + ' FROM WINDOWS WITH DEFAULT_DATABASE = [{db}]');", ct, ("@l", login), ("@q", Quote(login)));
-            var b = new SqlConnectionStringBuilder(c.Options.ConnectionString()) { IntegratedSecurity = true, UserID = "", Password = "", ApplicationName = "Galenica" };
+            var b = new SqlConnectionStringBuilder(c.Options.ConnectionString()) { IntegratedSecurity = true, ApplicationName = "Galenica" };
+            b.Remove("User ID"); b.Remove("Password");
             c.AppConnectionString = b.ConnectionString;
         }
         else
         {
             login = w.AppSqlLogin;
             var pw = WebPackage.GeneratePassword();
+            c.Log.AddSecret(pw);
+            c.Log.Debug($"Ensuring SQL login [{login}] exists with a newly generated password (not logged).");
             await Exec(conn, """
                 IF SUSER_ID(@l) IS NULL EXEC('CREATE LOGIN ' + @q + ' WITH PASSWORD = ' + @p + ', CHECK_POLICY = ON, CHECK_EXPIRATION = OFF')
                 ELSE EXEC('ALTER LOGIN ' + @q + ' WITH PASSWORD = ' + @p);
@@ -124,6 +146,7 @@ public sealed class AppDatabaseLoginStep : IInstallStep
             var b = new SqlConnectionStringBuilder(c.Options.ConnectionString()) { IntegratedSecurity = false, UserID = login, Password = pw, ApplicationName = "Galenica" };
             c.AppConnectionString = b.ConnectionString;
         }
+        c.Log.Debug($"Website connection string: {c.AppConnectionString}");
 
         await using var dbConn = new SqlConnection(c.Options.ConnectionString());
         await dbConn.OpenAsync(ct);
@@ -132,6 +155,7 @@ public sealed class AppDatabaseLoginStep : IInstallStep
             EXEC sp_addrolemember 'db_datareader', @l;
             EXEC sp_addrolemember 'db_datawriter', @l;
             """, ct, ("@l", login), ("@q", Quote(login)));
+        c.Log.Debug($"Database user [{login}] has db_datareader + db_datawriter only (no schema rights).");
         return StepResult.Done($"Database login [{login}] ready (read/write data only).");
     }
 
@@ -166,14 +190,19 @@ public sealed class DeployWebFilesStep : IInstallStep
         await c.Processes.RunPowerShellAsync($"Import-Module WebAdministration; if (Test-Path 'IIS:\\AppPools\\{w.AppPoolName}') {{ Stop-WebAppPool -Name '{w.AppPoolName}' -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3 }}", ct);
 
         Directory.CreateDirectory(w.InstallDir);
+        c.Log.Detail($"Package: {pkg} ({new FileInfo(pkg).Length / 1024:N0} KB)");
         ZipFile.ExtractToDirectory(pkg, w.InstallDir, overwriteFiles: true);
+        c.Log.Debug($"Extracted {Directory.GetFiles(w.InstallDir, "*", SearchOption.AllDirectories).Length} files to {w.InstallDir}.");
         var keys = Path.Combine(w.DataDir, "keys");
         var logs = Path.Combine(w.DataDir, "logs");
         Directory.CreateDirectory(keys);
         Directory.CreateDirectory(logs);
         WebPackage.WriteProductionSettings(w.InstallDir, c.AppConnectionString, keys);
 
-        var r = await c.Processes.RunPowerShellAsync(PowerShellScripts.SecureFolders(w.InstallDir, w.DataDir, w.AppPoolName), ct);
+        var script = PowerShellScripts.SecureFolders(w.InstallDir, w.DataDir, w.AppPoolName);
+        c.Log.Block("PowerShell (secure folders)", script);
+        var r = await c.Processes.RunPowerShellAsync(script, ct);
+        c.Log.Block("PowerShell output", r.Output);
         return r.ExitCode == 0 ? StepResult.Done($"Installed {Path.GetFileName(pkg)} to {w.InstallDir}.") : StepResult.Fail($"Could not secure folders: {r.Output}");
     }
 }
@@ -191,8 +220,15 @@ public sealed class ConfigureIisSiteStep : IInstallStep
         var w = c.Web;
         var host = w.HostName ?? System.Net.Dns.GetHostEntry(string.Empty).HostName;
         if (c.Options.WhatIf) return StepResult.Planned($"Would create app pool and site '{w.SiteName}' at https://{host}:{w.HttpsPort}/ ({(w.CertificateThumbprint is null ? "self-signed certificate" : "certificate " + w.CertificateThumbprint)}).");
-        var r = await c.Processes.RunPowerShellAsync(PowerShellScripts.ConfigureSite(w.SiteName, w.AppPoolName, w.InstallDir, host, w.HttpsPort, w.CertificateThumbprint), ct);
-        if (r.ExitCode != 0) return StepResult.Fail($"IIS site set-up failed: {r.Output}");
+        var script = PowerShellScripts.ConfigureSite(w.SiteName, w.AppPoolName, w.InstallDir, host, w.HttpsPort, w.CertificateThumbprint);
+        c.Log.Block("PowerShell (IIS site)", script);
+        var r = await c.Processes.RunPowerShellAsync(script, ct);
+        c.Log.Block("PowerShell output", r.Output);
+        if (r.ExitCode != 0)
+        {
+            foreach (var l in r.Output.Split('\n').Where(l => l.StartsWith("ERROR:") || l.StartsWith("WHERE:"))) c.Log.Detail(l.Trim());
+            return StepResult.Fail("IIS site set-up failed. The exact error is shown above and in the log file.");
+        }
         c.SiteUrl = w.HttpsPort == 443 ? $"https://{host}/" : $"https://{host}:{w.HttpsPort}/";
         if (r.Output.Contains("SELF-SIGNED", StringComparison.Ordinal)) c.SelfSignedCertificate = true;
         return StepResult.Done($"Site published at {c.SiteUrl}");
@@ -225,8 +261,9 @@ public sealed class WebHealthCheckStep : IInstallStep
                 var body = await res.Content.ReadAsStringAsync(ct);
                 if (res.IsSuccessStatusCode) return StepResult.Done($"Website is running: {body}");
                 last = $"HTTP {(int)res.StatusCode}";
+                c.Log.Debug($"Health check attempt {attempt + 1}: {last}: {body}");
             }
-            catch (HttpRequestException ex) { last = ex.Message; }
+            catch (HttpRequestException ex) { last = ex.Message; c.Log.Debug($"Health check attempt {attempt + 1}: {ex.GetType().Name}: {ex.Message}"); }
             catch (TaskCanceledException) { last = "timed out"; }
             await Task.Delay(TimeSpan.FromSeconds(5), ct);
         }

@@ -20,7 +20,7 @@ echo "== Installer"
 ./scripts/generate-db-scripts.sh >/dev/null
 SPUB=$(mktemp -d)
 dotnet publish src/Installer/Galenica.Setup -c Release -r win-x64 -o "$SPUB" --nologo -v q
-cp "$SPUB/Setup.exe" "$OUT/Setup-$VERSION.exe"
+cp "$SPUB/Setup.exe" "$OUT/Galenica-Setup-$VERSION.exe"
 rm -rf "$SPUB"
 cp docs/installer.md "$OUT/Installer guide.md"
 ls -la "$OUT"
