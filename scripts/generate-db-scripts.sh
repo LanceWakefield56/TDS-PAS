@@ -7,4 +7,8 @@ out=src/Installer/BrightPAS.Setup/Database
 dotnet ef migrations script --idempotent --project src/Platform/BrightPAS.Core -o "$out/01-core.sql"
 dotnet ef migrations script --idempotent --project src/Platform/BrightPAS.Identity -o "$out/02-identity.sql"
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Patients -o "$out/03-patients.sql"
+dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Labs -o "$out/04-labs.sql"
+dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Theatre -o "$out/05-theatre.sql"
+dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Forms -o "$out/06-forms.sql"
+dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Billing -o "$out/07-billing.sql"
 echo "Schema scripts written to $out"

@@ -185,3 +185,37 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261106111225_AddLicenceState'
+)
+BEGIN
+    CREATE TABLE [core].[LicenceState] (
+        [Id] int NOT NULL,
+        [InstallationId] uniqueidentifier NOT NULL,
+        [LicenceText] nvarchar(max) NULL,
+        [LicenceInstalledAt] datetimeoffset NULL,
+        [LicenceInstalledBy] nvarchar(100) NULL,
+        [ActivationText] nvarchar(max) NULL,
+        [ActivationCheckedAt] datetimeoffset NULL,
+        [ActivationError] nvarchar(500) NULL,
+        [LastKnownModules] nvarchar(500) NULL,
+        [LastSeenAt] datetimeoffset NULL,
+        CONSTRAINT [PK_LicenceState] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_LicenceState_SingleRow] CHECK ([Id] = 1)
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261106111225_AddLicenceState'
+)
+BEGIN
+    INSERT INTO [core].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261106111225_AddLicenceState', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

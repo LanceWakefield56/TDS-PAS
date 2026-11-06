@@ -21,10 +21,28 @@ public static class Permissions
     public const string ModulesManage = "admin.modules.manage";
     public const string IntegrationManage = "admin.integration.manage";
 
+    // Lab results module
+    public const string LabsView = "labs.view";
+    public const string LabsAcknowledge = "labs.acknowledge";
+    public const string LabsMatch = "labs.match";
+    // Theatre bookings module
+    public const string TheatreView = "theatre.view";
+    public const string TheatreBook = "theatre.book";
+    public const string TheatreManage = "theatre.manage";
+    // Pre-admission forms module
+    public const string FormsSend = "forms.send";
+    public const string FormsTriage = "forms.triage";
+    // Estimates & invoices module
+    public const string BillingView = "billing.view";
+    public const string BillingManage = "billing.manage";
+    public const string BillingFees = "billing.fees";
+
     public static readonly IReadOnlyList<string> All =
     [
         PatientView, PatientRegister, PatientEdit, PatientMerge, PatientAlertsManage, BreakGlass, BreakGlassReview,
-        AuditView, UsersManage, OrganisationManage, ModulesManage, IntegrationManage
+        AuditView, UsersManage, OrganisationManage, ModulesManage, IntegrationManage,
+        LabsView, LabsAcknowledge, LabsMatch, TheatreView, TheatreBook, TheatreManage, FormsSend, FormsTriage,
+        BillingView, BillingManage, BillingFees
     ];
 }
 
@@ -43,25 +61,28 @@ public static class DefaultRoles
     public const string IntegrationAdministrator = "Integration Administrator";
 
     private static readonly string[] Clinical =
-        [Permissions.PatientView, Permissions.PatientEdit, Permissions.PatientAlertsManage, Permissions.BreakGlass];
+        [Permissions.PatientView, Permissions.PatientEdit, Permissions.PatientAlertsManage, Permissions.BreakGlass,
+         Permissions.LabsView, Permissions.LabsAcknowledge, Permissions.TheatreView];
 
     public static readonly IReadOnlyDictionary<string, (string Description, string[] Permissions)> Definitions =
         new Dictionary<string, (string, string[])>
         {
             [SystemAdministrator] = ("Manages users, organisation set-up and modules. No routine clinical access.",
-                [Permissions.UsersManage, Permissions.OrganisationManage, Permissions.ModulesManage]),
+                [Permissions.UsersManage, Permissions.OrganisationManage, Permissions.ModulesManage, Permissions.TheatreManage]),
             [PrivacyOfficer] = ("Reviews break-glass use and audit reports; handles privacy requests.",
                 [Permissions.AuditView, Permissions.BreakGlassReview, Permissions.PatientView]),
             [Reception] = ("Registers patients and manages bookings.",
-                [Permissions.PatientView, Permissions.PatientRegister, Permissions.PatientEdit]),
-            [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.PatientRegister]),
-            [Anaesthetist] = ("Clinical access for anaesthetists.", Clinical),
-            [Surgeon] = ("Clinical access for surgeons and endoscopists.", Clinical),
+                [Permissions.PatientView, Permissions.PatientRegister, Permissions.PatientEdit, Permissions.TheatreView, Permissions.TheatreBook,
+                 Permissions.TheatreManage, Permissions.FormsSend, Permissions.BillingView, Permissions.BillingManage, Permissions.LabsMatch]),
+            [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.PatientRegister, Permissions.TheatreBook, Permissions.FormsSend,
+                 Permissions.FormsTriage, Permissions.LabsMatch]),
+            [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsTriage]),
+            [Surgeon] = ("Clinical access for surgeons and endoscopists.", [.. Clinical, Permissions.TheatreBook]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",
                 [Permissions.PatientView]),
-            [Finance] = ("Billing, invoices and payments.", [Permissions.PatientView]),
+            [Finance] = ("Billing, invoices and payments.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees]),
             [PracticeAssistant] = ("Specialist's practice assistant: bookings for their specialist's patients.",
-                [Permissions.PatientView, Permissions.PatientRegister]),
+                [Permissions.PatientView, Permissions.PatientRegister, Permissions.TheatreView, Permissions.TheatreBook, Permissions.FormsSend, Permissions.LabsView]),
             [IntegrationAdministrator] = ("Manages interfaces, message profiles and translation tables.",
                 [Permissions.IntegrationManage]),
         };

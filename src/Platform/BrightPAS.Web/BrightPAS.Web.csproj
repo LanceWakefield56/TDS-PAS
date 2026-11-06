@@ -6,6 +6,10 @@
     <ProjectReference Include="..\BrightPAS.Identity\BrightPAS.Identity.csproj" />
     <ProjectReference Include="..\BrightPAS.Licensing\BrightPAS.Licensing.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Patients\BrightPAS.Modules.Patients.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Labs\BrightPAS.Modules.Labs.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Theatre\BrightPAS.Modules.Theatre.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Forms\BrightPAS.Modules.Forms.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Billing\BrightPAS.Modules.Billing.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

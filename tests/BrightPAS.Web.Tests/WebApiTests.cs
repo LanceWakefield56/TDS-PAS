@@ -44,12 +44,21 @@ public sealed class PasWebFactory : WebApplicationFactory<Program>, IAsyncLifeti
             await id.Database.MigrateAsync();
         await using (var pt = new PatientsDbContext(new DbContextOptionsBuilder<PatientsDbContext>().Also(o => Sql(o, "patients")).Options))
             await pt.Database.MigrateAsync();
+        await using (var x = new BrightPAS.Modules.Labs.LabsDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Labs.LabsDbContext>().Also(o => Sql(o, "labs")).Options))
+            await x.Database.MigrateAsync();
+        await using (var x = new BrightPAS.Modules.Theatre.TheatreDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Theatre.TheatreDbContext>().Also(o => Sql(o, "theatre")).Options))
+            await x.Database.MigrateAsync();
+        await using (var x = new BrightPAS.Modules.Forms.FormsDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Forms.FormsDbContext>().Also(o => Sql(o, "forms")).Options))
+            await x.Database.MigrateAsync();
+        await using (var x = new BrightPAS.Modules.Billing.BillingDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Billing.BillingDbContext>().Also(o => Sql(o, "billing")).Options))
+            await x.Database.MigrateAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Production");
         builder.UseSetting("ConnectionStrings:Pas", ConnectionString);
+        builder.UseSetting("Licensing:MachineId", "test-machine");
     }
 
     public HttpClient NewClient()
@@ -201,5 +210,65 @@ public class WebApiTests(PasWebFactory factory) : IClassFixture<PasWebFactory>
         using var c = await SignInNewUserAsync("cssd.web", DefaultRoles.CssdTechnician);
         var r = await c.PostAsJsonAsync("/api/patients", new { familyName = "X", givenNames = "Y", dateOfBirth = "1980-01-01", sex = "Male" });
         Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
+    }
+
+    private static string DevLicence(string? installationCode, string[] modules, DateOnly expires)
+    {
+        var pem = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "../../../../../licensing/dev/vendor-private-key.DEVELOPMENT-ONLY.pem"));
+        using var key = System.Security.Cryptography.ECDsa.Create();
+        key.ImportFromPem(pem);
+        return BrightPAS.Licensing.LicenceCodec.Sign(new BrightPAS.Licensing.LicenceDocument
+        {
+            LicenceId = "BP-TEST-" + Guid.NewGuid().ToString("N")[..6], Customer = "Test", Edition = "Sandbox", IssuedAt = DateTimeOffset.UtcNow,
+            ExpiresOn = expires, InstallationCode = installationCode, Modules = modules, GraceDays = 0
+        }, key);
+    }
+
+    [SqlServerFact]
+    public async Task Modules_are_blocked_until_licensed_and_become_read_only_when_the_licence_lapses()
+    {
+        using var nurse = await SignInNewUserAsync("nurse.lic", DefaultRoles.Nurse);
+        var blocked = await nurse.GetAsync("/api/labs");
+        Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
+        Assert.Equal("module_not_licensed", (await blocked.Json()).GetProperty("error").GetString());
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<BrightPAS.Web.Licensing.LicensingService>();
+            var code = svc.InstallationCode(await svc.StateAsync());
+            var wrong = await svc.InstallAsync(DevLicence("AAAAA-AAAAA-AAAAA-AAAAA", ["*"], new DateOnly(2030, 1, 1)), "admin", null);
+            Assert.False(wrong.Ok);
+            var ok = await svc.InstallAsync(DevLicence(code, ["labs", "forms"], new DateOnly(2030, 1, 1)), "admin", null);
+            Assert.True(ok.Ok, ok.Error);
+        }
+        Assert.Equal(HttpStatusCode.OK, (await nurse.GetAsync("/api/labs")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await nurse.GetAsync("/api/theatre/locations")).StatusCode);
+        var me = await (await nurse.GetAsync("/api/me")).Json();
+        Assert.Equal("Full", me.GetProperty("modules").GetProperty("labs").GetString());
+        Assert.Equal("None", me.GetProperty("modules").GetProperty("billing").GetString());
+
+        var reg = await (await nurse.PostAsJsonAsync("/api/patients", new { familyName = "Licence", givenNames = "Test", dateOfBirth = "1970-02-03", sex = "Female", confirmedNotDuplicate = true })).Json();
+        var link = await nurse.PostAsJsonAsync("/api/forms", new { patientId = reg.GetProperty("id").GetGuid() });
+        Assert.Equal(HttpStatusCode.OK, link.StatusCode);
+        var token = (await link.Json()).GetProperty("link").GetString()!.Split("/q/")[1];
+        using var patient = factory.NewClient();
+        Assert.Equal(HttpStatusCode.OK, (await patient.GetAsync($"/api/q/{token}")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await patient.PostAsJsonAsync($"/api/q/{token}/open", new { dateOfBirth = "1999-01-01" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await patient.PostAsJsonAsync($"/api/q/{token}/open", new { dateOfBirth = "1970-02-03" })).StatusCode);
+
+        // Licence lapses: existing data stays viewable, new work is blocked.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var core = scope.ServiceProvider.GetRequiredService<PasDbContext>();
+            var svc = scope.ServiceProvider.GetRequiredService<BrightPAS.Web.Licensing.LicensingService>();
+            var state = await svc.StateAsync();
+            state.LicenceText = DevLicence(svc.InstallationCode(state), ["labs", "forms"], new DateOnly(2020, 1, 1));
+            await core.SaveChangesAsync();
+            await svc.RefreshAsync();
+        }
+        Assert.Equal(HttpStatusCode.OK, (await nurse.GetAsync("/api/labs")).StatusCode);
+        var ro = await nurse.PostAsJsonAsync("/api/forms", new { patientId = reg.GetProperty("id").GetGuid() });
+        Assert.Equal(HttpStatusCode.Forbidden, ro.StatusCode);
+        Assert.Equal("licence_read_only", (await ro.Json()).GetProperty("error").GetString());
     }
 }

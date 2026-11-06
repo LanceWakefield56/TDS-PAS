@@ -4,7 +4,11 @@
     <Project Path="src/Installer/BrightPAS.Setup/BrightPAS.Setup.csproj" />
   </Folder>
   <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/BrightPAS.Modules.Billing/BrightPAS.Modules.Billing.csproj" />
+    <Project Path="src/Modules/BrightPAS.Modules.Forms/BrightPAS.Modules.Forms.csproj" />
+    <Project Path="src/Modules/BrightPAS.Modules.Labs/BrightPAS.Modules.Labs.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Patients/BrightPAS.Modules.Patients.csproj" />
+    <Project Path="src/Modules/BrightPAS.Modules.Theatre/BrightPAS.Modules.Theatre.csproj" />
   </Folder>
   <Folder Name="/src/Platform/">
     <Project Path="src/Platform/BrightPAS.Core/BrightPAS.Core.csproj" />
@@ -19,6 +23,7 @@
     <Project Path="tests/BrightPAS.Identity.Tests/BrightPAS.Identity.Tests.csproj" />
     <Project Path="tests/BrightPAS.Licensing.Tests/BrightPAS.Licensing.Tests.csproj" />
     <Project Path="tests/BrightPAS.Modules.Patients.Tests/BrightPAS.Modules.Patients.Tests.csproj" />
+    <Project Path="tests/BrightPAS.Modules.Tests/BrightPAS.Modules.Tests.csproj" />
     <Project Path="tests/BrightPAS.Setup.Tests/BrightPAS.Setup.Tests.csproj" />
     <Project Path="tests/BrightPAS.Web.Tests/BrightPAS.Web.Tests.csproj" />
   </Folder>

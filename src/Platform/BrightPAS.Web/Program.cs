@@ -39,7 +39,9 @@ builder.Services.AddScoped<BrightPAS.Web.Licensing.LicensingService>();
 builder.Services.AddHttpClient("licensing", c => c.Timeout = TimeSpan.FromSeconds(20));
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Licensing.LicenceHeartbeat>();
 builder.Services.AddPasIdentity(o => UseSql(o, PasIdentityDbContext.Schema));
-builder.Services.AddPasModules([new PatientsModule()]);
+builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs.LabsModule(), new BrightPAS.Modules.Theatre.TheatreModule(),
+    new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule()]);
+builder.Services.AddHostedService<BrightPAS.Web.Integration.MllpListener>();
 builder.Services.AddPasAuthentication(builder.Environment);
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
@@ -48,6 +50,9 @@ builder.Services.AddRateLimiter(o =>
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     o.AddFixedWindowLimiter("setup", w => { w.PermitLimit = 10; w.Window = TimeSpan.FromMinutes(1); w.QueueLimit = 0; });
     o.AddFixedWindowLimiter("auth", w => { w.PermitLimit = 30; w.Window = TimeSpan.FromMinutes(1); w.QueueLimit = 0; });
+    // Patient-facing questionnaire links: per client IP.
+    o.AddPolicy("public", ctx => RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 40, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
 var app = builder.Build();
@@ -116,6 +121,7 @@ app.MapAuthEndpoints();
 app.MapPatientEndpoints();
 app.MapOrganisationEndpoints();
 app.MapAdminEndpoints();
+app.MapModuleEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.
 app.MapFallback("/api/{**rest}", () => Results.NotFound());
