@@ -12,7 +12,7 @@ public static class PowerShellScripts
         Import-Module ServerManager
         $features = @('Web-Server','Web-WebServer','Web-Common-Http','Web-Default-Doc','Web-Http-Errors','Web-Static-Content',
                       'Web-Health','Web-Http-Logging','Web-Request-Monitor','Web-Performance','Web-Stat-Compression',
-                      'Web-Security','Web-Filtering','Web-IP-Security','Web-Mgmt-Console','Web-Scripting-Tools')
+                      'Web-Security','Web-Filtering','Web-IP-Security','Web-Mgmt-Console','Web-Scripting-Tools','Web-AppInit')
         $result = Install-WindowsFeature -Name $features
         if (-not $result.Success) { throw 'IIS feature installation failed.' }
         foreach ($unwanted in @('Web-DAV-Publishing','Web-Dir-Browsing','Web-Ftp-Server','Web-CGI','Web-ASP')) {
@@ -112,6 +112,8 @@ public static class PowerShellScripts
             Set-ItemProperty "IIS:\Sites\$site" -Name physicalPath -Value $path
             Set-ItemProperty "IIS:\Sites\$site" -Name applicationPool -Value $pool
         }
+        # Keep BrightPAS running (background jobs such as the lab-results listener and licence checks), even with no web traffic.
+        try { Set-ItemProperty "IIS:\Sites\$site" -Name applicationDefaults.preloadEnabled -Value $true } catch { "Note: preload not set ($($_.Exception.Message))" }
         Get-WebBinding -Name $site | Where-Object { $_.protocol -ne 'https' } | Remove-WebBinding
         if (-not (Get-WebBinding -Name $site -Protocol https)) { New-WebBinding -Name $site -Protocol https -Port $port -IPAddress '*' | Out-Null }
         Remove-Item "IIS:\SslBindings\0.0.0.0!$port" -ErrorAction SilentlyContinue

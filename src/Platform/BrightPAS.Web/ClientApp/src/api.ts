@@ -19,7 +19,12 @@ export async function api<T = any>(path: string, options: { method?: string; bod
   return data as T;
 }
 
-export interface Me { userName: string; displayName: string; roles: string[]; permissions: string[] }
+export type Access = 'None' | 'ReadOnly' | 'Full';
+export interface Me {
+  userName: string; displayName: string; roles: string[]; permissions: string[];
+  modules: Record<string, Access>;
+  licence: { health: string; edition: string | null; developmentKey: boolean; message: string | null };
+}
 export interface PatientSummary {
   id: string; mrn: string; nhi: string | null; familyName: string; givenNames: string; preferredName: string | null;
   dateOfBirth: string; sex: string; isTestPatient: boolean;
@@ -34,8 +39,18 @@ export interface Location { id: string; code: string; name: string; type: string
 
 export const Perm = {
   PatientView: 'patient.view', PatientRegister: 'patient.register', PatientAlerts: 'patient.alerts.manage',
-  UsersManage: 'admin.users.manage', AuditView: 'privacy.audit.view',
+  UsersManage: 'admin.users.manage', AuditView: 'privacy.audit.view', ModulesManage: 'admin.modules.manage', Integration: 'admin.integration.manage',
+  LabsView: 'labs.view', LabsAck: 'labs.acknowledge', LabsMatch: 'labs.match',
+  TheatreView: 'theatre.view', TheatreBook: 'theatre.book', TheatreManage: 'theatre.manage',
+  FormsSend: 'forms.send', FormsTriage: 'forms.triage',
+  BillingView: 'billing.view', BillingManage: 'billing.manage', BillingFees: 'billing.fees',
 } as const;
+
+export const nzDateTime = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+export const money = (n: number) => n.toLocaleString('en-NZ', { style: 'currency', currency: 'NZD' });
+export const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+export const addDays = (iso: string, n: number) => { const [y, m, d] = iso.split('-').map(Number); const x = new Date(y, m - 1, d + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+export const errText = (e: unknown) => e instanceof ApiError ? (e.body?.errors?.join(' ') ?? e.body?.message ?? (e.status === 403 ? 'You do not have access to this.' : `Something went wrong (${e.status}).`)) : 'Could not reach BrightPAS. Check your connection.';
 
 export function formatDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);

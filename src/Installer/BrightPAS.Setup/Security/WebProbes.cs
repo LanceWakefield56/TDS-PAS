@@ -52,12 +52,21 @@ public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallL
         CheckHeaders(api, "API", requireNoStore: true);
 
         // Authentication enforcement
-        foreach (var path in new[] { "api/me", "api/patients?q=a", "api/admin/users", "api/audit", "api/organisation/locations" })
+        foreach (var path in new[] { "api/me", "api/patients?q=a", "api/admin/users", "api/audit", "api/organisation/locations", "api/admin/licence",
+                     "api/labs", "api/theatre/locations", "api/forms", "api/billing/documents" })
         {
             var res = await Send(http, HttpMethod.Get, path, ct: ct);
             if (res.StatusCode == HttpStatusCode.Unauthorized) r.Pass(Area, $"Login required: /{path.Split('?')[0]}", "Anonymous request refused (401).");
             else r.Fail(Area, $"Login required: /{path.Split('?')[0]}", $"Anonymous request returned HTTP {(int)res.StatusCode}.", "Protected data is reachable without signing in. Do not use the system; report this immediately.");
         }
+
+        // Patient questionnaire links: a guessed link must not reveal anything; HL7 import needs sign-in.
+        var guess = await Send(http, HttpMethod.Get, "api/q/" + Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)), ct: ct);
+        if (guess.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden) r.Pass(Area, "Patient link guessing", $"A made-up questionnaire link reveals nothing (HTTP {(int)guess.StatusCode}).");
+        else r.Fail(Area, "Patient link guessing", $"A made-up questionnaire link returned HTTP {(int)guess.StatusCode}.", "Report this immediately.");
+        var hl7 = await Send(http, HttpMethod.Post, "api/labs/import", """{"message":"MSH|^~\\&|X|Y|Z|W|202601010000||ORU^R01|1|P|2.4"}""", ct: ct);
+        if (hl7.StatusCode == HttpStatusCode.Unauthorized) r.Pass(Area, "Lab result import requires sign-in", "Anonymous HL7 import refused (401).");
+        else r.Fail(Area, "Lab result import requires sign-in", $"Anonymous HL7 import returned HTTP {(int)hl7.StatusCode}.", "Report this immediately.");
 
         // CSRF protection
         var csrf = await Send(http, HttpMethod.Post, "api/auth/logout", "{}", csrfHeader: false, ct: ct);

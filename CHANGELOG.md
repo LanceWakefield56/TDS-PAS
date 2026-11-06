@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 – 2026-11-07 (Phase 0/1) – **BrightPAS**, licensing and four paid modules
+- **Renamed BrightPAS** everywhere (projects, UI, installer, IIS site/app pool, database default, paths, `BRIGHTPAS_SQL_PASSWORD`).
+- **Licensing (ADR 0009):** ECDSA-signed licence files locked to an installation code; modules enabled per licence (base/paid split decided commercially); optional online activation with a licence server (binding, revocation, offline grace); clock-rollback detection; active-user limit; **licence problems make modules read-only, never hide clinical data**. Licence & modules admin page. Tools: `BrightPAS-LicenceManager` (keygen, issue, inspect) and `BrightPAS-LicenceServer`. Sandbox licence (all modules, development key) shipped for testing.
+- **Lab results module (ADR 0010):** HL7 ORU^R01 over MLLP or import; ACKs; duplicate and corrected-result handling; matching by NHI/MRN with date of birth and family-name checks; unmatched queue with audited manual matching; inbox with abnormal highlighting and acknowledgement; results on the patient record. Interfaces page with sample-message generator.
+- **Theatre bookings module:** theatre lists per active theatre/room, bookings with side, duration and anaesthetic, planned times with turnover, overrun and double-booking warnings, status flow (booked → discharged, cancel with reason, DNA), reorder, printable day list.
+- **Pre-admission forms module (ADR 0011):** secure patient link + date of birth (lockout, expiry), mobile-friendly PAQ-1 questionnaire with save-and-return, automatic Green/Amber/Red flags, nurse triage with outcome and one-step allergy alert.
+- **Estimates & invoices module:** fee schedule (example items for sandbox), default 40/20/remainder split with per-item overrides, GST, estimate → invoice, numbering, payments (part paid/paid), void rules, printable tax invoice (internal split hidden on print).
+- **UI:** phone layout (☰ menu, tables as cards), licence banner, home page work counts and today's theatre summary, module panels on the patient record.
+- **Installer:** schema scripts for labs/theatre/forms/billing; IIS Application Initialization + preload so background services keep running; self-test checks the licence and probes all new APIs and patient-link guessing.
+- **Install guide** updated: licence step, test checklists for every module, MLLP appendix, licensing appendix.
+- Tests: 141 automated (licensing 13, modules 19, web licence enforcement), plus browser end-to-end across all roles and modules.
+
 ## 0.3.0 – 2026-11-05 (Phase 0, increment 3) – product renamed **Galenica**
 - **Renamed** to Galenica: projects, namespaces, UI, installer, IIS site/app pool, packages (Galenica-Setup, Galenica-Web), database default `Galenica`.
 - **GUI (React + TypeScript):** first-time set-up wizard, sign-in with MFA and phone-app enrolment, recovery codes, "My work today", find/register/view patients, alerts, duplicate check, **user accounts** administration, **audit log** with integrity check.

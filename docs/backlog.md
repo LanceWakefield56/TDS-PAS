@@ -19,5 +19,23 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Guided platform installer: checks, IIS install + hardening, database + schema, first-admin code, web deployment to IIS, single-server mode, verbose logging (ADR 0006, 0008)
 - ☐ Developer guide and data dictionary generation
 
+## Increment 0.5.0 (done)
+- ☑ Renamed to **BrightPAS**
+- ☑ Licensing: signed licence files, installation code, online activation + licence server, read-only safety rule, Licence Manager (ADR 0009)
+- ☑ Lab results module: HL7 ORU via MLLP/import, safe matching, unmatched queue, inbox + acknowledgement (ADR 0010)
+- ☑ Theatre bookings module: lists, bookings, planned times, overrun/double-booking warnings, status flow, print
+- ☑ Pre-admission forms module: secure patient link + DOB, PAQ-1 questionnaire, auto-flags, nurse triage, allergy → alert (ADR 0011)
+- ☑ Estimates & invoices module: fee schedule, 40/20/remainder split, GST, numbering, payments, print
+- ☑ Phone-friendly layout; Interfaces page; self-test covers new APIs and licence
+
+## Next
+- ☐ Sandbox verification on Windows (IIS, PowerShell, MLLP) from Lance's logs
+- ☐ MLLP over TLS; HL7 ORM orders out; lab inbox per requesting clinician (HPI CPN on user accounts)
+- ☐ SMS/email reminders module (Modica) – send questionnaire links and booking reminders
+- ☐ Xero export of invoices; ACC/insurer claim formats; refunds/credit notes
+- ☐ Drag-and-drop theatre list ordering; theatre utilisation report; surgeon/anaesthetist as user links
+- ☐ Production vendor key pair (Lance) + code signing of Setup.exe
+- ☐ Passkeys/FIDO2, Setup Centre, messaging engine core
+
 ## Later phases
 See the specification, section 11 (Delivery roadmap).

@@ -10,8 +10,19 @@ import PatientRegister from './pages/PatientRegister';
 import PatientView from './pages/PatientView';
 import AdminUsers from './pages/AdminUsers';
 import AuditLog from './pages/AuditLog';
+import Licence from './pages/Licence';
+import Interfaces from './pages/Interfaces';
+import LabsInbox from './pages/LabsInbox';
+import LabReport from './pages/LabReport';
+import TheatreLists from './pages/TheatreLists';
+import FormsList from './pages/FormsList';
+import FormTriage from './pages/FormTriage';
+import PatientQuestionnaire from './pages/PatientQuestionnaire';
+import Billing from './pages/Billing';
+import BillingDocument from './pages/BillingDocument';
+import BillingNew from './pages/BillingNew';
 
-interface Session { me: Me | null; refresh: () => Promise<void>; signOut: () => Promise<void>; can: (perm: string) => boolean }
+interface Session { me: Me | null; refresh: () => Promise<void>; signOut: () => Promise<void>; can: (perm: string) => boolean; mod: (id: string) => boolean; writable: (id: string) => boolean }
 const SessionContext = createContext<Session>(null!);
 export const useSession = () => useContext(SessionContext);
 
@@ -27,6 +38,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (location.pathname.startsWith('/q/')) { setLoading(false); return; }
     (async () => {
       try { setNeedsSetup((await api<{ firstAdminNeeded: boolean }>('/api/setup/status')).firstAdminNeeded); } catch { /* ignore */ }
       await refresh();
@@ -45,10 +57,13 @@ export default function App() {
   }, [navigate]);
 
   const can = useCallback((perm: string) => !!me?.permissions.includes(perm), [me]);
+  const mod = useCallback((id: string) => !!me && (me.modules[id] ?? 'None') !== 'None', [me]);
+  const writable = useCallback((id: string) => me?.modules[id] === 'Full', [me]);
 
+  if (location.pathname.startsWith('/q/')) return <Routes><Route path="/q/:token" element={<PatientQuestionnaire />} /></Routes>;
   if (loading) return <div className="splash"><div className="brand-mark">BrightPAS</div><p>Loading…</p></div>;
 
-  const session: Session = { me, refresh, signOut, can };
+  const session: Session = { me, refresh, signOut, can, mod, writable };
   const publicPaths = ['/signin', '/setup'];
   if (needsSetup && location.pathname !== '/setup') return <Navigate to="/setup" replace />;
   if (!me && !publicPaths.includes(location.pathname)) return <Navigate to="/signin" replace state={{ from: location.pathname }} />;
@@ -65,6 +80,16 @@ export default function App() {
           <Route path="/patients/:id" element={<PatientView />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/audit" element={<AuditLog />} />
+          <Route path="/admin/licence" element={<Licence />} />
+          <Route path="/admin/interfaces" element={<Interfaces />} />
+          <Route path="/labs" element={<LabsInbox />} />
+          <Route path="/labs/:id" element={<LabReport />} />
+          <Route path="/theatre" element={<TheatreLists />} />
+          <Route path="/forms" element={<FormsList />} />
+          <Route path="/forms/:id" element={<FormTriage />} />
+          <Route path="/billing" element={<Billing />} />
+          <Route path="/billing/new" element={<BillingNew />} />
+          <Route path="/billing/:id" element={<BillingDocument />} />
           <Route path="*" element={<div className="card"><h1>Page not found</h1><p>Use the menu to find what you need.</p></div>} />
         </Route>
       </Routes>

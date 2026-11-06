@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Platform\BrightPAS.Shared\BrightPAS.Shared.csproj" />
+    <ProjectReference Include="..\..\Platform\BrightPAS.Licensing\BrightPAS.Licensing.csproj" />
   </ItemGroup>
 
   <ItemGroup>

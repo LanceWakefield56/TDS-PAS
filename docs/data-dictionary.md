@@ -134,3 +134,48 @@ Planned: NHI, contact and address columns encrypted with SQL Server Always Encry
 |---|---|---|
 | Id | int | Always 1 |
 | NextValue | bigint | Next MRN number (concurrency-checked) |
+
+
+## core.LicenceState (single row, Id = 1)
+| Column | Type | Notes |
+|---|---|---|
+| InstallationId | uniqueidentifier | Random; with the server's machine id forms the installation code (ADR 0009) |
+| LicenceText | nvarchar(max) | Signed licence file as installed |
+| LicenceInstalledAt / LicenceInstalledBy | datetimeoffset / nvarchar(100) | |
+| ActivationText | nvarchar(max) | Latest signed activation token from the licence server |
+| ActivationCheckedAt / ActivationError | datetimeoffset / nvarchar(500) | |
+| LastKnownModules | nvarchar(500) | Modules of the last valid licence – kept viewable if the licence later fails |
+| LastSeenAt | datetimeoffset | Updated every 15 min; clock-rollback detection |
+
+## labs.Messages
+Every inbound HL7 message as received. Id, ReceivedAt, Source (MLLP/Upload), ControlId (MSH-10), SendingFacility (MSH-4), MessageType (MSH-9), Raw (nvarchar(max)), Outcome (Accepted/Duplicate/Rejected), Error, ReceivedBy.
+
+## labs.Reports
+One OBR. PatientId (null = unmatched), MatchStatus (Matched/Unmatched/ManuallyMatched), MatchNote, MatchedBy; patient as sent (PatientNhi, PatientMrn, PatientFamilyName, PatientGivenNames, PatientDateOfBirth); Laboratory, PlacerOrderNumber (OBR-2), AccessionNumber (OBR-3), TestCode/TestName (OBR-4), RequestedBy/RequestedByCode (OBR-16), CollectedAt (OBR-7), ReportedAt (OBR-22), ResultStatus (OBR-25: Preliminary/Final/Corrected/Cancelled/Partial), IsAbnormal, Comment (NTE), ReceivedAt, SupersededById, AcknowledgedAt/By/Comment. Code systems: NZPOCS/LOINC for tests (spec 7.15).
+
+## labs.Observations
+One OBX. Sequence, Code/Name (OBX-3), ValueType (OBX-2), Value (OBX-5, repetitions joined by new lines), Units (OBX-6), ReferenceRange (OBX-7), Flag (OBX-8: H, L, HH, LL, A, AA, N), Comment (NTE after the OBX).
+
+## theatre.Sessions
+Theatre list: LocationId (core.Locations – active Theatre/ProcedureRoom only), LocationName, Date, StartTime, EndTime, Type (Surgical/Endoscopy/Mixed), Surgeon, Anaesthetist, Notes, IsCancelled, CreatedAt/By. No overlapping lists in one room.
+
+## theatre.Bookings
+SessionId, PatientId, Order, Procedure, Laterality (NotApplicable/Left/Right/Bilateral), DurationMinutes (5–720), Anaesthetic (General/Sedation/Regional/Local/None), Status (Booked → Confirmed → Arrived → InTheatre → Recovery → Discharged; Cancelled/DidNotAttend), StatusAt, CancelReason (required to cancel), Notes, CreatedAt/By. Planned times are calculated (list start + durations + 10-minute turnover).
+
+## forms.Requests
+Pre-admission questionnaire link: PatientId, BookingId, DefinitionVersion (PAQ-1), TokenHash (SHA-256 hex, unique), CreatedAt/By, ExpiresAt (14 days), Status (Sent/Opened/Submitted/Triaged/Cancelled/Expired), FailedAttempts, LockedUntil, OpenedAt, SubmittedAt, AnswersJson (question id → answer; "_details" suffix for details), FlagsJson ([{level, text}]), SuggestedCategory, TriageCategory (Green/Amber/Red), TriageOutcome, TriageNotes, TriagedBy/At.
+
+## billing.Settings (single row)
+SurgeonPercent (default 40), AnaesthetistPercent (20), GstPercent (15), EstimateValidDays (30), PaymentTermsDays (20), GstNumber, BankAccount, NextEstimateNumber, NextInvoiceNumber (concurrency tokens).
+
+## billing.Fees
+Code (unique, upper case), Description, Price (excl GST, decimal(12,2)), GstApplicable, Split (procedure fee shared with clinicians), SurgeonPercent/AnaesthetistPercent (optional per-item override), IsActive.
+
+## billing.Documents
+Estimate or invoice: Kind, Number (EST-000001 at creation; INV-000001 when issued), PatientId, BookingId, SourceEstimateId, Payer (SelfFunded/Insurer/Acc/HealthNz/Other), PayerName, PayerReference, Surgeon, Anaesthetist, Status (Draft/Issued/Accepted/Declined/Expired/Invoiced/PartPaid/Paid/Void), GstPercent (snapshot), CreatedAt/By, IssuedOn, DueOn (estimate valid-until / invoice due), Notes, VoidReason.
+
+## billing.Lines
+DocumentId, Sequence, Code, Description, Quantity, UnitPrice, GstApplicable, SurgeonPercent, AnaesthetistPercent (snapshots). Shares: surgeon = net × surgeon %, anaesthetist = net × anaesthetist %, facility = remainder; GST per line, rounded to cents (away from zero).
+
+## billing.Payments
+DocumentId, PaidOn, Amount, Method (Eftpos/CreditCard/BankTransfer/Insurer/Acc/Cash/Other), Reference, RecordedAt/By. Payments cannot exceed the balance; invoices with payments cannot be voided.

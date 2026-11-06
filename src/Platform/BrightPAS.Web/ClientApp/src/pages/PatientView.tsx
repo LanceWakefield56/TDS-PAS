@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { age, api, ApiError, ethnicityName, formatDate, PatientDetail, Perm } from '../api';
 import { useSession } from '../App';
+import PatientModules from '../components/PatientModules';
 
 export default function PatientView() {
   const { id } = useParams();
@@ -95,10 +96,7 @@ export default function PatientView() {
             <dt>GP practice</dt><dd>{p.gpPracticeHpiFacilityId ?? '—'}</dd>
           </dl>
         </section>
-        <section className="card subtle">
-          <h2>Coming soon</h2>
-          <p>Bookings, pre-admission questionnaire, clinical record and billing will appear here as each phase is delivered.</p>
-        </section>
+        <PatientModules patientId={p.id} />
       </div>
     </div>
   );

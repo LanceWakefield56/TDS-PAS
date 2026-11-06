@@ -24,6 +24,14 @@ cp "$SPUB/Setup.exe" "$OUT/BrightPAS-Setup-$VERSION.exe"
 rm -rf "$SPUB"
 cp docs/installer.md "$OUT/Installer guide.md"
 
+echo "== Sandbox licence and vendor tools"
+cp licensing/sandbox/BrightPAS-Sandbox-Licence.lic "$OUT/"
+mkdir -p "$OUT/Vendor"
+LPUB=$(mktemp -d)
+dotnet publish tools/BrightPAS.LicenceManager -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:PublishTrimmed=false -o "$LPUB" --nologo -v q
+cp "$LPUB/BrightPAS-LicenceManager.exe" "$OUT/Vendor/BrightPAS-LicenceManager-$VERSION.exe"
+rm -rf "$LPUB"
+
 echo "== Installation guide"
 NODE_PATH=$(npm root -g) node scripts/docs/install-guide.js "$OUT/BrightPAS-Installation-Guide-$VERSION.docx" "$VERSION"
 ls -la "$OUT"

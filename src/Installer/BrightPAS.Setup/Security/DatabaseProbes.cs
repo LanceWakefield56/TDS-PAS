@@ -62,6 +62,7 @@ public sealed class DatabaseProbes(SecurityTestOptions o, SecurityReport r, IIns
             await CheckPrincipalsAsync(conn, ct);
             await CheckAuditAsync(conn, ct);
             await CheckApplicationAsync(conn, ct);
+            await CheckLicenceAsync(conn, ct);
         }
     }
 
@@ -125,6 +126,40 @@ public sealed class DatabaseProbes(SecurityTestOptions o, SecurityReport r, IIns
         else r.Pass(Audit, "Break-glass reviews", "No overdue emergency-access reviews.");
         var failed = await Scalar<int>(conn, "SELECT COUNT(*) FROM core.AuditEvents WHERE Action = 'LoginFailed' AND OccurredAt > DATEADD(day, -1, SYSDATETIMEOFFSET()) AND UserId NOT LIKE 'sectest-%'", ct);
         r.Info(Audit, "Failed sign-ins (last 24 h)", $"{failed} failed sign-in attempt(s), excluding this self-test.");
+    }
+
+    private async Task CheckLicenceAsync(SqlConnection conn, CancellationToken ct)
+    {
+        const string Lic = "Licence";
+        string? text = null; Guid? installationId = null; DateTimeOffset? lastSeen = null;
+        try
+        {
+            await using var cmd = new SqlCommand("SELECT TOP 1 InstallationId, LicenceText, LastSeenAt FROM core.LicenceState", conn);
+            await using var rd = await cmd.ExecuteReaderAsync(ct);
+            if (await rd.ReadAsync(ct))
+            {
+                installationId = rd.GetGuid(0);
+                text = rd.IsDBNull(1) ? null : rd.GetString(1);
+                lastSeen = rd.IsDBNull(2) ? null : rd.GetDateTimeOffset(2);
+            }
+        }
+        catch (SqlException ex) { r.Warn(Lic, "Licence", $"Could not read the licence: {ex.Message}", "Run Setup's install to upgrade the database, then open BrightPAS once."); return; }
+        if (installationId is null) { r.Info(Lic, "Licence", "BrightPAS has not started yet, so no installation code exists."); return; }
+        var code = BrightPAS.Licensing.InstallationIdentity.Code(installationId.Value, BrightPAS.Licensing.InstallationIdentity.MachineId());
+        r.Info(Lic, "Installation code", code);
+        var st = BrightPAS.Licensing.LicenceEvaluator.Evaluate(new(text, code, DateTimeOffset.UtcNow, lastSeen), BrightPAS.Licensing.VendorKeys.BuiltIn());
+        var msg = string.Join(" ", st.Messages);
+        switch (st.Health)
+        {
+            case BrightPAS.Licensing.LicenceHealth.Missing:
+                r.Warn(Lic, "Licence installed", "No licence – only the base system works.", "Install the licence file in BrightPAS › Licence & modules."); break;
+            case BrightPAS.Licensing.LicenceHealth.Invalid or BrightPAS.Licensing.LicenceHealth.ClockProblem or BrightPAS.Licensing.LicenceHealth.WrongInstallation:
+                r.Fail(Lic, "Licence valid", msg, "Install a valid licence for this installation code; check the server clock."); break;
+            case BrightPAS.Licensing.LicenceHealth.Valid when !st.SignedWithDevelopmentKey:
+                r.Pass(Lic, "Licence valid", msg); break;
+            default:
+                r.Warn(Lic, "Licence valid", msg, st.SignedWithDevelopmentKey ? "Sandbox/development licence: replace it with a production licence before real patient data is entered." : "Renew or check the licence."); break;
+        }
     }
 
     private async Task CheckApplicationAsync(SqlConnection conn, CancellationToken ct)
