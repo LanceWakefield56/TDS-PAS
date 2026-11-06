@@ -1,0 +1,29 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Installer/">
+    <Project Path="src/Installer/BrightPAS.Setup/BrightPAS.Setup.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/BrightPAS.Modules.Patients/BrightPAS.Modules.Patients.csproj" />
+  </Folder>
+  <Folder Name="/src/Platform/">
+    <Project Path="src/Platform/BrightPAS.Core/BrightPAS.Core.csproj" />
+    <Project Path="src/Platform/BrightPAS.Identity/BrightPAS.Identity.csproj" />
+    <Project Path="src/Platform/BrightPAS.Licensing/BrightPAS.Licensing.csproj" />
+    <Project Path="src/Platform/BrightPAS.Messaging/BrightPAS.Messaging.csproj" />
+    <Project Path="src/Platform/BrightPAS.Shared/BrightPAS.Shared.csproj" />
+    <Project Path="src/Platform/BrightPAS.Web/BrightPAS.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BrightPAS.Core.Tests/BrightPAS.Core.Tests.csproj" />
+    <Project Path="tests/BrightPAS.Identity.Tests/BrightPAS.Identity.Tests.csproj" />
+    <Project Path="tests/BrightPAS.Licensing.Tests/BrightPAS.Licensing.Tests.csproj" />
+    <Project Path="tests/BrightPAS.Modules.Patients.Tests/BrightPAS.Modules.Patients.Tests.csproj" />
+    <Project Path="tests/BrightPAS.Setup.Tests/BrightPAS.Setup.Tests.csproj" />
+    <Project Path="tests/BrightPAS.Web.Tests/BrightPAS.Web.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/BrightPAS.LicenceManager/BrightPAS.LicenceManager.csproj" />
+    <Project Path="tools/BrightPAS.LicenceServer/BrightPAS.LicenceServer.csproj" />
+  </Folder>
+</Solution>

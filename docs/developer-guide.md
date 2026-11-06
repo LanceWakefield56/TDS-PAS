@@ -17,4 +17,4 @@ Filled in as the system is built.
 - Unit tests: `dotnet test` (uses SQLite in memory; no setup needed).
 - SQL Server integration tests: start SQL Server 2022 (e.g. `docker run -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=... -e MSSQL_PID=Developer -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest`), then set
   `PAS_TEST_SQLSERVER="Server=localhost,1433;User Id=sa;Password=...;TrustServerCertificate=true;Encrypt=true"` and run `dotnet test`. Each run creates and drops a throw-away database.
-- Apply migrations to a database: `dotnet ef database update --project src/Platform/Galenica.Core --connection "<connection string>"`.
+- Apply migrations to a database: `dotnet ef database update --project src/Platform/BrightPAS.Core --connection "<connection string>"`.

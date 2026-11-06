@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BrightPAS.Core\BrightPAS.Core.csproj" />
+    <ProjectReference Include="..\BrightPAS.Messaging\BrightPAS.Messaging.csproj" />
+    <ProjectReference Include="..\BrightPAS.Identity\BrightPAS.Identity.csproj" />
+    <ProjectReference Include="..\BrightPAS.Licensing\BrightPAS.Licensing.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Patients\BrightPAS.Modules.Patients.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

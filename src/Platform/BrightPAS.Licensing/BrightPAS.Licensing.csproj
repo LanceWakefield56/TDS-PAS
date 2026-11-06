@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Trusted vendor public keys. Release builds: put the production key in licensing/vendor-public-key.pem. -->
+    <EmbeddedResource Include="..\..\..\licensing\dev\vendor-public-key.pem" LogicalName="keys.dev.pem" />
+    <EmbeddedResource Include="..\..\..\licensing\vendor-public-key.pem" LogicalName="keys.production.pem" Condition="Exists('..\..\..\licensing\vendor-public-key.pem')" />
+  </ItemGroup>
+</Project>
