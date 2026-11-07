@@ -119,8 +119,8 @@ public sealed class ServerProbes(SecurityTestOptions o, SecurityReport r, IProce
             else
             {
                 var bindings = V("site.bindings");
-                if (bindings.Split(';').All(b => b.Trim().StartsWith("https", StringComparison.OrdinalIgnoreCase))) r.Pass(Iis, "HTTPS-only site", $"Bindings: {bindings}.");
-                else r.Fail(Iis, "HTTPS-only site", $"Bindings: {bindings}.", "Remove HTTP bindings in IIS Manager → Sites → BrightPAS → Bindings.");
+                if (HttpsOnlyBindings(bindings)) r.Pass(Iis, "HTTPS-only site", $"Bindings: {bindings} (port 80, if present, only redirects to https://).");
+                else r.Fail(Iis, "HTTPS-only site", $"Bindings: {bindings}.", "Remove HTTP bindings other than port 80 in IIS Manager → Sites → BrightPAS → Bindings (port 80 is allowed: BrightPAS answers it only with a redirect).");
                 if (V("pool.identity").Contains("ApplicationPoolIdentity", StringComparison.OrdinalIgnoreCase)) r.Pass(Iis, "Website runs with its own limited identity", "Application pool uses ApplicationPoolIdentity (not an administrator).");
                 else r.Warn(Iis, "Website runs with its own limited identity", $"App pool identity: {V("pool.identity")}.", "Set the BrightPAS application pool identity to ApplicationPoolIdentity.");
             }
@@ -140,4 +140,10 @@ public sealed class ServerProbes(SecurityTestOptions o, SecurityReport r, IProce
         else if (string.IsNullOrEmpty(dataReaders)) r.Pass(Files, "Key and log folder permissions", "Encryption keys and logs are not readable by ordinary users.");
         else r.Fail(Files, "Key and log folder permissions", $"Readable by: {dataReaders}.", "Re-run Setup's install (it locks down the folder).");
     }
+
+    /// <summary>True when every binding is https, except an optional http binding on port 80 (redirect-only, 0.9.1).</summary>
+    public static bool HttpsOnlyBindings(string bindings) =>
+        bindings.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).All(b =>
+            b.StartsWith("https", StringComparison.OrdinalIgnoreCase) ||
+            (b.StartsWith("http", StringComparison.OrdinalIgnoreCase) && b.Contains(":80:", StringComparison.Ordinal)));
 }
