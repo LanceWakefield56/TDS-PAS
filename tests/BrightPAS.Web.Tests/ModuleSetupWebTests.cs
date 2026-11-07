@@ -150,4 +150,22 @@ public class ModuleSetupWebTests(PasWebFactory factory) : IClassFixture<PasWebFa
         Assert.Equal("Dr Ben Hall", list[0].GetProperty("name").GetString());
         Assert.False(list[0].TryGetProperty("hpiCpn", out _)); // reference list shows names only
     }
+
+    [SqlServerFact]
+    public async Task Plain_http_only_redirects_to_https_and_never_accepts_data()
+    {
+        using var http = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { BaseAddress = new Uri("http://brightpas-srv"), AllowAutoRedirect = false });
+        var get = await http.GetAsync("/patients?x=1");
+        Assert.Equal(HttpStatusCode.MovedPermanently, get.StatusCode);
+        Assert.Equal("https://brightpas-srv/patients?x=1", get.Headers.Location!.ToString());
+        Assert.Equal(HttpStatusCode.MovedPermanently, (await http.GetAsync("/")).StatusCode);
+        var post = await http.PostAsJsonAsync("/api/auth/login", new { userName = "admin", password = "x" });
+        Assert.Equal(HttpStatusCode.Forbidden, post.StatusCode);
+        Assert.Contains("https_required", await post.Content.ReadAsStringAsync());
+        // Over HTTPS the same request reaches the app, and HSTS tells the browser to stay on HTTPS.
+        using var https = factory.NewClient();
+        var home = await https.GetAsync("/");
+        Assert.Equal(HttpStatusCode.OK, home.StatusCode);
+        Assert.Contains("max-age=31536000", home.Headers.GetValues("Strict-Transport-Security").Single());
+    }
 }

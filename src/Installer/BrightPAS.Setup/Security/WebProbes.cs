@@ -266,16 +266,23 @@ public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallL
             using var tcp = new TcpClient();
             var connect = tcp.ConnectAsync(baseUri.Host, 80, ct).AsTask();
             if (await Task.WhenAny(connect, Task.Delay(3000, ct)) != connect || !tcp.Connected)
-            { r.Pass(Area, test, "Port 80 (plain HTTP) is closed."); return; }
+            { r.Pass(Area, test, "Port 80 (plain HTTP) is closed: only https:// addresses work."); return; }
             using var plain = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(5) };
-            var res = await plain.GetAsync(new UriBuilder(baseUri) { Scheme = "http", Port = 80 }.Uri, ct);
+            var url = new UriBuilder(baseUri) { Scheme = "http", Port = 80, Path = "/patients" }.Uri;
+            var res = await plain.GetAsync(url, ct);
             var loc = res.Headers.Location?.ToString() ?? "";
-            if ((int)res.StatusCode is >= 300 and < 400 && loc.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) r.Pass(Area, test, "Port 80 only redirects to HTTPS.");
-            else r.Warn(Area, test, $"Port 80 answers HTTP {(int)res.StatusCode} (another site may be bound to port 80).", "Remove HTTP bindings in IIS Manager unless needed; BrightPAS uses HTTPS only.");
+            var post = await plain.PostAsync(new UriBuilder(url) { Path = "/api/auth/login" }.Uri,
+                new StringContent("""{"userName":"x","password":"x"}""", Encoding.UTF8, "application/json"), ct);
+            log.Debug($"Plain HTTP: GET -> {(int)res.StatusCode} {loc}; POST -> {(int)post.StatusCode}");
+            var redirects = (int)res.StatusCode is >= 300 and < 400 && loc.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+            var postRefused = (int)post.StatusCode is >= 400 and < 500;
+            if (redirects && postRefused) r.Pass(Area, test, $"http:// only redirects to the secure address ({loc}); data sent over plain HTTP is refused.");
+            else if (redirects) r.Fail(Area, test, $"http:// redirects, but a sign-in sent over plain HTTP was answered HTTP {(int)post.StatusCode}.", "Install the current BrightPAS version and report this.");
+            else r.Warn(Area, test, $"Port 80 answers HTTP {(int)res.StatusCode} without redirecting to https:// (another site may be bound to port 80).", "Remove other HTTP bindings in IIS Manager, then re-run Setup.");
         }
         catch (Exception ex) when (ex is SocketException or HttpRequestException or TaskCanceledException or OperationCanceledException)
         {
-            r.Pass(Area, test, "Port 80 (plain HTTP) is closed.");
+            r.Pass(Area, test, "Port 80 (plain HTTP) is closed: only https:// addresses work (typing http:// will not open BrightPAS).");
         }
     }
 

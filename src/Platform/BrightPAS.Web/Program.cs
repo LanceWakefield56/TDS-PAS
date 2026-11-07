@@ -86,7 +86,7 @@ using (var scope = app.Services.CreateScope())
     await scope.ServiceProvider.GetRequiredService<BrightPAS.Web.Licensing.LicensingService>().RefreshAsync(heartbeat: true);
 }
 
-app.UseHttpsRedirection();
+app.UseHttpsOnly(builder.Configuration.GetValue("Https:Port", 443));
 app.Use(async (ctx, next) =>
 {
     var h = ctx.Response.Headers;

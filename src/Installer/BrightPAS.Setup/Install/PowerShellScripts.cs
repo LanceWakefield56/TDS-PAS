@@ -157,8 +157,11 @@ public static class PowerShellScripts
         "App pool '$pool' is stopped; no worker process is running."
         """.Replace("__POOL__", Q(appPool)).Replace("__PATH__", Q(installDir));
 
-    /// <summary>Dedicated app pool (no managed code, always running) and an HTTPS-only site.</summary>
-    public static string ConfigureSite(string site, string appPool, string installDir, string hostName, int port, string? thumbprint) => """
+    /// <summary>
+    /// Dedicated app pool (no managed code, always running) and an HTTPS site. With <paramref name="httpRedirect"/>, port 80 is bound too, but BrightPAS
+    /// answers every plain-HTTP request with a redirect to https:// (never a page); without it, port 80 is not bound at all.
+    /// </summary>
+    public static string ConfigureSite(string site, string appPool, string installDir, string hostName, int port, string? thumbprint, bool httpRedirect = true) => """
         $ErrorActionPreference = 'Stop'
         Import-Module WebAdministration
         $pool = __POOL__; $site = __SITE__; $path = __PATH__; $hostName = __HOST__; $port = __PORT__; $thumb = __THUMB__
@@ -187,11 +190,16 @@ public static class PowerShellScripts
         try { Set-ItemProperty "IIS:\Sites\$site" -Name applicationDefaults.preloadEnabled -Value $true } catch { "Note: preload not set ($($_.Exception.Message))" }
         Get-WebBinding -Name $site | Where-Object { $_.protocol -ne 'https' } | Remove-WebBinding
         if (-not (Get-WebBinding -Name $site -Protocol https)) { New-WebBinding -Name $site -Protocol https -Port $port -IPAddress '*' | Out-Null }
+        if (__REDIRECT__) {
+            $taken = Get-Website | Where-Object { $_.Name -ne $site } | ForEach-Object { Get-WebBinding -Name $_.Name -Protocol http } | Where-Object { $_.bindingInformation -like '*:80:*' }
+            if ($taken) { "NOTE: port 80 is used by another IIS site, so http:// is not redirected. Staff must type https://$hostName" }
+            else { New-WebBinding -Name $site -Protocol http -Port 80 -IPAddress '*' | Out-Null; "http://$hostName will redirect to https:// (port 80 answers only with a redirect)." }
+        } else { 'Port 80 not used: only https:// works.' }
         Remove-Item "IIS:\SslBindings\0.0.0.0!$port" -ErrorAction SilentlyContinue
         (Get-WebBinding -Name $site -Protocol https | Select-Object -First 1).AddSslCertificate($thumb, 'my')
         Start-WebAppPool -Name $pool -ErrorAction SilentlyContinue
         Start-Website -Name $site
         "Site ready: $site on port $port"
         """.Replace("__POOL__", Q(appPool)).Replace("__SITE__", Q(site)).Replace("__PATH__", Q(installDir)).Replace("__HOST__", Q(hostName))
-           .Replace("__PORT__", port.ToString(System.Globalization.CultureInfo.InvariantCulture)).Replace("__THUMB__", thumbprint is null ? "''" : Q(thumbprint));
+           .Replace("__PORT__", port.ToString(System.Globalization.CultureInfo.InvariantCulture)).Replace("__THUMB__", thumbprint is null ? "''" : Q(thumbprint)).Replace("__REDIRECT__", httpRedirect ? "$true" : "$false");
 }

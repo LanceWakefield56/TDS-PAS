@@ -459,6 +459,7 @@ add(h1('Part H — Test checklist'),
   ]),
   h2('H3. Sign-in security'),
   T([
+    ['Always the secure page', 'In a new Edge window type `BRIGHTPAS-SRV` (no https), then `http://BRIGHTPAS-SRV/patients`.', 'Both open **https://BRIGHTPAS-SRV/…** with the padlock (self-signed: "Not secure" warning in the sandbox only).'],
     ['Wrong MFA code', 'Sign in as Nora with the right password but code `000000`.', 'Refused.'],
     ['Lockout', 'Enter a wrong password for Nora **5 times**.', 'Account is locked for 15 minutes.'],
     ['Admin unlock', 'As admin: **User accounts** › Nora › **Unlock**.', 'Nora can sign in again straight away.'],

@@ -189,6 +189,9 @@ public class InstallerTests
         Assert.Contains("'o''brien.local'", ps);
         Assert.Contains("-Ssl", ps);
         Assert.Contains("Where-Object { $_.protocol -ne 'https' } | Remove-WebBinding", ps);
+        Assert.Contains("if ($true)", ps);
+        Assert.Contains("New-WebBinding -Name $site -Protocol http -Port 80", ps);
+        Assert.Contains("if ($false)", PowerShellScripts.ConfigureSite("BrightPAS", "BrightPAS", @"C:\x", "h", 443, null, httpRedirect: false));
     }
 
     [Fact]

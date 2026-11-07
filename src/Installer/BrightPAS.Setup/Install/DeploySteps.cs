@@ -15,6 +15,8 @@ public sealed record WebDeployOptions
     public string AppPoolName { get; init; } = "BrightPAS";
     public string? HostName { get; init; }
     public int HttpsPort { get; init; } = 443;
+    /// <summary>Also listen on port 80, only to send http:// visitors to the https:// address (no pages are ever served over plain HTTP).</summary>
+    public bool HttpRedirect { get; init; } = true;
     public string? CertificateThumbprint { get; init; }
     /// <summary>Windows account the app pool uses to reach SQL Server (e.g. TDS\PAS-WEB$). When null a SQL login is created.</summary>
     public string? AppWindowsLogin { get; init; }
@@ -63,7 +65,7 @@ public static class WebPackage
     }
 
     /// <summary>Writes appsettings.Production.json with the app connection string, key storage path and messaging vendor defaults.</summary>
-    public static void WriteProductionSettings(string installDir, string connectionString, string keysPath, string? smsProvider = null, string? emailProvider = null)
+    public static void WriteProductionSettings(string installDir, string connectionString, string keysPath, string? smsProvider = null, string? emailProvider = null, int httpsPort = 443)
     {
         // Keep earlier vendor choices when this run does not change them.
         var file = Path.Combine(installDir, "appsettings.Production.json");
@@ -87,6 +89,7 @@ public static class WebPackage
                 ["LogLevel"] = new System.Text.Json.Nodes.JsonObject { ["Default"] = "Warning", ["Microsoft.AspNetCore"] = "Warning" }
             },
             ["AllowedHosts"] = "*",
+            ["Https"] = new System.Text.Json.Nodes.JsonObject { ["Port"] = httpsPort },
             ["Reminders"] = new System.Text.Json.Nodes.JsonObject
             {
                 ["SmsProvider"] = smsProvider ?? MessagingVendors.DefaultSms,
@@ -343,7 +346,7 @@ public sealed class DeployWebFilesStep : IInstallStep
         var logs = Path.Combine(w.DataDir, "logs");
         Directory.CreateDirectory(keys);
         Directory.CreateDirectory(logs);
-        WebPackage.WriteProductionSettings(w.InstallDir, c.AppConnectionString, keys, w.SmsProvider, w.EmailProvider);
+        WebPackage.WriteProductionSettings(w.InstallDir, c.AppConnectionString, keys, w.SmsProvider, w.EmailProvider, w.HttpsPort);
         await MessagingVendorUpdate.ApplyAsync(c, ct);
 
         var script = PowerShellScripts.SecureFolders(w.InstallDir, w.DataDir, w.AppPoolName);
@@ -394,7 +397,7 @@ public sealed class ConfigureIisSiteStep : IInstallStep
         var w = c.Web;
         var host = w.HostName ?? System.Net.Dns.GetHostEntry(string.Empty).HostName;
         if (c.Options.WhatIf) return StepResult.Planned($"Would create app pool and site '{w.SiteName}' at https://{host}:{w.HttpsPort}/ ({(w.CertificateThumbprint is null ? "self-signed certificate" : "certificate " + w.CertificateThumbprint)}).");
-        var script = PowerShellScripts.ConfigureSite(w.SiteName, w.AppPoolName, w.InstallDir, host, w.HttpsPort, w.CertificateThumbprint);
+        var script = PowerShellScripts.ConfigureSite(w.SiteName, w.AppPoolName, w.InstallDir, host, w.HttpsPort, w.CertificateThumbprint, w.HttpRedirect);
         c.Log.Block("PowerShell (IIS site)", script);
         var r = await c.Processes.RunPowerShellAsync(script, ct);
         c.Log.Block("PowerShell output", r.Output);

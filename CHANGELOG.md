@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1 – 2026-11-08 – Always open the secure page
+- Typing `BRIGHTPAS-SRV` or `http://BRIGHTPAS-SRV` now lands on `https://BRIGHTPAS-SRV` instead of "can't reach this page". Setup binds port 80 to the BrightPAS site, but BrightPAS answers plain HTTP **only** with a permanent redirect to https:// (GET/HEAD) and refuses everything else (HTTP 403 "https_required") – no page, sign-in or patient data ever travels unencrypted. HSTS then keeps the browser on https://. `--no-http-redirect` keeps port 80 closed; if another IIS site already uses port 80, Setup leaves it alone and says so.
+- Replaced ASP.NET's UseHttpsRedirection (which silently does nothing under IIS when it cannot find the HTTPS port) with an explicit HTTPS-only rule; Setup writes `Https:Port`.
+- Self-test: "Unencrypted HTTP disabled" now checks that http:// redirects to https:// and that a sign-in sent over plain HTTP is refused.
+- Tests: 244.
+
 ## 0.9.0 – 2026-11-08 – **Booking calendar & rostering** (TeamUp replacement)
 - **Calendar (ADR 0017):** week/day view of theatre cases and clinic appointments, coloured by clinician, tentative bookings striped, theatre lists in the all-day row; click an empty time to book.
 - **Clinic appointments:** consultations, follow-ups, phone calls and pre-admission visits, NO CHARGE flag, tentative, arrived/completed/DNA/cancel; warnings for clashes with the clinician's appointments or theatre lists.

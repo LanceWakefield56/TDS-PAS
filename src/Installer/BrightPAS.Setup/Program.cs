@@ -9,7 +9,7 @@ using BrightPAS.Setup.Support;
 //   Setup.exe check          [--sql-server NAME[:PORT]] [--drive C:\]
 //   Setup.exe install        --sql-server NAME [--database BrightPAS] [--sql-user USER] [--trust-server-certificate]
 //                            [--skip-iis] [--skip-web] [--what-if] [--ignore-prerequisites] [--web-package PATH]
-//                            [--install-dir PATH] [--host-name NAME] [--https-port 443] [--certificate-thumbprint THUMB]
+//                            [--install-dir PATH] [--host-name NAME] [--https-port 443] [--no-http-redirect] [--certificate-thumbprint THUMB]
 //                            [--app-windows-login DOMAIN\ACCOUNT$] [--sms-provider Modica|GenericHttp|TestOutbox|Off]
 //                            [--email-provider Smtp|TestOutbox|Off]
 //   Setup.exe security-test  [--url https://server/] [--sql-server NAME] [--database BrightPAS] [--no-rate-limit-tests]
@@ -123,7 +123,7 @@ async Task<int> RunInstallAsync()
     log.Debug($"Install options: SqlServer={o.SqlServer}; Database={o.Database}; WindowsAuth={o.IntegratedSecurity}; SqlUser={o.SqlUser ?? "-"}; TrustServerCertificate={o.TrustServerCertificate}; " +
               $"LocalSql={o.IsLocalSqlServer()}; SkipIis={o.SkipIis}; SkipWeb={o.SkipWeb}; WhatIf={o.WhatIf}; IgnorePrerequisites={o.IgnorePrerequisites}");
     log.Debug($"Web options: InstallDir={cli.Web.InstallDir}; DataDir={cli.Web.DataDir}; Site={cli.Web.SiteName}; Pool={cli.Web.AppPoolName}; Host={cli.Web.HostName ?? "(this server)"}; " +
-              $"Port={cli.Web.HttpsPort}; Certificate={cli.Web.CertificateThumbprint ?? "(self-signed)"}; AppWindowsLogin={cli.Web.AppWindowsLogin ?? "(automatic)"}; Package={cli.Web.PackagePath ?? "(search next to Setup.exe)"}; " +
+              $"Port={cli.Web.HttpsPort}; HttpRedirect={cli.Web.HttpRedirect}; Certificate={cli.Web.CertificateThumbprint ?? "(self-signed)"}; AppWindowsLogin={cli.Web.AppWindowsLogin ?? "(automatic)"}; Package={cli.Web.PackagePath ?? "(search next to Setup.exe)"}; " +
               $"SmsVendor={cli.Web.SmsProvider ?? "(keep; default Modica)"}; EmailSender={cli.Web.EmailProvider ?? "(keep; default Smtp)"}");
 
     var probe = SystemProbeBase.Create();
@@ -260,6 +260,7 @@ internal sealed record Cli(string? Command, InstallOptions Install, WebDeployOpt
                 case "--install-dir": w = w with { InstallDir = Next() }; break;
                 case "--host-name": w = w with { HostName = Next() }; break;
                 case "--https-port": w = w with { HttpsPort = int.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture) }; break;
+                case "--no-http-redirect": w = w with { HttpRedirect = false }; break;
                 case "--certificate-thumbprint": w = w with { CertificateThumbprint = Next().Replace(" ", "") }; break;
                 case "--app-windows-login": w = w with { AppWindowsLogin = Next() }; break;
                 case "--sms-provider": w = w with { SmsProvider = MessagingVendors.Normalise(Next(), MessagingVendors.Sms, "SMS vendor") }; break;
