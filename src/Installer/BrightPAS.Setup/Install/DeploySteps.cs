@@ -193,12 +193,15 @@ public sealed class AppDatabaseLoginStep : IInstallStep
             if (-not (Test-Path "IIS:\AppPools\$pool")) { New-WebAppPool -Name $pool | Out-Null; "Created app pool '$pool'." } else { "App pool '$pool' already exists." }
             Set-ItemProperty "IIS:\AppPools\$pool" -Name processModel.identityType -Value ApplicationPoolIdentity
             Set-ItemProperty "IIS:\AppPools\$pool" -Name managedRuntimeVersion -Value ''
-            if ((Get-WebAppPoolState -Name $pool).Value -ne 'Started') { Start-WebAppPool -Name $pool }
             $account = "IIS APPPOOL\$pool"
             $sid = $null
             for ($i = 0; $i -lt 30 -and -not $sid; $i++) {
                 try { $sid = ([System.Security.Principal.NTAccount]$account).Translate([System.Security.Principal.SecurityIdentifier]).Value }
-                catch { Start-Sleep -Seconds 2 }
+                catch {
+                    # Starting the pool makes Windows register its account; the next step stops it again before copying files.
+                    if ($i -eq 2 -and (Get-WebAppPoolState -Name $pool).Value -ne 'Started') { Start-WebAppPool -Name $pool }
+                    Start-Sleep -Seconds 2
+                }
             }
             if (-not $sid) { throw "Windows does not recognise the account '$account' after 60 seconds. Check that the Windows Process Activation Service (WAS) and World Wide Web Publishing Service (W3SVC) are running, then run Setup again." }
             "Account '$account' is known to Windows (SID $sid)."
@@ -210,6 +213,44 @@ public sealed class AppDatabaseLoginStep : IInstallStep
         await using var cmd = new SqlCommand(sql, conn);
         foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v);
         await cmd.ExecuteNonQueryAsync(ct);
+    }
+}
+
+/// <summary>Extracts the web package file by file, retrying files that are briefly locked or read-only.</summary>
+public static class WebFiles
+{
+    public static async Task<int> ExtractWithRetryAsync(string zipPath, string targetDir, IInstallLog log, CancellationToken ct, int attempts = 6)
+    {
+        var root = Path.GetFullPath(targetDir) + Path.DirectorySeparatorChar;
+        var count = 0;
+        using var zip = ZipFile.OpenRead(zipPath);
+        foreach (var entry in zip.Entries)
+        {
+            var dest = Path.GetFullPath(Path.Combine(targetDir, entry.FullName));
+            if (!dest.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException($"Unsafe path in package: {entry.FullName}");
+            if (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\')) { Directory.CreateDirectory(dest); continue; }
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    if (File.Exists(dest)) File.SetAttributes(dest, FileAttributes.Normal);
+                    entry.ExtractToFile(dest, overwrite: true);
+                    break;
+                }
+                catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < attempts)
+                {
+                    log.Debug($"{entry.FullName} is in use ({ex.Message}); retry {attempt}/{attempts - 1} in {attempt * 2} s.");
+                    await Task.Delay(TimeSpan.FromSeconds(attempt * 2), ct);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    throw new IOException($"Could not replace '{dest}' after {attempts} attempts – another program still has it open. Restart the server (or run 'iisreset' in an administrator command prompt), then run Setup again. Details: {ex.Message}", ex);
+                }
+            }
+            count++;
+        }
+        return count;
     }
 }
 
@@ -230,13 +271,17 @@ public sealed class DeployWebFilesStep : IInstallStep
         if (pkg is null) return StepResult.Fail("Web package (BrightPAS-Web-<version>.zip) not found next to Setup.exe.");
         if (c.AppConnectionString is null) return StepResult.Fail("Application database login was not prepared.");
 
-        // Stop the app pool (if it exists) so files are not locked.
-        await c.Processes.RunPowerShellAsync($"Import-Module WebAdministration; if (Test-Path 'IIS:\\AppPools\\{w.AppPoolName}') {{ Stop-WebAppPool -Name '{w.AppPoolName}' -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3 }}", ct);
+        // Take the site offline and wait until its worker process has exited, so no file is locked.
+        var stop = PowerShellScripts.StopSiteForUpdate(w.AppPoolName, w.InstallDir);
+        c.Log.Block("PowerShell (take site offline)", stop);
+        var sr = await c.Processes.RunPowerShellAsync(stop, ct);
+        c.Log.Block("PowerShell output", sr.Output);
+        if (sr.ExitCode != 0) return StepResult.Fail($"Could not stop the website before updating it: {sr.Output}");
 
         Directory.CreateDirectory(w.InstallDir);
         c.Log.Detail($"Package: {pkg} ({new FileInfo(pkg).Length / 1024:N0} KB)");
-        ZipFile.ExtractToDirectory(pkg, w.InstallDir, overwriteFiles: true);
-        c.Log.Debug($"Extracted {Directory.GetFiles(w.InstallDir, "*", SearchOption.AllDirectories).Length} files to {w.InstallDir}.");
+        var copied = await WebFiles.ExtractWithRetryAsync(pkg, w.InstallDir, c.Log, ct);
+        c.Log.Debug($"Extracted {copied} files to {w.InstallDir}.");
         var keys = Path.Combine(w.DataDir, "keys");
         var logs = Path.Combine(w.DataDir, "logs");
         Directory.CreateDirectory(keys);
@@ -247,7 +292,10 @@ public sealed class DeployWebFilesStep : IInstallStep
         c.Log.Block("PowerShell (secure folders)", script);
         var r = await c.Processes.RunPowerShellAsync(script, ct);
         c.Log.Block("PowerShell output", r.Output);
-        return r.ExitCode == 0 ? StepResult.Done($"Installed {Path.GetFileName(pkg)} to {w.InstallDir}.") : StepResult.Fail($"Could not secure folders: {r.Output}");
+        if (r.ExitCode != 0) return StepResult.Fail($"Could not secure folders: {r.Output}");
+        var offline = Path.Combine(w.InstallDir, "app_offline.htm");
+        if (File.Exists(offline)) { File.Delete(offline); c.Log.Debug("Site back online (app_offline.htm removed); the next step starts it."); }
+        return StepResult.Done($"Installed {Path.GetFileName(pkg)} to {w.InstallDir}.");
     }
 }
 

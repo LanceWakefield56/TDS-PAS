@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.5 – 2026-11-07 – Installer fix (re-install over a running site)
+- **Fixed:** step 10 failed with "Access to the path 'C:\Program Files\BrightPAS\Web\Microsoft.Identity.Client.dll' is denied" when the website was already installed and running – its files were locked. Setup now takes the site offline (`app_offline.htm`), stops the app pool and waits until its worker process has exited (ending it after 90 s if needed), then copies files one by one with retries, clearing read-only flags. The site comes back online in the next step.
+- Step 9 now only starts the app pool if Windows needs that to recognise its account.
+- Tests: 159.
+
 ## 0.5.4 – 2026-11-07 – Installer fix (wrong ASP.NET Core Module location)
 - **Fixed:** 0.5.3 looked for the ASP.NET Core Module V2 in `System32\inetsrv`, but it is installed under `%ProgramFiles%\IIS\Asp.Net Core Module\V2`, so Setup reported it missing even after a successful Hosting Bundle repair. Setup (and diagnostics) now read the module's registration in IIS `applicationHost.config` and check that the DLL it points to exists. The 0.5.3 diagnosis of the web failure was based on this wrong check.
 - Tests: 156.

@@ -86,6 +86,34 @@ public static class PowerShellScripts
         'Folders secured.'
         """.Replace("__POOL__", Q(appPool)).Replace("__INSTALL__", Q(installDir)).Replace("__DATA__", Q(dataDir));
 
+    /// <summary>
+    /// 0.5.5: takes the site offline before files are replaced. Drops app_offline.htm (the ASP.NET Core Module then
+    /// unloads the app), stops the pool, waits until its worker process (w3wp) has really exited – up to 90 s – and
+    /// ends it if it is still running. Files of a running site are locked, which caused "Access to the path is denied".
+    /// </summary>
+    public static string StopSiteForUpdate(string appPool, string installDir) => """
+        $ErrorActionPreference = 'Stop'
+        Import-Module WebAdministration
+        $pool = __POOL__; $path = __PATH__
+        if (Test-Path $path) {
+            Set-Content -Path (Join-Path $path 'app_offline.htm') -Value '<!doctype html><title>BrightPAS</title><p>BrightPAS is being updated. Please try again in a few minutes.</p>' -Encoding UTF8
+            'Site taken offline (app_offline.htm).'
+        }
+        if (-not (Test-Path "IIS:\AppPools\$pool")) { "App pool '$pool' does not exist yet - nothing to stop."; return }
+        if ((Get-WebAppPoolState -Name $pool).Value -ne 'Stopped') { Stop-WebAppPool -Name $pool; "Stopping app pool '$pool'..." }
+        function Get-PoolProcesses { @(Get-CimInstance Win32_Process -Filter "Name='w3wp.exe'" | Where-Object { $_.CommandLine -match ('-ap "' + [regex]::Escape($pool) + '"') }) }
+        for ($i = 0; $i -lt 45; $i++) {
+            if ((Get-WebAppPoolState -Name $pool).Value -eq 'Stopped' -and (Get-PoolProcesses).Count -eq 0) { break }
+            Start-Sleep -Seconds 2
+        }
+        $left = Get-PoolProcesses
+        if ($left.Count -gt 0) {
+            foreach ($p in $left) { "Worker process $($p.ProcessId) still running after 90 s - ending it."; Stop-Process -Id $p.ProcessId -Force }
+            Start-Sleep -Seconds 2
+        }
+        "App pool '$pool' is stopped; no worker process is running."
+        """.Replace("__POOL__", Q(appPool)).Replace("__PATH__", Q(installDir));
+
     /// <summary>Dedicated app pool (no managed code, always running) and an HTTPS-only site.</summary>
     public static string ConfigureSite(string site, string appPool, string installDir, string hostName, int port, string? thumbprint) => """
         $ErrorActionPreference = 'Stop'
