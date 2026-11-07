@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2 – 2026-11-07 – Installer fix (PowerShell scripts never ran)
+- **Fixed (serious):** every Setup PowerShell step (install IIS, TLS hardening, IIS hardening, app pool, site, certificate) reported "Done" without running. Scripts were piped to `powershell -Command -`, which silently skips multi-line blocks and still exits 0. Scripts now run from a temporary `.ps1` file with `-File`, and must print a completion marker – exit code 0 without the marker is treated as a failure. **Anyone who ran 0.5.0/0.5.1 must re-run Setup: TLS and IIS hardening were not applied.**
+- **Fixed:** step 9 failed with SQL error 15401 "Windows NT user or group 'IIS APPPOOL\BrightPAS' not found" (consequence of the above). The app pool step now creates and starts the pool and waits until Windows recognises its account before creating the SQL login.
+- Tests: real PowerShell (pwsh) runs multi-line and failing scripts in CI; marker logic and app-pool script covered. 149 tests.
+
 ## 0.5.1 – 2026-11-07 – Installer fix
 - **Fixed:** Setup failed at step 5 "Create the PAS database" with `TypeLoadException` (SqlClient native SNI, Windows only). Cause: Setup.exe was published trimmed, which broke SqlClient's native interop on Windows; Linux tests use the managed SNI and could not catch it. Setup is now published **untrimmed** (larger exe). Regression tests assert the publish settings.
 - No database, web or licence changes. Re-running Setup over a part-finished 0.5.0 install is safe (steps 1–4 are repeatable).

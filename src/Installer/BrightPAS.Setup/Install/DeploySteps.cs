@@ -113,7 +113,7 @@ public sealed class AppDatabaseLoginStep : IInstallStep
         {
             windowsLogin = $"IIS APPPOOL\\{w.AppPoolName}";
             c.Log.Detail($"SQL Server is on this machine: the website will connect as Windows account '{windowsLogin}' (no password).");
-            var ensurePool = $"Import-Module WebAdministration; if (-not (Test-Path 'IIS:\\AppPools\\{w.AppPoolName.Replace("'", "''")}')) {{ New-WebAppPool -Name '{w.AppPoolName.Replace("'", "''")}' | Out-Null }}; 'App pool ready.'";
+            var ensurePool = AppPoolScript(w.AppPoolName);
             c.Log.Block("PowerShell (create app pool before SQL login)", ensurePool);
             var pr = await c.Processes.RunPowerShellAsync(ensurePool, ct);
             c.Log.Block("PowerShell output", pr.Output);
@@ -160,6 +160,32 @@ public sealed class AppDatabaseLoginStep : IInstallStep
     }
 
     private static string Quote(string name) => "[" + name.Replace("]", "]]") + "]";
+
+    /// <summary>
+    /// Creates the app pool if needed, starts it, and waits (up to 60 s) until Windows can resolve its virtual
+    /// account 'IIS APPPOOL\&lt;pool&gt;' – SQL Server cannot create the login before then (error 15401).
+    /// </summary>
+    public static string AppPoolScript(string pool)
+    {
+        var q = pool.Replace("'", "''");
+        return $$"""
+            $ErrorActionPreference = 'Stop'
+            Import-Module WebAdministration
+            $pool = '{{q}}'
+            if (-not (Test-Path "IIS:\AppPools\$pool")) { New-WebAppPool -Name $pool | Out-Null; "Created app pool '$pool'." } else { "App pool '$pool' already exists." }
+            Set-ItemProperty "IIS:\AppPools\$pool" -Name processModel.identityType -Value ApplicationPoolIdentity
+            Set-ItemProperty "IIS:\AppPools\$pool" -Name managedRuntimeVersion -Value ''
+            if ((Get-WebAppPoolState -Name $pool).Value -ne 'Started') { Start-WebAppPool -Name $pool }
+            $account = "IIS APPPOOL\$pool"
+            $sid = $null
+            for ($i = 0; $i -lt 30 -and -not $sid; $i++) {
+                try { $sid = ([System.Security.Principal.NTAccount]$account).Translate([System.Security.Principal.SecurityIdentifier]).Value }
+                catch { Start-Sleep -Seconds 2 }
+            }
+            if (-not $sid) { throw "Windows does not recognise the account '$account' after 60 seconds. Check that the Windows Process Activation Service (WAS) and World Wide Web Publishing Service (W3SVC) are running, then run Setup again." }
+            "Account '$account' is known to Windows (SID $sid)."
+            """;
+    }
 
     private static async Task Exec(SqlConnection conn, string sql, CancellationToken ct, params (string Name, string Value)[] ps)
     {

@@ -113,31 +113,63 @@ public interface IProcessRunner
     Task<ProcessResult> RunAsync(string fileName, string arguments, CancellationToken ct);
 }
 
-public sealed class ProcessRunner : IProcessRunner
+public sealed class ProcessRunner(string? powerShellExe = null) : IProcessRunner
 {
+    /// <summary>Windows PowerShell 5.1 on Windows; PowerShell 7 (pwsh) elsewhere, so tests can run the real thing.</summary>
+    private readonly string _ps = powerShellExe ?? (OperatingSystem.IsWindows() ? "powershell.exe" : "pwsh");
+
+    /// <summary>Printed as the very last line of every wrapped script. If it is missing, the script did not run to the end.</summary>
+    public const string CompletionMarker = "BRIGHTPAS-SCRIPT-COMPLETED";
+
+    /// <summary>
+    /// Runs a script from a temporary .ps1 file with -File (0.5.2). Earlier versions piped the script to
+    /// "-Command -", where PowerShell silently skips multi-line blocks such as try { } – scripts "succeeded"
+    /// without doing anything. The completion marker now proves the script really ran.
+    /// </summary>
     public async Task<ProcessResult> RunPowerShellAsync(string script, CancellationToken ct)
     {
-        var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command -")
+        var dir = Path.Combine(Path.GetTempPath(), "BrightPASSetup");
+        Directory.CreateDirectory(dir);
+        var file = Path.Combine(dir, $"step-{Guid.NewGuid():N}.ps1");
+        // UTF-8 with BOM so Windows PowerShell 5.1 reads non-ASCII text (e.g. macrons) correctly.
+        await File.WriteAllTextAsync(file, Wrap(script), new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true), ct);
+        try
         {
-            RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true
-        };
-        using var p = System.Diagnostics.Process.Start(psi) ?? throw new InvalidOperationException("Could not start PowerShell.");
-        await p.StandardInput.WriteAsync(Wrap(script));
-        p.StandardInput.Close();
-        var stdout = p.StandardOutput.ReadToEndAsync(ct);
-        var stderr = p.StandardError.ReadToEndAsync(ct);
-        await p.WaitForExitAsync(ct);
-        return new ProcessResult(p.ExitCode, ((await stdout) + (await stderr)).Trim());
+            var psi = new System.Diagnostics.ProcessStartInfo(_ps)
+            {
+                RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true
+            };
+            foreach (var a in new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", file }) psi.ArgumentList.Add(a);
+            using var p = System.Diagnostics.Process.Start(psi) ?? throw new InvalidOperationException("Could not start PowerShell.");
+            var stdout = p.StandardOutput.ReadToEndAsync(ct);
+            var stderr = p.StandardError.ReadToEndAsync(ct);
+            await p.WaitForExitAsync(ct);
+            return Interpret(p.ExitCode, (await stdout) + (await stderr));
+        }
+        finally
+        {
+            try { File.Delete(file); } catch { /* best effort */ }
+        }
+    }
+
+    /// <summary>Exit code 0 counts as success only when the completion marker was printed; the marker is removed from the output.</summary>
+    public static ProcessResult Interpret(int exitCode, string output)
+    {
+        var completed = output.Contains(CompletionMarker, StringComparison.Ordinal);
+        var text = output.Replace(CompletionMarker, "").Trim();
+        if (exitCode == 0 && !completed)
+            return new ProcessResult(-2, (text + "\nERROR: PowerShell exited without finishing the script (completion marker missing).").Trim());
+        return new ProcessResult(exitCode, text);
     }
 
     /// <summary>
     /// Wraps a script so that any failure reports the exact error, the line it happened on and the script stack,
-    /// and exits with code 1. Verbose PowerShell output is included.
+    /// and exits with code 1. Verbose PowerShell output is included. Success prints the completion marker.
     /// </summary>
     public static string Wrap(string script) =>
         "$VerbosePreference = 'Continue'\n$ProgressPreference = 'SilentlyContinue'\ntry {\n" + script +
         "\n} catch {\n  Write-Output ('ERROR: ' + $_.Exception.Message)\n  Write-Output ('WHERE: ' + $_.InvocationInfo.PositionMessage)\n" +
-        "  Write-Output ('CATEGORY: ' + $_.CategoryInfo)\n  Write-Output ('STACK: ' + $_.ScriptStackTrace)\n  exit 1\n}\nexit 0\n";
+        "  Write-Output ('CATEGORY: ' + $_.CategoryInfo)\n  Write-Output ('STACK: ' + $_.ScriptStackTrace)\n  exit 1\n}\nWrite-Output '" + CompletionMarker + "'\nexit 0\n";
 
     public async Task<ProcessResult> RunAsync(string fileName, string arguments, CancellationToken ct)
     {
