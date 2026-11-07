@@ -46,6 +46,9 @@ public static class PasAuthentication
 
         services.AddAuthorization(o =>
         {
+            // Secure by default: any endpoint that does not say otherwise needs a signed-in user. Public endpoints must opt out
+            // explicitly with AllowAnonymous, and the endpoint security inventory test checks every one of them.
+            o.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder(Scheme).RequireAuthenticatedUser().Build();
             foreach (var p in Permissions.All)
                 o.AddPolicy(p, b => b.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser().RequireClaim(Permissions.ClaimType, p));
         });
@@ -81,7 +84,9 @@ public static class PasAuthentication
     {
         var m = ctx.Request.Method;
         var unsafeMethod = !(HttpMethods.IsGet(m) || HttpMethods.IsHead(m) || HttpMethods.IsOptions(m));
-        if (unsafeMethod && ctx.Request.Path.StartsWithSegments("/api") && ctx.Request.Headers[CsrfHeader] != "1")
+        // Vendor callbacks (/api/hooks/...) come from servers, not browsers: they carry no cookie and are authenticated by a secret URL key instead.
+        var vendorCallback = ctx.Request.Path.StartsWithSegments("/api/hooks");
+        if (unsafeMethod && !vendorCallback && ctx.Request.Path.StartsWithSegments("/api") && ctx.Request.Headers[CsrfHeader] != "1")
         {
             ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
             await ctx.Response.WriteAsJsonAsync(new { error = "MissingRequestHeader" });

@@ -9,6 +9,7 @@ using BrightPAS.Modules.Billing;
 using BrightPAS.Modules.Forms;
 using BrightPAS.Modules.Labs;
 using BrightPAS.Modules.Patients;
+using BrightPAS.Modules.Reminders;
 using BrightPAS.Modules.Theatre;
 
 namespace BrightPAS.Modules.Tests;
@@ -33,12 +34,15 @@ public sealed class ModulesHost : IAsyncDisposable
         s.AddSingleton(new PasDatabaseOptions((o, schema) => o.UseSqlite(Db(schema))));
         s.AddDbContext<PasDbContext>(o => o.UseSqlite(Db("core")));
         s.AddScoped<AuditWriter>();
-        s.AddPasModules([new PatientsModule(), new LabsModule(), new TheatreModule(), new FormsModule(), new BillingModule()]);
+        s.AddSingleton<ISecretProtector, ReversibleTestProtector>();
+        s.AddSingleton(new ReminderDefaults(SmsProvider.TestOutbox, EmailProvider.TestOutbox));
+        s.AddPasModules([new PatientsModule(), new LabsModule(), new TheatreModule(), new FormsModule(), new BillingModule(), new RemindersModule()]);
         Services = s.BuildServiceProvider();
         using var scope = Services.CreateScope();
         var sp = scope.ServiceProvider;
         foreach (DbContext db in new DbContext[] { sp.GetRequiredService<PasDbContext>(), sp.GetRequiredService<PatientsDbContext>(), sp.GetRequiredService<LabsDbContext>(),
-                     sp.GetRequiredService<TheatreDbContext>(), sp.GetRequiredService<FormsDbContext>(), sp.GetRequiredService<BillingDbContext>() })
+                     sp.GetRequiredService<TheatreDbContext>(), sp.GetRequiredService<FormsDbContext>(), sp.GetRequiredService<BillingDbContext>(),
+                     sp.GetRequiredService<RemindersDbContext>() })
             db.Database.EnsureCreated();
         var core = sp.GetRequiredService<PasDbContext>();
         core.Organisations.Add(BrightPAS.Core.Organisation.TdsDefaultSetup.Create());
@@ -61,4 +65,11 @@ public sealed class ModulesHost : IAsyncDisposable
         await Services.DisposeAsync();
         foreach (var c in _dbs.Values) await c.DisposeAsync();
     }
+}
+
+/// <summary>Test stand-in for Data Protection: visibly "encrypted" so tests can check secrets are never stored in plain text.</summary>
+public sealed class ReversibleTestProtector : ISecretProtector
+{
+    public string Protect(string plain) => "ENC:" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(plain));
+    public string? Unprotect(string? p) => p is null ? null : System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(p[4..]));
 }

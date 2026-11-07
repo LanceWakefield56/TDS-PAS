@@ -20,7 +20,7 @@ public static class ModuleEndpoints
     public sealed record ImportRequest(string Message);
     public sealed record StatusRequest(BookingStatus Status, string? Reason);
     public sealed record ReorderRequest(Guid[] BookingIds);
-    public sealed record CreateFormRequest(Guid PatientId, Guid? BookingId);
+    public sealed record CreateFormRequest(Guid PatientId, Guid? BookingId, bool SendSms = false, bool SendEmail = false);
     public sealed record TriageRequest(TriageCategory Category, string Outcome, string? Notes, bool AddAllergyAlert);
     public sealed record DobRequest(DateOnly DateOfBirth);
     public sealed record AnswersRequest(DateOnly DateOfBirth, Dictionary<string, string> Answers);
@@ -101,10 +101,20 @@ public static class ModuleEndpoints
         g.MapGet("/", async (string? view, Guid? patientId, FormService svc) => Results.Ok(await svc.ListAsync(view ?? "to-triage", patientId)))
             .RequireAuthorization(Permissions.FormsSend);
         g.MapGet("/definition", () => Results.Ok(new { version = Questionnaire.Version, sections = Questionnaire.Sections })).RequireAuthorization(Permissions.FormsSend);
-        g.MapPost("/", async (CreateFormRequest req, ClaimsPrincipal u, HttpContext http, FormService svc) =>
+        g.MapPost("/", async (CreateFormRequest req, ClaimsPrincipal u, HttpContext http, FormService svc, LicenceCache licence, IServiceProvider sp) =>
         {
             var (r, token, error) = await svc.CreateAsync(req.PatientId, req.BookingId, Me(u));
-            return r is null ? Done(error) : Results.Ok(new { r.Id, link = $"{http.Request.Scheme}://{http.Request.Host}/q/{token}", r.ExpiresAt });
+            if (r is null) return Done(error);
+            var link = $"{http.Request.Scheme}://{http.Request.Host}/q/{token}";
+            object? sent = null;
+            if ((req.SendSms || req.SendEmail) && RemindersEndpoints.Licensed(licence))
+            {
+                var reminders = sp.GetRequiredService<BrightPAS.Modules.Reminders.ReminderService>();
+                var msgs = await reminders.QueueFormLinkAsync(req.PatientId, req.BookingId, link, req.SendSms, req.SendEmail, Me(u));
+                await reminders.SendDueAsync();
+                sent = (await reminders.MessagesAsync(null, req.PatientId)).Where(m => msgs.Any(x => x.Id == m.Id)).Select(m => new { m.Channel, m.Status, m.LastError });
+            }
+            return Results.Ok(new { r.Id, link, r.ExpiresAt, sent });
         }).RequireAuthorization(Permissions.FormsSend);
         g.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal u, HttpContext http, FormService svc) =>
         {

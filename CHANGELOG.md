@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0 – 2026-11-07 – **SMS & email reminders**; security testing in every module
+- **Reminders module (ADR 0012):** booking confirmations, day-before reminders, questionnaire links by SMS/email, two-way replies (YES confirms the booking; NO goes to staff; STOP/START opt-out), quiet hours, re-check before sending, retries, per-patient preferences (texts/email allowed, English/te reo Māori), editable wording with placeholder checks (no clinical detail), outbox and replies screens, patient-record panel, test mode with simulated replies.
+- **Vendor choice:** Modica is the default; another HTTP SMS vendor, test mode or off can be chosen in Setup (`--sms-provider`, `--email-provider`, or the new install questions) or later on the settings screen. Email via SMTP (Microsoft 365 relay). Vendor passwords encrypted, write-only.
+- **Security (ADR 0013):** secure-by-default fallback authorization; CSRF check before sign-in checks; endpoint security inventory test that attacks every endpoint of every module (anonymous, forged, low-privilege) and fails the build on any unprotected or un-gated endpoint; per-module security suites in the self-test (build fails if a module has none); reminders callback probes and encrypted-secret checks; report now has **Security by module** and **Standards coverage** (OWASP ASVS, HISO 10029 HISF, Privacy Act IPP 5 / HIPC Rule 5).
+- Installer: schema script 08-reminders.sql; vendor defaults written to appsettings and applied to existing installs; guide: Setup questions, reminders test checklist, Modica appendix, security section.
+- Tests: 217.
+
 ## 0.5.6 – 2026-11-07 – Installer fix (folder permissions)
 - **Fixed:** step 10 "Access to the path … Microsoft.Identity.Client.dll is denied" was a permissions fault, not a locked file (no worker process was running). The folder lock-down in 0.5.0–0.5.5 applied its rule to every existing file with `/T`, leaving those files without an Administrators entry – Setup (and diagnostics) could not even read web.config or older logs.
 - Step 10 now first **repairs** both folders (take ownership for Administrators, reset all files to inherit, clear read-only), then copies files. If a file is still blocked it stops the IIS services (W3SVC, WAS), ends worker processes, retries, and starts IIS again.

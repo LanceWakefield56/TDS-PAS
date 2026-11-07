@@ -42,6 +42,7 @@ export default function Shell() {
           {mod('labs') && can(Perm.LabsView) && <NavLink to="/labs">Lab results</NavLink>}
           {mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)) && <NavLink to="/forms">Pre-admission forms</NavLink>}
           {mod('billing') && can(Perm.BillingView) && <NavLink to="/billing">Estimates &amp; invoices</NavLink>}
+          {mod('reminders') && can(Perm.RemindersView) && <NavLink to="/reminders">SMS &amp; email</NavLink>}
           {(can(Perm.UsersManage) || can(Perm.AuditView) || can(Perm.ModulesManage) || can(Perm.Integration)) && <span className="nav-group">Administration</span>}
           {can(Perm.UsersManage) && <NavLink to="/admin/users">User accounts</NavLink>}
           {can(Perm.ModulesManage) && <NavLink to="/admin/licence">Licence &amp; modules</NavLink>}

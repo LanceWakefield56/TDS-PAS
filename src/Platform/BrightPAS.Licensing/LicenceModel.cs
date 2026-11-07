@@ -80,7 +80,7 @@ public static class ProductModules
         new("quality", "Quality management", "Incidents, surveys, SSI, falls and quality reporting.", false),
         new("endoscopy", "Endoscopy", "Endoscopy reporting and scope tracking (replaces Endobase).", false),
         new("messaging", "Messaging & workflow engine", "HL7/FHIR/DICOM interfaces and workflows.", false),
-        new("reminders", "SMS & email reminders", "Appointment reminders and patient messages.", false),
+        new("reminders", "SMS & email reminders", "Booking confirmations, reminders, questionnaire links and two-way SMS replies.", true),
         new("portal", "Specialist & PA portal", "Portal for specialists and practice assistants.", false),
         new("letters", "Letters & documents", "Letter templates and urgent transfer print.", false),
         new("reporting", "Coding & statutory reporting", "Clinical coding, ACC, Health NZ and MoH reporting.", false),

@@ -23,10 +23,15 @@ Setup.exe check          [--sql-server NAME[:PORT]] [--drive C:\]
 Setup.exe install        --sql-server NAME [--database BrightPAS] [--sql-user USER] [--trust-server-certificate]
                          [--skip-iis] [--skip-web] [--what-if] [--ignore-prerequisites] [--web-package PATH]
                          [--install-dir PATH] [--host-name NAME] [--https-port 443] [--certificate-thumbprint THUMB]
-                         [--app-windows-login DOMAIN\ACCOUNT$]
+                         [--app-windows-login DOMAIN\ACCOUNT$] [--sms-provider Modica|GenericHttp|TestOutbox|Off]
+                         [--email-provider Smtp|TestOutbox|Off]
 Setup.exe security-test  [--url https://server/] [--sql-server NAME] [--database BrightPAS] [--no-rate-limit-tests]
 Setup.exe diagnostics
 Common: --verbose  --quiet
 ```
 With `--quiet --sql-user`, the password comes from `BRIGHTPAS_SQL_PASSWORD` (never on the command line).
 Exit codes: 0 OK · 1 warnings · 2 failed/not ready · 3 unexpected error.
+
+## Messaging vendors (0.6.0)
+Setup asks which SMS vendor and email sender the reminders module uses (Enter keeps the current choice; new installations default to **Modica** and **SMTP**). The choice is written to `appsettings.Production.json` (`Reminders:SmsProvider`, `Reminders:EmailProvider`) and applied to an existing `reminders.Settings` row. Vendor passwords are entered only in BrightPAS (SMS & email → Settings) and stored encrypted.
+

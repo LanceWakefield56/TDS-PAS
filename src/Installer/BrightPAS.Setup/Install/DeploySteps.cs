@@ -20,6 +20,23 @@ public sealed record WebDeployOptions
     public string? AppWindowsLogin { get; init; }
     public string AppSqlLogin { get; init; } = "brightpas_app";
     public string? PackagePath { get; init; }
+    /// <summary>SMS vendor for reminders (Modica, GenericHttp, TestOutbox, Off). Null = keep the current choice (new installations: Modica).</summary>
+    public string? SmsProvider { get; init; }
+    /// <summary>Email sender for reminders (Smtp, TestOutbox, Off). Null = keep the current choice (new installations: Smtp).</summary>
+    public string? EmailProvider { get; init; }
+}
+
+/// <summary>Vendor choices for the reminders module. Modica is the TDS default; credentials are entered later in BrightPAS (Reminders → Settings).</summary>
+public static class MessagingVendors
+{
+    public static readonly string[] Sms = ["Modica", "GenericHttp", "TestOutbox", "Off"];
+    public static readonly string[] Email = ["Smtp", "TestOutbox", "Off"];
+    public const string DefaultSms = "Modica";
+    public const string DefaultEmail = "Smtp";
+
+    public static string Normalise(string value, string[] allowed, string what) =>
+        allowed.FirstOrDefault(a => a.Equals(value.Trim(), StringComparison.OrdinalIgnoreCase))
+        ?? throw new ArgumentException($"Unknown {what} '{value}'. Use one of: {string.Join(", ", allowed)}.");
 }
 
 public static class WebPackage
@@ -45,9 +62,21 @@ public static class WebPackage
         return new string(p);
     }
 
-    /// <summary>Writes appsettings.Production.json with the app connection string and key storage path.</summary>
-    public static void WriteProductionSettings(string installDir, string connectionString, string keysPath)
+    /// <summary>Writes appsettings.Production.json with the app connection string, key storage path and messaging vendor defaults.</summary>
+    public static void WriteProductionSettings(string installDir, string connectionString, string keysPath, string? smsProvider = null, string? emailProvider = null)
     {
+        // Keep earlier vendor choices when this run does not change them.
+        var file = Path.Combine(installDir, "appsettings.Production.json");
+        if (File.Exists(file))
+        {
+            try
+            {
+                var old = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(file))?["Reminders"];
+                smsProvider ??= old?["SmsProvider"]?.GetValue<string>();
+                emailProvider ??= old?["EmailProvider"]?.GetValue<string>();
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException or IOException) { }
+        }
         // Built with JsonNode (trim-safe) rather than reflection-based serialisation.
         var json = new System.Text.Json.Nodes.JsonObject
         {
@@ -57,7 +86,12 @@ public static class WebPackage
             {
                 ["LogLevel"] = new System.Text.Json.Nodes.JsonObject { ["Default"] = "Warning", ["Microsoft.AspNetCore"] = "Warning" }
             },
-            ["AllowedHosts"] = "*"
+            ["AllowedHosts"] = "*",
+            ["Reminders"] = new System.Text.Json.Nodes.JsonObject
+            {
+                ["SmsProvider"] = smsProvider ?? MessagingVendors.DefaultSms,
+                ["EmailProvider"] = emailProvider ?? MessagingVendors.DefaultEmail
+            }
         }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(Path.Combine(installDir, "appsettings.Production.json"), json);
     }
@@ -309,7 +343,8 @@ public sealed class DeployWebFilesStep : IInstallStep
         var logs = Path.Combine(w.DataDir, "logs");
         Directory.CreateDirectory(keys);
         Directory.CreateDirectory(logs);
-        WebPackage.WriteProductionSettings(w.InstallDir, c.AppConnectionString, keys);
+        WebPackage.WriteProductionSettings(w.InstallDir, c.AppConnectionString, keys, w.SmsProvider, w.EmailProvider);
+        await MessagingVendorUpdate.ApplyAsync(c, ct);
 
         var script = PowerShellScripts.SecureFolders(w.InstallDir, w.DataDir, w.AppPoolName);
         c.Log.Block("PowerShell (secure folders)", script);
@@ -319,6 +354,30 @@ public sealed class DeployWebFilesStep : IInstallStep
         var offline = Path.Combine(w.InstallDir, "app_offline.htm");
         if (File.Exists(offline)) { File.Delete(offline); c.Log.Debug("Site back online (app_offline.htm removed); the next step starts it."); }
         return StepResult.Done($"Installed {Path.GetFileName(pkg)} to {w.InstallDir}.");
+    }
+}
+
+/// <summary>Applies a vendor change chosen in Setup to an existing installation (new installations take it from appsettings).</summary>
+public static class MessagingVendorUpdate
+{
+    public static async Task ApplyAsync(InstallContext c, CancellationToken ct)
+    {
+        var w = c.Web;
+        if (w.SmsProvider is null && w.EmailProvider is null) { c.Log.Debug("Messaging vendors: no change requested (current choice kept)."); return; }
+        await using var conn = new SqlConnection(c.Options.ConnectionString());
+        await conn.OpenAsync(ct);
+        await using (var check = new SqlCommand("SELECT COUNT(*) FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id WHERE s.name = 'reminders' AND t.name = 'Settings'", conn))
+            if ((int)(await check.ExecuteScalarAsync(ct))! == 0) return;
+        await using var cmd = new SqlCommand("""
+            UPDATE reminders.Settings SET SmsProvider = COALESCE(@sms, SmsProvider), EmailProvider = COALESCE(@email, EmailProvider),
+                   UpdatedAt = SYSDATETIMEOFFSET(), UpdatedBy = 'Setup' WHERE Id = 1
+            """, conn);
+        cmd.Parameters.AddWithValue("@sms", (object?)w.SmsProvider ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@email", (object?)w.EmailProvider ?? DBNull.Value);
+        var rows = await cmd.ExecuteNonQueryAsync(ct);
+        c.Log.Detail(rows > 0
+            ? $"Messaging vendors updated: SMS={w.SmsProvider ?? "(unchanged)"}, email={w.EmailProvider ?? "(unchanged)"}. Enter passwords in BrightPAS → SMS & email → Settings."
+            : $"Messaging vendors: SMS={w.SmsProvider ?? MessagingVendors.DefaultSms}, email={w.EmailProvider ?? MessagingVendors.DefaultEmail} (applied when BrightPAS first starts).");
     }
 }
 

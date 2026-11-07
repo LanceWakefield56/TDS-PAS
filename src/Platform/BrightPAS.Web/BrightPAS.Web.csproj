@@ -10,6 +10,7 @@
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Theatre\BrightPAS.Modules.Theatre.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Forms\BrightPAS.Modules.Forms.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Billing\BrightPAS.Modules.Billing.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Reminders\BrightPAS.Modules.Reminders.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

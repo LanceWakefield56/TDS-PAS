@@ -6,7 +6,13 @@ namespace BrightPAS.Setup.Security;
 
 public enum FindingStatus { Pass, Warn, Fail, Info, Skip }
 
-public sealed record Finding(string Area, string Test, FindingStatus Status, string Detail, string? Fix = null);
+public sealed record Finding(string Area, string Test, FindingStatus Status, string Detail, string? Fix = null)
+{
+    /// <summary>The module or layer this finding protects (for the per-module summary).</summary>
+    public string Module { get; init; } = Standards.ModuleFor(Area, Test);
+    /// <summary>Standards this finding gives evidence for (OWASP ASVS, HISO 10029 HISF, Privacy Act / HIPC).</summary>
+    public IReadOnlyList<string> Controls { get; init; } = Standards.ControlsFor(Area, Test);
+}
 
 public sealed record SecurityTestOptions
 {
@@ -58,9 +64,22 @@ public sealed class SecurityReport
                 if (f.Fix is not null) sb.AppendLine($"         What to do: {f.Fix}");
             }
         }
+        sb.AppendLine().AppendLine("SECURITY BY MODULE");
+        foreach (var (module, pass, warn, fail) in ByModule()) sb.AppendLine($"  {module,-28} pass {pass,3}  warn {warn,3}  fail {fail,3}  {(fail > 0 ? "ACTION NEEDED" : warn > 0 ? "review" : "ok")}");
+        sb.AppendLine().AppendLine("STANDARDS COVERAGE (evidence from this self-test)");
+        foreach (var (control, pass, warn, fail) in ByControl()) sb.AppendLine($"  {control,-78} pass {pass,3}  warn {warn,3}  fail {fail,3}");
+        var none = Standards.All.Except(ByControl().Select(c => c.Control)).ToList();
+        if (none.Count > 0) sb.AppendLine("  Not covered by this automated test (evidence from policies, the build pipeline or the independent test): " + string.Join("; ", none));
         sb.AppendLine().AppendLine(Disclaimer);
         return sb.ToString();
     }
+
+    public IReadOnlyList<(string Module, int Pass, int Warn, int Fail)> ByModule() => Findings.GroupBy(f => f.Module).OrderBy(g => g.Key)
+        .Select(g => (g.Key, g.Count(f => f.Status == FindingStatus.Pass), g.Count(f => f.Status == FindingStatus.Warn), g.Count(f => f.Status == FindingStatus.Fail))).ToList();
+
+    public IReadOnlyList<(string Control, int Pass, int Warn, int Fail)> ByControl() => Findings.SelectMany(f => f.Controls.Select(c => (c, f.Status)))
+        .GroupBy(x => x.c).OrderBy(g => Array.IndexOf(Standards.All, g.Key))
+        .Select(g => (g.Key, g.Count(x => x.Status == FindingStatus.Pass), g.Count(x => x.Status == FindingStatus.Warn), g.Count(x => x.Status == FindingStatus.Fail))).ToList();
 
     public const string Disclaimer = "This automated self-test checks common security settings and attacks. It does not replace the independent " +
         "penetration test and security review required before live patient data is used (specification section 11.1).";
@@ -85,12 +104,23 @@ public sealed class SecurityReport
         foreach (var s in new[] { FindingStatus.Pass, FindingStatus.Warn, FindingStatus.Fail, FindingStatus.Info })
             sb.Append($"<div class=\"box {Label(s)}\">{Label(s)}: {Count(s)}</div>");
         sb.Append("</div>");
+        sb.Append("<h2>Security by module</h2><table><tr><th>Module / layer</th><th>Pass</th><th>Warn</th><th>Fail</th><th>Status</th></tr>");
+        foreach (var (module, pass, warn, fail) in ByModule())
+            sb.Append($"<tr><td>{E(module)}</td><td>{pass}</td><td>{warn}</td><td>{fail}</td><td><span class=\"tag {(fail > 0 ? "FAIL" : warn > 0 ? "WARN" : "PASS")}\">{(fail > 0 ? "Action needed" : warn > 0 ? "Review" : "OK")}</span></td></tr>");
+        sb.Append("</table><h2>Standards coverage</h2><p class=\"fix\">Evidence this self-test provides towards each standard area. Use with the HISF self-assessment, the privacy impact assessment and the independent penetration test.</p>");
+        sb.Append("<table><tr><th>Standard / control area</th><th>Pass</th><th>Warn</th><th>Fail</th></tr>");
+        var covered = ByControl();
+        foreach (var (control, pass, warn, fail) in covered)
+            sb.Append($"<tr><td>{E(control)}</td><td>{pass}</td><td>{warn}</td><td>{fail}</td></tr>");
+        foreach (var c in Standards.All.Except(covered.Select(x => x.Control)))
+            sb.Append($"<tr><td>{E(c)}</td><td colspan=\"3\" class=\"fix\">Not tested automatically here – evidence from policies, the build pipeline tests or the independent test.</td></tr>");
+        sb.Append("</table>");
         foreach (var g in Findings.GroupBy(f => f.Area))
         {
-            sb.Append($"<h2>{E(g.Key)}</h2><table><tr><th style=\"width:5rem\">Result</th><th style=\"width:28%\">Test</th><th>Finding</th></tr>");
+            sb.Append($"<h2>{E(g.Key)}</h2><table><tr><th style=\"width:5rem\">Result</th><th style=\"width:26%\">Test</th><th>Finding</th><th style=\"width:24%\">Standards</th></tr>");
             foreach (var f in g)
-                sb.Append($"<tr><td><span class=\"tag {Label(f.Status)}\">{Label(f.Status)}</span></td><td>{E(f.Test)}</td><td>{E(f.Detail)}" +
-                          (f.Fix is null ? "" : $"<div class=\"fix\">What to do: {E(f.Fix)}</div>") + "</td></tr>");
+                sb.Append($"<tr><td><span class=\"tag {Label(f.Status)}\">{Label(f.Status)}</span></td><td>{E(f.Test)}<div class=\"fix\">{E(f.Module)}</div></td><td>{E(f.Detail)}" +
+                          (f.Fix is null ? "" : $"<div class=\"fix\">What to do: {E(f.Fix)}</div>") + $"</td><td class=\"fix\">{string.Join("<br>", f.Controls.Select(E))}</td></tr>");
             sb.Append("</table>");
         }
         sb.Append($"<p class=\"fix\">{E(Disclaimer)}</p></body></html>");

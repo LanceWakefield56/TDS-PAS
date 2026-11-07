@@ -36,13 +36,16 @@ public static class Permissions
     public const string BillingView = "billing.view";
     public const string BillingManage = "billing.manage";
     public const string BillingFees = "billing.fees";
+    // SMS & email reminders module
+    public const string RemindersView = "reminders.view";
+    public const string RemindersManage = "reminders.manage";
 
     public static readonly IReadOnlyList<string> All =
     [
         PatientView, PatientRegister, PatientEdit, PatientMerge, PatientAlertsManage, BreakGlass, BreakGlassReview,
         AuditView, UsersManage, OrganisationManage, ModulesManage, IntegrationManage,
         LabsView, LabsAcknowledge, LabsMatch, TheatreView, TheatreBook, TheatreManage, FormsSend, FormsTriage,
-        BillingView, BillingManage, BillingFees
+        BillingView, BillingManage, BillingFees, RemindersView, RemindersManage
     ];
 }
 
@@ -68,14 +71,14 @@ public static class DefaultRoles
         new Dictionary<string, (string, string[])>
         {
             [SystemAdministrator] = ("Manages users, organisation set-up and modules. No routine clinical access.",
-                [Permissions.UsersManage, Permissions.OrganisationManage, Permissions.ModulesManage, Permissions.TheatreManage]),
+                [Permissions.UsersManage, Permissions.OrganisationManage, Permissions.ModulesManage, Permissions.TheatreManage, Permissions.RemindersView, Permissions.RemindersManage]),
             [PrivacyOfficer] = ("Reviews break-glass use and audit reports; handles privacy requests.",
                 [Permissions.AuditView, Permissions.BreakGlassReview, Permissions.PatientView]),
             [Reception] = ("Registers patients and manages bookings.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.PatientEdit, Permissions.TheatreView, Permissions.TheatreBook,
-                 Permissions.TheatreManage, Permissions.FormsSend, Permissions.BillingView, Permissions.BillingManage, Permissions.LabsMatch]),
+                 Permissions.TheatreManage, Permissions.FormsSend, Permissions.BillingView, Permissions.BillingManage, Permissions.LabsMatch, Permissions.RemindersView]),
             [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.PatientRegister, Permissions.TheatreBook, Permissions.FormsSend,
-                 Permissions.FormsTriage, Permissions.LabsMatch]),
+                 Permissions.FormsTriage, Permissions.LabsMatch, Permissions.RemindersView]),
             [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsTriage]),
             [Surgeon] = ("Clinical access for surgeons and endoscopists.", [.. Clinical, Permissions.TheatreBook]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",

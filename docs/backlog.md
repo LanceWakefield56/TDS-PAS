@@ -28,10 +28,16 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Estimates & invoices module: fee schedule, 40/20/remainder split, GST, numbering, payments, print
 - ☑ Phone-friendly layout; Interfaces page; self-test covers new APIs and licence
 
+## Increment 0.6.0 (done)
+- ☑ SMS & email reminders module, Modica default + vendor choice in Setup (ADR 0012)
+- ☑ Security testing built into every module, mapped to standards (ADR 0013)
+
 ## Next
+- ☐ Sandbox: verify reminders UI end-to-end on Windows; live Modica test (needs Modica account + DMZ callback path)
+- ☐ Modica REST v2 gateway; SMS delivery dashboards; te reo Māori templates (TDS to write/review)
+- ☐ Security: dependency vulnerability scan + SBOM in the build; DAST (OWASP ZAP baseline) against the sandbox; TDE + backups (spec 4.6)
 - ☐ Sandbox verification on Windows (IIS, PowerShell, MLLP) from Lance's logs
 - ☐ MLLP over TLS; HL7 ORM orders out; lab inbox per requesting clinician (HPI CPN on user accounts)
-- ☐ SMS/email reminders module (Modica) – send questionnaire links and booking reminders
 - ☐ Xero export of invoices; ACC/insurer claim formats; refunds/credit notes
 - ☐ Drag-and-drop theatre list ordering; theatre utilisation report; surgeon/anaesthetist as user links
 - ☐ Production vendor key pair (Lance) + code signing of Setup.exe

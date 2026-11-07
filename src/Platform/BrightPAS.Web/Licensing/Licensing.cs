@@ -153,7 +153,7 @@ public static class LicensingEndpointExtensions
     /// so clinical data stays viewable.
     /// </summary>
     public static TBuilder RequireModule<TBuilder>(this TBuilder builder, string moduleId) where TBuilder : IEndpointConventionBuilder =>
-        builder.AddEndpointFilter(async (ctx, next) =>
+        builder.WithMetadata(new RequiresModuleAttribute(moduleId)).AddEndpointFilter(async (ctx, next) =>
         {
             var status = ctx.HttpContext.RequestServices.GetRequiredService<LicenceCache>().Status;
             var name = ProductModules.Find(moduleId)?.Name ?? moduleId;
@@ -165,4 +165,11 @@ public static class LicensingEndpointExtensions
                 _ => await next(ctx)
             };
         });
+}
+
+/// <summary>Marks an endpoint as belonging to a licensed module (checked by the endpoint security inventory test).</summary>
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
+public sealed class RequiresModuleAttribute(string moduleId) : Attribute
+{
+    public string ModuleId { get; } = moduleId;
 }

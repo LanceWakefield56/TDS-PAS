@@ -40,7 +40,13 @@ builder.Services.AddHttpClient("licensing", c => c.Timeout = TimeSpan.FromSecond
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Licensing.LicenceHeartbeat>();
 builder.Services.AddPasIdentity(o => UseSql(o, PasIdentityDbContext.Schema));
 builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs.LabsModule(), new BrightPAS.Modules.Theatre.TheatreModule(),
-    new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule()]);
+    new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule()]);
+builder.Services.AddSingleton<BrightPAS.Modules.Reminders.ISecretProtector, BrightPAS.Web.Integration.DataProtectionSecretProtector>();
+// Installation defaults chosen in Setup (Reminders:SmsProvider / Reminders:EmailProvider); Modica + SMTP when not set.
+builder.Services.AddSingleton(new BrightPAS.Modules.Reminders.ReminderDefaults(
+    builder.Configuration.GetValue("Reminders:SmsProvider", BrightPAS.Modules.Reminders.SmsProvider.Modica),
+    builder.Configuration.GetValue("Reminders:EmailProvider", BrightPAS.Modules.Reminders.EmailProvider.Smtp)));
+if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.ReminderWorker>();
 builder.Services.AddHostedService<BrightPAS.Web.Integration.MllpListener>();
 builder.Services.AddPasAuthentication(builder.Environment);
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -87,12 +93,12 @@ app.Use(async (ctx, next) =>
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseRateLimiter();
+app.UsePasCsrfProtection(); // before sign-in checks, so forged requests are refused the same way whether or not a cookie is present
 app.UseAuthentication();
 app.UseAuthorization();
-app.UsePasCsrfProtection();
 
 // Liveness check used by the installer and monitoring.
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "BrightPAS", version = typeof(Program).Assembly.GetName().Version?.ToString() }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "BrightPAS", version = typeof(Program).Assembly.GetName().Version?.ToString() })).AllowAnonymous();
 
 // First administrator set-up (one-time code from the installer; MFA required before the code is used up).
 app.MapGet("/api/setup/status", async (PasDbContext core, Microsoft.AspNetCore.Identity.UserManager<PasUser> users) =>
@@ -100,8 +106,8 @@ app.MapGet("/api/setup/status", async (PasDbContext core, Microsoft.AspNetCore.I
     var state = await core.SetupState.SingleOrDefaultAsync(s => s.Id == 1);
     var adminReady = (await users.GetUsersInRoleAsync(DefaultRoles.SystemAdministrator)).Any(u => u.TwoFactorEnabled);
     return Results.Ok(new { firstAdminNeeded = !adminReady && state?.BootstrapCodeHash is not null && state.BootstrapCodeUsedAt is null });
-});
-var setup = app.MapGroup("/api/setup/first-admin").RequireRateLimiting("setup");
+}).AllowAnonymous();
+var setup = app.MapGroup("/api/setup/first-admin").RequireRateLimiting("setup").AllowAnonymous();
 setup.MapPost("/start", async (StartFirstAdmin req, FirstAdminService svc) =>
 {
     var r = await svc.StartAsync(req.Code, req.UserName, req.DisplayName, req.Password);
@@ -122,10 +128,11 @@ app.MapPatientEndpoints();
 app.MapOrganisationEndpoints();
 app.MapAdminEndpoints();
 app.MapModuleEndpoints();
+app.MapRemindersEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.
-app.MapFallback("/api/{**rest}", () => Results.NotFound());
-app.MapFallbackToFile("index.html");
+app.MapFallback("/api/{**rest}", () => Results.NotFound()).AllowAnonymous();
+app.MapFallbackToFile("index.html").AllowAnonymous(); // the app shell itself holds no data; every API call is checked
 
 app.Run();
 

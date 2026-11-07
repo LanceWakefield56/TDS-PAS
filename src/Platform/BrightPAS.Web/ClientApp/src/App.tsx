@@ -21,6 +21,7 @@ import PatientQuestionnaire from './pages/PatientQuestionnaire';
 import Billing from './pages/Billing';
 import BillingDocument from './pages/BillingDocument';
 import BillingNew from './pages/BillingNew';
+import Reminders from './pages/Reminders';
 
 interface Session { me: Me | null; refresh: () => Promise<void>; signOut: () => Promise<void>; can: (perm: string) => boolean; mod: (id: string) => boolean; writable: (id: string) => boolean }
 const SessionContext = createContext<Session>(null!);
@@ -90,6 +91,7 @@ export default function App() {
           <Route path="/billing" element={<Billing />} />
           <Route path="/billing/new" element={<BillingNew />} />
           <Route path="/billing/:id" element={<BillingDocument />} />
+          <Route path="/reminders" element={<Reminders />} />
           <Route path="*" element={<div className="card"><h1>Page not found</h1><p>Use the menu to find what you need.</p></div>} />
         </Route>
       </Routes>

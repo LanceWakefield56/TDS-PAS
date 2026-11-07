@@ -161,3 +161,4 @@ textarea:focus { border-color: var(--teal); outline: none; box-shadow: 0 0 0 3px
 .q-details { margin-top: .6rem; font-weight: 400; }
 .mono-box { font-family: Consolas, "Courier New", monospace; font-size: .85rem; background: #F1F4F6; padding: .75rem; border-radius: 8px; white-space: pre-wrap; word-break: break-all; margin: 0; }
 .results th.money { text-align: right; }
+details summary { cursor: pointer; color: var(--teal); }

@@ -13,7 +13,8 @@ public static class AuthEndpoints
 
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/auth").RequireRateLimiting("auth");
+        // Public by design (sign-in steps check the pending sign-in cookie themselves); rate-limited against guessing.
+        var g = app.MapGroup("/api/auth").RequireRateLimiting("auth").AllowAnonymous();
 
         // Step 1: password. Returns what happens next; never says whether the username exists.
         g.MapPost("/login", async (LoginRequest req, HttpContext http, SignInService signIn) =>

@@ -51,14 +51,17 @@ public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallL
         var api = await Send(http, HttpMethod.Get, "api/setup/status", ct: ct);
         CheckHeaders(api, "API", requireNoStore: true);
 
-        // Authentication enforcement
-        foreach (var path in new[] { "api/me", "api/patients?q=a", "api/admin/users", "api/audit", "api/organisation/locations", "api/admin/licence",
-                     "api/labs", "api/theatre/locations", "api/forms", "api/billing/documents" })
+        // Authentication enforcement (platform)
+        foreach (var path in new[] { "api/me", "api/admin/users", "api/audit", "api/organisation/locations", "api/admin/licence" })
         {
             var res = await Send(http, HttpMethod.Get, path, ct: ct);
             if (res.StatusCode == HttpStatusCode.Unauthorized) r.Pass(Area, $"Login required: /{path.Split('?')[0]}", "Anonymous request refused (401).");
             else r.Fail(Area, $"Login required: /{path.Split('?')[0]}", $"Anonymous request returned HTTP {(int)res.StatusCode}.", "Protected data is reachable without signing in. Do not use the system; report this immediately.");
         }
+
+        // Every module: anonymous reads and writes refused; writes without the CSRF header refused.
+        foreach (var m in ModuleSuites.All) await ModuleSuiteAsync(http, m, ct);
+        await RemindersCallbackAsync(http, ct);
 
         // Patient questionnaire links: a guessed link must not reveal anything; HL7 import needs sign-in.
         var guess = await Send(http, HttpMethod.Get, "api/q/" + Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)), ct: ct);
@@ -147,6 +150,58 @@ public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallL
         else r.Add(Area, "Password-guessing protection", FindingStatus.Skip, "Skipped (--no-rate-limit-tests).");
 
         r.Info(Area, "Session cookies", "Cookie security (HttpOnly, Secure, SameSite=Strict, __Host- prefix, 15-minute idle timeout) is verified by the automated tests in every build.");
+    }
+
+    private async Task ModuleSuiteAsync(HttpClient http, ModuleSuite m, CancellationToken ct)
+    {
+        var area = $"Module security – {m.Name}";
+        var leaks = new List<string>();
+        foreach (var path in m.AnonymousReads)
+        {
+            var res = await Send(http, HttpMethod.Get, path, ct: ct);
+            if (res.StatusCode != HttpStatusCode.Unauthorized) leaks.Add($"GET /{path} -> {(int)res.StatusCode}");
+        }
+        if (leaks.Count == 0) r.Pass(area, "Login required (anonymous reads)", $"{m.AnonymousReads.Length} anonymous read attempts were refused (401).");
+        else r.Fail(area, "Login required (anonymous reads)", string.Join("; ", leaks), "Data is reachable without signing in. Stop using the module and report this immediately.");
+
+        var writes = new List<string>();
+        var csrf = new List<string>();
+        foreach (var (method, path, body) in m.AnonymousWrites)
+        {
+            var res = await Send(http, new HttpMethod(method), path, body, ct: ct);
+            if (res.StatusCode != HttpStatusCode.Unauthorized) writes.Add($"{method} /{path} -> {(int)res.StatusCode}");
+            var forged = await Send(http, new HttpMethod(method), path, body, csrfHeader: false, ct: ct);
+            if (forged.StatusCode != HttpStatusCode.BadRequest) csrf.Add($"{method} /{path} -> {(int)forged.StatusCode}");
+        }
+        if (writes.Count == 0) r.Pass(area, "Login required (anonymous changes)", $"{m.AnonymousWrites.Length} anonymous change attempts were refused (401).");
+        else r.Fail(area, "Login required (anonymous changes)", string.Join("; ", writes), "Changes are possible without signing in. Report this immediately.");
+        if (csrf.Count == 0) r.Pass(area, "Cross-site request forgery (CSRF) protection", "Change requests without the security header were refused.");
+        else r.Fail(area, "Cross-site request forgery (CSRF) protection", string.Join("; ", csrf), "Report this: the CSRF safeguard is not active for this module.");
+        r.Info(area, "Permission checks (low-privilege user)", "Every endpoint of this module is also attacked as a signed-in user without permission, and checked for licence gating, by the automated build tests (endpoint security inventory).");
+    }
+
+    /// <summary>The SMS vendor callback is the only internet-facing entry point of the reminders module: wrong keys must reveal nothing.</summary>
+    private async Task RemindersCallbackAsync(HttpClient http, CancellationToken ct)
+    {
+        const string area = "Module security – SMS & email reminders";
+        var fake = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
+        var problems = new List<string>();
+        foreach (var (path, body) in new[] { ($"api/hooks/sms/{fake}/inbound", """{"source":"+64211234567","content":"STOP"}"""), ($"api/hooks/sms/{fake}/status", """{"message_id":"1","status":"received"}"""),
+                     ($"api/hooks/sms/{fake}/inbound", "{ not json"), ("api/hooks/sms/%27%20OR%201%3D1--/inbound", """{"source":"+64211234567","content":"YES"}""") })
+        {
+            var res = await Send(http, HttpMethod.Post, path, body, csrfHeader: false, ct: ct);
+            if (res.StatusCode is not (HttpStatusCode.NotFound or HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)) problems.Add($"POST /{path.Split("/sms/")[0]}/sms/… -> {(int)res.StatusCode}");
+        }
+        if (problems.Count == 0) r.Pass(area, "SMS vendor callback key guessing", "Made-up and injected callback keys were refused without revealing anything (HTTP 404).");
+        else r.Fail(area, "SMS vendor callback key guessing", string.Join("; ", problems), "Report this immediately: SMS replies could be forged.");
+        if (o.IncludeRateLimitTests)
+        {
+            var limited = false;
+            for (var i = 0; i < 50 && !limited; i++)
+                limited = (await Send(http, HttpMethod.Post, $"api/hooks/sms/{fake}{i}/inbound", "{}", csrfHeader: false, quiet: true, ct: ct)).StatusCode == HttpStatusCode.TooManyRequests;
+            if (limited) r.Pass(area, "SMS vendor callback key guessing is throttled", "Rapid guesses were throttled (HTTP 429).");
+            else r.Warn(area, "SMS vendor callback key guessing is throttled", "50 rapid guesses were not throttled.", "Check the site is the current version; rate limiting is built in.");
+        }
     }
 
     private void CheckCertificate(Uri baseUri)

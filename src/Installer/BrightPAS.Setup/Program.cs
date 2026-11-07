@@ -10,7 +10,8 @@ using BrightPAS.Setup.Support;
 //   Setup.exe install        --sql-server NAME [--database BrightPAS] [--sql-user USER] [--trust-server-certificate]
 //                            [--skip-iis] [--skip-web] [--what-if] [--ignore-prerequisites] [--web-package PATH]
 //                            [--install-dir PATH] [--host-name NAME] [--https-port 443] [--certificate-thumbprint THUMB]
-//                            [--app-windows-login DOMAIN\ACCOUNT$]
+//                            [--app-windows-login DOMAIN\ACCOUNT$] [--sms-provider Modica|GenericHttp|TestOutbox|Off]
+//                            [--email-provider Smtp|TestOutbox|Off]
 //   Setup.exe security-test  [--url https://server/] [--sql-server NAME] [--database BrightPAS] [--no-rate-limit-tests]
 //   Setup.exe diagnostics    (collects logs and settings into one zip file to send for help)
 //   Common: --verbose (show every detail on screen), --quiet (no prompts)
@@ -100,6 +101,18 @@ async Task<int> RunInstallAsync()
         if (o.SqlUser is not null && o.SqlPassword is null) o = o with { IntegratedSecurity = false, SqlPassword = Ui.Secret("SQL password (hidden as you type)") };
         if (!o.TrustServerCertificate)
             o = o with { TrustServerCertificate = Ui.YesNo("Is SQL Server using its own self-signed certificate (normal for a new sandbox install)?", true) };
+        if (!o.SkipWeb && cli.Web.SmsProvider is null)
+        {
+            Console.WriteLine("\nSMS vendor for reminders and patient messages:");
+            Console.WriteLine("  1. Modica (TDS default – NZ)   2. Another SMS vendor (HTTP API)   3. Test mode – nothing is sent   4. Off");
+            var sms = Ui.Ask("Type 1–4, or press Enter to keep the current setting (new installations: Modica)", null)?.Trim();
+            var pick = sms switch { "1" => "Modica", "2" => "GenericHttp", "3" => "TestOutbox", "4" => "Off", _ => null };
+            Console.WriteLine("Email sender:  1. SMTP server (e.g. Microsoft 365)   2. Test mode – nothing is sent   3. Off");
+            var mail = Ui.Ask("Type 1–3, or press Enter to keep the current setting (new installations: SMTP)", null)?.Trim();
+            var mailPick = mail switch { "1" => "Smtp", "2" => "TestOutbox", "3" => "Off", _ => null };
+            cli = cli with { Web = cli.Web with { SmsProvider = pick, EmailProvider = mailPick } };
+            Console.WriteLine("(Vendor passwords are entered later in BrightPAS: SMS & email → Settings. They are never stored by Setup.)");
+        }
         if (!o.WhatIf && !Ui.YesNo("\nReady to install. This changes this server's IIS and security settings. Continue?", false))
         {
             log.Info("Cancelled by the user. Nothing was changed.");
@@ -110,7 +123,8 @@ async Task<int> RunInstallAsync()
     log.Debug($"Install options: SqlServer={o.SqlServer}; Database={o.Database}; WindowsAuth={o.IntegratedSecurity}; SqlUser={o.SqlUser ?? "-"}; TrustServerCertificate={o.TrustServerCertificate}; " +
               $"LocalSql={o.IsLocalSqlServer()}; SkipIis={o.SkipIis}; SkipWeb={o.SkipWeb}; WhatIf={o.WhatIf}; IgnorePrerequisites={o.IgnorePrerequisites}");
     log.Debug($"Web options: InstallDir={cli.Web.InstallDir}; DataDir={cli.Web.DataDir}; Site={cli.Web.SiteName}; Pool={cli.Web.AppPoolName}; Host={cli.Web.HostName ?? "(this server)"}; " +
-              $"Port={cli.Web.HttpsPort}; Certificate={cli.Web.CertificateThumbprint ?? "(self-signed)"}; AppWindowsLogin={cli.Web.AppWindowsLogin ?? "(automatic)"}; Package={cli.Web.PackagePath ?? "(search next to Setup.exe)"}");
+              $"Port={cli.Web.HttpsPort}; Certificate={cli.Web.CertificateThumbprint ?? "(self-signed)"}; AppWindowsLogin={cli.Web.AppWindowsLogin ?? "(automatic)"}; Package={cli.Web.PackagePath ?? "(search next to Setup.exe)"}; " +
+              $"SmsVendor={cli.Web.SmsProvider ?? "(keep; default Modica)"}; EmailSender={cli.Web.EmailProvider ?? "(keep; default Smtp)"}");
 
     var probe = SystemProbeBase.Create();
     LogProbe(log, probe, o.Drive);
@@ -248,6 +262,8 @@ internal sealed record Cli(string? Command, InstallOptions Install, WebDeployOpt
                 case "--https-port": w = w with { HttpsPort = int.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture) }; break;
                 case "--certificate-thumbprint": w = w with { CertificateThumbprint = Next().Replace(" ", "") }; break;
                 case "--app-windows-login": w = w with { AppWindowsLogin = Next() }; break;
+                case "--sms-provider": w = w with { SmsProvider = MessagingVendors.Normalise(Next(), MessagingVendors.Sms, "SMS vendor") }; break;
+                case "--email-provider": w = w with { EmailProvider = MessagingVendors.Normalise(Next(), MessagingVendors.Email, "email sender") }; break;
                 case "--url": url = Next(); break;
                 case "--no-rate-limit-tests": noRate = true; break;
                 case "--verbose": verbose = true; break;

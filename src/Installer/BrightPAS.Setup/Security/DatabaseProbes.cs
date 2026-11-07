@@ -164,6 +164,7 @@ public sealed class DatabaseProbes(SecurityTestOptions o, SecurityReport r, IIns
 
     private async Task CheckApplicationAsync(SqlConnection conn, CancellationToken ct)
     {
+        await CheckRemindersAsync(conn, ct);
         var noMfa = await Scalar<int>(conn, "SELECT COUNT(*) FROM [identity].AspNetUsers WHERE IsActive = 1 AND TwoFactorEnabled = 0 AND LastSignInAt IS NOT NULL", ct);
         if (noMfa > 0) r.Fail(App, "Two-step sign-in (MFA) for all users", $"{noMfa} active account(s) have signed in without MFA.", "Report this – sign-in requires MFA by design.");
         else r.Pass(App, "Two-step sign-in (MFA) for all users", "Every account that has signed in uses two-step sign-in.");
@@ -184,6 +185,23 @@ public sealed class DatabaseProbes(SecurityTestOptions o, SecurityReport r, IIns
         var test = await Scalar<int>(conn, "SELECT COUNT(*) FROM patients.Patients WHERE IsTestPatient = 0", ct);
         if (test > 0) r.Warn(App, "Real patient data", $"{test} patient record(s) do not use a test NHI (Z…).", "The sandbox must contain test data only (spec 11.1). Use NHIs starting with Z for testing.");
         else r.Pass(App, "Real patient data", "Only test patients (NHI starting with Z, or no NHI marked as test) are present – or none yet.");
+    }
+
+    /// <summary>Reminders module: SMS vendor and email passwords must be stored encrypted (ASP.NET Core Data Protection payloads start "CfDJ8").</summary>
+    private async Task CheckRemindersAsync(SqlConnection conn, CancellationToken ct)
+    {
+        const string area = "Module security – SMS & email reminders";
+        var exists = await Scalar<int>(conn, "SELECT COUNT(*) FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id WHERE s.name = 'reminders' AND t.name = 'Settings'", ct);
+        if (exists == 0) { r.Info(area, "Vendor passwords encrypted at rest", "Reminders not installed yet."); return; }
+        var plain = await Scalar<int>(conn, """
+            SELECT COUNT(*) FROM reminders.Settings CROSS APPLY (VALUES (ModicaPasswordProtected), (GenericAuthValueProtected), (SmtpPasswordProtected), (WebhookKeyProtected)) v(x)
+            WHERE v.x IS NOT NULL AND v.x NOT LIKE 'CfDJ8%'
+            """, ct);
+        if (plain > 0) r.Fail(area, "Vendor passwords encrypted at rest", $"{plain} vendor secret(s) are not stored encrypted.", "Re-enter the SMS/email passwords on Reminders → Settings and report this.");
+        else r.Pass(area, "Vendor passwords encrypted at rest", "SMS vendor, email and callback secrets are stored encrypted (Data Protection, keys outside the database).");
+        var links = await Scalar<int>(conn, "SELECT COUNT(*) FROM reminders.Messages WHERE SecretLink IS NOT NULL AND Status NOT IN ('Queued','Sending')", ct);
+        if (links > 0) r.Fail(area, "Questionnaire links removed after sending", $"{links} sent message(s) still store a questionnaire link.", "Report this.");
+        else r.Pass(area, "Questionnaire links removed after sending", "Secret questionnaire links are kept only until the message is sent.");
     }
 
     private async Task<T> Scalar<T>(SqlConnection conn, string sql, CancellationToken ct)

@@ -179,3 +179,22 @@ DocumentId, Sequence, Code, Description, Quantity, UnitPrice, GstApplicable, Sur
 
 ## billing.Payments
 DocumentId, PaidOn, Amount, Method (Eftpos/CreditCard/BankTransfer/Insurer/Acc/Cash/Other), Reference, RecordedAt/By. Payments cannot exceed the balance; invoices with payments cannot be voided.
+
+## reminders.Settings (single row, Id = 1)
+SMS vendor (`Modica` default, `GenericHttp`, `TestOutbox`, `Off`), email sender (`Smtp`, `TestOutbox`, `Off`), what to send, next-day send hour, arrival lead minutes, quiet hours, clinic name/phone, `ConfirmationsFrom`, Modica URL/application/mask, generic vendor URL/header/body template, SMTP host/port/STARTTLS/user/from. **Restricted:** `*Protected` columns hold Data Protection–encrypted secrets (Modica password, vendor auth value, SMTP password, callback key).
+
+## reminders.Templates
+Kind (BookingConfirmation, DayBeforeReminder, FormLink, ReplyConfirmed, ReplyCancelRequested, OptOutConfirmed, Test) × Channel (Sms, Email) × Language (en, mi) – unique. Subject (email), Body (≤612 chars SMS, ≤4000 email), IsActive, UpdatedAt/By. Placeholders only from the allowed list (no clinical detail).
+
+## reminders.Preferences
+PatientId (PK), AllowSms, AllowEmail, Language (en/mi), UpdatedAt/By. No row = SMS and email allowed, English.
+
+## reminders.OptOuts
+Channel + Address (E.164 mobile or lower-case email; unique), CreatedAt, Source (e.g. "SMS reply STOP" or staff user). UEMA 2007 unsubscribe register.
+
+## reminders.Messages
+Outbound message: PatientId, BookingId, AppointmentDate, Kind, Channel, Address, Subject, Body (questionnaire link replaced by "[questionnaire link]"), SecretLink (**Restricted**, cleared when sent/closed), Status (Queued, Sending, Sent, Delivered, Failed, Cancelled, Suppressed), IgnoreQuietHours, Provider, ProviderMessageId, Attempts, NextAttemptAt, LastError, DedupeKey (unique when set), CreatedAt/By, SentAt, DeliveredAt. **Clinical-adjacent:** contact details and appointment dates.
+
+## reminders.Replies
+Inbound SMS: From (E.164), Body, ReceivedAt, Provider, ProviderMessageId, ReplyToProviderId, MatchedMessageId, PatientId, BookingId, Meaning (Confirm, Cancel, OptOut, OptIn, Unknown), ActionTaken, Status (New, Handled), HandledBy/At, Note.
+
