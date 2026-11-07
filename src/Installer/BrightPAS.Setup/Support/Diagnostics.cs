@@ -28,18 +28,37 @@ public static partial class Diagnostics
 
         using (var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create))
         {
+            var notes = new StringBuilder();
             void AddText(string name, string text) { using var w = new StreamWriter(zip.CreateEntry(name, CompressionLevel.Optimal).Open(), Encoding.UTF8); w.Write(Mask(text)); }
+            // 0.5.3: read with FileShare.ReadWrite|Delete (Setup's own log is still open for writing), catch every
+            // error per file, and record what was looked for in collection-notes.txt so a gap is never silent.
             void AddFiles(string folder, string pattern, string prefix, int newest)
             {
-                if (!Directory.Exists(folder)) { log.Detail($"  (not found: {folder})"); return; }
-                foreach (var f in new DirectoryInfo(folder).GetFiles(pattern).OrderByDescending(f => f.LastWriteTime).Take(newest))
+                if (!Directory.Exists(folder)) { notes.AppendLine($"NOT FOUND  {folder}\\{pattern}"); log.Detail($"  (not found: {folder})"); return; }
+                FileInfo[] files;
+                try { files = new DirectoryInfo(folder).GetFiles(pattern).OrderByDescending(f => f.LastWriteTime).Take(newest).ToArray(); }
+                catch (Exception ex) { notes.AppendLine($"CANNOT LIST {folder}: {ex.GetType().Name}: {ex.Message}"); return; }
+                if (files.Length == 0) notes.AppendLine($"NO FILES   {folder}\\{pattern}");
+                foreach (var f in files)
                 {
-                    try { AddText($"{prefix}/{f.Name}", File.ReadAllText(f.FullName)); log.Detail($"  + {f.FullName}"); }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { log.Detail($"  (could not read {f.FullName}: {ex.Message})"); }
+                    try
+                    {
+                        using var fs = new FileStream(f.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                        using var rd = new StreamReader(fs);
+                        AddText($"{prefix}/{f.Name}", rd.ReadToEnd());
+                        notes.AppendLine($"ADDED      {f.FullName} ({f.Length:N0} bytes)");
+                        log.Detail($"  + {f.FullName}");
+                    }
+                    catch (Exception ex)
+                    {
+                        notes.AppendLine($"FAILED     {f.FullName}: {ex.GetType().Name}: {ex.Message}");
+                        log.Detail($"  (could not read {f.FullName}: {ex.Message})");
+                    }
                 }
             }
 
             AddFiles(Path.Combine(dataDir, "Logs"), "BrightPAS-*.log", "setup-logs", 20);
+            AddFiles(AppContext.BaseDirectory, "BrightPAS-*.log", "setup-logs-next-to-setup", 10);
             AddFiles(Path.Combine(dataDir, "Reports"), "BrightPAS-Security-Report-*.txt", "security-reports", 5);
             AddFiles(Path.GetTempPath(), "BrightPAS-HostingBundle-*.log", "hosting-bundle", 3);
             AddFiles(web.InstallDir, "web.config", "web-app", 1);
@@ -57,6 +76,7 @@ public static partial class Diagnostics
                 if (Directory.Exists(iisLogs))
                     foreach (var d in Directory.GetDirectories(iisLogs)) AddFiles(d, "*.log", "iis-logs/" + Path.GetFileName(d), 2);
             }
+            AddText("collection-notes.txt", notes.ToString());
             AddText("README.txt", $"BrightPAS diagnostics from {Environment.MachineName} at {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}.\r\nContains logs and configuration only – no patient data. Passwords are masked.");
         }
 
@@ -95,7 +115,23 @@ public static partial class Diagnostics
             "===== Installed .NET runtimes ====="
             if (Get-Command dotnet -ErrorAction SilentlyContinue) { dotnet --list-runtimes } else { 'dotnet command not found' }
             "===== ASP.NET Core Module ====="
-            Test-Path "$env:windir\System32\inetsrv\aspnetcorev2.dll"
+            "aspnetcorev2.dll present: " + (Test-Path "$env:windir\System32\inetsrv\aspnetcorev2.dll")
+            "Registered in IIS globalModules: " + [bool](Select-String -Path "$env:windir\System32\inetsrv\config\applicationHost.config" -Pattern 'AspNetCoreModuleV2' -Quiet)
+            "Registry key present: " + (Test-Path 'HKLM:\SOFTWARE\Microsoft\IIS Extensions\IIS AspNetCore Module V2')
+            Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object DisplayName -like '*Hosting*' | Select-Object DisplayName, DisplayVersion, InstallDate | Format-Table -AutoSize | Out-String -Width 200
+            "===== Website response (https://localhost/health) ====="
+            try {
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+                $resp = Invoke-WebRequest -Uri 'https://localhost/health' -UseBasicParsing -TimeoutSec 30
+                "HTTP $($resp.StatusCode)"; $resp.Content
+            } catch {
+                "FAILED: $($_.Exception.Message)"
+                if ($_.Exception.Response) {
+                    "HTTP $([int]$_.Exception.Response.StatusCode)"
+                    try { (New-Object IO.StreamReader($_.Exception.Response.GetResponseStream())).ReadToEnd() } catch { }
+                }
+            } finally { [Net.ServicePointManager]::ServerCertificateValidationCallback = $null }
             Import-Module WebAdministration -ErrorAction SilentlyContinue
             "===== Sites ====="
             Get-Website | Format-List Name, State, PhysicalPath, ApplicationPool, Bindings | Out-String -Width 300

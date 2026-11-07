@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.3 – 2026-11-07 – Installer fix (ASP.NET Core Module missing from IIS)
+- **Fixed:** the website could not run because the ASP.NET Core Module was not in IIS, yet Setup reported the Hosting Bundle as "already installed". Cause: the Hosting Bundle had been installed before IIS, and Setup only checked a registry key. Setup now checks the module DLL and its IIS registration, and **repairs** the Hosting Bundle automatically (`/repair`) when `dotnet-hosting-10.x.x-win.exe` is next to Setup.exe; otherwise it explains how to repair it by hand.
+- **Fixed:** diagnostics zip left out the Setup logs. Files are now read even while open, failures are recorded in `collection-notes.txt`, and logs next to Setup.exe are included. Diagnostics also report the module DLL / IIS registration / installed Hosting Bundle and the website's actual response to https://localhost/health.
+- Tests: 153.
+
 ## 0.5.2 – 2026-11-07 – Installer fix (PowerShell scripts never ran)
 - **Fixed (serious):** every Setup PowerShell step (install IIS, TLS hardening, IIS hardening, app pool, site, certificate) reported "Done" without running. Scripts were piped to `powershell -Command -`, which silently skips multi-line blocks and still exits 0. Scripts now run from a temporary `.ps1` file with `-File`, and must print a completion marker – exit code 0 without the marker is treated as a failure. **Anyone who ran 0.5.0/0.5.1 must re-run Setup: TLS and IIS hardening were not applied.**
 - **Fixed:** step 9 failed with SQL error 15401 "Windows NT user or group 'IIS APPPOOL\BrightPAS' not found" (consequence of the above). The app pool step now creates and starts the pool and waits until Windows recognises its account before creating the SQL login.

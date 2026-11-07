@@ -64,7 +64,7 @@ public static class PrerequisiteChecks
         {
             if (!p.IsWindows) return CheckResult.Skip("Not running on Windows.");
             return p.AspNetCoreModuleV2Installed ? CheckResult.Pass("ASP.NET Core Module V2 installed.")
-                : CheckResult.Fail("ASP.NET Core Module V2 not found.", "Install the .NET 10 Hosting Bundle after IIS is installed.");
+                : CheckResult.Fail("ASP.NET Core Module V2 is not registered in IIS.", "Install the .NET 10 Hosting Bundle after IIS is installed. If it is already installed, it was probably installed before IIS: put 'dotnet-hosting-10.x.x-win.exe' next to Setup.exe and Setup will repair it, or run it yourself and choose Repair, then run 'iisreset'.");
         }),
         new Check("Security", "Old TLS versions disabled", (_, p) =>
         {

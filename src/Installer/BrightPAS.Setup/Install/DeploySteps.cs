@@ -63,32 +63,50 @@ public static class WebPackage
     }
 }
 
-/// <summary>Installs the .NET 10 Hosting Bundle if it is missing and its installer has been placed next to Setup.exe.</summary>
+/// <summary>
+/// Installs the .NET 10 Hosting Bundle if it is missing, or REPAIRS it when the runtime is present but the ASP.NET
+/// Core Module is not in IIS (happens when the bundle was installed before IIS). The installer must be next to Setup.exe.
+/// </summary>
 public sealed class HostingBundleStep : IInstallStep
 {
     public string Name => "Install the .NET 10 Hosting Bundle";
     public string Description => "The PAS web application needs the .NET 10 Hosting Bundle (runtime + IIS module), installed after IIS.";
 
+    public const string RepairHelp =
+        "Repair it: run 'dotnet-hosting-10.x.x-win.exe' and choose Repair (or Settings → Apps → 'Microsoft .NET … Windows Server Hosting' → Modify → Repair), " +
+        "then open an administrator command prompt and run 'iisreset'. Or put the installer next to Setup.exe and run Setup again – it repairs automatically.";
+
     public async Task<StepResult> RunAsync(InstallContext c, CancellationToken ct)
     {
         if (!c.Probe.IsWindows) return StepResult.Skip("Not running on Windows.");
         if (c.Options.SkipWeb) return StepResult.Skip("Skipped by option --skip-web.");
-        if (c.Probe.AspNetCoreModuleV2Installed && c.Probe.AspNetCoreRuntimeVersions.Any(v => v.Major == 10))
-            return StepResult.Already(".NET 10 Hosting Bundle is installed.");
+        var hasRuntime = c.Probe.AspNetCoreRuntimeVersions.Any(v => v.Major == 10);
+        var hasModule = c.Probe.AspNetCoreModuleV2Installed;
+        if (hasModule && hasRuntime) return StepResult.Already(".NET 10 Hosting Bundle is installed and the ASP.NET Core Module is registered in IIS.");
+
+        var repair = hasRuntime && !hasModule;
+        if (repair) c.Log.Warn("The .NET 10 runtime is installed but the ASP.NET Core Module is missing from IIS (usually because the Hosting Bundle was installed before IIS). It must be repaired.");
         var installer = Directory.Exists(c.SetupFolder) ? Directory.GetFiles(c.SetupFolder, "dotnet-hosting-10.*-win.exe").OrderDescending().FirstOrDefault() : null;
         if (installer is null && c.Options.WhatIf)
             return StepResult.Planned("The .NET 10 Hosting Bundle will be needed: place 'dotnet-hosting-10.x.x-win.exe' (from dotnet.microsoft.com) next to Setup.exe.");
         if (installer is null)
-            return StepResult.Fail("The .NET 10 Hosting Bundle is not installed. Download 'ASP.NET Core 10 Runtime – Windows Hosting Bundle' from Microsoft (dotnet.microsoft.com), place the file next to Setup.exe or install it, then run Setup again.");
-        if (c.Options.WhatIf) return StepResult.Planned($"Would run {Path.GetFileName(installer)} quietly, then restart IIS.");
+            return StepResult.Fail(repair
+                ? "The ASP.NET Core Module is missing from IIS. " + RepairHelp
+                : "The .NET 10 Hosting Bundle is not installed. Download 'ASP.NET Core 10 Runtime – Windows Hosting Bundle' from Microsoft (dotnet.microsoft.com), place the file next to Setup.exe or install it, then run Setup again.");
+        var verb = repair ? "/repair" : "/install";
+        if (c.Options.WhatIf) return StepResult.Planned($"Would run {Path.GetFileName(installer)} {verb} quietly, then restart IIS.");
         var logFile = Path.Combine(Path.GetTempPath(), $"BrightPAS-HostingBundle-{DateTime.Now:yyyyMMdd-HHmmss}.log");
-        c.Log.Detail($"Running {Path.GetFileName(installer)} (its own log: {logFile}). This can take a few minutes.");
-        var r = await c.Processes.RunAsync(installer, $"/install /quiet /norestart /log \"{logFile}\"", ct);
+        c.Log.Detail($"Running {Path.GetFileName(installer)} {verb} (its own log: {logFile}). This can take a few minutes.");
+        var r = await c.Processes.RunAsync(installer, $"{verb} /quiet /norestart /log \"{logFile}\"", ct);
         c.Log.Debug($"Hosting Bundle installer exit code {r.ExitCode}.");
-        if (r.ExitCode is not (0 or 3010)) return StepResult.Fail($"Hosting Bundle installer returned code {r.ExitCode}.");
+        if (r.ExitCode is not (0 or 3010)) return StepResult.Fail($"Hosting Bundle installer returned code {r.ExitCode}. See {logFile}.");
         if (r.ExitCode == 3010) c.RebootRequired = true;
-        var restart = await c.Processes.RunPowerShellAsync("$ErrorActionPreference='Stop'; net stop was /y | Out-Null; net start w3svc | Out-Null; 'IIS restarted.'", ct);
-        return restart.ExitCode == 0 ? StepResult.Done("Hosting Bundle installed and IIS restarted.") : StepResult.Fail($"IIS restart failed: {restart.Output}");
+        var restart = await c.Processes.RunPowerShellAsync("$ErrorActionPreference='Stop'; & net stop was /y | Out-Null; & net start w3svc | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'net start w3svc failed.' }; 'IIS restarted.'", ct);
+        c.Log.Block("PowerShell output", restart.Output);
+        if (restart.ExitCode != 0) return StepResult.Fail($"IIS restart failed: {restart.Output}");
+        if (!c.Probe.AspNetCoreModuleV2Installed)
+            return StepResult.Fail("The Hosting Bundle ran, but the ASP.NET Core Module is still not registered in IIS. " + RepairHelp);
+        return StepResult.Done(repair ? "Hosting Bundle repaired; ASP.NET Core Module registered in IIS; IIS restarted." : "Hosting Bundle installed and IIS restarted.");
     }
 }
 

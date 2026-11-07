@@ -69,8 +69,13 @@ public sealed class WindowsSystemProbe : SystemProbeBase
     {
         get
         {
-            using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\IIS Extensions\IIS AspNetCore Module V2");
-            return key is not null;
+            // 0.5.3: the registry key alone is not enough – it remains when the Hosting Bundle was installed before
+            // IIS, but then the module is never placed in IIS. Require the DLL and its IIS global-module registration.
+            var inetsrv = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "inetsrv");
+            if (!File.Exists(Path.Combine(inetsrv, "aspnetcorev2.dll"))) return false;
+            var appHost = Path.Combine(inetsrv, "config", "applicationHost.config");
+            try { return File.Exists(appHost) && File.ReadAllText(appHost).Contains("AspNetCoreModuleV2", StringComparison.OrdinalIgnoreCase); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
         }
     }
 
