@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.6 – 2026-11-07 – Installer fix (folder permissions)
+- **Fixed:** step 10 "Access to the path … Microsoft.Identity.Client.dll is denied" was a permissions fault, not a locked file (no worker process was running). The folder lock-down in 0.5.0–0.5.5 applied its rule to every existing file with `/T`, leaving those files without an Administrators entry – Setup (and diagnostics) could not even read web.config or older logs.
+- Step 10 now first **repairs** both folders (take ownership for Administrators, reset all files to inherit, clear read-only), then copies files. If a file is still blocked it stops the IIS services (W3SVC, WAS), ends worker processes, retries, and starts IIS again.
+- Folder lock-down rewritten: permissions are set once on each top folder and everything below inherits; icacls output is logged and failures stop Setup; a final check proves Administrators can write/read and the app pool account is present.
+- Tests: 161.
+
 ## 0.5.5 – 2026-11-07 – Installer fix (re-install over a running site)
 - **Fixed:** step 10 failed with "Access to the path 'C:\Program Files\BrightPAS\Web\Microsoft.Identity.Client.dll' is denied" when the website was already installed and running – its files were locked. Setup now takes the site offline (`app_offline.htm`), stops the app pool and waits until its worker process has exited (ending it after 90 s if needed), then copies files one by one with retries, clearing read-only flags. The site comes back online in the next step.
 - Step 9 now only starts the app pool if Windows needs that to recognise its account.

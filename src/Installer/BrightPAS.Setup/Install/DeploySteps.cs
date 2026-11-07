@@ -278,9 +278,32 @@ public sealed class DeployWebFilesStep : IInstallStep
         c.Log.Block("PowerShell output", sr.Output);
         if (sr.ExitCode != 0) return StepResult.Fail($"Could not stop the website before updating it: {sr.Output}");
 
+        // Repair permissions left by older versions so existing files can be replaced.
+        var repairAcl = PowerShellScripts.RepairFolderAccess(w.InstallDir, w.DataDir);
+        c.Log.Block("PowerShell (repair folder access)", repairAcl);
+        var ra = await c.Processes.RunPowerShellAsync(repairAcl, ct);
+        c.Log.Block("PowerShell output", ra.Output);
+        if (ra.ExitCode != 0) return StepResult.Fail($"Could not repair access to the BrightPAS folders: {ra.Output}");
+
         Directory.CreateDirectory(w.InstallDir);
         c.Log.Detail($"Package: {pkg} ({new FileInfo(pkg).Length / 1024:N0} KB)");
-        var copied = await WebFiles.ExtractWithRetryAsync(pkg, w.InstallDir, c.Log, ct);
+        int copied;
+        try { copied = await WebFiles.ExtractWithRetryAsync(pkg, w.InstallDir, c.Log, ct); }
+        catch (IOException ex)
+        {
+            // Last resort: stop IIS completely (W3SVC + WAS end every worker process), retry, then start IIS again.
+            c.Log.Warn($"Files still blocked ({ex.InnerException?.Message ?? ex.Message}). Stopping IIS services and retrying.");
+            var stopIis = "$ErrorActionPreference='Stop'; foreach ($s in 'W3SVC','WAS') { if ((Get-Service $s).Status -ne 'Stopped') { Stop-Service $s -Force; \"Stopped $s.\" } }; Get-Process w3wp -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 3";
+            var st = await c.Processes.RunPowerShellAsync(stopIis, ct);
+            c.Log.Block("PowerShell output (stop IIS)", st.Output);
+            try { copied = await WebFiles.ExtractWithRetryAsync(pkg, w.InstallDir, c.Log, ct, attempts: 3); }
+            finally
+            {
+                var startIis = "$ErrorActionPreference='Stop'; foreach ($s in 'WAS','W3SVC') { Start-Service $s; \"Started $s.\" }";
+                var ss = await c.Processes.RunPowerShellAsync(startIis, ct);
+                c.Log.Block("PowerShell output (start IIS)", ss.Output);
+            }
+        }
         c.Log.Debug($"Extracted {copied} files to {w.InstallDir}.");
         var keys = Path.Combine(w.DataDir, "keys");
         var logs = Path.Combine(w.DataDir, "logs");

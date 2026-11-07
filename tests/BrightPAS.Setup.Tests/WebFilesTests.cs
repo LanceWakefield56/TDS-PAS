@@ -45,3 +45,27 @@ public class WebFilesTests
         Assert.Contains("Stop-Process", s);
     }
 }
+
+/// <summary>0.5.6: folder lock-down left existing files without an Administrators entry; Setup then got "Access denied".</summary>
+public class FolderSecurityTests
+{
+    [Fact]
+    public void Folder_rule_is_set_on_the_top_folder_and_children_inherit()
+    {
+        var s = PowerShellScripts.SecureFolders(@"C:\Program Files\BrightPAS\Web", @"C:\ProgramData\BrightPAS", "BrightPAS");
+        Assert.Contains("'/inheritance:r'", s);
+        Assert.Contains("'/reset', '/T'", s);
+        Assert.DoesNotContain("(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' \"${identity}:(OI)(CI)RX\" /T", s); // the old per-file /T grant
+        Assert.Contains(".brightpas-access-check", s);
+    }
+
+    [Fact]
+    public void Repair_takes_ownership_and_resets_inheritance()
+    {
+        var s = PowerShellScripts.RepairFolderAccess(@"C:\Program Files\BrightPAS\Web", @"C:\ProgramData\BrightPAS");
+        Assert.Contains("takeown.exe", s);
+        Assert.Contains("/A /R /D Y", s);
+        Assert.Contains("/reset /T", s);
+        Assert.Contains("IsReadOnly = $false", s);
+    }
+}

@@ -73,18 +73,61 @@ public static class PowerShellScripts
     private static string Q(string v) => "'" + v.Replace("'", "''") + "'";
 
     /// <summary>Restricts the web folder to Administrators, SYSTEM and the app pool (read-only); data folder writable by the app pool.</summary>
+    /// <summary>
+    /// 0.5.6: locks down the folders the correct way. Permissions are set ONCE on each top folder (with inheritance
+    /// flags) and every file and sub-folder is reset to inherit them. 0.5.0–0.5.5 applied the folder rule to every
+    /// file with /T, which left existing files without an Administrators entry ("Access denied" for Setup itself).
+    /// Afterwards it checks that Administrators and the app pool account really can reach a file in each folder.
+    /// </summary>
     public static string SecureFolders(string installDir, string dataDir, string appPool) => """
         $ErrorActionPreference = 'Stop'
         Import-Module WebAdministration
         $pool = __POOL__
         if (-not (Test-Path "IIS:\AppPools\$pool")) { New-WebAppPool -Name $pool | Out-Null }
         $identity = "IIS AppPool\$pool"
-        & icacls __INSTALL__ /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' "${identity}:(OI)(CI)RX" /T /C /Q | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "icacls failed on web folder ($LASTEXITCODE)" }
-        & icacls __DATA__ /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' "${identity}:(OI)(CI)M" /T /C /Q | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "icacls failed on data folder ($LASTEXITCODE)" }
+        function Invoke-Icacls([string[]] $arguments) {
+            $out = & icacls.exe @arguments 2>&1
+            $code = $LASTEXITCODE
+            $out | Where-Object { $_ -and $_ -notmatch '^processed (file|dir)' } | ForEach-Object { "  icacls: $_" }
+            if ($code -ne 0) { throw "icacls $($arguments -join ' ') failed with exit code $code" }
+        }
+        foreach ($item in @(@{ Path = __INSTALL__; Right = 'RX' }, @{ Path = __DATA__; Right = 'M' })) {
+            $dir = $item.Path
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            # Top folder only: Administrators + SYSTEM full control, app pool account read (web) or modify (data); inherited by everything below.
+            Invoke-Icacls @($dir, '/inheritance:r', '/grant:r', '*S-1-5-32-544:(OI)(CI)F', '*S-1-5-18:(OI)(CI)F', "${identity}:(OI)(CI)$($item.Right)", '/C')
+            # Everything below: drop any explicit entries and inherit from the top folder.
+            Get-ChildItem -LiteralPath $dir -Force | ForEach-Object { Invoke-Icacls @($_.FullName, '/reset', '/T', '/C', '/Q') }
+            # Prove it: Administrators can read a file here, and the app pool account has the expected right.
+            $probe = Join-Path $dir '.brightpas-access-check'
+            Set-Content -LiteralPath $probe -Value 'ok'; $null = Get-Content -LiteralPath $probe; Remove-Item -LiteralPath $probe -Force
+            $acl = Get-Acl -LiteralPath $dir
+            if (-not ($acl.Access | Where-Object { $_.IdentityReference -like "*\$pool" })) { throw "The app pool account is missing from the permissions of $dir" }
+            "Secured: $dir (Administrators/SYSTEM full control; $identity $($item.Right); files inherit)."
+        }
         'Folders secured.'
         """.Replace("__POOL__", Q(appPool)).Replace("__INSTALL__", Q(installDir)).Replace("__DATA__", Q(dataDir));
+
+    /// <summary>
+    /// 0.5.6: repairs folders damaged by older versions before files are replaced: takes ownership for
+    /// Administrators and resets every file to inherit, so Setup can overwrite them. Safe to run every time.
+    /// </summary>
+    public static string RepairFolderAccess(string installDir, string dataDir) => """
+        $ErrorActionPreference = 'Stop'
+        foreach ($dir in @(__INSTALL__, __DATA__)) {
+            if (-not (Test-Path -LiteralPath $dir)) { "Not present yet: $dir"; continue }
+            & takeown.exe /F $dir /A /R /D Y 2>&1 | Where-Object { $_ -match 'ERROR|FEHLER|INFO: ' } | ForEach-Object { "  takeown: $_" }
+            if ($LASTEXITCODE -ne 0) { throw "takeown failed on $dir (exit code $LASTEXITCODE)" }
+            & icacls.exe $dir /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' /C /Q | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "icacls grant failed on $dir (exit code $LASTEXITCODE)" }
+            Get-ChildItem -LiteralPath $dir -Force | ForEach-Object {
+                & icacls.exe $_.FullName /reset /T /C /Q | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "icacls reset failed on $($_.FullName) (exit code $LASTEXITCODE)" }
+            }
+            Get-ChildItem -LiteralPath $dir -Recurse -File -Force | Where-Object { $_.IsReadOnly } | ForEach-Object { $_.IsReadOnly = $false }
+            "Access repaired: $dir (owner Administrators; all files inherit)."
+        }
+        """.Replace("__INSTALL__", Q(installDir)).Replace("__DATA__", Q(dataDir));
 
     /// <summary>
     /// 0.5.5: takes the site offline before files are replaced. Drops app_offline.htm (the ASP.NET Core Module then
