@@ -20,6 +20,8 @@ public sealed class Clinician
     public string? PracticeName { get; set; }
     /// <summary>Optional link to the clinician's BrightPAS user account.</summary>
     public string? UserName { get; set; }
+    /// <summary>Calendar colour (index into the 12-colour palette).</summary>
+    public int Colour { get; set; }
     public bool IsActive { get; set; } = true;
 }
 

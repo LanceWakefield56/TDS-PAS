@@ -21,6 +21,7 @@ public static class ModuleEndpoints
     public sealed record StatusRequest(BookingStatus Status, string? Reason);
     public sealed record ReorderRequest(Guid[] BookingIds);
     public sealed record GenerateRequest(DateOnly From, DateOnly To);
+    public sealed record AppointmentUpdate(AppointmentStatus Status, string? Reason, bool IsTentative, string? Notes);
     public sealed record CreateFormRequest(Guid PatientId, Guid? BookingId, bool SendSms = false, bool SendEmail = false);
     public sealed record TriageRequest(TriageCategory Category, string Outcome, string? Notes, bool AddAllergyAlert);
     public sealed record DobRequest(DateOnly DateOfBirth);
@@ -94,6 +95,25 @@ public static class ModuleEndpoints
             Done(await svc.SetStatusAsync(id, req.Status, req.Reason, Me(u)))).RequireAuthorization(Permissions.TheatreBook);
         g.MapGet("/patients/{patientId:guid}", async (Guid patientId, TheatreService svc) => Results.Ok(await svc.PatientBookingsAsync(patientId)))
             .RequireAuthorization(Permissions.TheatreView);
+        g.MapPut("/bookings/{id:guid}/details", async (Guid id, BookingDetails d, ClaimsPrincipal u, TheatreService svc) => Done(await svc.UpdateDetailsAsync(id, d, Me(u))))
+            .RequireAuthorization(Permissions.TheatreBook);
+        g.MapGet("/checklist-items", () => Results.Ok(TheatreService.ChecklistItems.Select(c => new { key = c.Key, label = c.Label }))).RequireAuthorization(Permissions.TheatreView);
+        g.MapGet("/appointments", async (DateOnly? from, DateOnly? to, Guid? patientId, TheatreService svc) =>
+            Results.Ok(await svc.AppointmentsAsync(from ?? DateOnly.MinValue, to ?? from ?? DateOnly.MaxValue, patientId))).RequireAuthorization(Permissions.TheatreView);
+        g.MapPost("/appointments", async (NewAppointment a, ClaimsPrincipal u, TheatreService svc) =>
+        {
+            var (row, errors, warnings) = await svc.BookAppointmentAsync(a, Me(u));
+            return row is not null ? Results.Ok(new { row.Id, warnings }) : Results.BadRequest(new { errors, warnings });
+        }).RequireAuthorization(Permissions.TheatreBook);
+        g.MapPost("/appointments/{id:guid}/status", async (Guid id, AppointmentUpdate r, ClaimsPrincipal u, TheatreService svc) =>
+            Done(await svc.UpdateAppointmentAsync(id, r.Status, r.Reason, r.IsTentative, r.Notes, Me(u)))).RequireAuthorization(Permissions.TheatreBook);
+        // Week/day calendar: theatre lists with their cases, clinic appointments, and each clinician's colour.
+        g.MapGet("/calendar", async (DateOnly from, DateOnly to, TheatreService svc, BrightPAS.Core.Organisation.OrganisationService org) =>
+        {
+            if (to < from || to.DayNumber - from.DayNumber > 42) return Results.BadRequest(new { errors = new[] { "Choose up to 6 weeks." } });
+            var colours = (await org.CliniciansAsync(activeOnly: false)).ToDictionary(c => c.Name, c => c.Colour);
+            return Results.Ok(new { sessions = await svc.SessionsAsync(from, to), appointments = await svc.AppointmentsAsync(from, to, null), colours });
+        }).RequireAuthorization(Permissions.TheatreView);
         g.MapGet("/templates", async (TheatreService svc) => Results.Ok(await svc.TemplatesAsync())).RequireAuthorization(Permissions.TheatreManage);
         g.MapPost("/templates", async (TemplateEdit t, ClaimsPrincipal u, TheatreService svc) =>
         {

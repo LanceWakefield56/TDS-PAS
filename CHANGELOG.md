@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 – 2026-11-08 – **Booking calendar & rostering** (TeamUp replacement)
+- **Calendar (ADR 0017):** week/day view of theatre cases and clinic appointments, coloured by clinician, tentative bookings striped, theatre lists in the all-day row; click an empty time to book.
+- **Clinic appointments:** consultations, follow-ups, phone calls and pre-admission visits, NO CHARGE flag, tentative, arrived/completed/DNA/cancel; warnings for clashes with the clinician's appointments or theatre lists.
+- **Booking details (TeamUp fields):** tentative, payment type, deposit required, check list, "entered in Incisive and Xero", theatre time in/out, trays needed/used, loan instruments & consumables, scope ID (audited).
+- **Rostering module:** staff with colours and contracted hours; shifts and all-day entries (office days), tentative shifts striped; regular shifts → roster weeks ahead; leave requests by staff and approval by the roster manager (shows shifts needing cover); hours vs contracted; print. New **Roster Manager** role. Clinicians get a calendar colour.
+- Installer: 11-roster.sql; theatre and core schema updates. Guide: H4d, H12.
+- Tests: 243 + browser walk-through (calendar, appointments, booking details, roster, leave).
+
 ## 0.8.0 – 2026-11-08 – **Administration & set-up**; **Letters & HealthLink**
 - **Organisation set-up (ADR 0015):** clinic details for the letterhead (address, phone, HPI numbers); theatres and rooms (switch Theatre 2 on, add procedure rooms); clinician register with HPI CPN; procedure catalogue with usual time, anaesthetic, side-required and fee code (example list included).
 - **Regular theatre lists:** templates per surgeon/day/room (weekly or every 2–4 weeks) and "Create lists" for up to 26 weeks; clashes skipped.

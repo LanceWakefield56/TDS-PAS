@@ -20,6 +20,8 @@ import Roles from './pages/Roles';
 import ListTemplates from './pages/ListTemplates';
 import Letters, { LetterNew, LetterView } from './pages/Letters';
 import LetterAdmin from './pages/LetterAdmin';
+import Calendar from './pages/Calendar';
+import Roster from './pages/Roster';
 import Interfaces from './pages/Interfaces';
 import LabsInbox from './pages/LabsInbox';
 import LabReport from './pages/LabReport';
@@ -99,6 +101,8 @@ export default function App() {
           <Route path="/admin/organisation" element={<Organisation />} />
           <Route path="/admin/roles" element={<Roles />} />
           <Route path="/theatre/templates" element={<ListTemplates />} />
+          <Route path="/calendar" element={<Calendar />} />
+          <Route path="/roster" element={<Roster />} />
           <Route path="/letters" element={<Letters />} />
           <Route path="/letters/new" element={<LetterNew />} />
           <Route path="/letters/:id" element={<LetterView />} />

@@ -76,7 +76,7 @@ public static class ProductModules
         new("forms", "Pre-admission forms", "Online patient health questionnaire and nurse triage.", true),
         new("billing", "Estimates & invoices", "Fee schedule, estimates, invoices, payments and fee splits.", true),
         new("emr", "Clinical record (eMR)", "Perioperative, anaesthetic and nursing records.", false),
-        new("rostering", "Rostering", "Staff rosters, leave and shift swaps (replaces TeamUp).", false),
+        new("rostering", "Rostering", "Staff rosters: shifts, regular shifts, leave and hours (replaces TeamUp).", true),
         new("assets", "Assets & CSSD", "Asset register and sterile instrument traceability.", false),
         new("quality", "Quality management", "Incidents, surveys, SSI, falls and quality reporting.", false),
         new("endoscopy", "Endoscopy", "Endoscopy reporting and scope tracking (replaces Endobase).", false),

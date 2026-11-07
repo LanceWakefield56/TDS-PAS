@@ -41,7 +41,11 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Organisation set-up: clinic details, rooms, clinician register, procedure catalogue; regular list templates; role editing; patient contact/GP editing (ADR 0015)
 - ☑ Letters & documents with HealthLink REF^I12 (ADR 0016)
 
+## Increment 0.9.0 (done)
+- ☑ Booking calendar, clinic appointments, TeamUp booking fields; Rostering module (ADR 0017)
+
 ## Next
+- ☐ Roster: shift swaps, Xero payroll export; booking attachments (with document scanning)
 - ☐ HealthLink: confirm message profile + EDI accounts with HealthLink; live test via the messaging client
 - ☐ Patient identity corrections (name/DOB/NHI) with second-person check; patient merge
 - ☐ Wristbands and labels (Zebra); document scanning with OCR; specialist/PA portal; patient portal; credentialing; basic emergency transfer pack

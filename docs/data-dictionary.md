@@ -234,3 +234,24 @@ Number (L000001…), PatientId, TemplateCode/Version, Kind, Recipient, Recipient
 
 ## letters.Settings (single row)
 HealthLink Mode (Off/TestOutbox/FolderDrop), SenderEdi, OutboxFolder, InboxFolder, NextControlNumber, NextLetterNumber, UpdatedAt/By.
+
+## theatre.Bookings (0.9.0 additions)
+IsTentative, Payment (NotSet/SelfFunded/Insurer/Acc/HealthNz/NoCharge), DepositNote, Checklist (comma list: consent, form, estimate, approval, tests, anaesthetic, adult), BilledExternally, TheatreIn, TheatreOut, TraysNeeded, TraysUsed, LoanItems, ScopeId.
+
+## theatre.Appointments
+Clinic appointment: PatientId, Date, StartTime, DurationMinutes, Kind (Consultation/FollowUp/PhoneCall/PreAdmission/Other), Clinician, LocationId, NoCharge, IsTentative, Status (Booked/Confirmed/Arrived/Completed/Cancelled/DidNotAttend), CancelReason, Notes, CreatedAt/By.
+
+## core.Clinicians (0.9.0)
+Colour – calendar colour index 0–11.
+
+## roster.Staff
+Name (unique), Role, UserName (link to BrightPAS account), Colour (0–11), ContractedHours (per week), Phone, IsActive.
+
+## roster.Shifts
+StaffId, Date, AllDay, Start, End, BreakMinutes, Area, IsTentative, Note, CreatedAt/By. No overlapping timed shifts per person.
+
+## roster.Templates
+Regular shift: StaffId, DayOfWeek, AllDay, Start, End, BreakMinutes, Area, EveryWeeks, StartsOn, EndsOn, IsActive.
+
+## roster.Leave
+StaffId, From, To, Type (Annual/Sick/Training/Parental/Other), Status (Requested/Approved/Declined/Cancelled), Note, RequestedAt/By, DecidedAt/By.

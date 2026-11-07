@@ -49,13 +49,16 @@ public static class Permissions
     public const string LettersView = "letters.view";
     public const string LettersWrite = "letters.write";
     public const string LettersTemplates = "letters.templates";
+    // Rostering module
+    public const string RosterView = "roster.view";
+    public const string RosterManage = "roster.manage";
 
     public static readonly IReadOnlyList<string> All =
     [
         PatientView, PatientRegister, PatientEdit, PatientMerge, PatientAlertsManage, BreakGlass, BreakGlassReview,
         AuditView, UsersManage, OrganisationManage, ModulesManage, IntegrationManage,
         LabsView, LabsAcknowledge, LabsMatch, TheatreView, TheatreBook, TheatreManage, FormsSend, FormsTriage,
-        BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates
+        BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage
     ];
 }
 
@@ -72,6 +75,7 @@ public static class DefaultRoles
     public const string Finance = "Finance";
     public const string PracticeAssistant = "Practice Assistant (PA)";
     public const string IntegrationAdministrator = "Integration Administrator";
+    public const string RosterManager = "Roster Manager";
 
     private static readonly string[] Clinical =
         [Permissions.PatientView, Permissions.PatientEdit, Permissions.PatientAlertsManage, Permissions.BreakGlass,
@@ -88,20 +92,22 @@ public static class DefaultRoles
             [Reception] = ("Registers patients and manages bookings.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.PatientEdit, Permissions.TheatreView, Permissions.TheatreBook,
                  Permissions.TheatreManage, Permissions.FormsSend, Permissions.BillingView, Permissions.BillingManage, Permissions.LabsMatch, Permissions.RemindersView,
-                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite]),
+                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView]),
             [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.PatientRegister, Permissions.TheatreBook, Permissions.FormsSend,
                  Permissions.FormsTriage, Permissions.LabsMatch, Permissions.RemindersView, Permissions.ReferralsView, Permissions.ReferralsManage,
-                 Permissions.LettersView, Permissions.LettersWrite]),
-            [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsTriage, Permissions.ReferralsView, Permissions.LettersView]),
+                 Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView]),
+            [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsTriage, Permissions.ReferralsView, Permissions.LettersView, Permissions.RosterView]),
             [Surgeon] = ("Clinical access for surgeons and endoscopists.", [.. Clinical, Permissions.TheatreBook, Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.ReferralsTriage,
                  Permissions.LettersView, Permissions.LettersWrite]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",
-                [Permissions.PatientView]),
+                [Permissions.PatientView, Permissions.RosterView]),
             [Finance] = ("Billing, invoices and payments.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees]),
             [PracticeAssistant] = ("Specialist's practice assistant: bookings for their specialist's patients.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.TheatreView, Permissions.TheatreBook, Permissions.FormsSend, Permissions.LabsView,
                  Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite]),
             [IntegrationAdministrator] = ("Manages interfaces, message profiles and translation tables.",
                 [Permissions.IntegrationManage, Permissions.LettersView]),
+            [RosterManager] = ("Writes the staff roster and approves leave (no patient access).",
+                [Permissions.RosterView, Permissions.RosterManage]),
         };
 }

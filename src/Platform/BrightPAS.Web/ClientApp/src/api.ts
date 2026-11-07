@@ -48,6 +48,7 @@ export const Perm = {
   RemindersView: 'reminders.view', RemindersManage: 'reminders.manage',
   ReferralsView: 'referrals.view', ReferralsManage: 'referrals.manage', ReferralsTriage: 'referrals.triage',
   LettersView: 'letters.view', LettersWrite: 'letters.write', LettersTemplates: 'letters.templates', OrganisationManage: 'admin.organisation.manage',
+  RosterView: 'roster.view', RosterManage: 'roster.manage',
 } as const;
 
 export const nzDateTime = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';

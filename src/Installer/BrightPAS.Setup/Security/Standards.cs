@@ -72,6 +72,7 @@ public static class Standards
         (["forms", "questionnaire", "patient link"], "Pre-admission forms"),
         (["referral", "waitlist"], "Referrals & waitlist"),
         (["letter", "healthlink"], "Letters & documents"),
+        (["roster", "shift", "leave"], "Rostering"),
         (["theatre"], "Theatre bookings"),
         (["billing", "invoice", "estimate"], "Estimates & invoices"),
         (["patients", "patient register"], "Patients"),
@@ -101,7 +102,7 @@ public static class ModuleSuites
             [("POST", "api/patients", """{"familyName":"X","givenNames":"Y","dateOfBirth":"2000-01-01","sex":"Female"}"""), ("POST", $"api/patients/{Guid.Empty}/alerts", "{}")]),
         new("labs", "Lab results", ["api/labs", "api/labs/unmatched", "api/labs/count"],
             [("POST", "api/labs/import", """{"message":"MSH|^~\\&|X|Y|Z|W|202601010000||ORU^R01|1|P|2.4"}"""), ("POST", $"api/labs/{Guid.Empty}/acknowledge", "{}")]),
-        new("theatre", "Theatre bookings", ["api/theatre/locations", "api/theatre/sessions?from=2026-01-01"],
+        new("theatre", "Theatre bookings", ["api/theatre/locations", "api/theatre/sessions?from=2026-01-01", "api/theatre/calendar?from=2026-01-05&to=2026-01-11", "api/theatre/appointments?from=2026-01-05"],
             [("POST", "api/theatre/sessions", "{}"), ("POST", "api/theatre/bookings", "{}")]),
         new("forms", "Pre-admission forms", ["api/forms", "api/forms/definition"],
             [("POST", "api/forms", $$"""{"patientId":"{{Guid.Empty}}"}"""), ("POST", $"api/forms/{Guid.Empty}/triage", "{}")]),
@@ -113,5 +114,7 @@ public static class ModuleSuites
             [("POST", "api/referrals", "{}"), ("POST", "api/waitlist", "{}"), ("POST", $"api/waitlist/{Guid.Empty}/book", "{}"), ("PUT", "api/referrals/settings", "{}")]),
         new("letters", "Letters & documents", ["api/letters", "api/letters/templates", "api/letters/practices", "api/letters/healthlink", "api/letters/admin/templates", $"api/letters/{Guid.Empty}"],
             [("POST", "api/letters", "{}"), ("POST", $"api/letters/{Guid.Empty}/send", "{}"), ("PUT", "api/letters/templates", "{}"), ("PUT", "api/letters/healthlink", "{}")]),
+        new("rostering", "Rostering", ["api/roster/me", "api/roster/staff", "api/roster/shifts?from=2026-01-05&to=2026-01-11", "api/roster/leave", "api/roster/hours?from=2026-01-05&to=2026-01-11"],
+            [("POST", "api/roster/staff", "{}"), ("POST", "api/roster/shifts", "{}"), ("POST", "api/roster/leave", "{}"), ("POST", $"api/roster/leave/{Guid.Empty}/decide", "{}")]),
     ];
 }

@@ -47,6 +47,8 @@ public sealed class RoleAdminService(RoleManager<PasRole> roles, UserManager<Pas
         [Permissions.LettersView] = ("Letters", "View letters"),
         [Permissions.LettersWrite] = ("Letters", "Write, finalise, print and send letters"),
         [Permissions.LettersTemplates] = ("Letters", "Edit letter templates and GP practices"),
+        [Permissions.RosterView] = ("Rostering", "See the staff roster and request own leave"),
+        [Permissions.RosterManage] = ("Rostering", "Write the roster, staff list and approve leave"),
     };
 
     public async Task<IReadOnlyList<RoleView>> ListAsync()

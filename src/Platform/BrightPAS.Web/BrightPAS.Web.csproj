@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Reminders\BrightPAS.Modules.Reminders.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Referrals\BrightPAS.Modules.Referrals.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Letters\BrightPAS.Modules.Letters.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Rostering\BrightPAS.Modules.Rostering.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

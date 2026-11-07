@@ -41,7 +41,8 @@ if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedSer
 builder.Services.AddPasIdentity(o => UseSql(o, PasIdentityDbContext.Schema));
 builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs.LabsModule(), new BrightPAS.Modules.Theatre.TheatreModule(),
     new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule(),
-    new BrightPAS.Modules.Referrals.ReferralsModule(), new BrightPAS.Modules.Letters.LettersModule()]);
+    new BrightPAS.Modules.Referrals.ReferralsModule(), new BrightPAS.Modules.Letters.LettersModule(),
+    new BrightPAS.Modules.Rostering.RosteringModule()]);
 builder.Services.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
 builder.Services.AddScoped<RoleAdminService>();
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.HealthLinkWorker>();
@@ -140,6 +141,7 @@ app.MapModuleEndpoints();
 app.MapRemindersEndpoints();
 app.MapReferralsEndpoints();
 app.MapLettersEndpoints();
+app.MapRosterEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.
 app.MapFallback("/api/{**rest}", () => Results.NotFound()).AllowAnonymous();

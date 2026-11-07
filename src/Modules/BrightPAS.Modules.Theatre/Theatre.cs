@@ -79,6 +79,48 @@ public sealed class TheatreBooking
     public string? Notes { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public string CreatedBy { get; set; } = "";
+    // Booking details (fields TDS used in TeamUp).
+    /// <summary>Booked but not yet confirmed (shown striped on the calendar).</summary>
+    public bool IsTentative { get; set; }
+    public PaymentType Payment { get; set; }
+    /// <summary>Deposit required (insurance shortfall or self-funding) – amount or note.</summary>
+    public string? DepositNote { get; set; }
+    /// <summary>Completed pre-booking checks (keys from <see cref="TheatreService.ChecklistItems"/>), comma-separated.</summary>
+    public string? Checklist { get; set; }
+    /// <summary>Office only: entered in the external billing systems (e.g. Incisive and Xero).</summary>
+    public bool BilledExternally { get; set; }
+    public TimeOnly? TheatreIn { get; set; }
+    public TimeOnly? TheatreOut { get; set; }
+    public string? TraysNeeded { get; set; }
+    public string? TraysUsed { get; set; }
+    public string? LoanItems { get; set; }
+    /// <summary>Endoscope used (traceability).</summary>
+    public string? ScopeId { get; set; }
+}
+
+public enum PaymentType { NotSet = 0, SelfFunded = 1, Insurer = 2, Acc = 3, HealthNz = 4, NoCharge = 5 }
+
+public enum AppointmentKind { Consultation = 1, FollowUp = 2, PhoneCall = 3, PreAdmission = 4, Other = 5 }
+public enum AppointmentStatus { Booked = 1, Confirmed = 2, Arrived = 3, Completed = 4, Cancelled = 5, DidNotAttend = 6 }
+
+/// <summary>A clinic appointment that is not a theatre case: consultation, follow-up, phone call or pre-admission visit.</summary>
+public sealed class Appointment
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid PatientId { get; set; }
+    public DateOnly Date { get; set; }
+    public TimeOnly StartTime { get; set; }
+    public int DurationMinutes { get; set; } = 15;
+    public AppointmentKind Kind { get; set; }
+    public string Clinician { get; set; } = "";
+    public Guid? LocationId { get; set; }
+    public bool NoCharge { get; set; }
+    public bool IsTentative { get; set; }
+    public AppointmentStatus Status { get; set; } = AppointmentStatus.Booked;
+    public string? CancelReason { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public string CreatedBy { get; set; } = "";
 }
 
 public enum Laterality { NotApplicable = 0, Left = 1, Right = 2, Bilateral = 3 }
@@ -91,6 +133,7 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
     public DbSet<TheatreSession> Sessions => Set<TheatreSession>();
     public DbSet<TheatreBooking> Bookings => Set<TheatreBooking>();
     public DbSet<SessionTemplate> Templates => Set<SessionTemplate>();
+    public DbSet<Appointment> Appointments => Set<Appointment>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
@@ -129,6 +172,24 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
             e.Property(x => x.CancelReason).HasMaxLength(300);
             e.Property(x => x.Notes).HasMaxLength(1000);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.Property(x => x.Payment).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.DepositNote).HasMaxLength(200);
+            e.Property(x => x.Checklist).HasMaxLength(300);
+            e.Property(x => x.TraysNeeded).HasMaxLength(500);
+            e.Property(x => x.TraysUsed).HasMaxLength(500);
+            e.Property(x => x.LoanItems).HasMaxLength(500);
+            e.Property(x => x.ScopeId).HasMaxLength(50);
+            e.HasIndex(x => x.PatientId);
+        });
+        b.Entity<Appointment>(e =>
+        {
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Clinician).HasMaxLength(150);
+            e.Property(x => x.CancelReason).HasMaxLength(300);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.HasIndex(x => x.Date);
             e.HasIndex(x => x.PatientId);
         });
     }
@@ -147,11 +208,19 @@ public sealed record TemplateEdit(Guid? Id, Guid LocationId, DayOfWeek DayOfWeek
 public sealed record GenerateResult(int Created, IReadOnlyList<string> Skipped);
 
 public sealed record NewBooking(Guid SessionId, Guid PatientId, string Procedure, Laterality Laterality, int DurationMinutes, AnaestheticType Anaesthetic,
-    string? Notes, bool AcceptWarnings = false);
+    string? Notes, bool AcceptWarnings = false, PaymentType Payment = PaymentType.NotSet, bool IsTentative = false);
+public sealed record BookingDetails(bool IsTentative, PaymentType Payment, string? DepositNote, IReadOnlyList<string>? Checklist, bool BilledExternally,
+    TimeOnly? TheatreIn, TimeOnly? TheatreOut, string? TraysNeeded, string? TraysUsed, string? LoanItems, string? ScopeId, string? Notes);
+public sealed record NewAppointment(Guid PatientId, DateOnly Date, TimeOnly StartTime, int DurationMinutes, AppointmentKind Kind, string Clinician, Guid? LocationId,
+    bool NoCharge, bool IsTentative, string? Notes, bool AcceptWarnings = false);
+public sealed record AppointmentView(Guid Id, Guid PatientId, string PatientName, string? Nhi, string Mrn, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime,
+    int DurationMinutes, string Kind, string Clinician, string? LocationName, bool NoCharge, bool IsTentative, string Status, string? CancelReason, string? Notes);
 public sealed record BookingResult(TheatreBooking? Booking, IReadOnlyList<string> Errors, IReadOnlyList<string> Warnings);
 
 public sealed record BookingView(Guid Id, Guid PatientId, string PatientName, string? Nhi, string Mrn, DateOnly DateOfBirth, int Order, string Procedure,
-    string Laterality, int DurationMinutes, string Anaesthetic, string Status, string? CancelReason, string? Notes, TimeOnly PlannedStart, TimeOnly PlannedEnd);
+    string Laterality, int DurationMinutes, string Anaesthetic, string Status, string? CancelReason, string? Notes, TimeOnly PlannedStart, TimeOnly PlannedEnd,
+    bool IsTentative, string Payment, string? DepositNote, IReadOnlyList<string> Checklist, bool BilledExternally, TimeOnly? TheatreIn, TimeOnly? TheatreOut,
+    string? TraysNeeded, string? TraysUsed, string? LoanItems, string? ScopeId, string? Phone);
 public sealed record SessionView(Guid Id, Guid LocationId, string LocationName, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, string Type, string Surgeon,
     string? Anaesthetist, string? Notes, bool IsCancelled, int BookedMinutes, int AvailableMinutes, bool Overrun, IReadOnlyList<BookingView> Bookings);
 
@@ -311,7 +380,7 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         {
             SessionId = s.Id, PatientId = r.PatientId, Order = (active.Count == 0 ? 0 : active.Max(b => b.Order)) + 1, Procedure = r.Procedure.Trim(),
             Laterality = r.Laterality, DurationMinutes = r.DurationMinutes, Anaesthetic = r.Anaesthetic, Notes = Blank(r.Notes),
-            StatusAt = now, CreatedAt = now, CreatedBy = user
+            Payment = r.Payment, IsTentative = r.IsTentative, StatusAt = now, CreatedAt = now, CreatedBy = user
         };
         db.Bookings.Add(booking);
         await db.SaveChangesAsync(ct);
@@ -359,6 +428,101 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         return null;
     }
 
+    /// <summary>Pre-booking checks ticked on a booking (TeamUp "Check List").</summary>
+    public static readonly IReadOnlyList<(string Key, string Label)> ChecklistItems =
+    [
+        ("consent", "Consent form signed"), ("form", "Pre-admission questionnaire done"), ("estimate", "Estimate accepted / deposit paid"),
+        ("approval", "Insurer or ACC approval"), ("tests", "Bloods / tests done"), ("anaesthetic", "Anaesthetic review"), ("adult", "Responsible adult confirmed"),
+    ];
+
+    private static IReadOnlyList<string> SplitList(string? s) => string.IsNullOrWhiteSpace(s) ? [] : s.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+    public async Task<string?> UpdateDetailsAsync(Guid id, BookingDetails d, string user, CancellationToken ct = default)
+    {
+        var b = await db.Bookings.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (b is null) return "Booking not found.";
+        if ((d.TheatreIn is null) != (d.TheatreOut is null) && d.TheatreOut is not null) return "Enter the time into theatre as well as the time out.";
+        if (d.TheatreIn is { } tin && d.TheatreOut is { } tout && tout <= tin) return "Time out of theatre must be after time in.";
+        var unknown = (d.Checklist ?? []).Where(k => ChecklistItems.All(c => c.Key != k)).ToList();
+        if (unknown.Count > 0) return "Unknown checklist item.";
+        var changes = new List<string>();
+        void Track(string name, object? a, object? c) { if (!Equals(a, c)) changes.Add(name); }
+        var checklist = string.Join(",", (d.Checklist ?? []).Distinct().OrderBy(k => k));
+        Track("tentative", b.IsTentative, d.IsTentative); Track("payment", b.Payment, d.Payment); Track("deposit", b.DepositNote, Blank(d.DepositNote));
+        Track("checklist", b.Checklist ?? "", checklist); Track("billed", b.BilledExternally, d.BilledExternally); Track("theatre times", (b.TheatreIn, b.TheatreOut), (d.TheatreIn, d.TheatreOut));
+        Track("trays", (b.TraysNeeded, b.TraysUsed), (Blank(d.TraysNeeded), Blank(d.TraysUsed))); Track("loan items", b.LoanItems, Blank(d.LoanItems));
+        Track("scope", b.ScopeId, Blank(d.ScopeId)); Track("notes", b.Notes, Blank(d.Notes));
+        b.IsTentative = d.IsTentative; b.Payment = d.Payment; b.DepositNote = Blank(d.DepositNote); b.Checklist = checklist.Length == 0 ? null : checklist;
+        b.BilledExternally = d.BilledExternally; b.TheatreIn = d.TheatreIn; b.TheatreOut = d.TheatreOut; b.TraysNeeded = Blank(d.TraysNeeded); b.TraysUsed = Blank(d.TraysUsed);
+        b.LoanItems = Blank(d.LoanItems); b.ScopeId = Blank(d.ScopeId)?.ToUpperInvariant(); b.Notes = Blank(d.Notes);
+        if (changes.Count == 0) return null;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "UpdateDetails", "TheatreBooking", b.Id.ToString(), b.PatientId.ToString(), reason: string.Join(", ", changes), ct: ct);
+        return null;
+    }
+
+    // ------------------------------------------------------------------ clinic appointments
+
+    public async Task<(Appointment? Appointment, IReadOnlyList<string> Errors, IReadOnlyList<string> Warnings)> BookAppointmentAsync(NewAppointment a, string user, CancellationToken ct = default)
+    {
+        var errors = new List<string>();
+        var warnings = new List<string>();
+        if (!await patients.Patients.AnyAsync(p => p.Id == a.PatientId, ct)) errors.Add("Choose the patient.");
+        if (string.IsNullOrWhiteSpace(a.Clinician)) errors.Add("Choose the clinician.");
+        if (a.DurationMinutes is < 5 or > 240) errors.Add("Enter a length between 5 and 240 minutes.");
+        if (a.StartTime.AddMinutes(a.DurationMinutes) < a.StartTime) errors.Add("The appointment must finish on the same day.");
+        if (errors.Count > 0) return (null, errors, warnings);
+        var end = a.StartTime.AddMinutes(a.DurationMinutes);
+        var clinician = a.Clinician.Trim();
+        var sameClinician = await db.Appointments.AsNoTracking().Where(x => x.Date == a.Date && x.Clinician == clinician && x.Status != AppointmentStatus.Cancelled
+            && x.Status != AppointmentStatus.DidNotAttend).ToListAsync(ct);
+        if (sameClinician.Any(x => x.StartTime < end && a.StartTime < x.StartTime.AddMinutes(x.DurationMinutes))) warnings.Add($"{clinician} already has an appointment at that time.");
+        var lists = await db.Sessions.AsNoTracking().Where(s => s.Date == a.Date && !s.IsCancelled && s.Surgeon == clinician).ToListAsync(ct);
+        if (lists.Any(s => s.StartTime < end && a.StartTime < s.EndTime)) warnings.Add($"{clinician} has a theatre list at that time.");
+        if (a.Date < DateOnly.FromDateTime(clock.GetLocalNow().DateTime)) warnings.Add("This date is in the past.");
+        if (warnings.Count > 0 && !a.AcceptWarnings) return (null, errors, warnings);
+        var row = new Appointment
+        {
+            PatientId = a.PatientId, Date = a.Date, StartTime = a.StartTime, DurationMinutes = a.DurationMinutes, Kind = a.Kind, Clinician = clinician, LocationId = a.LocationId,
+            NoCharge = a.NoCharge, IsTentative = a.IsTentative, Notes = Blank(a.Notes), CreatedAt = clock.GetUtcNow(), CreatedBy = user
+        };
+        db.Appointments.Add(row);
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Create", "Appointment", row.Id.ToString(), row.PatientId.ToString(),
+            reason: $"{row.Kind} {row.Date:yyyy-MM-dd} {row.StartTime:HH\\:mm} with {row.Clinician}{(row.NoCharge ? " (no charge)" : "")}", ct: ct);
+        return (row, errors, warnings);
+    }
+
+    public async Task<string?> UpdateAppointmentAsync(Guid id, AppointmentStatus status, string? reason, bool isTentative, string? notes, string user, CancellationToken ct = default)
+    {
+        var a = await db.Appointments.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (a is null) return "Appointment not found.";
+        if (status == AppointmentStatus.Cancelled && a.Status != AppointmentStatus.Cancelled && string.IsNullOrWhiteSpace(reason)) return "Enter the reason for cancelling.";
+        var from = a.Status;
+        a.Status = status; a.IsTentative = isTentative; a.Notes = Blank(notes);
+        if (status == AppointmentStatus.Cancelled && reason is not null) a.CancelReason = reason.Trim();
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Update", "Appointment", a.Id.ToString(), a.PatientId.ToString(), reason: $"{from} -> {status}{(reason is null ? "" : ": " + reason)}", ct: ct);
+        return null;
+    }
+
+    public async Task<IReadOnlyList<AppointmentView>> AppointmentsAsync(DateOnly from, DateOnly to, Guid? patientId, CancellationToken ct = default)
+    {
+        var q = db.Appointments.AsNoTracking().AsQueryable();
+        q = patientId is { } pid ? q.Where(a => a.PatientId == pid) : q.Where(a => a.Date >= from && a.Date <= to);
+        var list = (await q.ToListAsync(ct)).OrderBy(a => a.Date).ThenBy(a => a.StartTime).ToList();
+        var ids = list.Select(a => a.PatientId).Distinct().ToList();
+        var people = await patients.Patients.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var rooms = await core.Locations.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
+        return list.Select(a =>
+        {
+            var p = people.GetValueOrDefault(a.PatientId);
+            return new AppointmentView(a.Id, a.PatientId, p is null ? "(unknown)" : $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}", p?.Nhi, p?.Mrn ?? "", a.Date, a.StartTime,
+                a.StartTime.AddMinutes(a.DurationMinutes), a.DurationMinutes, a.Kind.ToString(), a.Clinician, a.LocationId is { } l ? rooms.GetValueOrDefault(l) : null, a.NoCharge,
+                a.IsTentative, a.Status.ToString(), a.CancelReason, a.Notes);
+        }).ToList();
+    }
+
     private static SessionView View(TheatreSession s, Dictionary<Guid, Patient> people)
     {
         var t = s.StartTime;
@@ -372,7 +536,8 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
             if (active) t = end.AddMinutes(TurnoverMinutes);
             list.Add(new BookingView(b.Id, b.PatientId, p is null ? "(unknown)" : $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}", p?.Nhi, p?.Mrn ?? "",
                 p?.DateOfBirth ?? default, b.Order, b.Procedure, b.Laterality.ToString(), b.DurationMinutes, b.Anaesthetic.ToString(), b.Status.ToString(),
-                b.CancelReason, b.Notes, start, end));
+                b.CancelReason, b.Notes, start, end, b.IsTentative, b.Payment.ToString(), b.DepositNote, SplitList(b.Checklist), b.BilledExternally, b.TheatreIn, b.TheatreOut,
+                b.TraysNeeded, b.TraysUsed, b.LoanItems, b.ScopeId, p?.MobilePhone ?? p?.HomePhone));
         }
         var booked = s.Bookings.Where(b => b.Status is not (BookingStatus.Cancelled or BookingStatus.DidNotAttend)).Sum(b => b.DurationMinutes + TurnoverMinutes);
         var available = (int)(s.EndTime - s.StartTime).TotalMinutes;

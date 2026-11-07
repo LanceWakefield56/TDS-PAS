@@ -210,3 +210,51 @@ textarea.short { min-height: 80px; }
 .letterhead strong { font-size: 1.3rem; }
 .letter-sheet footer { margin-top: 2rem; }
 @media print { .letter-sheet { border: none; padding: 0; max-width: none; } .content { padding: 0; } }
+/* 0.9.0 – calendar (bookings and roster). Positions by class: the CSP forbids inline styles. */
+.cal { display: grid; grid-template-rows: auto auto auto; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; overflow-x: auto; }
+.cal-days-1 { grid-template-columns: 56px minmax(240px, 1fr); }
+.cal-days-7 { grid-template-columns: 56px repeat(7, minmax(120px, 1fr)); }
+.cal-corner, .cal-dayhead { border-bottom: 1px solid var(--line); padding: .4rem .5rem; font-weight: 700; color: var(--navy); font-size: .9rem; }
+.cal-dayhead.today { background: #FFF8E1; }
+.cal-allday-label { padding: .3rem .4rem; border-bottom: 2px solid var(--line); }
+.cal-allday { border-left: 1px solid var(--line); border-bottom: 2px solid var(--line); padding: .2rem; display: flex; flex-direction: column; gap: 2px; min-height: 1.6rem; }
+.cal-chip { border: none; border-radius: 4px; color: #fff; font: inherit; font-size: .75rem; text-align: left; padding: .1rem .35rem; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-times { display: grid; grid-template-rows: repeat(15, 72px); }
+.cal-hour { border-top: 1px solid var(--line); padding: 0 .3rem; text-align: right; }
+.cal-day { position: relative; display: grid; grid-template-rows: repeat(60, 18px); border-left: 1px solid var(--line);
+  background-image: repeating-linear-gradient(to bottom, var(--line) 0, var(--line) 1px, transparent 1px, transparent 72px); column-gap: 2px; }
+.cal-day.today { background-color: #FFFDF5; }
+.cal-slot { grid-column: 1 / -1; border: none; background: transparent; cursor: copy; min-height: 0; padding: 0; }
+.cal-slot:hover { background: rgba(46,125,160,.08); }
+.cal-item { position: relative; z-index: 1; border: none; border-radius: 4px; color: #fff; font: inherit; font-size: .74rem; line-height: 1.2; text-align: left; padding: .15rem .3rem; overflow: hidden; cursor: pointer; margin: 1px 0; }
+.cal-item.muted, .cal-chip.muted { opacity: .45; text-decoration: line-through; }
+.cal-time { font-weight: 700; margin-right: .2rem; } .cal-sub { opacity: .9; } .cal-badge { background: rgba(255,255,255,.3); border-radius: 3px; padding: 0 .2rem; font-size: .68rem; font-weight: 700; }
+.tentative { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.38) 0, rgba(255,255,255,.38) 8px, transparent 8px, transparent 16px); }
+.compact-tabs { margin: 0; } .compact-tabs button { min-height: 36px; }
+.cal-legend { display: flex; flex-wrap: wrap; gap: .4rem; } .cal-legend span { color: #fff; border-radius: 4px; padding: .1rem .45rem; font-size: .8rem; }
+.side-panel { border-left: 6px solid var(--teal); }
+.checklist { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: .3rem 1rem; }
+@media print { .cal { overflow: visible; } .cal-slot { display: none; } }
+.cal-c0 { background-color: #2E7DA0; }
+.cal-c1 { background-color: #C2185B; }
+.cal-c2 { background-color: #2E7D32; }
+.cal-c3 { background-color: #6A1B9A; }
+.cal-c4 { background-color: #EF6C00; }
+.cal-c5 { background-color: #00838F; }
+.cal-c6 { background-color: #AD1457; }
+.cal-c7 { background-color: #558B2F; }
+.cal-c8 { background-color: #4527A0; }
+.cal-c9 { background-color: #D84315; }
+.cal-c10 { background-color: #1565C0; }
+.cal-c11 { background-color: #795548; }
+.rs-1 { grid-row-start: 1; } .rs-2 { grid-row-start: 2; } .rs-3 { grid-row-start: 3; } .rs-4 { grid-row-start: 4; } .rs-5 { grid-row-start: 5; } .rs-6 { grid-row-start: 6; } .rs-7 { grid-row-start: 7; } .rs-8 { grid-row-start: 8; } .rs-9 { grid-row-start: 9; } .rs-10 { grid-row-start: 10; } .rs-11 { grid-row-start: 11; } .rs-12 { grid-row-start: 12; } .rs-13 { grid-row-start: 13; } .rs-14 { grid-row-start: 14; } .rs-15 { grid-row-start: 15; } .rs-16 { grid-row-start: 16; } .rs-17 { grid-row-start: 17; } .rs-18 { grid-row-start: 18; } .rs-19 { grid-row-start: 19; } .rs-20 { grid-row-start: 20; } .rs-21 { grid-row-start: 21; } .rs-22 { grid-row-start: 22; } .rs-23 { grid-row-start: 23; } .rs-24 { grid-row-start: 24; } .rs-25 { grid-row-start: 25; } .rs-26 { grid-row-start: 26; } .rs-27 { grid-row-start: 27; } .rs-28 { grid-row-start: 28; } .rs-29 { grid-row-start: 29; } .rs-30 { grid-row-start: 30; } .rs-31 { grid-row-start: 31; } .rs-32 { grid-row-start: 32; } .rs-33 { grid-row-start: 33; } .rs-34 { grid-row-start: 34; } .rs-35 { grid-row-start: 35; } .rs-36 { grid-row-start: 36; } .rs-37 { grid-row-start: 37; } .rs-38 { grid-row-start: 38; } .rs-39 { grid-row-start: 39; } .rs-40 { grid-row-start: 40; } .rs-41 { grid-row-start: 41; } .rs-42 { grid-row-start: 42; } .rs-43 { grid-row-start: 43; } .rs-44 { grid-row-start: 44; } .rs-45 { grid-row-start: 45; } .rs-46 { grid-row-start: 46; } .rs-47 { grid-row-start: 47; } .rs-48 { grid-row-start: 48; } .rs-49 { grid-row-start: 49; } .rs-50 { grid-row-start: 50; } .rs-51 { grid-row-start: 51; } .rs-52 { grid-row-start: 52; } .rs-53 { grid-row-start: 53; } .rs-54 { grid-row-start: 54; } .rs-55 { grid-row-start: 55; } .rs-56 { grid-row-start: 56; } .rs-57 { grid-row-start: 57; } .rs-58 { grid-row-start: 58; } .rs-59 { grid-row-start: 59; } .rs-60 { grid-row-start: 60; } .rs-61 { grid-row-start: 61; }
+.re-1 { grid-row-end: 1; } .re-2 { grid-row-end: 2; } .re-3 { grid-row-end: 3; } .re-4 { grid-row-end: 4; } .re-5 { grid-row-end: 5; } .re-6 { grid-row-end: 6; } .re-7 { grid-row-end: 7; } .re-8 { grid-row-end: 8; } .re-9 { grid-row-end: 9; } .re-10 { grid-row-end: 10; } .re-11 { grid-row-end: 11; } .re-12 { grid-row-end: 12; } .re-13 { grid-row-end: 13; } .re-14 { grid-row-end: 14; } .re-15 { grid-row-end: 15; } .re-16 { grid-row-end: 16; } .re-17 { grid-row-end: 17; } .re-18 { grid-row-end: 18; } .re-19 { grid-row-end: 19; } .re-20 { grid-row-end: 20; } .re-21 { grid-row-end: 21; } .re-22 { grid-row-end: 22; } .re-23 { grid-row-end: 23; } .re-24 { grid-row-end: 24; } .re-25 { grid-row-end: 25; } .re-26 { grid-row-end: 26; } .re-27 { grid-row-end: 27; } .re-28 { grid-row-end: 28; } .re-29 { grid-row-end: 29; } .re-30 { grid-row-end: 30; } .re-31 { grid-row-end: 31; } .re-32 { grid-row-end: 32; } .re-33 { grid-row-end: 33; } .re-34 { grid-row-end: 34; } .re-35 { grid-row-end: 35; } .re-36 { grid-row-end: 36; } .re-37 { grid-row-end: 37; } .re-38 { grid-row-end: 38; } .re-39 { grid-row-end: 39; } .re-40 { grid-row-end: 40; } .re-41 { grid-row-end: 41; } .re-42 { grid-row-end: 42; } .re-43 { grid-row-end: 43; } .re-44 { grid-row-end: 44; } .re-45 { grid-row-end: 45; } .re-46 { grid-row-end: 46; } .re-47 { grid-row-end: 47; } .re-48 { grid-row-end: 48; } .re-49 { grid-row-end: 49; } .re-50 { grid-row-end: 50; } .re-51 { grid-row-end: 51; } .re-52 { grid-row-end: 52; } .re-53 { grid-row-end: 53; } .re-54 { grid-row-end: 54; } .re-55 { grid-row-end: 55; } .re-56 { grid-row-end: 56; } .re-57 { grid-row-end: 57; } .re-58 { grid-row-end: 58; } .re-59 { grid-row-end: 59; } .re-60 { grid-row-end: 60; } .re-61 { grid-row-end: 61; } .re-62 { grid-row-end: 62; }
+.lanes-1 { grid-template-columns: repeat(1, 1fr); } .lanes-2 { grid-template-columns: repeat(2, 1fr); } .lanes-3 { grid-template-columns: repeat(3, 1fr); } .lanes-4 { grid-template-columns: repeat(4, 1fr); } .lanes-5 { grid-template-columns: repeat(5, 1fr); } .lanes-6 { grid-template-columns: repeat(6, 1fr); }
+.col-1 { grid-column: 1; } .col-2 { grid-column: 2; } .col-3 { grid-column: 3; } .col-4 { grid-column: 4; } .col-5 { grid-column: 5; } .col-6 { grid-column: 6; }
+.swatch { width: 28px; height: 28px; min-height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+.swatch.on { box-shadow: 0 0 0 3px var(--navy); }
+.dot-c { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: middle; }
+.cal-item { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 0; }
+.cal-item > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.cal-item.short { flex-direction: row; align-items: center; gap: .3rem; white-space: nowrap; padding-top: 0; padding-bottom: 0; }
+.cal-item.short .cal-sub { display: none; }

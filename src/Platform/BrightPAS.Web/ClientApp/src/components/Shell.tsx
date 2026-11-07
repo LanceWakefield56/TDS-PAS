@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -44,12 +44,14 @@ export default function Shell() {
           {can(Perm.PatientRegister) && <NavLink to="/patients/new">Register a patient</NavLink>}
           {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/referrals">Referrals</NavLink>}
           {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/waitlist">Waitlist</NavLink>}
-          {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/theatre">Theatre lists</NavLink>}
+          {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/calendar">Calendar</NavLink>}
+          {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/theatre" end>Theatre lists</NavLink>}
           {mod('labs') && can(Perm.LabsView) && <NavLink to="/labs">Lab results</NavLink>}
           {mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)) && <NavLink to="/forms">Pre-admission forms</NavLink>}
           {mod('billing') && can(Perm.BillingView) && <NavLink to="/billing">Estimates &amp; invoices</NavLink>}
           {mod('reminders') && can(Perm.RemindersView) && <NavLink to="/reminders">SMS &amp; email</NavLink>}
           {mod('letters') && can(Perm.LettersView) && <NavLink to="/letters" end>Letters</NavLink>}
+          {mod('rostering') && can(Perm.RosterView) && <NavLink to="/roster">Roster</NavLink>}
           {(can(Perm.UsersManage) || can(Perm.AuditView) || can(Perm.ModulesManage) || can(Perm.Integration) || can(Perm.OrganisationManage)) && <span className="nav-group">Administration</span>}
           {can(Perm.OrganisationManage) && <NavLink to="/admin/organisation">Organisation set-up</NavLink>}
           {mod('theatre') && can(Perm.TheatreManage) && !can(Perm.TheatreView) && <NavLink to="/theatre/templates">Regular theatre lists</NavLink>}

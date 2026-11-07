@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -60,6 +60,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "billing" => await BillingChecksAsync(ct),
         "reminders" => await RemindersChecksAsync(ct),
         "letters" => await LettersChecksAsync(ct),
+        "rostering" => await RosterChecksAsync(ct),
         _ => []
     };
 
@@ -167,6 +168,26 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                     BrightPAS.Modules.Letters.HealthLinkMode.TestOutbox => "TEST MODE – letters to GPs are recorded, not sent. Print them meanwhile.",
                     _ => "Off – print letters to GPs."
                 }, true, "Open HealthLink settings", "/admin/letters?tab=healthlink", Permissions.LettersTemplates, "IT / Integration Administrator"),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> RosterChecksAsync(CancellationToken ct)
+    {
+        var db = Svc<BrightPAS.Modules.Rostering.RosterDbContext>();
+        var staff = await db.Staff.CountAsync(s => s.IsActive, ct);
+        var linked = await db.Staff.CountAsync(s => s.IsActive && s.UserName != null, ct);
+        var templates = await db.Templates.CountAsync(t => t.IsActive, ct);
+        var managers = await UsersWithAsync(Permissions.RosterManage, ct);
+        return
+        [
+            new("managers", "Who writes the roster", "Give the person who does the roster the 'Roster Manager' role (User accounts). They add staff, shifts and approve leave.",
+                managers > 0, managers > 0 ? $"{managers} user(s) can manage the roster." : "Nobody can manage the roster yet.", false, "Open user accounts", "/admin/users", Permissions.UsersManage),
+            new("staff", "Staff list", "Add the people who are rostered, with their role, colour and contracted hours.",
+                staff > 0, $"{staff} staff member(s).", false, null, null, null, "Roster Manager (Roster › Staff)"),
+            new("linked", "Link staff to their BrightPAS accounts", "Linked staff see their own shifts and can request leave in BrightPAS.",
+                linked > 0, $"{linked} of {staff} linked.", true, null, null, null, "Roster Manager (Roster › Staff)"),
+            new("templates", "Regular shifts", "Set up each person's usual weekly shifts, then create the roster weeks ahead in one step.",
+                templates > 0, $"{templates} regular shift(s).", true, null, null, null, "Roster Manager (Roster › Regular shifts)"),
         ];
     }
 

@@ -11,7 +11,7 @@ public sealed record OrganisationDetails(string OrganisationName, string? HpiOrg
 public sealed record LocationEdit(Guid? Id, Guid FacilityId, string Code, string Name, LocationType Type, bool IsActive, int SortOrder);
 
 public sealed record ClinicianEdit(Guid? Id, string Name, ClinicianType Type, string? Specialty, string? HpiCpn, string? Phone, string? Email, string? PracticeName,
-    string? UserName, bool IsActive);
+    string? UserName, bool IsActive, int? Colour = null);
 
 public sealed record ProcedureEdit(Guid? Id, string Code, string Name, string Service, int DefaultMinutes, string DefaultAnaesthetic, bool SideRequired, string? FeeCode, bool IsActive);
 
@@ -106,7 +106,13 @@ public sealed partial class OrganisationService(PasDbContext db, AuditWriter aud
         if (errors.Count > 0) return (null, errors);
         Clinician row;
         if (c.Id is { } id) row = await db.Clinicians.SingleAsync(x => x.Id == id, ct);
-        else { row = new Clinician { Name = name }; db.Clinicians.Add(row); }
+        else
+        {
+            var used = await db.Clinicians.Select(x => x.Colour).ToListAsync(ct);
+            row = new Clinician { Name = name, Colour = Enumerable.Range(0, 12).FirstOrDefault(i => !used.Contains(i), used.Count % 12) };
+            db.Clinicians.Add(row);
+        }
+        if (c.Colour is { } colour && colour is >= 0 and < 12) row.Colour = colour;
         row.Name = name; row.Type = c.Type; row.Specialty = Blank(c.Specialty); row.HpiCpn = Up(c.HpiCpn); row.Phone = Blank(c.Phone); row.Email = Blank(c.Email);
         row.PracticeName = Blank(c.PracticeName); row.UserName = Blank(c.UserName); row.IsActive = c.IsActive;
         await db.SaveChangesAsync(ct);

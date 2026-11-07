@@ -370,3 +370,24 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107210610_ClinicianColour'
+)
+BEGIN
+    ALTER TABLE [core].[Clinicians] ADD [Colour] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107210610_ClinicianColour'
+)
+BEGIN
+    INSERT INTO [core].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261107210610_ClinicianColour', N'10.0.14');
+END;
+
+COMMIT;
+GO
+
