@@ -13,6 +13,8 @@ export default function PatientModules({ patientId }: { patientId: string }) {
   const [labs, setLabs] = useState<any[] | null>(null);
   const [forms, setForms] = useState<any[] | null>(null);
   const [docs, setDocs] = useState<any[] | null>(null);
+  const [refs, setRefs] = useState<any[] | null>(null);
+  const [waits, setWaits] = useState<any[] | null>(null);
   const [link, setLink] = useState<{ link: string; expiresAt: string; sent?: { channel: string; status: string; lastError: string | null }[] | null } | null>(null);
   const [comms, setComms] = useState<{ preference: any; messages: any[] } | null>(null);
   const [sendBy, setSendBy] = useState({ sms: true, email: false });
@@ -24,6 +26,10 @@ export default function PatientModules({ patientId }: { patientId: string }) {
     if (mod('forms') && can(Perm.FormsSend)) api<any[]>(`/api/forms?view=all&patientId=${patientId}`).then(setForms).catch(() => setForms([]));
     if (mod('billing') && can(Perm.BillingView)) api<any[]>(`/api/billing/documents?patientId=${patientId}`).then(setDocs).catch(() => setDocs([]));
     if (mod('reminders') && can(Perm.RemindersView)) api(`/api/reminders/patients/${patientId}`).then(setComms).catch(() => setComms(null));
+    if (mod('referrals') && can(Perm.ReferralsView)) {
+      api<any[]>(`/api/referrals?patientId=${patientId}`).then(setRefs).catch(() => setRefs([]));
+      api<any[]>(`/api/waitlist?patientId=${patientId}`).then(setWaits).catch(() => setWaits([]));
+    }
   }, [patientId, mod, can]);
   const savePref = async (p: any) => {
     setError(null);
@@ -41,6 +47,15 @@ export default function PatientModules({ patientId }: { patientId: string }) {
   };
   return (
     <>
+      {refs && waits && (
+        <section className="card">
+          <div className="row-between"><h2>Referrals &amp; waitlist</h2>{can(Perm.ReferralsManage) && writable('referrals') && <Link className="btn btn-light btn-small" to="/referrals?new=1">New referral</Link>}</div>
+          {refs.length === 0 && waits.length === 0 ? <p className="muted">No referrals.</p> : <ul className="plain">
+            {waits.map((w) => <li key={w.id}><Link to={`/waitlist?patient=${patientId}`}><strong>{w.procedure}</strong></Link> · {w.specialist} · {w.priority === 'SemiUrgent' ? 'Semi-urgent' : w.priority} · target {formatDate(w.targetDate)} <span className={`pill ${w.overdue ? 'red' : w.status === 'Booked' ? 'green' : ''}`}>{w.status === 'OnHold' ? 'On hold' : w.status}{w.overdue ? ' – past target' : ''}</span></li>)}
+            {refs.filter((r) => r.status !== 'Accepted').map((r) => <li key={r.id}><Link to="/referrals">{r.number}</Link> · {formatDate(r.receivedOn)} from {r.referrerName} to {r.specialist} <span className="pill">{r.status === 'Received' ? 'To triage' : r.status}</span></li>)}
+          </ul>}
+        </section>
+      )}
       {bookings && (
         <section className="card">
           <div className="row-between"><h2>Theatre bookings</h2>{can(Perm.TheatreBook) && writable('theatre') && <Link className="btn btn-light btn-small" to={`/theatre?patient=${patientId}`}>Book a procedure</Link>}</div>

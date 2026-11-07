@@ -70,6 +70,7 @@ public static class Standards
         (["reminders", "sms", "callback"], "SMS & email reminders"),
         (["lab", "hl7"], "Lab results"),
         (["forms", "questionnaire", "patient link"], "Pre-admission forms"),
+        (["referral", "waitlist"], "Referrals & waitlist"),
         (["theatre"], "Theatre bookings"),
         (["billing", "invoice", "estimate"], "Estimates & invoices"),
         (["patients", "patient register"], "Patients"),
@@ -107,5 +108,7 @@ public static class ModuleSuites
             [("POST", "api/billing/fees", "{}"), ("PUT", "api/billing/settings", "{}")]),
         new("reminders", "SMS & email reminders", ["api/reminders/status", "api/reminders/messages", "api/reminders/replies", "api/reminders/settings", "api/reminders/templates"],
             [("POST", "api/reminders/test", """{"channel":"Sms","to":"0211234567"}"""), ("PUT", "api/reminders/settings", "{}"), ("POST", "api/reminders/simulate-reply", "{}")]),
+        new("referrals", "Referrals & waitlist", ["api/referrals", "api/referrals/summary", "api/waitlist", "api/waitlist/export"],
+            [("POST", "api/referrals", "{}"), ("POST", "api/waitlist", "{}"), ("POST", $"api/waitlist/{Guid.Empty}/book", "{}"), ("PUT", "api/referrals/settings", "{}")]),
     ];
 }

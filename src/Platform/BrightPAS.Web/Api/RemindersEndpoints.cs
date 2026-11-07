@@ -100,8 +100,16 @@ public static class RemindersEndpoints
         }).RequireAuthorization(Permissions.RemindersManage);
 
         // SMS vendor callbacks (no staff sign-in). The secret key in the URL authenticates the vendor; wrong keys get 404 and are rate-limited.
+        // The key is checked BEFORE the licence, so a caller without the key learns nothing (not even whether the module is licensed).
         // Exempt from the browser CSRF header (see UsePasCsrfProtection). Bodies are capped at 16 KB.
-        var hooks = app.MapGroup("/api/hooks/sms/{key}").RequireModule(RemindersModule.Id).RequireRateLimiting("public").AllowAnonymous();
+        var hooks = app.MapGroup("/api/hooks/sms/{key}")
+            .AddEndpointFilter(async (ctx, next) =>
+            {
+                var key = ctx.HttpContext.Request.RouteValues["key"] as string ?? "";
+                var svc = ctx.HttpContext.RequestServices.GetRequiredService<ReminderService>();
+                return await svc.WebhookKeyMatchesAsync(key) ? await next(ctx) : Results.NotFound();
+            })
+            .RequireModule(RemindersModule.Id).RequireRateLimiting("vendor-callbacks").AllowAnonymous();
         hooks.MapPost("/inbound", async (string key, HttpRequest req, ReminderService svc) =>
         {
             if (!await svc.WebhookKeyMatchesAsync(key)) return Results.NotFound();

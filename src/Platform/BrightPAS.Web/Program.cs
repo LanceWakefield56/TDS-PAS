@@ -40,7 +40,9 @@ builder.Services.AddHttpClient("licensing", c => c.Timeout = TimeSpan.FromSecond
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Licensing.LicenceHeartbeat>();
 builder.Services.AddPasIdentity(o => UseSql(o, PasIdentityDbContext.Schema));
 builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs.LabsModule(), new BrightPAS.Modules.Theatre.TheatreModule(),
-    new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule()]);
+    new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule(),
+    new BrightPAS.Modules.Referrals.ReferralsModule()]);
+builder.Services.AddScoped<BrightPAS.Web.Licensing.ModuleSetupService>();
 builder.Services.AddSingleton<BrightPAS.Modules.Reminders.ISecretProtector, BrightPAS.Web.Integration.DataProtectionSecretProtector>();
 // Installation defaults chosen in Setup (Reminders:SmsProvider / Reminders:EmailProvider); Modica + SMTP when not set.
 builder.Services.AddSingleton(new BrightPAS.Modules.Reminders.ReminderDefaults(
@@ -56,9 +58,13 @@ builder.Services.AddRateLimiter(o =>
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     o.AddFixedWindowLimiter("setup", w => { w.PermitLimit = 10; w.Window = TimeSpan.FromMinutes(1); w.QueueLimit = 0; });
     o.AddFixedWindowLimiter("auth", w => { w.PermitLimit = 30; w.Window = TimeSpan.FromMinutes(1); w.QueueLimit = 0; });
-    // Patient-facing questionnaire links: per client IP.
-    o.AddPolicy("public", ctx => RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+    // Patient-facing questionnaire links: per client IP. Kept separate from vendor callbacks so a burst of
+    // SMS delivery receipts can never lock patients out of their forms (and vice versa).
+    o.AddPolicy("patient-links", ctx => RateLimitPartition.GetFixedWindowLimiter("links:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 40, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // SMS vendor callbacks (replies and delivery receipts): per client IP, sized for vendor bursts.
+    o.AddPolicy("vendor-callbacks", ctx => RateLimitPartition.GetFixedWindowLimiter("hooks:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
 var app = builder.Build();
@@ -129,6 +135,7 @@ app.MapOrganisationEndpoints();
 app.MapAdminEndpoints();
 app.MapModuleEndpoints();
 app.MapRemindersEndpoints();
+app.MapReferralsEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.
 app.MapFallback("/api/{**rest}", () => Results.NotFound()).AllowAnonymous();

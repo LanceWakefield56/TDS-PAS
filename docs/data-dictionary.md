@@ -136,6 +136,9 @@ Planned: NHI, contact and address columns encrypted with SQL Server Always Encry
 | NextValue | bigint | Next MRN number (concurrency-checked) |
 
 
+## core.ModuleSetup
+One row per module that has completed its guided set-up (ADR 0014). ModuleId (PK, e.g. `referrals`), SetUpAt, SetUpBy, SkippedChecks (optional steps not done at the time). No row = "Needs set-up".
+
 ## core.LicenceState (single row, Id = 1)
 | Column | Type | Notes |
 |---|---|---|
@@ -198,3 +201,12 @@ Outbound message: PatientId, BookingId, AppointmentDate, Kind, Channel, Address,
 ## reminders.Replies
 Inbound SMS: From (E.164), Body, ReceivedAt, Provider, ProviderMessageId, ReplyToProviderId, MatchedMessageId, PatientId, BookingId, Meaning (Confirm, Cancel, OptOut, OptIn, Unknown), ActionTaken, Status (New, Handled), HandledBy/At, Note.
 
+
+## referrals.Referrals
+A referral letter. Number (R000001…, unique), PatientId, ReceivedOn, Source (GeneralPractice/Specialist/SelfReferral/HealthNz/Acc/Insurer/Other), ReferrerName, ReferrerOrganisation, ReferrerHpi (HPI CPN or facility id), Specialist, Service (Surgical/Endoscopy), Funder (SelfPay/Insurer/Acc/HealthNz/Other), FunderReference (insurer approval, ACC claim, Health NZ referral id), Reason, Status (Received/Accepted/Declined/Withdrawn), TriagedAt/By, TriageNotes, DeclineReason, CreatedAt/By.
+
+## referrals.Waitlist
+A patient waiting for a procedure. ReferralId (null when added directly), PatientId, Procedure, Laterality, Anaesthetic, DurationMinutes, Service, Specialist, Funder (HealthNz = publicly funded, NBRS-reportable), Priority (Urgent/SemiUrgent/Routine), AddedOn (decision to treat – start of waiting time), TargetDate (AddedOn + target days for the priority), Status (Waiting/OnHold/Booked/Completed/Removed), HoldReason, HoldUntil (hold ends automatically), BookingId (theatre.Bookings), BookedFor, RemovedReason, Notes, StatusAt, CreatedAt/By. A cancelled or did-not-attend theatre booking returns the entry to Waiting; a discharged booking completes it.
+
+## referrals.Settings (single row, Id = 1)
+Target days per priority: UrgentDays (30), SemiUrgentDays (90), RoutineDays (120 – Health NZ's 4-month planned-care target); NextReferralNumber; UpdatedAt/By (set when an administrator confirms the targets in the set-up).

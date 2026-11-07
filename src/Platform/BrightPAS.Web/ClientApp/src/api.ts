@@ -23,6 +23,7 @@ export type Access = 'None' | 'ReadOnly' | 'Full';
 export interface Me {
   userName: string; displayName: string; roles: string[]; permissions: string[];
   modules: Record<string, Access>;
+  moduleSetup: Record<string, boolean>;
   licence: { health: string; edition: string | null; developmentKey: boolean; message: string | null };
 }
 export interface PatientSummary {
@@ -45,6 +46,7 @@ export const Perm = {
   FormsSend: 'forms.send', FormsTriage: 'forms.triage',
   BillingView: 'billing.view', BillingManage: 'billing.manage', BillingFees: 'billing.fees',
   RemindersView: 'reminders.view', RemindersManage: 'reminders.manage',
+  ReferralsView: 'referrals.view', ReferralsManage: 'referrals.manage', ReferralsTriage: 'referrals.triage',
 } as const;
 
 export const nzDateTime = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';

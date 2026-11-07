@@ -10,7 +10,7 @@
 5. **Collect diagnostics** – one zip in `C:\ProgramData\BrightPAS\Support` (copy next to Setup.exe): Setup logs, reports, Hosting Bundle log, filtered Application/System event logs, IIS sites/app pool/bindings, certificates, folder ACLs, firewall, listening ports, SQL services, deployed `web.config`/`appsettings*.json`. Passwords masked. Offered automatically after any failed run.
 
 ## Install steps
-Check server → install IIS (minimal features) → TLS 1.2/1.3 only → harden IIS → create database → schema scripts (core, identity, patients; audit ledger) → one-time first-admin code (shown once, never logged, 7 days) → .NET 10 Hosting Bundle (from `dotnet-hosting-10.*-win.exe` next to Setup) → application database login → deploy `BrightPAS-Web-<version>.zip` to `C:\Program Files\BrightPAS\Web` → IIS site/app pool, HTTPS only → health check.
+Check server → install IIS (minimal features) → TLS 1.2/1.3 only → harden IIS → create database → schema scripts (core, identity, patients, labs, theatre, forms, billing, reminders, referrals; audit ledger) → one-time first-admin code (shown once, never logged, 7 days) → .NET 10 Hosting Bundle (from `dotnet-hosting-10.*-win.exe` next to Setup) → application database login → deploy `BrightPAS-Web-<version>.zip` to `C:\Program Files\BrightPAS\Web` → IIS site/app pool, HTTPS only → health check.
 
 **Single server** (SQL on `localhost`): the site connects as `IIS APPPOOL\BrightPAS` (Windows auth, db_datareader/db_datawriter) – no password exists. **Separate SQL server:** a generated `brightpas_app` SQL login, or `--app-windows-login DOMAIN\GMSA$` (ADR 0008).
 

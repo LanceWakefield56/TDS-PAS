@@ -219,3 +219,30 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107101753_ModuleSetup'
+)
+BEGIN
+    CREATE TABLE [core].[ModuleSetup] (
+        [ModuleId] nvarchar(40) NOT NULL,
+        [SetUpAt] datetimeoffset NOT NULL,
+        [SetUpBy] nvarchar(100) NOT NULL,
+        [SkippedChecks] nvarchar(1000) NULL,
+        CONSTRAINT [PK_ModuleSetup] PRIMARY KEY ([ModuleId])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107101753_ModuleSetup'
+)
+BEGIN
+    INSERT INTO [core].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261107101753_ModuleSetup', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

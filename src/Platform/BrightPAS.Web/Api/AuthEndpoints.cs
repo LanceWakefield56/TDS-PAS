@@ -73,8 +73,9 @@ public static class AuthEndpoints
             return Results.Ok();
         });
 
-        app.MapGet("/api/me", (ClaimsPrincipal user, BrightPAS.Web.Licensing.LicenceCache licence) => Results.Ok(new
+        app.MapGet("/api/me", async (ClaimsPrincipal user, BrightPAS.Web.Licensing.LicenceCache licence, BrightPAS.Web.Licensing.ModuleSetupService setup) => Results.Ok(new
         {
+            moduleSetup = await setup.SetUpModulesAsync(),
             userName = user.Identity!.Name,
             displayName = user.FindFirstValue(PasClaimsFactory.DisplayNameClaim),
             roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value),

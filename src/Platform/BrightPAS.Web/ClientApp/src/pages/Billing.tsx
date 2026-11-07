@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { api, errText, formatDate, money, Perm } from '../api';
 import { useSession } from '../App';
 
@@ -13,7 +13,8 @@ export const payerText = (p: string, n?: string | null) => ({ SelfFunded: 'Self-
 export default function Billing() {
   const { can, writable } = useSession();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('Estimate');
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(['fees', 'settings', 'outstanding', 'Invoice'].includes(params.get('tab') ?? '') ? params.get('tab')! : 'Estimate');
   const [docs, setDocs] = useState<DocRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {

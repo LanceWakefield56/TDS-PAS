@@ -52,7 +52,7 @@ public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallL
         CheckHeaders(api, "API", requireNoStore: true);
 
         // Authentication enforcement (platform)
-        foreach (var path in new[] { "api/me", "api/admin/users", "api/audit", "api/organisation/locations", "api/admin/licence" })
+        foreach (var path in new[] { "api/me", "api/admin/users", "api/audit", "api/organisation/locations", "api/admin/licence", "api/admin/modules" })
         {
             var res = await Send(http, HttpMethod.Get, path, ct: ct);
             if (res.StatusCode == HttpStatusCode.Unauthorized) r.Pass(Area, $"Login required: /{path.Split('?')[0]}", "Anonymous request refused (401).");
@@ -61,12 +61,18 @@ public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallL
 
         // Every module: anonymous reads and writes refused; writes without the CSRF header refused.
         foreach (var m in ModuleSuites.All) await ModuleSuiteAsync(http, m, ct);
+
+        // Patient questionnaire links: a guessed link must not reveal anything. Runs BEFORE the callback throttle test.
+        var guess = await Send(http, HttpMethod.Get, "api/q/" + Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)), ct: ct);
+        var guessBody = await guess.Content.ReadAsStringAsync(ct);
+        if (guess.StatusCode is HttpStatusCode.NotFound) r.Pass(Area, "Patient link guessing", "A made-up questionnaire link reveals nothing (HTTP 404).");
+        else if (guess.StatusCode is HttpStatusCode.TooManyRequests) r.Pass(Area, "Patient link guessing", "A made-up questionnaire link was refused (HTTP 429 – throttled); nothing was revealed.");
+        else if (guess.StatusCode is HttpStatusCode.Forbidden && guessBody.Contains("module_not_licensed"))
+            r.Info(Area, "Patient link guessing", "Not fully tested: the Pre-admission forms module is not licensed, so all links are refused (403). Re-run after installing the licence.");
+        else r.Fail(Area, "Patient link guessing", $"A made-up questionnaire link returned HTTP {(int)guess.StatusCode}.", "Report this immediately.");
         await RemindersCallbackAsync(http, ct);
 
-        // Patient questionnaire links: a guessed link must not reveal anything; HL7 import needs sign-in.
-        var guess = await Send(http, HttpMethod.Get, "api/q/" + Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)), ct: ct);
-        if (guess.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden) r.Pass(Area, "Patient link guessing", $"A made-up questionnaire link reveals nothing (HTTP {(int)guess.StatusCode}).");
-        else r.Fail(Area, "Patient link guessing", $"A made-up questionnaire link returned HTTP {(int)guess.StatusCode}.", "Report this immediately.");
+        // HL7 import needs sign-in.
         var hl7 = await Send(http, HttpMethod.Post, "api/labs/import", """{"message":"MSH|^~\\&|X|Y|Z|W|202601010000||ORU^R01|1|P|2.4"}""", ct: ct);
         if (hl7.StatusCode == HttpStatusCode.Unauthorized) r.Pass(Area, "Lab result import requires sign-in", "Anonymous HL7 import refused (401).");
         else r.Fail(Area, "Lab result import requires sign-in", $"Anonymous HL7 import returned HTTP {(int)hl7.StatusCode}.", "Report this immediately.");
@@ -186,21 +192,27 @@ public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallL
         const string area = "Module security – SMS & email reminders";
         var fake = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
         var problems = new List<string>();
+        var statuses = new List<int>();
+        var unlicensed = false;
         foreach (var (path, body) in new[] { ($"api/hooks/sms/{fake}/inbound", """{"source":"+64211234567","content":"STOP"}"""), ($"api/hooks/sms/{fake}/status", """{"message_id":"1","status":"received"}"""),
                      ($"api/hooks/sms/{fake}/inbound", "{ not json"), ("api/hooks/sms/%27%20OR%201%3D1--/inbound", """{"source":"+64211234567","content":"YES"}""") })
         {
             var res = await Send(http, HttpMethod.Post, path, body, csrfHeader: false, ct: ct);
-            if (res.StatusCode is not (HttpStatusCode.NotFound or HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)) problems.Add($"POST /{path.Split("/sms/")[0]}/sms/… -> {(int)res.StatusCode}");
+            statuses.Add((int)res.StatusCode);
+            if (res.StatusCode == HttpStatusCode.Forbidden && (await res.Content.ReadAsStringAsync(ct)).Contains("module_not_licensed")) unlicensed = true;
+            else if (res.StatusCode is not (HttpStatusCode.NotFound or HttpStatusCode.TooManyRequests)) problems.Add($"POST /{path.Split("/sms/")[0]}/sms/… -> {(int)res.StatusCode}");
         }
-        if (problems.Count == 0) r.Pass(area, "SMS vendor callback key guessing", "Made-up and injected callback keys were refused without revealing anything (HTTP 404).");
-        else r.Fail(area, "SMS vendor callback key guessing", string.Join("; ", problems), "Report this immediately: SMS replies could be forged.");
+        var seen = string.Join(", ", statuses.Distinct().Select(s => $"HTTP {s}"));
+        if (problems.Count > 0) r.Fail(area, "SMS vendor callback key guessing", string.Join("; ", problems), "Report this immediately: SMS replies could be forged.");
+        else if (unlicensed) r.Fail(area, "SMS vendor callback key guessing", "A wrong callback key was answered 'module not licensed' (403), revealing that the module exists. The key must be checked first.", "Install the current BrightPAS version (0.7.0 or later) and report this if it persists.");
+        else r.Pass(area, "SMS vendor callback key guessing", $"{statuses.Count} made-up and injected callback keys were refused without revealing anything ({seen}).");
         if (o.IncludeRateLimitTests)
         {
             var limited = false;
-            for (var i = 0; i < 50 && !limited; i++)
+            for (var i = 0; i < 150 && !limited; i++)
                 limited = (await Send(http, HttpMethod.Post, $"api/hooks/sms/{fake}{i}/inbound", "{}", csrfHeader: false, quiet: true, ct: ct)).StatusCode == HttpStatusCode.TooManyRequests;
             if (limited) r.Pass(area, "SMS vendor callback key guessing is throttled", "Rapid guesses were throttled (HTTP 429).");
-            else r.Warn(area, "SMS vendor callback key guessing is throttled", "50 rapid guesses were not throttled.", "Check the site is the current version; rate limiting is built in.");
+            else r.Warn(area, "SMS vendor callback key guessing is throttled", "150 rapid guesses were not throttled.", "Check the site is the current version; rate limiting is built in.");
         }
     }
 

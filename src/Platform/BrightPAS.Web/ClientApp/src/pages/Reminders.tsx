@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { api, errText, formatDate, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
 
@@ -14,7 +14,9 @@ export const kindName = (k: string) => kindLabel[k] ?? k;
 export default function Reminders() {
   const { can, writable } = useSession();
   const manage = can(Perm.RemindersManage);
-  const [tab, setTab] = useState<'replies' | 'outbox' | 'templates' | 'settings'>('replies');
+  const [params] = useSearchParams();
+  const wanted = params.get('tab');
+  const [tab, setTab] = useState<'replies' | 'outbox' | 'templates' | 'settings'>(manage && (wanted === 'settings' || wanted === 'templates') ? wanted : wanted === 'outbox' ? 'outbox' : 'replies');
   const [status, setStatus] = useState<{ problems: string[]; counts: { newReplies: number; failed: number; queued: number } } | null>(null);
   const loadStatus = useCallback(() => api('/api/reminders/status').then(setStatus).catch(() => {}), []);
   useEffect(() => { loadStatus(); }, [loadStatus]);

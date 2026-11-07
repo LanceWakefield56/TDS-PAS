@@ -12,6 +12,9 @@ export default function Home() {
   const [labCount, setLabCount] = useState<number | null>(null);
   const [formCount, setFormCount] = useState<number | null>(null);
   const [version, setVersion] = useState('');
+  const [wait, setWait] = useState<{ toTriage: number; overdue: number; dueIn14Days: number } | null>(null);
+  const SETUP = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders'];
+  const setupNeeded = me && can(Perm.ModulesManage) ? SETUP.filter((id) => me.modules[id] === 'Full' && !me.moduleSetup?.[id]).length : 0;
   const theatreOn = mod('theatre') && can(Perm.TheatreView);
   useEffect(() => {
     api<Location[]>('/api/organisation/locations').then(setLocations).catch(() => setLocations([]));
@@ -19,6 +22,7 @@ export default function Home() {
     if (theatreOn) api<DaySession[]>(`/api/theatre/sessions?from=${todayIso()}`).then(setSessions).catch(() => setSessions([]));
     if (mod('labs') && can(Perm.LabsView)) api<{ unacknowledged: number }>('/api/labs/count').then((r) => setLabCount(r.unacknowledged)).catch(() => undefined);
     if (mod('forms') && can(Perm.FormsTriage)) api<unknown[]>('/api/forms?view=to-triage').then((r) => setFormCount(r.length)).catch(() => undefined);
+    if (mod('referrals') && can(Perm.ReferralsView)) api<{ toTriage: number; overdue: number; dueIn14Days: number }>('/api/referrals/summary').then(setWait).catch(() => undefined);
   }, [theatreOn, mod, can]);
   const today = new Date().toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const greeting = new Date().getHours() < 12 ? 'Mōrena' : 'Kia ora';
@@ -38,12 +42,14 @@ export default function Home() {
             </div>
           </section>
         )}
-        {(labCount !== null || formCount !== null) && (
+        {(labCount !== null || formCount !== null || wait !== null) && (
           <section className="card action">
             <h2>Waiting for you</h2>
             <ul className="plain">
               {labCount !== null && <li><Link to="/labs"><strong>{labCount}</strong> lab result{labCount === 1 ? '' : 's'} to acknowledge</Link></li>}
               {formCount !== null && <li><Link to="/forms"><strong>{formCount}</strong> pre-admission form{formCount === 1 ? '' : 's'} to triage</Link></li>}
+              {wait && (can(Perm.ReferralsTriage) || wait.toTriage > 0) && <li><Link to="/referrals"><strong>{wait.toTriage}</strong> referral{wait.toTriage === 1 ? '' : 's'} to triage</Link></li>}
+              {wait && <li><Link to="/waitlist"><strong>{wait.overdue}</strong> waitlist patient{wait.overdue === 1 ? '' : 's'} past target{wait.dueIn14Days ? `, ${wait.dueIn14Days} due within 14 days` : ''}</Link></li>}
             </ul>
           </section>
         )}
@@ -68,6 +74,7 @@ export default function Home() {
           <section className="card">
             <h2>Administration</h2>
             <p>Create staff accounts, set roles and help locked-out users. As System Administrator you do not have access to patient records.</p>
+            {setupNeeded > 0 && <p className="notice">{setupNeeded} licensed module{setupNeeded === 1 ? ' needs' : 's need'} setting up before staff can use {setupNeeded === 1 ? 'it' : 'them'}. <Link to="/admin/licence">Set up modules</Link></p>}
             <div className="row"><Link className="btn btn-primary" to="/admin/users">Manage user accounts</Link>{can(Perm.ModulesManage) && <Link className="btn btn-light" to="/admin/licence">Licence &amp; modules</Link>}</div>
           </section>
         )}

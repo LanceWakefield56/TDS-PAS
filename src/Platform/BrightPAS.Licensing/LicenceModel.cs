@@ -72,6 +72,7 @@ public static class ProductModules
     [
         new("labs", "Lab results", "HL7 lab and histology results, clinician inbox and acknowledgement.", true),
         new("theatre", "Theatre bookings", "Theatre lists, procedure bookings and the day's list.", true),
+        new("referrals", "Referrals & waitlist", "Referral intake and triage, the surgical waitlist with target dates, and booking theatre from the waitlist.", true),
         new("forms", "Pre-admission forms", "Online patient health questionnaire and nurse triage.", true),
         new("billing", "Estimates & invoices", "Fee schedule, estimates, invoices, payments and fee splits.", true),
         new("emr", "Clinical record (eMR)", "Perioperative, anaesthetic and nursing records.", false),

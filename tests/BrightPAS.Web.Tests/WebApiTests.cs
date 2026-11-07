@@ -54,6 +54,8 @@ public sealed class PasWebFactory : WebApplicationFactory<Program>, IAsyncLifeti
             await x.Database.MigrateAsync();
         await using (var x = new BrightPAS.Modules.Reminders.RemindersDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Reminders.RemindersDbContext>().Also(o => Sql(o, "reminders")).Options))
             await x.Database.MigrateAsync();
+        await using (var x = new BrightPAS.Modules.Referrals.ReferralsDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Referrals.ReferralsDbContext>().Also(o => Sql(o, "referrals")).Options))
+            await x.Database.MigrateAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

@@ -127,7 +127,7 @@ public static class ModuleEndpoints
             Done(await svc.TriageAsync(id, req.Category, req.Outcome, req.Notes, req.AddAllergyAlert, Me(u)))).RequireAuthorization(Permissions.FormsTriage);
 
         // Patient-facing (no staff sign-in): the secret link plus date of birth. Rate-limited per IP; the link locks after 5 wrong attempts.
-        var q = app.MapGroup("/api/q/{token}").RequireModule(FormsModule.Id).RequireRateLimiting("public").AllowAnonymous();
+        var q = app.MapGroup("/api/q/{token}").RequireModule(FormsModule.Id).RequireRateLimiting("patient-links").AllowAnonymous();
         q.MapGet("/", async (string token, FormService svc) => await svc.PublicInfoAsync(token) is { } info ? Results.Ok(info) : Results.NotFound());
         q.MapPost("/open", async (string token, DobRequest req, FormService svc) =>
         {

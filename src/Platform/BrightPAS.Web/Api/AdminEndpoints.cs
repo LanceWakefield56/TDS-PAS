@@ -61,6 +61,27 @@ public static class AdminEndpoints
             return ok ? Results.Ok(new { message }) : Results.BadRequest(new { errors = new[] { message } });
         });
 
+        // Module set-up wizards (ADR 0014).
+        var m = app.MapGroup("/api/admin/modules").RequireAuthorization(Permissions.ModulesManage);
+        m.MapGet("/", async (BrightPAS.Web.Licensing.ModuleSetupService svc) => Results.Ok(await svc.ListAsync()));
+        m.MapGet("/{id}/setup", async (string id, BrightPAS.Web.Licensing.ModuleSetupService svc) =>
+        {
+            var mod = BrightPAS.Licensing.ProductModules.Find(id);
+            if (mod is null || !mod.Available || !BrightPAS.Web.Licensing.ModuleSetupService.WithWizard.Contains(mod.Id)) return Results.NotFound();
+            var list = await svc.ListAsync();
+            return Results.Ok(new { module = list.First(x => x.Id == mod.Id), checks = await svc.ChecksAsync(mod.Id) });
+        });
+        m.MapPost("/{id}/setup/complete", async (string id, ClaimsPrincipal me, BrightPAS.Web.Licensing.ModuleSetupService svc) =>
+        {
+            var (ok, error) = await svc.CompleteAsync(id, me.Identity!.Name!);
+            return ok ? Results.Ok() : Results.BadRequest(new { errors = new[] { error } });
+        });
+        m.MapPost("/{id}/setup/reopen", async (string id, ClaimsPrincipal me, BrightPAS.Web.Licensing.ModuleSetupService svc) =>
+        {
+            var error = await svc.ReopenAsync(id, me.Identity!.Name!);
+            return error is null ? Results.Ok() : Results.BadRequest(new { errors = new[] { error } });
+        });
+
         var a = app.MapGroup("/api/audit").RequireAuthorization(Permissions.AuditView);
         a.MapGet("/", async (string? user, string? patient, string? action, int? take, AuditQueryService svc) =>
             Results.Ok((await svc.SearchAsync(user, patient, action, take ?? 200))

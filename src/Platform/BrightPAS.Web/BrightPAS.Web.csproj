@@ -11,6 +11,7 @@
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Forms\BrightPAS.Modules.Forms.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Billing\BrightPAS.Modules.Billing.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Reminders\BrightPAS.Modules.Reminders.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Referrals\BrightPAS.Modules.Referrals.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Forms\BrightPAS.Modules.Forms.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Billing\BrightPAS.Modules.Billing.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Reminders\BrightPAS.Modules.Reminders.csproj" />
+    <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Referrals\BrightPAS.Modules.Referrals.csproj" />
   </ItemGroup>
 
 </Project>

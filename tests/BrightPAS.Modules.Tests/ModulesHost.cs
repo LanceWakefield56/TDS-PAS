@@ -9,6 +9,7 @@ using BrightPAS.Modules.Billing;
 using BrightPAS.Modules.Forms;
 using BrightPAS.Modules.Labs;
 using BrightPAS.Modules.Patients;
+using BrightPAS.Modules.Referrals;
 using BrightPAS.Modules.Reminders;
 using BrightPAS.Modules.Theatre;
 
@@ -36,13 +37,13 @@ public sealed class ModulesHost : IAsyncDisposable
         s.AddScoped<AuditWriter>();
         s.AddSingleton<ISecretProtector, ReversibleTestProtector>();
         s.AddSingleton(new ReminderDefaults(SmsProvider.TestOutbox, EmailProvider.TestOutbox));
-        s.AddPasModules([new PatientsModule(), new LabsModule(), new TheatreModule(), new FormsModule(), new BillingModule(), new RemindersModule()]);
+        s.AddPasModules([new PatientsModule(), new LabsModule(), new TheatreModule(), new FormsModule(), new BillingModule(), new RemindersModule(), new ReferralsModule()]);
         Services = s.BuildServiceProvider();
         using var scope = Services.CreateScope();
         var sp = scope.ServiceProvider;
         foreach (DbContext db in new DbContext[] { sp.GetRequiredService<PasDbContext>(), sp.GetRequiredService<PatientsDbContext>(), sp.GetRequiredService<LabsDbContext>(),
                      sp.GetRequiredService<TheatreDbContext>(), sp.GetRequiredService<FormsDbContext>(), sp.GetRequiredService<BillingDbContext>(),
-                     sp.GetRequiredService<RemindersDbContext>() })
+                     sp.GetRequiredService<RemindersDbContext>(), sp.GetRequiredService<ReferralsDbContext>() })
             db.Database.EnsureCreated();
         var core = sp.GetRequiredService<PasDbContext>();
         core.Organisations.Add(BrightPAS.Core.Organisation.TdsDefaultSetup.Create());

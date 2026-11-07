@@ -3,12 +3,16 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders'];
+
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
   const [open, setOpen] = useState(false);
   const location = useLocation();
   useEffect(() => setOpen(false), [location.pathname]);
   const lic = me?.licence;
+  // Licensed modules that still need their guided set-up (administrators only).
+  const setupCount = me && can(Perm.ModulesManage) ? Object.entries(me.modules).filter(([id, a]) => a === 'Full' && !me.moduleSetup?.[id] && SETUP_MODULES.includes(id)).length : 0;
   const showLicence = lic && (lic.health !== 'Valid' || lic.developmentKey);
 
   return (
@@ -38,6 +42,8 @@ export default function Shell() {
           <NavLink to="/" end>My work today</NavLink>
           {can(Perm.PatientView) && <NavLink to="/patients" end>Find a patient</NavLink>}
           {can(Perm.PatientRegister) && <NavLink to="/patients/new">Register a patient</NavLink>}
+          {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/referrals">Referrals</NavLink>}
+          {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/waitlist">Waitlist</NavLink>}
           {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/theatre">Theatre lists</NavLink>}
           {mod('labs') && can(Perm.LabsView) && <NavLink to="/labs">Lab results</NavLink>}
           {mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)) && <NavLink to="/forms">Pre-admission forms</NavLink>}
@@ -45,7 +51,7 @@ export default function Shell() {
           {mod('reminders') && can(Perm.RemindersView) && <NavLink to="/reminders">SMS &amp; email</NavLink>}
           {(can(Perm.UsersManage) || can(Perm.AuditView) || can(Perm.ModulesManage) || can(Perm.Integration)) && <span className="nav-group">Administration</span>}
           {can(Perm.UsersManage) && <NavLink to="/admin/users">User accounts</NavLink>}
-          {can(Perm.ModulesManage) && <NavLink to="/admin/licence">Licence &amp; modules</NavLink>}
+          {can(Perm.ModulesManage) && <NavLink to="/admin/licence">Licence &amp; modules{setupCount > 0 && <span className="count">{setupCount}</span>}</NavLink>}
           {can(Perm.Integration) && <NavLink to="/admin/interfaces">Interfaces</NavLink>}
           {can(Perm.AuditView) && <NavLink to="/audit">Audit log</NavLink>}
         </nav>

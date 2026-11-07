@@ -240,6 +240,29 @@ namespace BrightPAS.Core.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BrightPAS.Core.Setup.ModuleSetupState", b =>
+                {
+                    b.Property<string>("ModuleId")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("SetUpAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SetUpBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SkippedChecks")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("ModuleId");
+
+                    b.ToTable("ModuleSetup", "core");
+                });
+
             modelBuilder.Entity("BrightPAS.Core.Setup.SetupState", b =>
                 {
                     b.Property<int>("Id")

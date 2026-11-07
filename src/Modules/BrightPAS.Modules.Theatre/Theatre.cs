@@ -184,7 +184,8 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         return rows.Cast<object>().ToList();
     }
 
-    public async Task<BookingResult> BookAsync(NewBooking r, string user, CancellationToken ct = default)
+    /// <param name="validateOnly">Run every check and return errors and warnings without booking (used by the waitlist to show all warnings at once).</param>
+    public async Task<BookingResult> BookAsync(NewBooking r, string user, CancellationToken ct = default, bool validateOnly = false)
     {
         var errors = new List<string>();
         var warnings = new List<string>();
@@ -213,6 +214,7 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         if (booked + r.DurationMinutes > available)
             warnings.Add($"The list will run over: {booked + r.DurationMinutes} of {available} minutes booked.");
         if (warnings.Count > 0 && !r.AcceptWarnings) return new(null, errors, warnings);
+        if (validateOnly) return new(null, errors, warnings);
 
         var now = clock.GetUtcNow();
         var booking = new TheatreBooking

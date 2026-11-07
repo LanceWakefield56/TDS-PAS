@@ -11,6 +11,10 @@ import PatientView from './pages/PatientView';
 import AdminUsers from './pages/AdminUsers';
 import AuditLog from './pages/AuditLog';
 import Licence from './pages/Licence';
+import ModuleSetup from './pages/ModuleSetup';
+import Referrals from './pages/Referrals';
+import Waitlist from './pages/Waitlist';
+import ReferralTargets from './pages/ReferralTargets';
 import Interfaces from './pages/Interfaces';
 import LabsInbox from './pages/LabsInbox';
 import LabReport from './pages/LabReport';
@@ -58,7 +62,9 @@ export default function App() {
   }, [navigate]);
 
   const can = useCallback((perm: string) => !!me?.permissions.includes(perm), [me]);
-  const mod = useCallback((id: string) => !!me && (me.modules[id] ?? 'None') !== 'None', [me]);
+  // A module appears once it is licensed AND set up (ADR 0014). Administrators also see licensed modules that still need set-up.
+  const mod = useCallback((id: string) => !!me && (me.modules[id] ?? 'None') !== 'None'
+    && (!!me.moduleSetup?.[id] || me.permissions.includes('admin.modules.manage')), [me]);
   const writable = useCallback((id: string) => me?.modules[id] === 'Full', [me]);
 
   if (location.pathname.startsWith('/q/')) return <Routes><Route path="/q/:token" element={<PatientQuestionnaire />} /></Routes>;
@@ -82,6 +88,10 @@ export default function App() {
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/admin/licence" element={<Licence />} />
+          <Route path="/admin/modules/:id" element={<ModuleSetup />} />
+          <Route path="/admin/referral-targets" element={<ReferralTargets />} />
+          <Route path="/referrals" element={<Referrals />} />
+          <Route path="/waitlist" element={<Waitlist />} />
           <Route path="/admin/interfaces" element={<Interfaces />} />
           <Route path="/labs" element={<LabsInbox />} />
           <Route path="/labs/:id" element={<LabReport />} />

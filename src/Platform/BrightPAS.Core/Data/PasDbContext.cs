@@ -17,6 +17,7 @@ public sealed class PasDbContext(DbContextOptions<PasDbContext> options) : DbCon
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<SetupState> SetupState => Set<SetupState>();
     public DbSet<LicenceState> LicenceState => Set<LicenceState>();
+    public DbSet<ModuleSetupState> ModuleSetup => Set<ModuleSetupState>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -28,6 +29,14 @@ public sealed class PasDbContext(DbContextOptions<PasDbContext> options) : DbCon
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema(Schema);
+
+        b.Entity<ModuleSetupState>(e =>
+        {
+            e.HasKey(x => x.ModuleId);
+            e.Property(x => x.ModuleId).HasMaxLength(40);
+            e.Property(x => x.SetUpBy).HasMaxLength(100);
+            e.Property(x => x.SkippedChecks).HasMaxLength(1000);
+        });
 
         b.Entity<Organisation.Organisation>(e =>
         {

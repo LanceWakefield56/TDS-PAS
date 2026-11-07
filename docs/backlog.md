@@ -32,7 +32,15 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ SMS & email reminders module, Modica default + vendor choice in Setup (ADR 0012)
 - ☑ Security testing built into every module, mapped to standards (ADR 0013)
 
+## Increment 0.7.0 (done)
+- ☑ Licence & modules redesign: one-click licence load with visible result; module states; guided set-up per module with live checks (ADR 0014)
+- ☑ Referrals & waitlist module: intake, triage accept/decline, waitlist with priority targets and overdue flags, hold/resume/remove, book theatre from the waitlist, sync with theatre status, CSV export, patient panel
+- ☑ Self-test fixes from the 0.6.0 sandbox log: separate rate limits for patient links and SMS callbacks; callback key checked before the licence; probe order and reporting
+
 ## Next
+- ☐ Letter templates + GP messaging via HealthLink (Phase 1)
+- ☐ Wristbands and labels (Zebra); document scanning with OCR; specialist/PA portal; patient portal; credentialing; basic emergency transfer pack
+- ☐ NBRS extract from the waitlist (Health NZ file specification) for publicly funded patients
 - ☐ Sandbox: verify reminders UI end-to-end on Windows; live Modica test (needs Modica account + DMZ callback path)
 - ☐ Modica REST v2 gateway; SMS delivery dashboards; te reo Māori templates (TDS to write/review)
 - ☐ Security: dependency vulnerability scan + SBOM in the build; DAST (OWASP ZAP baseline) against the sandbox; TDE + backups (spec 4.6)
