@@ -1,0 +1,11 @@
+const {chromium}=require('playwright');const {adminContext,BASE}=require('./lib');
+(async()=>{const b=await chromium.launch();const ctx=await adminContext(b,process.argv[2]);const p=await ctx.newPage();
+p.on('console',m=>console.log('console:',m.type(),m.text()));p.on('response',r=>{if(r.url().includes('/api/'))console.log('resp',r.request().method(),r.url().replace(BASE,''),r.status());});
+await p.goto(BASE+'/admin/licence');await p.waitForSelector('h1');
+await p.setInputFiles('input[type=file]','/home/claude/repo/TDS-PAS/licensing/sandbox/BrightPAS-Sandbox-Licence.lic');
+await p.waitForTimeout(500);
+console.log('button enabled?',await p.isEnabled('text=Install licence >> nth=-1'));
+await p.click('button:has-text("Install licence")');await p.waitForTimeout(1500);
+await p.screenshot({path:'/tmp/lic.png',fullPage:false});
+console.log('notice:',await p.locator('.notice,.error').allTextContents());
+await b.close();})().catch(e=>{console.error(e);process.exit(1)});
