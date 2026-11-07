@@ -19,7 +19,7 @@ rm -rf "$PUB"
 echo "== Installer"
 ./scripts/generate-db-scripts.sh >/dev/null
 SPUB=$(mktemp -d)
-dotnet publish src/Installer/BrightPAS.Setup -c Release -r win-x64 -o "$SPUB" --nologo -v q
+dotnet publish src/Installer/BrightPAS.Setup -c Release -r win-x64 -p:PublishTrimmed=false -o "$SPUB" --nologo -v q
 cp "$SPUB/Setup.exe" "$OUT/BrightPAS-Setup-$VERSION.exe"
 rm -rf "$SPUB"
 cp docs/installer.md "$OUT/Installer guide.md"

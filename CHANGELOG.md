@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1 – 2026-11-07 – Installer fix
+- **Fixed:** Setup failed at step 5 "Create the PAS database" with `TypeLoadException` (SqlClient native SNI, Windows only). Cause: Setup.exe was published trimmed, which broke SqlClient's native interop on Windows; Linux tests use the managed SNI and could not catch it. Setup is now published **untrimmed** (larger exe). Regression tests assert the publish settings.
+- No database, web or licence changes. Re-running Setup over a part-finished 0.5.0 install is safe (steps 1–4 are repeatable).
+
 ## 0.5.0 – 2026-11-07 (Phase 0/1) – **BrightPAS**, licensing and four paid modules
 - **Renamed BrightPAS** everywhere (projects, UI, installer, IIS site/app pool, database default, paths, `BRIGHTPAS_SQL_PASSWORD`).
 - **Licensing (ADR 0009):** ECDSA-signed licence files locked to an installation code; modules enabled per licence (base/paid split decided commercially); optional online activation with a licence server (binding, revocation, offline grace); clock-rollback detection; active-user limit; **licence problems make modules read-only, never hide clinical data**. Licence & modules admin page. Tools: `BrightPAS-LicenceManager` (keygen, issue, inspect) and `BrightPAS-LicenceServer`. Sandbox licence (all modules, development key) shipped for testing.

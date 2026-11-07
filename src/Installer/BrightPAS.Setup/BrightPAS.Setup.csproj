@@ -10,12 +10,10 @@
     <!-- Published as one self-contained Setup.exe for Windows Server (no .NET install needed to run it). -->
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
-    <!-- Partial trimming: only framework assemblies that opt in are trimmed; SqlClient and its dependencies are kept
-         whole. SqlClient's own trim warnings (IL2104) are suppressed; the database steps are verified by integration tests
-         against SQL Server using a trimmed build. -->
-    <PublishTrimmed>true</PublishTrimmed>
-    <TrimMode>partial</TrimMode>
-    <NoWarn>$(NoWarn);IL2104</NoWarn>
+    <!-- NOT trimmed (0.5.1). Trimming broke Microsoft.Data.SqlClient's Windows native SNI interop
+         (TypeLoadException in SNIAddProviderWrapper when opening an encrypted connection). Linux CI uses the
+         managed SNI so it never caught this. A larger Setup.exe is acceptable; correctness is not negotiable. -->
+    <PublishTrimmed>false</PublishTrimmed>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>none</DebugType>
