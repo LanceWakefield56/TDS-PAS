@@ -114,4 +114,40 @@ public class ModuleSetupWebTests(PasWebFactory factory) : IClassFixture<PasWebFa
         Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
         Assert.DoesNotContain("licensed", await r.Content.ReadAsStringAsync());
     }
+
+    [SqlServerFact]
+    public async Task Roles_can_be_edited_safely_and_removed_permissions_are_not_re_added()
+    {
+        using var admin = await SignInAsync("admin.roles", DefaultRoles.SystemAdministrator);
+        var data = await (await admin.GetAsync("/api/admin/roles")).Json();
+        var reception = data.GetProperty("roles").EnumerateArray().Single(r => r.GetProperty("name").GetString() == DefaultRoles.Reception);
+        var perms = reception.GetProperty("permissions").EnumerateArray().Select(p => p.GetString()!).ToList();
+        Assert.Contains(Permissions.TheatreManage, perms);
+        Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync("/api/admin/roles",
+            new { name = DefaultRoles.Reception, permissions = perms.Where(p => p != Permissions.TheatreManage).ToArray() })).StatusCode);
+
+        // Restarting (role seeding) must not put the removed permission back.
+        await using (var scope = factory.Services.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<RoleSeeder>().EnsureDefaultRolesAsync();
+        data = await (await admin.GetAsync("/api/admin/roles")).Json();
+        reception = data.GetProperty("roles").EnumerateArray().Single(r => r.GetProperty("name").GetString() == DefaultRoles.Reception);
+        Assert.DoesNotContain(Permissions.TheatreManage, reception.GetProperty("permissions").EnumerateArray().Select(p => p.GetString()));
+
+        var lockout = await admin.PutAsJsonAsync("/api/admin/roles", new { name = DefaultRoles.SystemAdministrator, permissions = new[] { Permissions.ModulesManage } });
+        Assert.Equal(HttpStatusCode.BadRequest, lockout.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync("/api/admin/roles", new { name = DefaultRoles.Nurse, permissions = new[] { "made.up" } })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/admin/roles", new { name = "Theatre Coordinator", description = "Lists only" })).StatusCode);
+
+        // Organisation administration, and the reference lists every user may read.
+        var org = await (await admin.GetAsync("/api/admin/organisation")).Json();
+        Assert.Equal("Tasman Day Surgery", org.GetProperty("organisationName").GetString());
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/admin/organisation/clinicians",
+            new { name = "Dr Ben Hall", type = "Surgeon", hpiCpn = "12ABCD", isActive = true })).StatusCode);
+        using var nurse = await SignInAsync("nurse.org", DefaultRoles.Nurse);
+        Assert.Equal(HttpStatusCode.Forbidden, (await nurse.GetAsync("/api/admin/organisation")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await nurse.GetAsync("/api/admin/roles")).StatusCode);
+        var list = await (await nurse.GetAsync("/api/organisation/clinicians")).Json();
+        Assert.Equal("Dr Ben Hall", list[0].GetProperty("name").GetString());
+        Assert.False(list[0].TryGetProperty("hpiCpn", out _)); // reference list shows names only
+    }
 }

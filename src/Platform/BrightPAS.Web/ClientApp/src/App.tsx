@@ -15,6 +15,11 @@ import ModuleSetup from './pages/ModuleSetup';
 import Referrals from './pages/Referrals';
 import Waitlist from './pages/Waitlist';
 import ReferralTargets from './pages/ReferralTargets';
+import Organisation from './pages/Organisation';
+import Roles from './pages/Roles';
+import ListTemplates from './pages/ListTemplates';
+import Letters, { LetterNew, LetterView } from './pages/Letters';
+import LetterAdmin from './pages/LetterAdmin';
 import Interfaces from './pages/Interfaces';
 import LabsInbox from './pages/LabsInbox';
 import LabReport from './pages/LabReport';
@@ -91,6 +96,13 @@ export default function App() {
           <Route path="/admin/modules/:id" element={<ModuleSetup />} />
           <Route path="/admin/referral-targets" element={<ReferralTargets />} />
           <Route path="/referrals" element={<Referrals />} />
+          <Route path="/admin/organisation" element={<Organisation />} />
+          <Route path="/admin/roles" element={<Roles />} />
+          <Route path="/theatre/templates" element={<ListTemplates />} />
+          <Route path="/letters" element={<Letters />} />
+          <Route path="/letters/new" element={<LetterNew />} />
+          <Route path="/letters/:id" element={<LetterView />} />
+          <Route path="/admin/letters" element={<LetterAdmin />} />
           <Route path="/waitlist" element={<Waitlist />} />
           <Route path="/admin/interfaces" element={<Interfaces />} />
           <Route path="/labs" element={<LabsInbox />} />

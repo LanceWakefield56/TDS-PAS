@@ -7,6 +7,8 @@ namespace BrightPAS.Identity;
 public static class Permissions
 {
     public const string ClaimType = "pas:perm";
+    /// <summary>Marks a default permission as already given to a role once (see RoleSeeder).</summary>
+    public const string SeededClaimType = "pas:seeded";
 
     public const string PatientView = "patient.view";
     public const string PatientRegister = "patient.register";
@@ -43,13 +45,17 @@ public static class Permissions
     public const string ReferralsView = "referrals.view";
     public const string ReferralsManage = "referrals.manage";
     public const string ReferralsTriage = "referrals.triage";
+    // Letters & documents module
+    public const string LettersView = "letters.view";
+    public const string LettersWrite = "letters.write";
+    public const string LettersTemplates = "letters.templates";
 
     public static readonly IReadOnlyList<string> All =
     [
         PatientView, PatientRegister, PatientEdit, PatientMerge, PatientAlertsManage, BreakGlass, BreakGlassReview,
         AuditView, UsersManage, OrganisationManage, ModulesManage, IntegrationManage,
         LabsView, LabsAcknowledge, LabsMatch, TheatreView, TheatreBook, TheatreManage, FormsSend, FormsTriage,
-        BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage
+        BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates
     ];
 }
 
@@ -75,24 +81,27 @@ public static class DefaultRoles
         new Dictionary<string, (string, string[])>
         {
             [SystemAdministrator] = ("Manages users, organisation set-up and modules. No routine clinical access.",
-                [Permissions.UsersManage, Permissions.OrganisationManage, Permissions.ModulesManage, Permissions.TheatreManage, Permissions.RemindersView, Permissions.RemindersManage]),
+                [Permissions.UsersManage, Permissions.OrganisationManage, Permissions.ModulesManage, Permissions.TheatreManage, Permissions.RemindersView, Permissions.RemindersManage,
+                 Permissions.LettersTemplates]),
             [PrivacyOfficer] = ("Reviews break-glass use and audit reports; handles privacy requests.",
                 [Permissions.AuditView, Permissions.BreakGlassReview, Permissions.PatientView]),
             [Reception] = ("Registers patients and manages bookings.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.PatientEdit, Permissions.TheatreView, Permissions.TheatreBook,
                  Permissions.TheatreManage, Permissions.FormsSend, Permissions.BillingView, Permissions.BillingManage, Permissions.LabsMatch, Permissions.RemindersView,
-                 Permissions.ReferralsView, Permissions.ReferralsManage]),
+                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite]),
             [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.PatientRegister, Permissions.TheatreBook, Permissions.FormsSend,
-                 Permissions.FormsTriage, Permissions.LabsMatch, Permissions.RemindersView, Permissions.ReferralsView, Permissions.ReferralsManage]),
-            [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsTriage, Permissions.ReferralsView]),
-            [Surgeon] = ("Clinical access for surgeons and endoscopists.", [.. Clinical, Permissions.TheatreBook, Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.ReferralsTriage]),
+                 Permissions.FormsTriage, Permissions.LabsMatch, Permissions.RemindersView, Permissions.ReferralsView, Permissions.ReferralsManage,
+                 Permissions.LettersView, Permissions.LettersWrite]),
+            [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsTriage, Permissions.ReferralsView, Permissions.LettersView]),
+            [Surgeon] = ("Clinical access for surgeons and endoscopists.", [.. Clinical, Permissions.TheatreBook, Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.ReferralsTriage,
+                 Permissions.LettersView, Permissions.LettersWrite]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",
                 [Permissions.PatientView]),
             [Finance] = ("Billing, invoices and payments.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees]),
             [PracticeAssistant] = ("Specialist's practice assistant: bookings for their specialist's patients.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.TheatreView, Permissions.TheatreBook, Permissions.FormsSend, Permissions.LabsView,
-                 Permissions.ReferralsView, Permissions.ReferralsManage]),
+                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite]),
             [IntegrationAdministrator] = ("Manages interfaces, message profiles and translation tables.",
-                [Permissions.IntegrationManage]),
+                [Permissions.IntegrationManage, Permissions.LettersView]),
         };
 }

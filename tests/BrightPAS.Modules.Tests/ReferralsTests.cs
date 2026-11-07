@@ -12,7 +12,7 @@ public class ReferralsTests
     private static readonly DateOnly Today = new(2026, 11, 9);
 
     private static NewReferral Referral(Guid patientId, Funder funder = Funder.Insurer) =>
-        new(patientId, Today.AddDays(-3), ReferralSource.GeneralPractice, "Dr Mere Smith", "Stoke Medical Centre", "12ABC345", "Dr Ben Hall", ServiceType.Surgical,
+        new(patientId, Today.AddDays(-3), ReferralSource.GeneralPractice, "Dr Mere Smith", "Stoke Medical Centre", "12ABCD", "Dr Ben Hall", ServiceType.Surgical,
             funder, "SX-1234", "Symptomatic gallstones, three episodes of biliary colic.");
 
     private static TriageDecision Accept(Priority p = Priority.SemiUrgent, DateOnly? decided = null) =>

@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
 import { useSession } from '../App';
@@ -46,7 +47,7 @@ export default function AdminUsers() {
   return (
     <div className="stack-lg">
       <div className="page-head row-between">
-        <div><h1>User accounts</h1><p className="muted">Create staff accounts, set roles, and help people who are locked out or lose their phone.</p></div>
+        <div><h1>User accounts</h1><p className="muted">Create staff accounts, set roles, and help people who are locked out or lose their phone. <Link to="/admin/roles">Change what each role can do</Link>.</p></div>
         {!showAdd && <button className="btn btn-primary" onClick={() => setShowAdd(true)}>Add a user</button>}
       </div>
       {message && <p className={message.ok ? 'notice' : 'error'} role="status">{message.text}</p>}

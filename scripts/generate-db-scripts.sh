@@ -13,4 +13,5 @@ dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Billing -o "$out/07-billing.sql"
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Reminders -o "$out/08-reminders.sql"
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Referrals -o "$out/09-referrals.sql"
+dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Letters -o "$out/10-letters.sql"
 echo "Schema scripts written to $out"

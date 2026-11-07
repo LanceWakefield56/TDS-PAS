@@ -39,7 +39,7 @@ export interface PatientDetail extends PatientSummary {
 export interface Location { id: string; code: string; name: string; type: string; isActive: boolean }
 
 export const Perm = {
-  PatientView: 'patient.view', PatientRegister: 'patient.register', PatientAlerts: 'patient.alerts.manage',
+  PatientView: 'patient.view', PatientRegister: 'patient.register', PatientEdit: 'patient.edit', PatientAlerts: 'patient.alerts.manage',
   UsersManage: 'admin.users.manage', AuditView: 'privacy.audit.view', ModulesManage: 'admin.modules.manage', Integration: 'admin.integration.manage',
   LabsView: 'labs.view', LabsAck: 'labs.acknowledge', LabsMatch: 'labs.match',
   TheatreView: 'theatre.view', TheatreBook: 'theatre.book', TheatreManage: 'theatre.manage',
@@ -47,6 +47,7 @@ export const Perm = {
   BillingView: 'billing.view', BillingManage: 'billing.manage', BillingFees: 'billing.fees',
   RemindersView: 'reminders.view', RemindersManage: 'reminders.manage',
   ReferralsView: 'referrals.view', ReferralsManage: 'referrals.manage', ReferralsTriage: 'referrals.triage',
+  LettersView: 'letters.view', LettersWrite: 'letters.write', LettersTemplates: 'letters.templates', OrganisationManage: 'admin.organisation.manage',
 } as const;
 
 export const nzDateTime = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';

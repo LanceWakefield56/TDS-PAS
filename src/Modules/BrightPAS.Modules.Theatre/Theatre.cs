@@ -43,6 +43,26 @@ public sealed class TheatreSession
 
 public enum SessionType { Surgical = 1, Endoscopy = 2, Mixed = 3 }
 
+/// <summary>A recurring theatre list, e.g. "Dr Hall, Theatre 1, Tuesday 08:00–12:30, every week". Lists are generated from templates for a date range.</summary>
+public sealed class SessionTemplate
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid LocationId { get; set; }
+    public DayOfWeek DayOfWeek { get; set; }
+    public TimeOnly StartTime { get; set; }
+    public TimeOnly EndTime { get; set; }
+    public SessionType Type { get; set; }
+    public string Surgeon { get; set; } = "";
+    public string? Anaesthetist { get; set; }
+    /// <summary>1 = every week, 2 = every second week, … counted from <see cref="StartsOn"/>.</summary>
+    public int EveryWeeks { get; set; } = 1;
+    public DateOnly StartsOn { get; set; }
+    public DateOnly? EndsOn { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public string CreatedBy { get; set; } = "";
+}
+
 public sealed class TheatreBooking
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -70,6 +90,7 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
     public const string Schema = "theatre";
     public DbSet<TheatreSession> Sessions => Set<TheatreSession>();
     public DbSet<TheatreBooking> Bookings => Set<TheatreBooking>();
+    public DbSet<SessionTemplate> Templates => Set<SessionTemplate>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
@@ -90,6 +111,14 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.HasIndex(x => new { x.Date, x.LocationId });
             e.HasMany(x => x.Bookings).WithOne().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict);
+        });
+        b.Entity<SessionTemplate>(e =>
+        {
+            e.Property(x => x.DayOfWeek).HasConversion<string>().HasMaxLength(10);
+            e.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Surgeon).HasMaxLength(150);
+            e.Property(x => x.Anaesthetist).HasMaxLength(150);
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
         });
         b.Entity<TheatreBooking>(e =>
         {
@@ -113,6 +142,10 @@ public sealed class TheatreDbContextFactory : IDesignTimeDbContextFactory<Theatr
 }
 
 public sealed record NewSession(Guid LocationId, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, SessionType Type, string Surgeon, string? Anaesthetist, string? Notes);
+public sealed record TemplateEdit(Guid? Id, Guid LocationId, DayOfWeek DayOfWeek, TimeOnly StartTime, TimeOnly EndTime, SessionType Type, string Surgeon,
+    string? Anaesthetist, int EveryWeeks, DateOnly StartsOn, DateOnly? EndsOn, bool IsActive);
+public sealed record GenerateResult(int Created, IReadOnlyList<string> Skipped);
+
 public sealed record NewBooking(Guid SessionId, Guid PatientId, string Procedure, Laterality Laterality, int DurationMinutes, AnaestheticType Anaesthetic,
     string? Notes, bool AcceptWarnings = false);
 public sealed record BookingResult(TheatreBooking? Booking, IReadOnlyList<string> Errors, IReadOnlyList<string> Warnings);
@@ -150,6 +183,63 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Create", "TheatreSession", session.Id.ToString(), reason: $"{loc.Name} {s.Date:yyyy-MM-dd} {s.StartTime:HH\\:mm}-{s.EndTime:HH\\:mm} {session.Surgeon}", ct: ct);
         return (session, null);
+    }
+
+    public async Task<IReadOnlyList<object>> TemplatesAsync(CancellationToken ct = default)
+    {
+        var names = await core.Locations.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
+        // Sorted in memory: the day is stored as text, so SQL cannot sort it Monday-first.
+        return (await db.Templates.AsNoTracking().ToListAsync(ct)).OrderBy(t => t.DayOfWeek == DayOfWeek.Sunday ? 7 : (int)t.DayOfWeek).ThenBy(t => t.StartTime)
+            .Select(t => (object)new { t.Id, t.LocationId, locationName = names.GetValueOrDefault(t.LocationId, "?"), dayOfWeek = t.DayOfWeek.ToString(), t.StartTime, t.EndTime,
+                type = t.Type.ToString(), t.Surgeon, t.Anaesthetist, t.EveryWeeks, t.StartsOn, t.EndsOn, t.IsActive }).ToList();
+    }
+
+    public async Task<(SessionTemplate? Template, string? Error)> SaveTemplateAsync(TemplateEdit t, string user, CancellationToken ct = default)
+    {
+        var loc = await core.Locations.AsNoTracking().SingleOrDefaultAsync(l => l.Id == t.LocationId, ct);
+        if (loc is null || loc.Type is not (LocationType.Theatre or LocationType.ProcedureRoom)) return (null, "Choose a theatre or procedure room.");
+        if (t.EndTime <= t.StartTime) return (null, "The list must finish after it starts.");
+        if (string.IsNullOrWhiteSpace(t.Surgeon)) return (null, "Choose the surgeon or endoscopist.");
+        if (t.EveryWeeks is < 1 or > 8) return (null, "Repeat every 1 to 8 weeks.");
+        if (t.EndsOn is { } end && end < t.StartsOn) return (null, "The end date must be after the start date.");
+        var clash = await db.Templates.AnyAsync(x => x.Id != t.Id && x.IsActive && t.IsActive && x.LocationId == t.LocationId && x.DayOfWeek == t.DayOfWeek
+            && x.StartTime < t.EndTime && t.StartTime < x.EndTime && x.EveryWeeks == 1 && t.EveryWeeks == 1, ct);
+        if (clash) return (null, $"Another weekly template already uses {loc.Name} at that time on {t.DayOfWeek}s.");
+        SessionTemplate row;
+        if (t.Id is { } id) row = await db.Templates.SingleAsync(x => x.Id == id, ct);
+        else { row = new SessionTemplate { CreatedAt = clock.GetUtcNow(), CreatedBy = user }; db.Templates.Add(row); }
+        row.LocationId = t.LocationId; row.DayOfWeek = t.DayOfWeek; row.StartTime = t.StartTime; row.EndTime = t.EndTime; row.Type = t.Type;
+        row.Surgeon = t.Surgeon.Trim(); row.Anaesthetist = Blank(t.Anaesthetist); row.EveryWeeks = t.EveryWeeks; row.StartsOn = t.StartsOn; row.EndsOn = t.EndsOn; row.IsActive = t.IsActive;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, t.Id is null ? "Create" : "Update", "SessionTemplate", row.Id.ToString(),
+            reason: $"{loc.Name} {row.DayOfWeek} {row.StartTime:HH\\:mm}-{row.EndTime:HH\\:mm} {row.Surgeon} every {row.EveryWeeks} week(s){(row.IsActive ? "" : " (inactive)")}", ct: ct);
+        return (row, null);
+    }
+
+    /// <summary>Creates theatre lists from the active templates for a date range (up to 26 weeks). Existing or clashing lists are skipped, never changed.</summary>
+    public async Task<GenerateResult> GenerateFromTemplatesAsync(DateOnly from, DateOnly to, string user, CancellationToken ct = default)
+    {
+        if (to < from) return new(0, ["The end date is before the start date."]);
+        if (to.DayNumber - from.DayNumber > 182) return new(0, ["Generate at most 26 weeks at a time."]);
+        var templates = await db.Templates.AsNoTracking().Where(t => t.IsActive).ToListAsync(ct);
+        var locs = await core.Locations.AsNoTracking().ToDictionaryAsync(l => l.Id, ct);
+        var created = 0;
+        var skipped = new List<string>();
+        for (var d = from; d <= to; d = d.AddDays(1))
+            foreach (var t in templates.Where(t => t.DayOfWeek == d.DayOfWeek && d >= t.StartsOn && (t.EndsOn is null || d <= t.EndsOn)
+                         && ((d.DayNumber - t.StartsOn.DayNumber) / 7) % t.EveryWeeks == 0))
+            {
+                var loc = locs.GetValueOrDefault(t.LocationId);
+                if (loc is null || !loc.IsActive) { skipped.Add($"{d:ddd d MMM}: {loc?.Name ?? "room"} is not active."); continue; }
+                var clash = await db.Sessions.AnyAsync(x => x.LocationId == t.LocationId && x.Date == d && !x.IsCancelled && x.StartTime < t.EndTime && t.StartTime < x.EndTime, ct);
+                if (clash) { skipped.Add($"{d:ddd d MMM}: {loc.Name} already has a list at that time."); continue; }
+                db.Sessions.Add(new TheatreSession { LocationId = loc.Id, LocationName = loc.Name, Date = d, StartTime = t.StartTime, EndTime = t.EndTime, Type = t.Type,
+                    Surgeon = t.Surgeon, Anaesthetist = t.Anaesthetist, Notes = "From template", CreatedAt = clock.GetUtcNow(), CreatedBy = user });
+                await db.SaveChangesAsync(ct);
+                created++;
+            }
+        await audit.WriteAsync(user, "Generate", "TheatreSession", $"{from:yyyy-MM-dd}..{to:yyyy-MM-dd}", reason: $"{created} list(s) created from templates, {skipped.Count} skipped", ct: ct);
+        return new(created, skipped);
     }
 
     public async Task<string?> CancelSessionAsync(Guid id, string user, CancellationToken ct = default)

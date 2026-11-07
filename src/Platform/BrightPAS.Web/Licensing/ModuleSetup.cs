@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -59,6 +59,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "forms" => FormsChecks(),
         "billing" => await BillingChecksAsync(ct),
         "reminders" => await RemindersChecksAsync(ct),
+        "letters" => await LettersChecksAsync(ct),
         _ => []
     };
 
@@ -104,6 +105,15 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 rooms > 0, rooms > 0 ? $"{rooms} active room(s)." : "No active theatre or procedure room.", false),
             new("bookers", "Staff who can book", "Reception, nurses, surgeons or PAs need user accounts with booking rights.",
                 bookers > 0, bookers > 0 ? $"{bookers} user(s) can book theatre." : "No user can book theatre yet.", false, "Add user accounts", "/admin/users", Permissions.UsersManage),
+            new("clinicians", "Clinician register", "Add TDS's surgeons, endoscopists and anaesthetists so they can be picked on lists instead of typed.",
+                await core.Clinicians.AnyAsync(c => c.IsActive, ct), $"{await core.Clinicians.CountAsync(c => c.IsActive, ct)} active clinician(s).", true,
+                "Open clinicians", "/admin/organisation?tab=clinicians", Permissions.OrganisationManage),
+            new("procedures", "Procedure catalogue", "Add the procedures TDS does, with usual times, so bookings fill in the duration and anaesthetic.",
+                await core.Procedures.AnyAsync(p => p.IsActive, ct), $"{await core.Procedures.CountAsync(p => p.IsActive, ct)} procedure(s).", true,
+                "Open procedures", "/admin/organisation?tab=procedures", Permissions.OrganisationManage),
+            new("templates", "Regular list templates", "Set up each surgeon's regular lists (e.g. every Tuesday morning) so lists can be created for weeks ahead in one go.",
+                await Svc<BrightPAS.Modules.Theatre.TheatreDbContext>().Templates.AnyAsync(t => t.IsActive, ct), "Optional.", true,
+                "Open list templates", "/theatre/templates", Permissions.TheatreManage),
             new("first-list", "Create the first theatre list", "Create a list (theatre, date, times, surgeon) so bookings can be made. Optional during set-up.",
                 lists > 0, lists > 0 ? $"{lists} list(s) created." : "No theatre lists yet.", true, "Open Theatre lists", "/theatre", Permissions.TheatreManage, "Reception or System Administrator"),
         ];
@@ -126,6 +136,37 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 triagers > 0, triagers > 0 ? $"{triagers} user(s) can triage referrals." : "No user can triage referrals yet.", false, "Add user accounts", "/admin/users", Permissions.UsersManage),
             new("managers", "Staff who manage the waitlist", "Reception, nurses or PAs record referrals and manage the waitlist.",
                 managers > 0, managers > 0 ? $"{managers} user(s) can manage the waitlist." : "No user can manage the waitlist yet.", false, "Add user accounts", "/admin/users", Permissions.UsersManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> LettersChecksAsync(CancellationToken ct)
+    {
+        var site = await Svc<BrightPAS.Core.Organisation.OrganisationService>().MainSiteAsync(ct);
+        var addressOk = site is { } x && !string.IsNullOrWhiteSpace(x.Site.AddressLine1) && !string.IsNullOrWhiteSpace(x.Site.City) && !string.IsNullOrWhiteSpace(x.Site.Phone);
+        var letters = Svc<BrightPAS.Modules.Letters.LetterService>();
+        var templates = (await letters.TemplatesAsync(activeOnly: true, ct)).Count;
+        var db = Svc<BrightPAS.Modules.Letters.LettersDbContext>();
+        var practices = await db.Practices.CountAsync(p => p.IsActive, ct);
+        var hl = await letters.SettingsAsync(ct);
+        var writers = await UsersWithAsync(Permissions.LettersWrite, ct);
+        return
+        [
+            new("clinic", "Clinic address and phone (letterhead)", "Printed at the top of every letter and used in the {ClinicAddress} and {ClinicPhone} placeholders.",
+                addressOk, addressOk ? $"{site!.Value.Site.AddressLine1}, {site.Value.Site.City} · {site.Value.Site.Phone}" : "Address or phone missing.", false,
+                "Open clinic details", "/admin/organisation", Permissions.OrganisationManage),
+            new("templates", "Letter templates", "Standard templates (appointment, admission, GP notification, referral received/declined) are built in. Review the wording.",
+                templates > 0, $"{templates} active template(s).", false, "Open templates", "/admin/letters", Permissions.LettersTemplates),
+            new("writers", "Staff who write letters", "Reception, nurses, surgeons or PAs write and send letters.",
+                writers > 0, writers > 0 ? $"{writers} user(s) can write letters." : "No user can write letters yet.", false, "Add user accounts", "/admin/users", Permissions.UsersManage),
+            new("practices", "GP practices", "Add the GP practices TDS writes to (with HPI facility number and HealthLink EDI). Patients are linked to their practice by its HPI facility number.",
+                practices > 0, $"{practices} practice(s).", true, "Open GP practices", "/admin/letters?tab=practices", Permissions.LettersTemplates),
+            new("healthlink", "HealthLink connection", "Letters to GPs go through HealthLink. Test mode records messages without sending; 'Folder' mode hands them to the HealthLink messaging client on this server.",
+                hl.Mode == BrightPAS.Modules.Letters.HealthLinkMode.FolderDrop, hl.Mode switch
+                {
+                    BrightPAS.Modules.Letters.HealthLinkMode.FolderDrop => $"Connected via folder as {hl.SenderEdi}.",
+                    BrightPAS.Modules.Letters.HealthLinkMode.TestOutbox => "TEST MODE – letters to GPs are recorded, not sent. Print them meanwhile.",
+                    _ => "Off – print letters to GPs."
+                }, true, "Open HealthLink settings", "/admin/letters?tab=healthlink", Permissions.LettersTemplates, "IT / Integration Administrator"),
         ];
     }
 

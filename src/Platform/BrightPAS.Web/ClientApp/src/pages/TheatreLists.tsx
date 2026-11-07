@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { addDays, api, errText, formatDate, PatientSummary, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import PatientPicker from '../components/PatientPicker';
+import { findProcedure, RefLists, useRefData } from '../components/RefData';
 
 interface Booking {
   id: string; patientId: string; patientName: string; nhi: string | null; mrn: string; dateOfBirth: string; order: number; procedure: string; laterality: string;
@@ -27,6 +28,7 @@ export default function TheatreLists() {
   const [params, setParams] = useSearchParams();
   const date = params.get('date') ?? todayIso();
   const patientId = params.get('patient');
+  const ref = useRefData();
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [locations, setLocations] = useState<Loc[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +60,7 @@ export default function TheatreLists() {
 
   return (
     <div className="stack-lg">
+      <RefLists {...ref} />
       <div className="row-between">
         <div className="page-head"><h1>Theatre lists</h1><p className="muted">{new Date(date + 'T00:00').toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
         <div className="row no-print">
@@ -65,6 +68,7 @@ export default function TheatreLists() {
           <button className="btn btn-light btn-small" onClick={() => go(todayIso())}>Today</button>
           <button className="btn btn-light btn-small" onClick={() => go(addDays(date, 1))}>Next day →</button>
           <input type="date" value={date} onChange={(e) => e.target.value && go(e.target.value)} aria-label="Choose date" />
+          <Link className="btn btn-light btn-small" to="/theatre/templates">Regular lists</Link>
         </div>
       </div>
       {!canWrite && <p className="warn-box">Theatre bookings are read-only because of a licence problem.</p>}
@@ -135,8 +139,8 @@ function NewList({ date, locations, onDone, onCancel }: { date: string; location
         <label>Starts<input type="time" value={f.startTime} onChange={(e) => setF({ ...f, startTime: e.target.value })} required /></label>
         <label>Finishes<input type="time" value={f.endTime} onChange={(e) => setF({ ...f, endTime: e.target.value })} required /></label>
         <label>Type<select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>{['Surgical', 'Endoscopy', 'Mixed'].map((t) => <option key={t}>{t}</option>)}</select></label>
-        <label>Surgeon / endoscopist<input value={f.surgeon} onChange={(e) => setF({ ...f, surgeon: e.target.value })} required /></label>
-        <label>Anaesthetist<input value={f.anaesthetist} onChange={(e) => setF({ ...f, anaesthetist: e.target.value })} /></label>
+        <label>Surgeon / endoscopist<input list="dl-surgeons" value={f.surgeon} onChange={(e) => setF({ ...f, surgeon: e.target.value })} required /></label>
+        <label>Anaesthetist<input list="dl-anaesthetists" value={f.anaesthetist} onChange={(e) => setF({ ...f, anaesthetist: e.target.value })} /></label>
         <label>Notes<input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></label>
       </div>
       {error && <p className="error">{error}</p>}
@@ -151,6 +155,14 @@ function NewBooking({ session, patientId, onDone, onCancel }: { session: Session
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { if (patientId) api<PatientSummary>(`/api/patients/${patientId}`).then(setPatient).catch(() => undefined); }, [patientId]);
+  const { procedures } = useRefData();
+  const picked = findProcedure(procedures, f.procedure);
+  // Picking a catalogue procedure fills in its usual time and anaesthetic.
+  const pickProcedure = (name: string) => {
+    const p = findProcedure(procedures, name);
+    setF(p ? { ...f, procedure: p.name, durationMinutes: p.defaultMinutes, anaesthetic: p.defaultAnaesthetic } : { ...f, procedure: name });
+  };
+  const sideMissing = !!picked?.sideRequired && f.laterality === 'NotApplicable';
   const save = async (accept: boolean) => {
     if (!patient) return;
     setError(null);
@@ -162,18 +174,19 @@ function NewBooking({ session, patientId, onDone, onCancel }: { session: Session
       <h2>Add booking – {session.locationName}, {formatDate(session.date)}</h2>
       <PatientPicker value={patient} onChange={setPatient} />
       <div className="form-grid">
-        <label className="span-all">Procedure<input value={f.procedure} onChange={(e) => setF({ ...f, procedure: e.target.value })} placeholder="e.g. Colonoscopy, Carpal tunnel release" /></label>
+        <label className="span-all">Procedure<input list="dl-procedures" value={f.procedure} onChange={(e) => pickProcedure(e.target.value)} placeholder="Start typing – pick from the catalogue" /></label>
         <label>Side<select value={f.laterality} onChange={(e) => setF({ ...f, laterality: e.target.value })}>{[['NotApplicable', 'Not applicable'], ['Left', 'Left'], ['Right', 'Right'], ['Bilateral', 'Both sides']].map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select></label>
         <label>Expected minutes<input type="number" min={5} max={720} step={5} value={f.durationMinutes} onChange={(e) => setF({ ...f, durationMinutes: Number(e.target.value) })} /></label>
         <label>Anaesthetic<select value={f.anaesthetic} onChange={(e) => setF({ ...f, anaesthetic: e.target.value })}>{['General', 'Sedation', 'Regional', 'Local', 'None'].map((t) => <option key={t}>{t}</option>)}</select></label>
         <label className="span-all">Notes<input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></label>
       </div>
+      {sideMissing && <p className="warn-box">{picked!.name} needs a side: choose left, right or both.</p>}
       {warnings.length > 0 && (
         <div className="warn-box"><strong>Please check:</strong><ul>{warnings.map((w) => <li key={w}>{w}</li>)}</ul>
           <div className="row"><button className="btn btn-warn" onClick={() => save(true)}>Book anyway</button></div></div>
       )}
       {error && <p className="error">{error}</p>}
-      <div className="row"><button className="btn btn-light" onClick={onCancel}>Cancel</button><button className="btn btn-primary" disabled={!patient || !f.procedure.trim()} onClick={() => save(false)}>Book</button></div>
+      <div className="row"><button className="btn btn-light" onClick={onCancel}>Cancel</button><button className="btn btn-primary" disabled={!patient || !f.procedure.trim() || sideMissing} onClick={() => save(false)}>Book</button></div>
     </div>
   );
 }

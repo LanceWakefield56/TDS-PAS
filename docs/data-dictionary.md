@@ -136,6 +136,15 @@ Planned: NHI, contact and address columns encrypted with SQL Server Always Encry
 | NextValue | bigint | Next MRN number (concurrency-checked) |
 
 
+## core.Sites (0.8.0 additions)
+AddressLine1/2, Suburb, City, Postcode, Phone, Email – the clinic letterhead and {Clinic…} placeholders.
+
+## core.Clinicians
+Name (unique, as printed), Type (Surgeon/Anaesthetist/Endoscopist/Physician/Other), Specialty, HpiCpn (2 digits + 4 letters), Phone, Email, PracticeName, UserName (optional link to a BrightPAS account), IsActive.
+
+## core.Procedures
+Code (unique), Name, Service (Surgical/Endoscopy), DefaultMinutes, DefaultAnaesthetic, SideRequired, FeeCode, IsActive.
+
 ## core.ModuleSetup
 One row per module that has completed its guided set-up (ADR 0014). ModuleId (PK, e.g. `referrals`), SetUpAt, SetUpBy, SkippedChecks (optional steps not done at the time). No row = "Needs set-up".
 
@@ -210,3 +219,18 @@ A patient waiting for a procedure. ReferralId (null when added directly), Patien
 
 ## referrals.Settings (single row, Id = 1)
 Target days per priority: UrgentDays (30), SemiUrgentDays (90), RoutineDays (120 – Health NZ's 4-month planned-care target); NextReferralNumber; UpdatedAt/By (set when an administrator confirms the targets in the set-up).
+
+## theatre.Templates
+Recurring list: LocationId, DayOfWeek, StartTime, EndTime, Type, Surgeon, Anaesthetist, EveryWeeks (1–8, counted from StartsOn), StartsOn, EndsOn, IsActive, CreatedAt/By.
+
+## letters.Practices
+GP practice: Name, HpiFacilityId (unique when set), HealthLinkEdi, address, Phone, Email, PreferredChannel (HealthLink/Post/Email), IsActive.
+
+## letters.Templates
+Code (unique), Name, Kind (Appointment/Admission/GpNotification/ReferralAcknowledgement/ReferralDeclined/Custom), Recipient (Patient/Gp/Referrer/Other), Subject, Body (placeholders in {Braces}, whitelisted), IsActive, Version, UpdatedAt/By.
+
+## letters.Letters
+Number (L000001…), PatientId, TemplateCode/Version, Kind, Recipient, RecipientName/Address, GpPracticeId, Subject, Body (locked when Final), BookingId, ReferralId, Status (Draft/Final/Sent/Acknowledged/Failed/Void), Channel (Print/HealthLink), PrintCount, MessageControlId (HL7 MSH-10), AckCode/AckText/AckAt, VoidReason, CreatedAt/By, Author, FinalisedAt/By, SentAt/By.
+
+## letters.Settings (single row)
+HealthLink Mode (Off/TestOutbox/FolderDrop), SenderEdi, OutboxFolder, InboxFolder, NextControlNumber, NextLetterNumber, UpdatedAt/By.

@@ -18,6 +18,8 @@ public sealed class PasDbContext(DbContextOptions<PasDbContext> options) : DbCon
     public DbSet<SetupState> SetupState => Set<SetupState>();
     public DbSet<LicenceState> LicenceState => Set<LicenceState>();
     public DbSet<ModuleSetupState> ModuleSetup => Set<ModuleSetupState>();
+    public DbSet<Clinician> Clinicians => Set<Clinician>();
+    public DbSet<ProcedureItem> Procedures => Set<ProcedureItem>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -49,6 +51,13 @@ public sealed class PasDbContext(DbContextOptions<PasDbContext> options) : DbCon
         {
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.HpiFacilityId).HasMaxLength(20);
+            e.Property(x => x.AddressLine1).HasMaxLength(150);
+            e.Property(x => x.AddressLine2).HasMaxLength(150);
+            e.Property(x => x.Suburb).HasMaxLength(100);
+            e.Property(x => x.City).HasMaxLength(100);
+            e.Property(x => x.Postcode).HasMaxLength(10);
+            e.Property(x => x.Phone).HasMaxLength(30);
+            e.Property(x => x.Email).HasMaxLength(200);
             e.HasMany(x => x.Facilities).WithOne().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -65,6 +74,30 @@ public sealed class PasDbContext(DbContextOptions<PasDbContext> options) : DbCon
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.Type).HasConversion<string>().HasMaxLength(30);
             e.HasIndex(x => new { x.FacilityId, x.Code }).IsUnique();
+        });
+
+        b.Entity<Clinician>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(150);
+            e.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Specialty).HasMaxLength(100);
+            e.Property(x => x.HpiCpn).HasMaxLength(10);
+            e.Property(x => x.Phone).HasMaxLength(30);
+            e.Property(x => x.Email).HasMaxLength(200);
+            e.Property(x => x.PracticeName).HasMaxLength(150);
+            e.Property(x => x.UserName).HasMaxLength(100);
+            e.HasIndex(x => x.Name).IsUnique();
+        });
+
+        b.Entity<ProcedureItem>(e =>
+        {
+            e.ToTable("Procedures");
+            e.Property(x => x.Code).HasMaxLength(20);
+            e.HasIndex(x => x.Code).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Service).HasMaxLength(20);
+            e.Property(x => x.DefaultAnaesthetic).HasMaxLength(20);
+            e.Property(x => x.FeeCode).HasMaxLength(20);
         });
 
         b.Entity<AuditEvent>(e =>

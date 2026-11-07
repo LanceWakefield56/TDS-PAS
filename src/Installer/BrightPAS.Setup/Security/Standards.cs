@@ -71,6 +71,7 @@ public static class Standards
         (["lab", "hl7"], "Lab results"),
         (["forms", "questionnaire", "patient link"], "Pre-admission forms"),
         (["referral", "waitlist"], "Referrals & waitlist"),
+        (["letter", "healthlink"], "Letters & documents"),
         (["theatre"], "Theatre bookings"),
         (["billing", "invoice", "estimate"], "Estimates & invoices"),
         (["patients", "patient register"], "Patients"),
@@ -110,5 +111,7 @@ public static class ModuleSuites
             [("POST", "api/reminders/test", """{"channel":"Sms","to":"0211234567"}"""), ("PUT", "api/reminders/settings", "{}"), ("POST", "api/reminders/simulate-reply", "{}")]),
         new("referrals", "Referrals & waitlist", ["api/referrals", "api/referrals/summary", "api/waitlist", "api/waitlist/export"],
             [("POST", "api/referrals", "{}"), ("POST", "api/waitlist", "{}"), ("POST", $"api/waitlist/{Guid.Empty}/book", "{}"), ("PUT", "api/referrals/settings", "{}")]),
+        new("letters", "Letters & documents", ["api/letters", "api/letters/templates", "api/letters/practices", "api/letters/healthlink", "api/letters/admin/templates", $"api/letters/{Guid.Empty}"],
+            [("POST", "api/letters", "{}"), ("POST", $"api/letters/{Guid.Empty}/send", "{}"), ("PUT", "api/letters/templates", "{}"), ("PUT", "api/letters/healthlink", "{}")]),
     ];
 }

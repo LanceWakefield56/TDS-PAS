@@ -52,7 +52,7 @@ public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallL
         CheckHeaders(api, "API", requireNoStore: true);
 
         // Authentication enforcement (platform)
-        foreach (var path in new[] { "api/me", "api/admin/users", "api/audit", "api/organisation/locations", "api/admin/licence", "api/admin/modules" })
+        foreach (var path in new[] { "api/me", "api/admin/users", "api/audit", "api/organisation/locations", "api/admin/licence", "api/admin/modules", "api/admin/organisation", "api/admin/roles", "api/organisation/clinicians" })
         {
             var res = await Send(http, HttpMethod.Get, path, ct: ct);
             if (res.StatusCode == HttpStatusCode.Unauthorized) r.Pass(Area, $"Login required: /{path.Split('?')[0]}", "Anonymous request refused (401).");

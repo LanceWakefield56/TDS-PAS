@@ -5,6 +5,7 @@ import { useSession } from '../App';
 import { catClass } from '../pages/FormsList';
 import { docStatusClass } from '../pages/Billing';
 import { MessageTable } from '../pages/Reminders';
+import { LetterTable } from '../pages/Letters';
 
 /** The licensed-module panels on a patient's record: bookings, lab results, pre-admission forms, billing. */
 export default function PatientModules({ patientId }: { patientId: string }) {
@@ -15,6 +16,7 @@ export default function PatientModules({ patientId }: { patientId: string }) {
   const [docs, setDocs] = useState<any[] | null>(null);
   const [refs, setRefs] = useState<any[] | null>(null);
   const [waits, setWaits] = useState<any[] | null>(null);
+  const [letters, setLetters] = useState<any[] | null>(null);
   const [link, setLink] = useState<{ link: string; expiresAt: string; sent?: { channel: string; status: string; lastError: string | null }[] | null } | null>(null);
   const [comms, setComms] = useState<{ preference: any; messages: any[] } | null>(null);
   const [sendBy, setSendBy] = useState({ sms: true, email: false });
@@ -26,6 +28,7 @@ export default function PatientModules({ patientId }: { patientId: string }) {
     if (mod('forms') && can(Perm.FormsSend)) api<any[]>(`/api/forms?view=all&patientId=${patientId}`).then(setForms).catch(() => setForms([]));
     if (mod('billing') && can(Perm.BillingView)) api<any[]>(`/api/billing/documents?patientId=${patientId}`).then(setDocs).catch(() => setDocs([]));
     if (mod('reminders') && can(Perm.RemindersView)) api(`/api/reminders/patients/${patientId}`).then(setComms).catch(() => setComms(null));
+    if (mod('letters') && can(Perm.LettersView)) api<any[]>(`/api/letters?patientId=${patientId}`).then(setLetters).catch(() => setLetters([]));
     if (mod('referrals') && can(Perm.ReferralsView)) {
       api<any[]>(`/api/referrals?patientId=${patientId}`).then(setRefs).catch(() => setRefs([]));
       api<any[]>(`/api/waitlist?patientId=${patientId}`).then(setWaits).catch(() => setWaits([]));
@@ -54,6 +57,12 @@ export default function PatientModules({ patientId }: { patientId: string }) {
             {waits.map((w) => <li key={w.id}><Link to={`/waitlist?patient=${patientId}`}><strong>{w.procedure}</strong></Link> · {w.specialist} · {w.priority === 'SemiUrgent' ? 'Semi-urgent' : w.priority} · target {formatDate(w.targetDate)} <span className={`pill ${w.overdue ? 'red' : w.status === 'Booked' ? 'green' : ''}`}>{w.status === 'OnHold' ? 'On hold' : w.status}{w.overdue ? ' – past target' : ''}</span></li>)}
             {refs.filter((r) => r.status !== 'Accepted').map((r) => <li key={r.id}><Link to="/referrals">{r.number}</Link> · {formatDate(r.receivedOn)} from {r.referrerName} to {r.specialist} <span className="pill">{r.status === 'Received' ? 'To triage' : r.status}</span></li>)}
           </ul>}
+        </section>
+      )}
+      {letters && (
+        <section className="card span-all">
+          <div className="row-between"><h2>Letters</h2>{can(Perm.LettersWrite) && writable('letters') && <Link className="btn btn-light btn-small" to={`/letters/new?patient=${patientId}`}>Write a letter</Link>}</div>
+          {letters.length === 0 ? <p className="muted">No letters.</p> : <LetterTable rows={letters} showPatient={false} />}
         </section>
       )}
       {bookings && (

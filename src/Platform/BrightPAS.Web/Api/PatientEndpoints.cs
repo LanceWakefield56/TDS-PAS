@@ -30,6 +30,12 @@ public static class PatientEndpoints
                 : Results.BadRequest(new { errors = r.Errors, possibleDuplicates = r.PossibleDuplicates });
         }).RequireAuthorization(Permissions.PatientRegister);
 
+        g.MapPut("/{id:guid}/contact", async (Guid id, ContactUpdate req, ClaimsPrincipal user, PatientService svc) =>
+        {
+            var errors = await svc.UpdateContactAsync(id, req, user.Identity!.Name!);
+            return errors.Count == 0 ? Results.Ok() : Results.BadRequest(new { errors });
+        }).RequireAuthorization(Permissions.PatientEdit);
+
         g.MapPost("/{id:guid}/alerts", async (Guid id, AlertRequest req, ClaimsPrincipal user, PatientService svc) =>
         {
             try

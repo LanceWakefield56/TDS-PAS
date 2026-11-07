@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -49,8 +49,13 @@ export default function Shell() {
           {mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)) && <NavLink to="/forms">Pre-admission forms</NavLink>}
           {mod('billing') && can(Perm.BillingView) && <NavLink to="/billing">Estimates &amp; invoices</NavLink>}
           {mod('reminders') && can(Perm.RemindersView) && <NavLink to="/reminders">SMS &amp; email</NavLink>}
-          {(can(Perm.UsersManage) || can(Perm.AuditView) || can(Perm.ModulesManage) || can(Perm.Integration)) && <span className="nav-group">Administration</span>}
+          {mod('letters') && can(Perm.LettersView) && <NavLink to="/letters" end>Letters</NavLink>}
+          {(can(Perm.UsersManage) || can(Perm.AuditView) || can(Perm.ModulesManage) || can(Perm.Integration) || can(Perm.OrganisationManage)) && <span className="nav-group">Administration</span>}
+          {can(Perm.OrganisationManage) && <NavLink to="/admin/organisation">Organisation set-up</NavLink>}
+          {mod('theatre') && can(Perm.TheatreManage) && !can(Perm.TheatreView) && <NavLink to="/theatre/templates">Regular theatre lists</NavLink>}
           {can(Perm.UsersManage) && <NavLink to="/admin/users">User accounts</NavLink>}
+          {can(Perm.UsersManage) && <NavLink to="/admin/roles">Roles &amp; permissions</NavLink>}
+          {mod('letters') && can(Perm.LettersTemplates) && <NavLink to="/admin/letters">Letter templates</NavLink>}
           {can(Perm.ModulesManage) && <NavLink to="/admin/licence">Licence &amp; modules{setupCount > 0 && <span className="count">{setupCount}</span>}</NavLink>}
           {can(Perm.Integration) && <NavLink to="/admin/interfaces">Interfaces</NavLink>}
           {can(Perm.AuditView) && <NavLink to="/audit">Audit log</NavLink>}

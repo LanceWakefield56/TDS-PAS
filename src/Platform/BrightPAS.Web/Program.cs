@@ -41,7 +41,10 @@ if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedSer
 builder.Services.AddPasIdentity(o => UseSql(o, PasIdentityDbContext.Schema));
 builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs.LabsModule(), new BrightPAS.Modules.Theatre.TheatreModule(),
     new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule(),
-    new BrightPAS.Modules.Referrals.ReferralsModule()]);
+    new BrightPAS.Modules.Referrals.ReferralsModule(), new BrightPAS.Modules.Letters.LettersModule()]);
+builder.Services.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
+builder.Services.AddScoped<RoleAdminService>();
+if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.HealthLinkWorker>();
 builder.Services.AddScoped<BrightPAS.Web.Licensing.ModuleSetupService>();
 builder.Services.AddSingleton<BrightPAS.Modules.Reminders.ISecretProtector, BrightPAS.Web.Integration.DataProtectionSecretProtector>();
 // Installation defaults chosen in Setup (Reminders:SmsProvider / Reminders:EmailProvider); Modica + SMTP when not set.
@@ -136,6 +139,7 @@ app.MapAdminEndpoints();
 app.MapModuleEndpoints();
 app.MapRemindersEndpoints();
 app.MapReferralsEndpoints();
+app.MapLettersEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.
 app.MapFallback("/api/{**rest}", () => Results.NotFound()).AllowAnonymous();

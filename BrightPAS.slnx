@@ -7,6 +7,7 @@
     <Project Path="src/Modules/BrightPAS.Modules.Billing/BrightPAS.Modules.Billing.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Forms/BrightPAS.Modules.Forms.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Labs/BrightPAS.Modules.Labs.csproj" />
+    <Project Path="src/Modules/BrightPAS.Modules.Letters/BrightPAS.Modules.Letters.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Patients/BrightPAS.Modules.Patients.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Referrals/BrightPAS.Modules.Referrals.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Reminders/BrightPAS.Modules.Reminders.csproj" />

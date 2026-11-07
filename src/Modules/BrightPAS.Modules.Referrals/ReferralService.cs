@@ -68,8 +68,8 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         if (string.IsNullOrWhiteSpace(r.Reason)) errors.Add("Enter the reason for referral.");
         if (r.ReceivedOn > Today) errors.Add("The date received cannot be in the future.");
         if (r.ReceivedOn < Today.AddYears(-2)) errors.Add("The date received is more than two years ago – check the date.");
-        if (r.ReferrerHpi is { Length: > 0 } hpi && !System.Text.RegularExpressions.Regex.IsMatch(hpi.Trim().ToUpperInvariant(), "^[0-9]{2}[A-Z]{3}[0-9]{3}[A-Z]?$|^F[0-9A-Z]{5}-[A-Z]$|^[A-Z0-9]{6,8}$"))
-            errors.Add("The referrer's HPI number does not look right (e.g. 12ABC345 for a practitioner).");
+        if (r.ReferrerHpi is { Length: > 0 } hpi && !System.Text.RegularExpressions.Regex.IsMatch(hpi.Trim().ToUpperInvariant(), "^[0-9]{2}[A-Z]{4}$|^F[0-9A-Z]{5}-[0-9A-Z]$"))
+            errors.Add("The referrer's HPI number does not look right (practitioner CPN e.g. 12ABCD, or facility e.g. F12345-A).");
         if (errors.Count > 0) return (null, errors);
 
         var settings = await SettingsAsync(ct);

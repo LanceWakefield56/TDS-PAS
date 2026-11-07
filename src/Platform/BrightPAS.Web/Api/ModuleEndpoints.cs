@@ -20,6 +20,7 @@ public static class ModuleEndpoints
     public sealed record ImportRequest(string Message);
     public sealed record StatusRequest(BookingStatus Status, string? Reason);
     public sealed record ReorderRequest(Guid[] BookingIds);
+    public sealed record GenerateRequest(DateOnly From, DateOnly To);
     public sealed record CreateFormRequest(Guid PatientId, Guid? BookingId, bool SendSms = false, bool SendEmail = false);
     public sealed record TriageRequest(TriageCategory Category, string Outcome, string? Notes, bool AddAllergyAlert);
     public sealed record DobRequest(DateOnly DateOfBirth);
@@ -93,6 +94,14 @@ public static class ModuleEndpoints
             Done(await svc.SetStatusAsync(id, req.Status, req.Reason, Me(u)))).RequireAuthorization(Permissions.TheatreBook);
         g.MapGet("/patients/{patientId:guid}", async (Guid patientId, TheatreService svc) => Results.Ok(await svc.PatientBookingsAsync(patientId)))
             .RequireAuthorization(Permissions.TheatreView);
+        g.MapGet("/templates", async (TheatreService svc) => Results.Ok(await svc.TemplatesAsync())).RequireAuthorization(Permissions.TheatreManage);
+        g.MapPost("/templates", async (TemplateEdit t, ClaimsPrincipal u, TheatreService svc) =>
+        {
+            var (row, error) = await svc.SaveTemplateAsync(t, Me(u));
+            return row is null ? Done(error) : Results.Ok(new { row.Id });
+        }).RequireAuthorization(Permissions.TheatreManage);
+        g.MapPost("/templates/generate", async (GenerateRequest r, ClaimsPrincipal u, TheatreService svc) => Results.Ok(await svc.GenerateFromTemplatesAsync(r.From, r.To, Me(u))))
+            .RequireAuthorization(Permissions.TheatreManage);
     }
 
     private static void MapForms(IEndpointRouteBuilder app)

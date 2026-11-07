@@ -37,8 +37,13 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Referrals & waitlist module: intake, triage accept/decline, waitlist with priority targets and overdue flags, hold/resume/remove, book theatre from the waitlist, sync with theatre status, CSV export, patient panel
 - ☑ Self-test fixes from the 0.6.0 sandbox log: separate rate limits for patient links and SMS callbacks; callback key checked before the licence; probe order and reporting
 
+## Increment 0.8.0 (done)
+- ☑ Organisation set-up: clinic details, rooms, clinician register, procedure catalogue; regular list templates; role editing; patient contact/GP editing (ADR 0015)
+- ☑ Letters & documents with HealthLink REF^I12 (ADR 0016)
+
 ## Next
-- ☐ Letter templates + GP messaging via HealthLink (Phase 1)
+- ☐ HealthLink: confirm message profile + EDI accounts with HealthLink; live test via the messaging client
+- ☐ Patient identity corrections (name/DOB/NHI) with second-person check; patient merge
 - ☐ Wristbands and labels (Zebra); document scanning with OCR; specialist/PA portal; patient portal; credentialing; basic emergency transfer pack
 - ☐ NBRS extract from the waitlist (Health NZ file specification) for publicly funded patients
 - ☐ Sandbox: verify reminders UI end-to-end on Windows; live Modica test (needs Modica account + DMZ callback path)

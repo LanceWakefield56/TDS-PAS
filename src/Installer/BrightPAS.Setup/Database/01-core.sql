@@ -246,3 +246,127 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    ALTER TABLE [core].[Sites] ADD [AddressLine1] nvarchar(150) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    ALTER TABLE [core].[Sites] ADD [AddressLine2] nvarchar(150) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    ALTER TABLE [core].[Sites] ADD [City] nvarchar(100) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    ALTER TABLE [core].[Sites] ADD [Email] nvarchar(200) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    ALTER TABLE [core].[Sites] ADD [Phone] nvarchar(30) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    ALTER TABLE [core].[Sites] ADD [Postcode] nvarchar(10) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    ALTER TABLE [core].[Sites] ADD [Suburb] nvarchar(100) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    CREATE TABLE [core].[Clinicians] (
+        [Id] uniqueidentifier NOT NULL,
+        [Name] nvarchar(150) NOT NULL,
+        [Type] nvarchar(20) NOT NULL,
+        [Specialty] nvarchar(100) NULL,
+        [HpiCpn] nvarchar(10) NULL,
+        [Phone] nvarchar(30) NULL,
+        [Email] nvarchar(200) NULL,
+        [PracticeName] nvarchar(150) NULL,
+        [UserName] nvarchar(100) NULL,
+        [IsActive] bit NOT NULL,
+        CONSTRAINT [PK_Clinicians] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    CREATE TABLE [core].[Procedures] (
+        [Id] uniqueidentifier NOT NULL,
+        [Code] nvarchar(20) NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [Service] nvarchar(20) NOT NULL,
+        [DefaultMinutes] int NOT NULL,
+        [DefaultAnaesthetic] nvarchar(20) NOT NULL,
+        [SideRequired] bit NOT NULL,
+        [FeeCode] nvarchar(20) NULL,
+        [IsActive] bit NOT NULL,
+        CONSTRAINT [PK_Procedures] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Clinicians_Name] ON [core].[Clinicians] ([Name]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Procedures_Code] ON [core].[Procedures] ([Code]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202541_OrganisationAdmin'
+)
+BEGIN
+    INSERT INTO [core].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261107202541_OrganisationAdmin', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

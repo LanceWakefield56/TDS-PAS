@@ -83,7 +83,7 @@ public static class ProductModules
         new("messaging", "Messaging & workflow engine", "HL7/FHIR/DICOM interfaces and workflows.", false),
         new("reminders", "SMS & email reminders", "Booking confirmations, reminders, questionnaire links and two-way SMS replies.", true),
         new("portal", "Specialist & PA portal", "Portal for specialists and practice assistants.", false),
-        new("letters", "Letters & documents", "Letter templates and urgent transfer print.", false),
+        new("letters", "Letters & documents", "Letter templates, letters to patients, GPs and referrers, printing, and GP messaging via HealthLink.", true),
         new("reporting", "Coding & statutory reporting", "Clinical coding, ACC, Health NZ and MoH reporting.", false),
     ];
 

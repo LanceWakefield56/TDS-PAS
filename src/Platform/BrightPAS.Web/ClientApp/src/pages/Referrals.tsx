@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { api, errText, formatDate, nzDateTime, PatientSummary, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import PatientPicker from '../components/PatientPicker';
+import { findProcedure, RefLists, useRefData } from '../components/RefData';
 
 export interface ReferralRow {
   id: string; number: string; patientId: string; patientName: string; mrn: string; nhi: string | null; dateOfBirth: string; receivedOn: string; source: string;
@@ -29,11 +30,13 @@ export default function Referrals() {
   const [adding, setAdding] = useState(params.get('new') === '1');
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const ref = useRefData();
   const load = () => { setRows(null); api<ReferralRow[]>(`/api/referrals?view=${view}`).then(setRows).catch((e) => setError(errText(e))); };
   useEffect(load, [view]);
 
   return (
     <div className="stack-lg">
+      <RefLists {...ref} />
       <div className="row-between">
         <div className="page-head"><h1>Referrals</h1><p className="muted">Record referral letters as they arrive. The specialist triages each one: accept (adds to the waitlist) or decline.</p></div>
         <div className="row">
@@ -94,7 +97,7 @@ function NewReferral({ onDone, onCancel }: { onDone: (number: string) => void; o
         <label>Referrer's name<input value={f.referrerName} onChange={set('referrerName')} required placeholder="e.g. Dr Mere Smith" /></label>
         <label>Practice / organisation<input value={f.referrerOrganisation} onChange={set('referrerOrganisation')} /></label>
         <label>Referrer HPI number (optional)<input value={f.referrerHpi} onChange={set('referrerHpi')} placeholder="e.g. 12ABC345" /></label>
-        <label>Referred to (specialist)<input value={f.specialist} onChange={set('specialist')} required /></label>
+        <label>Referred to (specialist)<input list="dl-surgeons" value={f.specialist} onChange={set('specialist')} required /></label>
         <label>Service<select value={f.service} onChange={set('service')}><option>Surgical</option><option>Endoscopy</option></select></label>
         <label>Funder<select value={f.funder} onChange={set('funder')}>{FUNDERS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
         <label>Approval / claim / referral number<input value={f.funderReference} onChange={set('funderReference')} placeholder="Insurer approval, ACC claim or Health NZ id" /></label>
@@ -107,11 +110,13 @@ function NewReferral({ onDone, onCancel }: { onDone: (number: string) => void; o
 }
 
 function ReferralDetail({ r, canWrite, onChange }: { r: ReferralRow; canWrite: boolean; onChange: (msg: string) => void }) {
-  const { can } = useSession();
+  const { can, mod } = useSession();
   const [mode, setMode] = useState<'none' | 'accept' | 'decline' | 'withdraw'>('none');
   const [f, setF] = useState({ procedure: '', laterality: 'NotApplicable', anaesthetic: r.service === 'Endoscopy' ? 'Sedation' : 'General', durationMinutes: 60, priority: 'Routine', decisionDate: todayIso(), notes: '', reason: '' });
   const [errors, setErrors] = useState<string[]>([]);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: k === 'durationMinutes' ? Number(e.target.value) : e.target.value });
+  const { procedures } = useRefData();
+  const pick = (name: string) => { const p = findProcedure(procedures, name); setF(p ? { ...f, procedure: p.name, durationMinutes: p.defaultMinutes, anaesthetic: p.defaultAnaesthetic } : { ...f, procedure: name }); };
   const submit = async () => {
     setErrors([]);
     try {
@@ -134,6 +139,12 @@ function ReferralDetail({ r, canWrite, onChange }: { r: ReferralRow; canWrite: b
         {r.declineReason && <><dt>{r.status === 'Withdrawn' ? 'Withdrawn' : 'Declined'}</dt><dd>{r.declineReason}</dd></>}
         {r.waitlistEntryId && <><dt>Waitlist</dt><dd><Link to={`/waitlist?patient=${r.patientId}`}>On the waitlist</Link></dd></>}
       </dl>
+      {mod('letters') && can(Perm.LettersWrite) && (
+        <div className="row">
+          <Link className="btn btn-light btn-small" to={`/letters/new?patient=${r.patientId}&template=REFACK&referral=${r.id}`}>Letter: referral received</Link>
+          {r.status === 'Declined' && <Link className="btn btn-light btn-small" to={`/letters/new?patient=${r.patientId}&template=REFDEC&referral=${r.id}`}>Letter: referral declined</Link>}
+        </div>
+      )}
       {r.status === 'Received' && canWrite && mode === 'none' && (
         <div className="row">
           {can(Perm.ReferralsTriage) && <><button className="btn btn-primary" onClick={() => setMode('accept')}>Accept – add to waitlist</button><button className="btn btn-light" onClick={() => setMode('decline')}>Decline</button></>}
@@ -145,7 +156,7 @@ function ReferralDetail({ r, canWrite, onChange }: { r: ReferralRow; canWrite: b
         <div className="card subtle stack">
           <h3>Accept and add to the waitlist</h3>
           <div className="form-grid">
-            <label>Planned procedure<input value={f.procedure} onChange={set('procedure')} required /></label>
+            <label>Planned procedure<input list="dl-procedures" value={f.procedure} onChange={(e) => pick(e.target.value)} required /></label>
             <label>Side<select value={f.laterality} onChange={set('laterality')}>{SIDES.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
             <label>Anaesthetic<select value={f.anaesthetic} onChange={set('anaesthetic')}>{ANAES.map((a) => <option key={a}>{a}</option>)}</select></label>
             <label>Expected minutes<input type="number" min={5} max={720} value={f.durationMinutes} onChange={set('durationMinutes')} /></label>

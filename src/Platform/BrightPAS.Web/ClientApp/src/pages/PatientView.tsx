@@ -6,7 +6,10 @@ import PatientModules from '../components/PatientModules';
 
 export default function PatientView() {
   const { id } = useParams();
-  const { can } = useSession();
+  const { can, mod } = useSession();
+  const [editContact, setEditContact] = useState<Record<string, string> | null>(null);
+  const [practices, setPractices] = useState<{ name: string; hpiFacilityId: string | null; isActive: boolean }[]>([]);
+  useEffect(() => { if (mod('letters') && can(Perm.LettersView)) api<any[]>('/api/letters/practices').then(setPractices).catch(() => undefined); }, [mod, can]);
   const [p, setP] = useState<PatientDetail | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [showAlertForm, setShowAlertForm] = useState(false);
@@ -23,6 +26,19 @@ export default function PatientView() {
     e.preventDefault(); setError(null);
     try { await api(`/api/patients/${id}/alerts`, { body: alert }); setAlert({ ...alert, description: '' }); setShowAlertForm(false); await load(); }
     catch { setError('The alert could not be saved.'); }
+  };
+
+  const startEdit = () => {
+    if (!p) return;
+    const v = (x: string | null | undefined) => x ?? '';
+    setError(null);
+    setEditContact({ preferredName: v(p.preferredName), mobilePhone: v(p.mobilePhone), homePhone: v(p.homePhone), email: v(p.email), addressLine1: v(p.addressLine1),
+      addressLine2: v(p.addressLine2), suburb: v(p.suburb), city: v(p.city), postcode: v(p.postcode), gpPracticeHpiFacilityId: v(p.gpPracticeHpiFacilityId) });
+  };
+  const saveContact = async () => {
+    setError(null);
+    try { await api(`/api/patients/${id}/contact`, { method: 'PUT', body: editContact }); setEditContact(null); await load(); }
+    catch (x: any) { setError(x?.body?.errors?.join(' ') ?? 'The details could not be saved.'); }
   };
 
   if (notFound) return <div className="card"><h1>Patient not found</h1><Link to="/patients">Back to search</Link></div>;
@@ -79,8 +95,27 @@ export default function PatientView() {
             </form>
           )}
         </section>
+        {editContact && (
+          <section className="card span-all stack">
+            <h2>Edit contact and GP details</h2>
+            <div className="form-grid">
+              {([['preferredName', 'Preferred name'], ['mobilePhone', 'Mobile'], ['homePhone', 'Home phone'], ['email', 'Email'], ['addressLine1', 'Street address'],
+                ['addressLine2', 'Address line 2'], ['suburb', 'Suburb'], ['city', 'Town / city'], ['postcode', 'Postcode']] as [string, string][]).map(([k, t]) =>
+                <label key={k}>{t}<input value={editContact[k]} onChange={(e) => setEditContact({ ...editContact, [k]: e.target.value })} /></label>)}
+              <label>GP practice
+                {practices.length > 0
+                  ? <select value={editContact.gpPracticeHpiFacilityId} onChange={(e) => setEditContact({ ...editContact, gpPracticeHpiFacilityId: e.target.value })}>
+                      <option value="">Not recorded</option>{practices.filter((x) => x.hpiFacilityId && (x.isActive || x.hpiFacilityId === editContact.gpPracticeHpiFacilityId)).map((x) => <option key={x.hpiFacilityId!} value={x.hpiFacilityId!}>{x.name} ({x.hpiFacilityId})</option>)}</select>
+                  : <input value={editContact.gpPracticeHpiFacilityId} placeholder="HPI facility number, e.g. F12345-A" onChange={(e) => setEditContact({ ...editContact, gpPracticeHpiFacilityId: e.target.value })} />}
+              </label>
+            </div>
+            <p className="hint">Name, date of birth and NHI cannot be changed here.</p>
+            {error && <p className="error" role="alert">{error}</p>}
+            <div className="row"><button className="btn btn-primary" onClick={saveContact}>Save</button><button className="btn btn-light" onClick={() => setEditContact(null)}>Cancel</button></div>
+          </section>
+        )}
         <section className="card">
-          <h2>Contact</h2>
+          <div className="row-between"><h2>Contact</h2>{can(Perm.PatientEdit) && !editContact && <button className="btn btn-light btn-small" onClick={startEdit}>Edit</button>}</div>
           <dl className="facts">
             <dt>Mobile</dt><dd>{p.mobilePhone ?? '—'}</dd>
             <dt>Home</dt><dd>{p.homePhone ?? '—'}</dd>
@@ -93,7 +128,7 @@ export default function PatientView() {
           <dl className="facts">
             <dt>Gender</dt><dd>{p.gender ?? '—'}</dd>
             <dt>Ethnicity</dt><dd>{p.ethnicities.length ? p.ethnicities.map((c) => ethnicityName(c) ? `${ethnicityName(c)} (${c})` : c).join(', ') : '—'}</dd>
-            <dt>GP practice</dt><dd>{p.gpPracticeHpiFacilityId ?? '—'}</dd>
+            <dt>GP practice</dt><dd>{practices.find((x) => x.hpiFacilityId === p.gpPracticeHpiFacilityId)?.name ?? p.gpPracticeHpiFacilityId ?? '—'}</dd>
           </dl>
         </section>
         <PatientModules patientId={p.id} />

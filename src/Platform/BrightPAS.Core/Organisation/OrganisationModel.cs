@@ -18,6 +18,13 @@ public sealed class Site
     public required string Name { get; set; }
     /// <summary>HPI facility identifier, when registered.</summary>
     public string? HpiFacilityId { get; set; }
+    public string? AddressLine1 { get; set; }
+    public string? AddressLine2 { get; set; }
+    public string? Suburb { get; set; }
+    public string? City { get; set; }
+    public string? Postcode { get; set; }
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
     public bool IsActive { get; set; } = true;
     public List<Facility> Facilities { get; set; } = [];
 }

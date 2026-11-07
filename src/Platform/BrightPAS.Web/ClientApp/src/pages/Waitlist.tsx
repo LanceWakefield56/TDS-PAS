@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { addDays, api, errText, formatDate, PatientSummary, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import PatientPicker from '../components/PatientPicker';
+import { findProcedure, RefLists, useRefData } from '../components/RefData';
 import { ANAES, FUNDERS, label, PRIORITIES, SIDES } from './Referrals';
 
 export interface WaitRow {
@@ -42,9 +43,11 @@ export default function Waitlist() {
   };
   useEffect(() => { load(); }, [view, specialist, priority, patientFilter]);
   const done = (msg: string) => { setOpen(null); setNotice(msg); load(); };
+  const ref = useRefData();
 
   return (
     <div className="stack-lg">
+      <RefLists {...ref} />
       <div className="row-between">
         <div className="page-head"><h1>Waitlist</h1><p className="muted">Patients accepted for a procedure, oldest target first. Book them onto a theatre list from here.</p></div>
         <div className="row">
@@ -215,11 +218,11 @@ function EditEntry({ r, onDone, onCancel }: { r: WaitRow; onDone: (m: string) =>
     <div className="card subtle stack">
       <h3>Edit: {r.patientName}</h3>
       <div className="form-grid">
-        <label>Procedure<input value={f.procedure} onChange={set('procedure')} /></label>
+        <label>Procedure<input list="dl-procedures" value={f.procedure} onChange={set('procedure')} /></label>
         <label>Side<select value={f.laterality} onChange={set('laterality')}>{SIDES.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
         <label>Anaesthetic<select value={f.anaesthetic} onChange={set('anaesthetic')}>{ANAES.map((a) => <option key={a}>{a}</option>)}</select></label>
         <label>Expected minutes<input type="number" min={5} max={720} value={f.durationMinutes} onChange={set('durationMinutes')} /></label>
-        <label>Specialist<input value={f.specialist} onChange={set('specialist')} /></label>
+        <label>Specialist<input list="dl-surgeons" value={f.specialist} onChange={set('specialist')} /></label>
         <label>Priority<select value={f.priority} onChange={set('priority')}>{PRIORITIES.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
       </div>
       <label>Notes<input value={f.notes} onChange={set('notes')} /></label>
@@ -252,6 +255,8 @@ function AddEntry({ onDone, onCancel }: { onDone: (m: string) => void; onCancel:
   const [f, setF] = useState({ procedure: '', laterality: 'NotApplicable', anaesthetic: 'General', durationMinutes: 60, service: 'Surgical', specialist: '', funder: 'SelfPay', priority: 'Routine', addedOn: todayIso(), notes: '' });
   const [errors, setErrors] = useState<string[]>([]);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: k === 'durationMinutes' ? Number(e.target.value) : e.target.value });
+  const { procedures } = useRefData();
+  const pick = (name: string) => { const p = findProcedure(procedures, name); setF(p ? { ...f, procedure: p.name, durationMinutes: p.defaultMinutes, anaesthetic: p.defaultAnaesthetic, service: p.service } : { ...f, procedure: name }); };
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setErrors([]);
     if (!patient) { setErrors(['Choose the patient.']); return; }
@@ -264,12 +269,12 @@ function AddEntry({ onDone, onCancel }: { onDone: (m: string) => void; onCancel:
       <p className="hint">For patients already seen by the specialist. New referral letters go in <Link to="/referrals">Referrals</Link> instead.</p>
       <PatientPicker value={patient} onChange={setPatient} />
       <div className="form-grid">
-        <label>Procedure<input value={f.procedure} onChange={set('procedure')} required /></label>
+        <label>Procedure<input list="dl-procedures" value={f.procedure} onChange={(e) => pick(e.target.value)} required /></label>
         <label>Side<select value={f.laterality} onChange={set('laterality')}>{SIDES.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
         <label>Service<select value={f.service} onChange={set('service')}><option>Surgical</option><option>Endoscopy</option></select></label>
         <label>Anaesthetic<select value={f.anaesthetic} onChange={set('anaesthetic')}>{ANAES.map((a) => <option key={a}>{a}</option>)}</select></label>
         <label>Expected minutes<input type="number" min={5} max={720} value={f.durationMinutes} onChange={set('durationMinutes')} /></label>
-        <label>Specialist<input value={f.specialist} onChange={set('specialist')} required /></label>
+        <label>Specialist<input list="dl-surgeons" value={f.specialist} onChange={set('specialist')} required /></label>
         <label>Funder<select value={f.funder} onChange={set('funder')}>{FUNDERS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
         <label>Priority<select value={f.priority} onChange={set('priority')}>{PRIORITIES.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
         <label>Decision to treat (date)<input type="date" max={todayIso()} value={f.addedOn} onChange={set('addedOn')} /></label>

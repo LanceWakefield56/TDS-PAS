@@ -46,13 +46,13 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
     ];
 
     /// <summary>Signed-in users without a specific permission are allowed only here.</summary>
-    private static readonly string[] AnySignedInUser = ["/api/me", "/api/organisation/locations"];
+    private static readonly string[] AnySignedInUser = ["/api/me", "/api/organisation/locations", "/api/organisation/clinicians", "/api/organisation/procedures"];
 
     /// <summary>Each module's URL prefix and the licence module it must be gated by.</summary>
     private static readonly (string Prefix, string? Module)[] Areas =
     [
         ("/api/labs", "labs"), ("/api/theatre", "theatre"), ("/api/forms", "forms"), ("/api/q/", "forms"), ("/api/billing", "billing"),
-        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"),
+        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"),
         ("/api/patients", null), ("/api/admin", null), ("/api/audit", null), ("/api/auth", null), ("/api/setup", null), ("/api/me", null),
         ("/api/organisation", null), ("/api/{**rest}", null), ("/health", null), ("/{*path", null),
     ];

@@ -15,6 +15,10 @@ public sealed record PatientRegistration(
     /// <summary>Set when staff have checked the possible duplicates and confirmed this is a different person.</summary>
     bool ConfirmedNotDuplicate = false);
 
+/// <summary>Contact and GP details that reception and nurses keep up to date. Identity (name, date of birth, NHI) changes go through a separate, stricter process.</summary>
+public sealed record ContactUpdate(string? PreferredName, string? MobilePhone, string? HomePhone, string? Email, string? AddressLine1, string? AddressLine2,
+    string? Suburb, string? City, string? Postcode, string? GpPracticeHpiFacilityId);
+
 public sealed record PossibleDuplicate(Guid Id, string Mrn, string? Nhi, string FamilyName, string GivenNames, DateOnly DateOfBirth);
 
 public sealed record RegistrationResult(Patient? Patient, IReadOnlyList<string> Errors, IReadOnlyList<PossibleDuplicate> PossibleDuplicates)
@@ -73,6 +77,32 @@ public sealed class PatientService(PatientsDbContext db, AuditWriter audit, Time
         await audit.WriteAsync(userId, "Create", "Patient", patient.Id.ToString(), patient.Id.ToString(),
             r.ConfirmedNotDuplicate && candidates.Count > 0 ? "Registered after possible-duplicate check" : null, ct: ct);
         return new(patient, [], candidates);
+    }
+
+    public async Task<IReadOnlyList<string>> UpdateContactAsync(Guid id, ContactUpdate u, string userId, CancellationToken ct = default)
+    {
+        var errors = new List<string>();
+        if (Clean(u.Email) is { } e && !System.Text.RegularExpressions.Regex.IsMatch(e, @"^[^@\s]+@[^@\s]+\.[^@\s]+$")) errors.Add("The email address looks wrong.");
+        if (Clean(u.Postcode) is { } pc && !System.Text.RegularExpressions.Regex.IsMatch(pc, "^[0-9]{4}$")) errors.Add("NZ postcodes have 4 digits.");
+        if (Clean(u.GpPracticeHpiFacilityId)?.ToUpperInvariant() is { } gp && !System.Text.RegularExpressions.Regex.IsMatch(gp, "^F[0-9A-Z]{5}-[0-9A-Z]$"))
+            errors.Add("The GP practice HPI facility number looks wrong (format F12345-A).");
+        if (errors.Count > 0) return errors;
+        var p = await db.Patients.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (p is null) return ["Patient not found."];
+        var changed = new List<string>();
+        void Set(string name, string? oldV, string? newV, Action<string?> apply) { if (oldV != newV) { changed.Add(name); apply(newV); } }
+        Set("preferred name", p.PreferredName, Clean(u.PreferredName), v => p.PreferredName = v);
+        Set("mobile", p.MobilePhone, Clean(u.MobilePhone), v => p.MobilePhone = v);
+        Set("home phone", p.HomePhone, Clean(u.HomePhone), v => p.HomePhone = v);
+        Set("email", p.Email, Clean(u.Email), v => p.Email = v);
+        Set("address", $"{p.AddressLine1}|{p.AddressLine2}|{p.Suburb}|{p.City}|{p.Postcode}", $"{Clean(u.AddressLine1)}|{Clean(u.AddressLine2)}|{Clean(u.Suburb)}|{Clean(u.City)}|{Clean(u.Postcode)}", _ =>
+        { p.AddressLine1 = Clean(u.AddressLine1); p.AddressLine2 = Clean(u.AddressLine2); p.Suburb = Clean(u.Suburb); p.City = Clean(u.City); p.Postcode = Clean(u.Postcode); });
+        Set("GP practice", p.GpPracticeHpiFacilityId, Clean(u.GpPracticeHpiFacilityId)?.ToUpperInvariant(), v => p.GpPracticeHpiFacilityId = v);
+        if (changed.Count == 0) return errors;
+        p.UpdatedAt = clock.GetUtcNow();
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(userId, "Update", "Patient", p.Id.ToString(), p.Id.ToString(), reason: "Changed: " + string.Join(", ", changed), ct: ct);
+        return errors;
     }
 
     /// <summary>Opens a patient record (audited as a view).</summary>

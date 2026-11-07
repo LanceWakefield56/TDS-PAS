@@ -102,3 +102,40 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202547_SessionTemplates'
+)
+BEGIN
+    CREATE TABLE [theatre].[Templates] (
+        [Id] uniqueidentifier NOT NULL,
+        [LocationId] uniqueidentifier NOT NULL,
+        [DayOfWeek] nvarchar(10) NOT NULL,
+        [StartTime] time NOT NULL,
+        [EndTime] time NOT NULL,
+        [Type] nvarchar(20) NOT NULL,
+        [Surgeon] nvarchar(150) NOT NULL,
+        [Anaesthetist] nvarchar(150) NULL,
+        [EveryWeeks] int NOT NULL,
+        [StartsOn] date NOT NULL,
+        [EndsOn] date NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [CreatedBy] nvarchar(100) NOT NULL,
+        CONSTRAINT [PK_Templates] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107202547_SessionTemplates'
+)
+BEGIN
+    INSERT INTO [theatre].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261107202547_SessionTemplates', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

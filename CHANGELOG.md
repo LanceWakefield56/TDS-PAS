@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0 – 2026-11-08 – **Administration & set-up**; **Letters & HealthLink**
+- **Organisation set-up (ADR 0015):** clinic details for the letterhead (address, phone, HPI numbers); theatres and rooms (switch Theatre 2 on, add procedure rooms); clinician register with HPI CPN; procedure catalogue with usual time, anaesthetic, side-required and fee code (example list included).
+- **Regular theatre lists:** templates per surgeon/day/room (weekly or every 2–4 weeks) and "Create lists" for up to 26 weeks; clashes skipped.
+- **Roles & permissions:** tick what each role may do, create roles; System Administrator keeps user/module administration; removed default permissions are no longer re-added at start-up.
+- **Pick-lists:** theatre lists, bookings, referrals and the waitlist suggest clinicians and procedures; picking a procedure fills in its time and anaesthetic; side is enforced where required.
+- **Patient record:** contact details and GP practice can now be edited (audited).
+- **Letters & documents module (ADR 0016):** templates with placeholders, drafts from patient/booking/referral, finalise (locks), print with letterhead, void; GP practices; send to GPs via **HealthLink** (HL7 REF^I12; test mode, folder hand-off to the HealthLink client with acknowledgements, or off); letters panel on the patient record; referral letters from the referral screen; guided set-up.
+- Fixed: SQL Server could not sort list templates by weekday (found in the browser walk-through).
+- Installer: 10-letters.sql; core and theatre schema updates. Guide: G9, H1c, H4c, H11.
+- Tests: 238 + browser walk-through (organisation set-up, roles, templates, catalogue booking, GP letter → HealthLink).
+
 ## 0.7.0 – 2026-11-07 – **Licence & modules redesign**; **Referrals & waitlist**; self-test fixes
 - **Fixed:** "Install licence" seemed to do nothing – the result was shown at the top of the page, out of sight. New **Load licence file** button installs at once and shows the result right under it; paste option kept.
 - **Licence & modules (ADR 0014):** one installer for everything; the licence unlocks modules; each module shows *Not licensed / Needs set-up / Active / Read-only*, with a **guided set-up** whose steps are checked live (users, settings, test message, fee schedule…). Modules appear in staff menus once set up; menu badge and home-page notice for administrators.
