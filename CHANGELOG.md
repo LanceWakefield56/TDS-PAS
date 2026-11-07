@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4 – 2026-11-07 – Installer fix (wrong ASP.NET Core Module location)
+- **Fixed:** 0.5.3 looked for the ASP.NET Core Module V2 in `System32\inetsrv`, but it is installed under `%ProgramFiles%\IIS\Asp.Net Core Module\V2`, so Setup reported it missing even after a successful Hosting Bundle repair. Setup (and diagnostics) now read the module's registration in IIS `applicationHost.config` and check that the DLL it points to exists. The 0.5.3 diagnosis of the web failure was based on this wrong check.
+- Tests: 156.
+
 ## 0.5.3 – 2026-11-07 – Installer fix (ASP.NET Core Module missing from IIS)
 - **Fixed:** the website could not run because the ASP.NET Core Module was not in IIS, yet Setup reported the Hosting Bundle as "already installed". Cause: the Hosting Bundle had been installed before IIS, and Setup only checked a registry key. Setup now checks the module DLL and its IIS registration, and **repairs** the Hosting Bundle automatically (`/repair`) when `dotnet-hosting-10.x.x-win.exe` is next to Setup.exe; otherwise it explains how to repair it by hand.
 - **Fixed:** diagnostics zip left out the Setup logs. Files are now read even while open, failures are recorded in `collection-notes.txt`, and logs next to Setup.exe are included. Diagnostics also report the module DLL / IIS registration / installed Hosting Bundle and the website's actual response to https://localhost/health.

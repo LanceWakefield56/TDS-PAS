@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using System.Net.Sockets;
 using System.Runtime.Versioning;
 using System.Security.Principal;
@@ -69,12 +70,10 @@ public sealed class WindowsSystemProbe : SystemProbeBase
     {
         get
         {
-            // 0.5.3: the registry key alone is not enough – it remains when the Hosting Bundle was installed before
-            // IIS, but then the module is never placed in IIS. Require the DLL and its IIS global-module registration.
-            var inetsrv = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "inetsrv");
-            if (!File.Exists(Path.Combine(inetsrv, "aspnetcorev2.dll"))) return false;
-            var appHost = Path.Combine(inetsrv, "config", "applicationHost.config");
-            try { return File.Exists(appHost) && File.ReadAllText(appHost).Contains("AspNetCoreModuleV2", StringComparison.OrdinalIgnoreCase); }
+            // 0.5.4: the module is installed when IIS's applicationHost.config registers AspNetCoreModuleV2 as a
+            // global module AND the DLL it points to exists (normally %ProgramFiles%\IIS\Asp.Net Core Module\V2\aspnetcorev2.dll).
+            var appHost = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "inetsrv", "config", "applicationHost.config");
+            try { return File.Exists(appHost) && AncmImage.IsRegistered(File.ReadAllText(appHost)); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
         }
     }
@@ -97,5 +96,24 @@ public sealed class WindowsSystemProbe : SystemProbeBase
             $@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{protocol}\Server",
             "Enabled", null);
         return value is int i ? i != 0 : null;
+    }
+}
+
+/// <summary>Reads the ASP.NET Core Module V2 global-module registration from applicationHost.config.</summary>
+public static class AncmImage
+{
+    public static string? ImagePath(string applicationHostConfig)
+    {
+        var doc = XDocument.Parse(applicationHostConfig);
+        var add = doc.Descendants("globalModules").Elements("add")
+            .FirstOrDefault(e => string.Equals((string?)e.Attribute("name"), "AspNetCoreModuleV2", StringComparison.OrdinalIgnoreCase));
+        var image = (string?)add?.Attribute("image");
+        return image is null ? null : Environment.ExpandEnvironmentVariables(image);
+    }
+
+    public static bool IsRegistered(string applicationHostConfig, Func<string, bool>? fileExists = null)
+    {
+        var path = ImagePath(applicationHostConfig);
+        return path is not null && (fileExists ?? File.Exists)(path);
     }
 }

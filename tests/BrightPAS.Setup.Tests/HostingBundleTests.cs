@@ -92,3 +92,35 @@ public class HostingBundleTests
         Assert.Empty(runner.Calls);
     }
 }
+
+/// <summary>0.5.4: ANCM V2 is found through its IIS registration, not a fixed folder (it lives under Program Files\IIS).</summary>
+public class AncmDetectionTests
+{
+    private const string Config = """
+        <configuration><system.webServer><globalModules>
+          <add name="UriCacheModule" image="%windir%\System32\inetsrv\cachuri.dll" />
+          <add name="AspNetCoreModuleV2" image="%ProgramFiles%\IIS\Asp.Net Core Module\V2\aspnetcorev2.dll" />
+        </globalModules></system.webServer></configuration>
+        """;
+
+    [Fact]
+    public void Finds_the_registered_image_under_program_files()
+    {
+        var path = AncmImage.ImagePath(Config)!;
+        Assert.EndsWith(@"IIS\Asp.Net Core Module\V2\aspnetcorev2.dll", path);
+        if (OperatingSystem.IsWindows()) Assert.DoesNotContain("%ProgramFiles%", path, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Registered_and_present_means_installed()
+    {
+        Assert.True(AncmImage.IsRegistered(Config, _ => true));
+        Assert.False(AncmImage.IsRegistered(Config, _ => false));
+    }
+
+    [Fact]
+    public void Not_registered_means_not_installed()
+    {
+        Assert.False(AncmImage.IsRegistered("<configuration><system.webServer><globalModules /></system.webServer></configuration>", _ => true));
+    }
+}

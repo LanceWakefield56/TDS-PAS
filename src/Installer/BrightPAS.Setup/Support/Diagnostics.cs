@@ -115,8 +115,9 @@ public static partial class Diagnostics
             "===== Installed .NET runtimes ====="
             if (Get-Command dotnet -ErrorAction SilentlyContinue) { dotnet --list-runtimes } else { 'dotnet command not found' }
             "===== ASP.NET Core Module ====="
-            "aspnetcorev2.dll present: " + (Test-Path "$env:windir\System32\inetsrv\aspnetcorev2.dll")
-            "Registered in IIS globalModules: " + [bool](Select-String -Path "$env:windir\System32\inetsrv\config\applicationHost.config" -Pattern 'AspNetCoreModuleV2' -Quiet)
+            $ah = [xml](Get-Content "$env:windir\System32\inetsrv\config\applicationHost.config" -Raw)
+            $m = $ah.configuration.'system.webServer'.globalModules.add | Where-Object { $_.name -eq 'AspNetCoreModuleV2' }
+            if ($m) { $img = [Environment]::ExpandEnvironmentVariables($m.image); "Registered in IIS: $($m.image)"; "DLL exists: " + (Test-Path $img) } else { 'NOT registered in IIS globalModules' }
             "Registry key present: " + (Test-Path 'HKLM:\SOFTWARE\Microsoft\IIS Extensions\IIS AspNetCore Module V2')
             Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object DisplayName -like '*Hosting*' | Select-Object DisplayName, DisplayVersion, InstallDate | Format-Table -AutoSize | Out-String -Width 200
             "===== Website response (https://localhost/health) ====="
