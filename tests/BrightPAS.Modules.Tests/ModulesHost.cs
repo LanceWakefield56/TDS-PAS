@@ -39,14 +39,17 @@ public sealed class ModulesHost : IAsyncDisposable
         s.AddScoped<AuditWriter>();
         s.AddSingleton<ISecretProtector, ReversibleTestProtector>();
         s.AddSingleton(new ReminderDefaults(SmsProvider.TestOutbox, EmailProvider.TestOutbox));
-        s.AddPasModules([new PatientsModule(), new LabsModule(), new TheatreModule(), new FormsModule(), new BillingModule(), new RemindersModule(), new ReferralsModule(), new LettersModule(), new RosteringModule()]);
+        s.AddPasModules([new PatientsModule(), new LabsModule(), new TheatreModule(), new FormsModule(), new BillingModule(), new RemindersModule(), new ReferralsModule(), new LettersModule(), new RosteringModule(),
+            new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule()]);
+        s.AddSingleton<IDocumentCipher, TestDocumentCipher>();
         s.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
         Services = s.BuildServiceProvider();
         using var scope = Services.CreateScope();
         var sp = scope.ServiceProvider;
         foreach (DbContext db in new DbContext[] { sp.GetRequiredService<PasDbContext>(), sp.GetRequiredService<PatientsDbContext>(), sp.GetRequiredService<LabsDbContext>(),
                      sp.GetRequiredService<TheatreDbContext>(), sp.GetRequiredService<FormsDbContext>(), sp.GetRequiredService<BillingDbContext>(),
-                     sp.GetRequiredService<RemindersDbContext>(), sp.GetRequiredService<ReferralsDbContext>(), sp.GetRequiredService<LettersDbContext>(), sp.GetRequiredService<RosterDbContext>() })
+                     sp.GetRequiredService<RemindersDbContext>(), sp.GetRequiredService<ReferralsDbContext>(), sp.GetRequiredService<LettersDbContext>(), sp.GetRequiredService<RosterDbContext>(),
+                     sp.GetRequiredService<BrightPAS.Modules.Credentialing.CredDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Portal.PortalDbContext>() })
             db.Database.EnsureCreated();
         var core = sp.GetRequiredService<PasDbContext>();
         core.Organisations.Add(BrightPAS.Core.Organisation.TdsDefaultSetup.Create());
@@ -76,4 +79,11 @@ public sealed class ReversibleTestProtector : ISecretProtector
 {
     public string Protect(string plain) => "ENC:" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(plain));
     public string? Unprotect(string? p) => p is null ? null : System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(p[4..]));
+}
+
+/// <summary>Test cipher: reversible XOR so tests can check contents are not stored as-is.</summary>
+public sealed class TestDocumentCipher : IDocumentCipher
+{
+    public byte[] Protect(byte[] plain) => [0xEE, .. plain.Select(b => (byte)(b ^ 0x5A))];
+    public byte[] Unprotect(byte[] c) => c.Length > 0 && c[0] == 0xEE ? c[1..].Select(b => (byte)(b ^ 0x5A)).ToArray() : throw new System.Security.Cryptography.CryptographicException();
 }

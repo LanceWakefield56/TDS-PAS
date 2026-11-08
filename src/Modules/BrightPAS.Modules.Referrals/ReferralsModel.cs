@@ -99,6 +99,11 @@ public sealed class ReferralSettings
     public int SemiUrgentDays { get; set; } = 90;
     public int RoutineDays { get; set; } = 120;
     public int NextReferralNumber { get; set; } = 1;
+    // NBRS extract (publicly funded patients) – codes supplied by Health NZ; set by an administrator.
+    public string? NbrsAgencyCode { get; set; }
+    public string? NbrsFacilityCode { get; set; }
+    public string? NbrsSpecialtySurgical { get; set; }
+    public string? NbrsSpecialtyEndoscopy { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }
 }
@@ -162,6 +167,10 @@ public sealed class ReferralsDbContext(DbContextOptions<ReferralsDbContext> opti
         {
             e.Property(x => x.Id).ValueGeneratedNever();
             e.Property(x => x.UpdatedBy).HasMaxLength(100);
+            e.Property(x => x.NbrsAgencyCode).HasMaxLength(10);
+            e.Property(x => x.NbrsFacilityCode).HasMaxLength(10);
+            e.Property(x => x.NbrsSpecialtySurgical).HasMaxLength(10);
+            e.Property(x => x.NbrsSpecialtyEndoscopy).HasMaxLength(10);
         });
     }
 }

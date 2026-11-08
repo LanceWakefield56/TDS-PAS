@@ -72,7 +72,9 @@ public static class Standards
         (["forms", "questionnaire", "patient link"], "Pre-admission forms"),
         (["referral", "waitlist"], "Referrals & waitlist"),
         (["letter", "healthlink"], "Letters & documents"),
-        (["roster", "shift", "leave"], "Rostering"),
+        (["roster", "shift", "leave", "payroll", "swap"], "Rostering"),
+        (["credential"], "Credentialing"),
+        (["portal"], "Portals"),
         (["theatre"], "Theatre bookings"),
         (["billing", "invoice", "estimate"], "Estimates & invoices"),
         (["patients", "patient register"], "Patients"),
@@ -98,8 +100,11 @@ public static class ModuleSuites
 {
     public static readonly IReadOnlyList<ModuleSuite> All =
     [
-        new("patients", "Patients", ["api/patients?q=a", "api/patients/" + Guid.Empty],
-            [("POST", "api/patients", """{"familyName":"X","givenNames":"Y","dateOfBirth":"2000-01-01","sex":"Female"}"""), ("POST", $"api/patients/{Guid.Empty}/alerts", "{}")]),
+        new("patients", "Patients", ["api/patients?q=a", "api/patients/" + Guid.Empty, $"api/patients/{Guid.Empty}/documents", $"api/patients/documents/{Guid.Empty}",
+                "api/patients/identity-corrections", "api/patients/merges", $"api/patients/{Guid.Empty}/transfer-pack", "api/admin/security-settings"],
+            [("POST", "api/patients", """{"familyName":"X","givenNames":"Y","dateOfBirth":"2000-01-01","sex":"Female"}"""), ("POST", $"api/patients/{Guid.Empty}/alerts", "{}"),
+             ("POST", $"api/patients/{Guid.Empty}/documents", "{}"), ("POST", "api/patients/merges", "{}"), ("POST", $"api/patients/merges/{Guid.Empty}/decide", """{"approve":true}"""),
+             ("POST", $"api/patients/{Guid.Empty}/print", "{}"), ("POST", "api/waitlist/export", "{}")]),
         new("labs", "Lab results", ["api/labs", "api/labs/unmatched", "api/labs/count"],
             [("POST", "api/labs/import", """{"message":"MSH|^~\\&|X|Y|Z|W|202601010000||ORU^R01|1|P|2.4"}"""), ("POST", $"api/labs/{Guid.Empty}/acknowledge", "{}")]),
         new("theatre", "Theatre bookings", ["api/theatre/locations", "api/theatre/sessions?from=2026-01-01", "api/theatre/calendar?from=2026-01-05&to=2026-01-11", "api/theatre/appointments?from=2026-01-05"],
@@ -115,6 +120,11 @@ public static class ModuleSuites
         new("letters", "Letters & documents", ["api/letters", "api/letters/templates", "api/letters/practices", "api/letters/healthlink", "api/letters/admin/templates", $"api/letters/{Guid.Empty}"],
             [("POST", "api/letters", "{}"), ("POST", $"api/letters/{Guid.Empty}/send", "{}"), ("PUT", "api/letters/templates", "{}"), ("PUT", "api/letters/healthlink", "{}")]),
         new("rostering", "Rostering", ["api/roster/me", "api/roster/staff", "api/roster/shifts?from=2026-01-05&to=2026-01-11", "api/roster/leave", "api/roster/hours?from=2026-01-05&to=2026-01-11"],
-            [("POST", "api/roster/staff", "{}"), ("POST", "api/roster/shifts", "{}"), ("POST", "api/roster/leave", "{}"), ("POST", $"api/roster/leave/{Guid.Empty}/decide", "{}")]),
+            [("POST", "api/roster/staff", "{}"), ("POST", "api/roster/shifts", "{}"), ("POST", "api/roster/leave", "{}"), ("POST", $"api/roster/leave/{Guid.Empty}/decide", "{}"),
+             ("POST", "api/roster/swaps", "{}"), ("POST", "api/roster/payroll-export", """{"from":"2026-01-05","to":"2026-01-18"}""")]),
+        new("credentialing", "Credentialing", ["api/credentialing/status", "api/credentialing/settings", $"api/credentialing/clinicians/{Guid.Empty}"],
+            [("POST", "api/credentialing/credentials", "{}"), ("POST", "api/credentialing/privileges", "{}"), ("PUT", "api/credentialing/settings", "{}")]),
+        new("portal", "Specialist, PA & patient portals", ["api/portal/specialist", $"api/portal/specialist/patients/{Guid.Empty}", "api/portal/requests", "api/portal/delegates"],
+            [("POST", $"api/portal/patients/{Guid.Empty}/link", "{}"), ("POST", "api/portal/delegates", "{}"), ("POST", $"api/portal/requests/{Guid.Empty}/handle", "{}")]),
     ];
 }

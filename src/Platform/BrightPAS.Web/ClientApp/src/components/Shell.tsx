@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -52,11 +52,16 @@ export default function Shell() {
           {mod('reminders') && can(Perm.RemindersView) && <NavLink to="/reminders">SMS &amp; email</NavLink>}
           {mod('letters') && can(Perm.LettersView) && <NavLink to="/letters" end>Letters</NavLink>}
           {mod('rostering') && can(Perm.RosterView) && <NavLink to="/roster">Roster</NavLink>}
+          {mod('portal') && can(Perm.PortalSpecialist) && <NavLink to="/portal" end>My TDS patients</NavLink>}
+          {mod('portal') && can(Perm.PortalManage) && <NavLink to="/portal/requests">Portal requests</NavLink>}
+          {mod('credentialing') && can(Perm.CredentialingView) && <NavLink to="/credentialing">Credentialing</NavLink>}
+          {can(Perm.PatientMerge) && <NavLink to="/admin/identity">Identity checks</NavLink>}
           {(can(Perm.UsersManage) || can(Perm.AuditView) || can(Perm.ModulesManage) || can(Perm.Integration) || can(Perm.OrganisationManage)) && <span className="nav-group">Administration</span>}
           {can(Perm.OrganisationManage) && <NavLink to="/admin/organisation">Organisation set-up</NavLink>}
           {mod('theatre') && can(Perm.TheatreManage) && !can(Perm.TheatreView) && <NavLink to="/theatre/templates">Regular theatre lists</NavLink>}
           {can(Perm.UsersManage) && <NavLink to="/admin/users">User accounts</NavLink>}
           {can(Perm.UsersManage) && <NavLink to="/admin/roles">Roles &amp; permissions</NavLink>}
+          {(can(Perm.UsersManage) || can(Perm.OrganisationManage)) && <NavLink to="/admin/security">Security &amp; printers</NavLink>}
           {mod('letters') && can(Perm.LettersTemplates) && <NavLink to="/admin/letters">Letter templates</NavLink>}
           {can(Perm.ModulesManage) && <NavLink to="/admin/licence">Licence &amp; modules{setupCount > 0 && <span className="count">{setupCount}</span>}</NavLink>}
           {can(Perm.Integration) && <NavLink to="/admin/interfaces">Interfaces</NavLink>}

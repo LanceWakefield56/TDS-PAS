@@ -41,7 +41,7 @@ public sealed class PatientService(PatientsDbContext db, AuditWriter audit, Time
 
         var family = SearchKey(r.FamilyName);
         var given = SearchKey(r.GivenNames);
-        var candidates = await db.Patients
+        var candidates = await db.Patients.Where(p => p.MergedIntoId == null)
             .Where(p => p.DateOfBirth == r.DateOfBirth && (p.FamilyNameSearch == family || p.GivenNamesSearch == given))
             .Select(p => new PossibleDuplicate(p.Id, p.Mrn, p.Nhi, p.FamilyName, p.GivenNames, p.DateOfBirth))
             .ToListAsync(ct);
@@ -122,7 +122,7 @@ public sealed class PatientService(PatientsDbContext db, AuditWriter audit, Time
     {
         term = term.Trim();
         if (term.Length == 0 && dateOfBirth is null) return [];
-        IQueryable<Patient> q = db.Patients;
+        IQueryable<Patient> q = db.Patients.Where(p => p.MergedIntoId == null);
 
         var upper = term.ToUpperInvariant();
         if (NhiValidator.Validate(upper).IsValid)

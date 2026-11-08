@@ -34,7 +34,34 @@ public sealed class StaffMember
     public int Colour { get; set; }
     public decimal? ContractedHours { get; set; }
     public string? Phone { get; set; }
+    /// <summary>Employee identifier used by payroll (Xero employee / payroll number).</summary>
+    public string? PayrollCode { get; set; }
+    /// <summary>Xero earnings rate name for rostered hours (default "Ordinary Hours").</summary>
+    public string? EarningsRate { get; set; }
     public bool IsActive { get; set; } = true;
+}
+
+public enum SwapStatus { Requested = 1, Accepted = 2, Approved = 3, Declined = 4, Cancelled = 5 }
+
+/// <summary>A shift swap or give-away: requested by the rostered person, accepted by a colleague, approved by the roster manager.</summary>
+public sealed class SwapRequest
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ShiftId { get; set; }
+    public Guid FromStaffId { get; set; }
+    /// <summary>Colleague asked to take the shift; null = offered to anyone.</summary>
+    public Guid? ToStaffId { get; set; }
+    /// <summary>For a straight swap: the colleague's shift that comes back in exchange.</summary>
+    public Guid? OfferedShiftId { get; set; }
+    public SwapStatus Status { get; set; } = SwapStatus.Requested;
+    public string? Note { get; set; }
+    public DateTimeOffset RequestedAt { get; set; }
+    public string RequestedBy { get; set; } = "";
+    public DateTimeOffset? AcceptedAt { get; set; }
+    public string? AcceptedBy { get; set; }
+    public DateTimeOffset? DecidedAt { get; set; }
+    public string? DecidedBy { get; set; }
+    public string? DecisionNote { get; set; }
 }
 
 /// <summary>A shift, or an all-day entry (e.g. office day, study day). Tentative shifts are shown striped.</summary>
@@ -93,6 +120,7 @@ public sealed class RosterDbContext(DbContextOptions<RosterDbContext> options) :
     public DbSet<Shift> Shifts => Set<Shift>();
     public DbSet<ShiftTemplate> Templates => Set<ShiftTemplate>();
     public DbSet<Leave> Leave => Set<Leave>();
+    public DbSet<SwapRequest> Swaps => Set<SwapRequest>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
@@ -111,6 +139,18 @@ public sealed class RosterDbContext(DbContextOptions<RosterDbContext> options) :
             e.Property(x => x.UserName).HasMaxLength(100);
             e.Property(x => x.ContractedHours).HasPrecision(5, 2);
             e.Property(x => x.Phone).HasMaxLength(30);
+            e.Property(x => x.PayrollCode).HasMaxLength(50);
+            e.Property(x => x.EarningsRate).HasMaxLength(80);
+        });
+        b.Entity<SwapRequest>(e =>
+        {
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(15);
+            e.Property(x => x.Note).HasMaxLength(300);
+            e.Property(x => x.RequestedBy).HasMaxLength(100);
+            e.Property(x => x.AcceptedBy).HasMaxLength(100);
+            e.Property(x => x.DecidedBy).HasMaxLength(100);
+            e.Property(x => x.DecisionNote).HasMaxLength(300);
+            e.HasIndex(x => new { x.Status, x.ShiftId });
         });
         b.Entity<Shift>(e =>
         {
@@ -143,7 +183,11 @@ public sealed class RosterDbContextFactory : IDesignTimeDbContextFactory<RosterD
             s => s.MigrationsHistoryTable("__EFMigrationsHistory", RosterDbContext.Schema)).Options);
 }
 
-public sealed record StaffEdit(Guid? Id, string Name, StaffRole Role, string? UserName, int? Colour, decimal? ContractedHours, string? Phone, bool IsActive);
+public sealed record StaffEdit(Guid? Id, string Name, StaffRole Role, string? UserName, int? Colour, decimal? ContractedHours, string? Phone, bool IsActive,
+    string? PayrollCode = null, string? EarningsRate = null);
+public sealed record SwapCreate(Guid ShiftId, Guid? ToStaffId, Guid? OfferedShiftId, string? Note);
+public sealed record SwapView(Guid Id, Guid ShiftId, string ShiftText, Guid FromStaffId, string FromName, Guid? ToStaffId, string? ToName, Guid? OfferedShiftId, string? OfferedText,
+    string Status, string? Note, DateTimeOffset RequestedAt, string RequestedBy, string? AcceptedBy, string? DecidedBy, string? DecisionNote);
 public sealed record ShiftEdit(Guid? Id, Guid StaffId, DateOnly Date, bool AllDay, TimeOnly? Start, TimeOnly? End, int BreakMinutes, string? Area, bool IsTentative,
     string? Note, bool AcceptWarnings = false);
 public sealed record ShiftTemplateEdit(Guid? Id, Guid StaffId, DayOfWeek DayOfWeek, bool AllDay, TimeOnly? Start, TimeOnly? End, int BreakMinutes, string? Area,
@@ -184,6 +228,7 @@ public sealed class RosterService(RosterDbContext db, AuditWriter audit, TimePro
         row.Name = name; row.Role = e.Role; row.UserName = string.IsNullOrWhiteSpace(e.UserName) ? null : e.UserName.Trim();
         if (e.Colour is >= 0 and < 12) row.Colour = e.Colour.Value;
         row.ContractedHours = e.ContractedHours; row.Phone = string.IsNullOrWhiteSpace(e.Phone) ? null : e.Phone.Trim(); row.IsActive = e.IsActive;
+        row.PayrollCode = string.IsNullOrWhiteSpace(e.PayrollCode) ? null : e.PayrollCode.Trim(); row.EarningsRate = string.IsNullOrWhiteSpace(e.EarningsRate) ? null : e.EarningsRate.Trim();
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, e.Id is null ? "Create" : "Update", "StaffMember", row.Id.ToString(), reason: $"{row.Name} ({row.Role}){(row.IsActive ? "" : " inactive")}", ct: ct);
         return (row, errors);
@@ -373,4 +418,163 @@ public sealed class RosterService(RosterDbContext db, AuditWriter audit, TimePro
 
     public async Task<StaffMember?> StaffForUserAsync(string userName, CancellationToken ct = default) =>
         await db.Staff.AsNoTracking().FirstOrDefaultAsync(s => s.UserName == userName && s.IsActive, ct);
+
+    // ------------------------------------------------------------------ shift swaps (0.10.0)
+
+    private static string ShiftText(Shift s) => $"{s.Date:ddd d MMM} {(s.AllDay ? "all day" : $"{s.Start:HH\\:mm}–{s.End:HH\\:mm}")}{(s.Area is null ? "" : " " + s.Area)}";
+
+    /// <summary>Checks the person can work the shift: no overlapping shift that day and not on approved leave.</summary>
+    private async Task<string?> AvailableAsync(Guid staffId, Shift shift, Guid? ignoreShiftId, CancellationToken ct)
+    {
+        var staff = await db.Staff.AsNoTracking().SingleOrDefaultAsync(s => s.Id == staffId, ct);
+        if (staff is null || !staff.IsActive) return "That person is not on the active staff list.";
+        var same = await db.Shifts.AsNoTracking().Where(x => x.StaffId == staffId && x.Date == shift.Date && x.Id != shift.Id && x.Id != ignoreShiftId).ToListAsync(ct);
+        if (!shift.AllDay && same.Any(x => !x.AllDay && x.Start < shift.End && shift.Start < x.End)) return $"{staff.Name} already has an overlapping shift on {shift.Date:ddd d MMM}.";
+        if (await db.Leave.AnyAsync(l => l.StaffId == staffId && l.Status == LeaveStatus.Approved && l.From <= shift.Date && l.To >= shift.Date, ct)) return $"{staff.Name} is on leave on {shift.Date:ddd d MMM}.";
+        return null;
+    }
+
+    public async Task<(SwapRequest? Swap, IReadOnlyList<string> Errors)> RequestSwapAsync(SwapCreate r, Guid? actingStaffId, string user, CancellationToken ct = default)
+    {
+        var shift = await db.Shifts.AsNoTracking().SingleOrDefaultAsync(s => s.Id == r.ShiftId, ct);
+        if (shift is null) return (null, ["Shift not found."]);
+        if (actingStaffId is { } me && shift.StaffId != me) return (null, ["You can only offer your own shifts."]);
+        var today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+        if (shift.Date < today) return (null, ["That shift has already happened."]);
+        if (r.ToStaffId == shift.StaffId) return (null, ["Choose a colleague, not the person already rostered."]);
+        if (await db.Swaps.AnyAsync(x => x.ShiftId == r.ShiftId && (x.Status == SwapStatus.Requested || x.Status == SwapStatus.Accepted), ct))
+            return (null, ["This shift already has a swap request in progress."]);
+        Shift? offered = null;
+        if (r.OfferedShiftId is { } oid)
+        {
+            offered = await db.Shifts.AsNoTracking().SingleOrDefaultAsync(s => s.Id == oid, ct);
+            if (offered is null || r.ToStaffId is null || offered.StaffId != r.ToStaffId) return (null, ["The shift offered in exchange must belong to the colleague you chose."]);
+            if (offered.Date < today) return (null, ["The shift offered in exchange has already happened."]);
+        }
+        if (r.ToStaffId is { } to && await AvailableAsync(to, shift, offered?.Id, ct) is { } e1) return (null, [e1]);
+        if (offered is not null && await AvailableAsync(shift.StaffId, offered, shift.Id, ct) is { } e2) return (null, [e2]);
+        var row = new SwapRequest { ShiftId = shift.Id, FromStaffId = shift.StaffId, ToStaffId = r.ToStaffId, OfferedShiftId = r.OfferedShiftId,
+            Note = string.IsNullOrWhiteSpace(r.Note) ? null : r.Note.Trim(), RequestedAt = clock.GetUtcNow(), RequestedBy = user };
+        db.Swaps.Add(row);
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "SwapRequested", "Shift", shift.Id.ToString(), reason: $"{ShiftText(shift)}{(offered is null ? "" : " for " + ShiftText(offered))}", ct: ct);
+        return (row, []);
+    }
+
+    /// <summary>A colleague accepts (actingStaffId = their staff record). Open offers are taken by whoever accepts first.</summary>
+    public async Task<string?> AcceptSwapAsync(Guid id, Guid actingStaffId, string user, CancellationToken ct = default)
+    {
+        var sw = await db.Swaps.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (sw is null) return "Swap request not found.";
+        if (sw.Status != SwapStatus.Requested) return "This request is no longer open.";
+        if (sw.FromStaffId == actingStaffId) return "You cannot accept your own request.";
+        if (sw.ToStaffId is { } to && to != actingStaffId) return "This request was sent to someone else.";
+        var shift = await db.Shifts.AsNoTracking().SingleAsync(s => s.Id == sw.ShiftId, ct);
+        if (await AvailableAsync(actingStaffId, shift, sw.OfferedShiftId, ct) is { } e) return e;
+        sw.ToStaffId = actingStaffId; sw.Status = SwapStatus.Accepted; sw.AcceptedAt = clock.GetUtcNow(); sw.AcceptedBy = user;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "SwapAccepted", "Shift", sw.ShiftId.ToString(), reason: ShiftText(shift), ct: ct);
+        return null;
+    }
+
+    /// <summary>Roster manager approves (shifts change hands) or declines; the requester can cancel; the colleague can decline.</summary>
+    public async Task<string?> DecideSwapAsync(Guid id, SwapStatus decision, string? note, bool manager, Guid? actingStaffId, string user, CancellationToken ct = default)
+    {
+        var sw = await db.Swaps.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (sw is null) return "Swap request not found.";
+        if (sw.Status is not (SwapStatus.Requested or SwapStatus.Accepted)) return "This request is already closed.";
+        switch (decision)
+        {
+            case SwapStatus.Approved:
+                if (!manager) return "Only the roster manager can approve swaps.";
+                if (sw.Status != SwapStatus.Accepted || sw.ToStaffId is null) return "A colleague must accept the swap before it can be approved.";
+                var shift = await db.Shifts.SingleOrDefaultAsync(s => s.Id == sw.ShiftId, ct);
+                if (shift is null || shift.StaffId != sw.FromStaffId) return "The shift has changed since the request – ask for a new swap.";
+                Shift? offered = null;
+                if (sw.OfferedShiftId is { } oid)
+                {
+                    offered = await db.Shifts.SingleOrDefaultAsync(s => s.Id == oid, ct);
+                    if (offered is null || offered.StaffId != sw.ToStaffId) return "The exchanged shift has changed since the request – ask for a new swap.";
+                }
+                if (await AvailableAsync(sw.ToStaffId.Value, shift, offered?.Id, ct) is { } e1) return e1;
+                if (offered is not null && await AvailableAsync(sw.FromStaffId, offered, shift.Id, ct) is { } e2) return e2;
+                shift.StaffId = sw.ToStaffId.Value;
+                shift.Note = Trunc($"Swapped from {(await db.Staff.AsNoTracking().SingleAsync(s => s.Id == sw.FromStaffId, ct)).Name}{(shift.Note is null ? "" : "; " + shift.Note)}", 300);
+                if (offered is not null) offered.StaffId = sw.FromStaffId;
+                break;
+            case SwapStatus.Declined:
+                if (!manager && actingStaffId != sw.ToStaffId) return "Only the colleague asked or the roster manager can decline.";
+                break;
+            case SwapStatus.Cancelled:
+                if (!manager && actingStaffId != sw.FromStaffId) return "Only the person who asked can cancel.";
+                break;
+            default: return "Choose approve, decline or cancel.";
+        }
+        sw.Status = decision; sw.DecidedAt = clock.GetUtcNow(); sw.DecidedBy = user; sw.DecisionNote = string.IsNullOrWhiteSpace(note) ? null : Trunc(note.Trim(), 300);
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Swap" + decision, "Shift", sw.ShiftId.ToString(), reason: sw.DecisionNote, ct: ct);
+        return null;
+    }
+
+    public async Task<IReadOnlyList<SwapView>> SwapsAsync(bool openOnly, Guid? staffId, CancellationToken ct = default)
+    {
+        var q = db.Swaps.AsNoTracking().Where(x => !openOnly || x.Status == SwapStatus.Requested || x.Status == SwapStatus.Accepted);
+        if (staffId is { } sid) q = q.Where(x => x.FromStaffId == sid || x.ToStaffId == sid || (x.ToStaffId == null && x.Status == SwapStatus.Requested));
+        var rows = (await q.ToListAsync(ct)).OrderByDescending(x => x.RequestedAt).Take(200).ToList();
+        var ids = rows.Select(r => r.ShiftId).Concat(rows.Where(r => r.OfferedShiftId != null).Select(r => r.OfferedShiftId!.Value)).Distinct().ToList();
+        var shifts = await db.Shifts.AsNoTracking().Where(s => ids.Contains(s.Id)).ToDictionaryAsync(s => s.Id, ct);
+        var staff = await db.Staff.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+        return rows.Select(r => new SwapView(r.Id, r.ShiftId, shifts.TryGetValue(r.ShiftId, out var sh) ? ShiftText(sh) : "(removed)", r.FromStaffId, staff.GetValueOrDefault(r.FromStaffId, "?"),
+            r.ToStaffId, r.ToStaffId is { } t ? staff.GetValueOrDefault(t, "?") : null, r.OfferedShiftId,
+            r.OfferedShiftId is { } o && shifts.TryGetValue(o, out var os) ? ShiftText(os) : null, r.Status.ToString(), r.Note, r.RequestedAt, r.RequestedBy, r.AcceptedBy, r.DecidedBy, r.DecisionNote)).ToList();
+    }
+
+    // ------------------------------------------------------------------ payroll export (0.10.0)
+
+    public const string DefaultEarningsRate = "Ordinary Hours";
+
+    /// <summary>
+    /// Timesheet for payroll (Xero): one row per staff member and earnings rate with hours per day, plus a detail sheet.
+    /// Confirmed (not tentative) timed shifts only; all-day entries (office days, study days) are listed in the detail with 0 hours.
+    /// </summary>
+    public async Task<(string Timesheet, string Detail, int People, decimal Hours)> PayrollAsync(DateOnly from, DateOnly to, string user, CancellationToken ct = default)
+    {
+        var staff = await db.Staff.AsNoTracking().ToDictionaryAsync(s => s.Id, ct);
+        var shifts = (await db.Shifts.AsNoTracking().Where(x => x.Date >= from && x.Date <= to && !x.IsTentative).ToListAsync(ct))
+            .OrderBy(x => staff.GetValueOrDefault(x.StaffId)?.Name).ThenBy(x => x.Date).ThenBy(x => x.Start).ToList();
+        var days = Enumerable.Range(0, to.DayNumber - from.DayNumber + 1).Select(i => from.AddDays(i)).ToList();
+        var ts = new System.Text.StringBuilder();
+        ts.AppendLine(string.Join(",", new[] { "Employee", "Payroll ID", "Earnings Rate" }.Concat(days.Select(d => d.ToString("yyyy-MM-dd"))).Append("Total").Select(Csv)));
+        decimal grand = 0; var people = 0;
+        foreach (var g in shifts.Where(x => !x.AllDay).GroupBy(x => x.StaffId))
+        {
+            var s = staff.GetValueOrDefault(g.Key);
+            var perDay = days.Select(d => g.Where(x => x.Date == d).Sum(x => Hours(false, x.Start, x.End, x.BreakMinutes))).ToList();
+            var total = perDay.Sum();
+            if (total == 0) continue;
+            grand += total; people++;
+            ts.AppendLine(string.Join(",", new[] { s?.Name ?? "?", s?.PayrollCode ?? "", s?.EarningsRate ?? DefaultEarningsRate }
+                .Concat(perDay.Select(h => h == 0 ? "" : h.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)))
+                .Append(total.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)).Select(Csv)));
+        }
+        var dt = new System.Text.StringBuilder();
+        dt.AppendLine("Employee,Payroll ID,Date,Start,Finish,Break (min),Hours,Area,All day,Note");
+        foreach (var x in shifts)
+        {
+            var s = staff.GetValueOrDefault(x.StaffId);
+            dt.AppendLine(string.Join(",", new[] { s?.Name ?? "?", s?.PayrollCode ?? "", x.Date.ToString("yyyy-MM-dd"), x.Start?.ToString("HH:mm") ?? "", x.End?.ToString("HH:mm") ?? "",
+                x.BreakMinutes.ToString(), Hours(x.AllDay, x.Start, x.End, x.BreakMinutes).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture), x.Area ?? "", x.AllDay ? "Yes" : "", x.Note ?? "" }.Select(Csv)));
+        }
+        await audit.WriteAsync(user, "Export", "Payroll", $"{from:yyyy-MM-dd}..{to:yyyy-MM-dd}", reason: $"{people} staff, {grand:0.##} hours", ct: ct);
+        return (ts.ToString(), dt.ToString(), people, grand);
+    }
+
+    /// <summary>CSV cell: quoted, with spreadsheet formula injection neutralised.</summary>
+    public static string Csv(string v)
+    {
+        if (v.Length > 0 && "=+-@\t\r".Contains(v[0])) v = "'" + v;
+        return "\"" + v.Replace("\"", "\"\"") + "\"";
+    }
+
+    private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n];
 }

@@ -48,8 +48,27 @@ export const Perm = {
   RemindersView: 'reminders.view', RemindersManage: 'reminders.manage',
   ReferralsView: 'referrals.view', ReferralsManage: 'referrals.manage', ReferralsTriage: 'referrals.triage',
   LettersView: 'letters.view', LettersWrite: 'letters.write', LettersTemplates: 'letters.templates', OrganisationManage: 'admin.organisation.manage',
-  RosterView: 'roster.view', RosterManage: 'roster.manage',
+  RosterView: 'roster.view', RosterManage: 'roster.manage', PatientMerge: 'patient.merge',
+  CredentialingView: 'credentialing.view', CredentialingManage: 'credentialing.manage', PortalSpecialist: 'portal.specialist', PortalManage: 'portal.manage',
 } as const;
+
+/** POSTs and saves the returned file (exports). Throws ApiError with the JSON body on refusal (e.g. password needed). */
+export async function downloadPost(path: string, body: unknown): Promise<string> {
+  const res = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'X-BrightPAS-Request': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!res.ok) { const t = await res.text(); let data: any = null; try { data = t ? JSON.parse(t) : null; } catch { /* not json */ } throw new ApiError(res.status, data); }
+  const cd = res.headers.get('Content-Disposition') ?? '';
+  const m = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+  const name = m ? decodeURIComponent(m[1] ?? m[2]) : 'download';
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return name;
+}
+
+/** Reads a file as base64 (no data: prefix) for uploads. */
+export const fileToBase64 = (f: File) => new Promise<string>((resolve, reject) => {
+  const r = new FileReader(); r.onload = () => resolve(String(r.result).split(',')[1] ?? ''); r.onerror = () => reject(r.error); r.readAsDataURL(f);
+});
 
 export const nzDateTime = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 export const money = (n: number) => n.toLocaleString('en-NZ', { style: 'currency', currency: 'NZD' });

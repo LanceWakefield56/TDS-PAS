@@ -85,9 +85,18 @@ public static class ModuleEndpoints
             .RequireAuthorization(Permissions.TheatreManage);
         g.MapPost("/sessions/{id:guid}/order", async (Guid id, ReorderRequest req, ClaimsPrincipal u, TheatreService svc) => Done(await svc.ReorderAsync(id, req.BookingIds, Me(u))))
             .RequireAuthorization(Permissions.TheatreBook);
-        g.MapPost("/bookings", async (NewBooking req, ClaimsPrincipal u, TheatreService svc) =>
+        g.MapPost("/bookings", async (NewBooking req, ClaimsPrincipal u, TheatreService svc, IServiceProvider sp, BrightPAS.Core.Audit.AuditWriter audit) =>
         {
+            // Credentialing (when licensed): expired credentials or a procedure outside scope are warnings the booker must accept.
+            var cred = await PortalEndpoints.BookingCredentialWarningsAsync(sp, req.SessionId, req.Procedure ?? "");
+            if (cred.Count > 0 && !req.AcceptWarnings)
+            {
+                var check = await svc.BookAsync(req, Me(u), validateOnly: true);
+                return Results.BadRequest(new { errors = check.Errors, warnings = check.Warnings.Concat(cred) });
+            }
             var r = await svc.BookAsync(req, Me(u));
+            if (r.Booking is not null && cred.Count > 0)
+                await audit.WriteAsync(Me(u), "CredentialWarningAccepted", "TheatreBooking", r.Booking.Id.ToString(), req.PatientId.ToString(), reason: string.Join(" ", cred));
             return r.Booking is not null ? Results.Ok(new { r.Booking.Id, r.Warnings })
                 : Results.BadRequest(new { errors = r.Errors, warnings = r.Warnings });
         }).RequireAuthorization(Permissions.TheatreBook);

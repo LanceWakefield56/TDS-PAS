@@ -163,3 +163,192 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    ALTER TABLE [patients].[Patients] ADD [MergedIntoId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    CREATE TABLE [patients].[Corrections] (
+        [Id] uniqueidentifier NOT NULL,
+        [PatientId] uniqueidentifier NOT NULL,
+        [NewFamilyName] nvarchar(100) NULL,
+        [NewGivenNames] nvarchar(150) NULL,
+        [NewDateOfBirth] date NULL,
+        [NewSex] nvarchar(15) NULL,
+        [NewNhi] nvarchar(7) NULL,
+        [ClearNhi] bit NOT NULL,
+        [Before] nvarchar(400) NOT NULL,
+        [Reason] nvarchar(500) NOT NULL,
+        [Evidence] nvarchar(200) NULL,
+        [Status] nvarchar(15) NOT NULL,
+        [RequestedAt] datetimeoffset NOT NULL,
+        [RequestedBy] nvarchar(100) NOT NULL,
+        [DecidedAt] datetimeoffset NULL,
+        [DecidedBy] nvarchar(100) NULL,
+        [DecisionNote] nvarchar(300) NULL,
+        CONSTRAINT [PK_Corrections] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    CREATE TABLE [patients].[Documents] (
+        [Id] uniqueidentifier NOT NULL,
+        [PatientId] uniqueidentifier NOT NULL,
+        [BookingId] uniqueidentifier NULL,
+        [Category] nvarchar(20) NOT NULL,
+        [Title] nvarchar(150) NOT NULL,
+        [FileName] nvarchar(130) NOT NULL,
+        [ContentType] nvarchar(40) NOT NULL,
+        [SizeBytes] bigint NOT NULL,
+        [Sha256] nvarchar(64) NOT NULL,
+        [Content] varbinary(max) NOT NULL,
+        [Source] nvarchar(10) NOT NULL,
+        [UploadedAt] datetimeoffset NOT NULL,
+        [UploadedBy] nvarchar(100) NOT NULL,
+        [IsDeleted] bit NOT NULL,
+        [DeletedReason] nvarchar(300) NULL,
+        [DeletedBy] nvarchar(100) NULL,
+        [DeletedAt] datetimeoffset NULL,
+        CONSTRAINT [PK_Documents] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    CREATE TABLE [patients].[Merges] (
+        [Id] uniqueidentifier NOT NULL,
+        [SurvivorId] uniqueidentifier NOT NULL,
+        [DuplicateId] uniqueidentifier NOT NULL,
+        [DuplicateSummary] nvarchar(400) NOT NULL,
+        [Reason] nvarchar(500) NOT NULL,
+        [Status] nvarchar(15) NOT NULL,
+        [RequestedAt] datetimeoffset NOT NULL,
+        [RequestedBy] nvarchar(100) NOT NULL,
+        [DecidedAt] datetimeoffset NULL,
+        [DecidedBy] nvarchar(100) NULL,
+        [DecisionNote] nvarchar(300) NULL,
+        [CompletedAt] datetimeoffset NULL,
+        [Result] nvarchar(1000) NULL,
+        CONSTRAINT [PK_Merges] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    CREATE TABLE [patients].[Printers] (
+        [Id] uniqueidentifier NOT NULL,
+        [Name] nvarchar(80) NOT NULL,
+        [Kind] nvarchar(15) NOT NULL,
+        [Host] nvarchar(100) NOT NULL,
+        [Port] int NOT NULL,
+        [Dpi] int NOT NULL,
+        [WidthMm] int NOT NULL,
+        [LengthMm] int NOT NULL,
+        [IsDefault] bit NOT NULL,
+        [IsActive] bit NOT NULL,
+        CONSTRAINT [PK_Printers] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    CREATE TABLE [patients].[Transfers] (
+        [Id] uniqueidentifier NOT NULL,
+        [PatientId] uniqueidentifier NOT NULL,
+        [BookingId] uniqueidentifier NULL,
+        [ReceivingFacility] nvarchar(150) NOT NULL,
+        [Reason] nvarchar(500) NOT NULL,
+        [Situation] nvarchar(1000) NULL,
+        [Background] nvarchar(2000) NULL,
+        [Assessment] nvarchar(2000) NULL,
+        [Recommendation] nvarchar(1000) NULL,
+        [Escort] nvarchar(150) NULL,
+        [TransportMode] nvarchar(50) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [CreatedBy] nvarchar(100) NOT NULL,
+        CONSTRAINT [PK_Transfers] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    CREATE INDEX [IX_Corrections_Status_PatientId] ON [patients].[Corrections] ([Status], [PatientId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    CREATE INDEX [IX_Documents_BookingId] ON [patients].[Documents] ([BookingId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    CREATE INDEX [IX_Documents_PatientId_IsDeleted] ON [patients].[Documents] ([PatientId], [IsDeleted]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    CREATE INDEX [IX_Merges_Status] ON [patients].[Merges] ([Status]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Printers_Name] ON [patients].[Printers] ([Name]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    CREATE INDEX [IX_Transfers_PatientId] ON [patients].[Transfers] ([PatientId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222718_DocumentsIdentityLabels'
+)
+BEGIN
+    INSERT INTO [patients].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261107222718_DocumentsIdentityLabels', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

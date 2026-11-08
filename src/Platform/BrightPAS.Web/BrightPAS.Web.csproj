@@ -14,6 +14,12 @@
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Referrals\BrightPAS.Modules.Referrals.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Letters\BrightPAS.Modules.Letters.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Rostering\BrightPAS.Modules.Rostering.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Credentialing\BrightPAS.Modules.Credentialing.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Portal\BrightPAS.Modules.Portal.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SharpZipLib" Version="1.4.2" />
   </ItemGroup>
 
   <PropertyGroup>

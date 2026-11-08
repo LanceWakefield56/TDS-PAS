@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router';
 import { age, api, ApiError, ethnicityName, formatDate, PatientDetail, Perm } from '../api';
 import { useSession } from '../App';
 import PatientModules from '../components/PatientModules';
+import PatientRecords from '../components/PatientRecords';
 
 export default function PatientView() {
   const { id } = useParams();
@@ -109,7 +110,7 @@ export default function PatientView() {
                   : <input value={editContact.gpPracticeHpiFacilityId} placeholder="HPI facility number, e.g. F12345-A" onChange={(e) => setEditContact({ ...editContact, gpPracticeHpiFacilityId: e.target.value })} />}
               </label>
             </div>
-            <p className="hint">Name, date of birth and NHI cannot be changed here.</p>
+            <p className="hint">Name, date of birth and NHI are changed with "Correct name, date of birth or NHI" (needs a second person's approval).</p>
             {error && <p className="error" role="alert">{error}</p>}
             <div className="row"><button className="btn btn-primary" onClick={saveContact}>Save</button><button className="btn btn-light" onClick={() => setEditContact(null)}>Cancel</button></div>
           </section>
@@ -131,6 +132,7 @@ export default function PatientView() {
             <dt>GP practice</dt><dd>{practices.find((x) => x.hpiFacilityId === p.gpPracticeHpiFacilityId)?.name ?? p.gpPracticeHpiFacilityId ?? '—'}</dd>
           </dl>
         </section>
+        <PatientRecords patient={p} onChanged={load} />
         <PatientModules patientId={p.id} />
       </div>
     </div>

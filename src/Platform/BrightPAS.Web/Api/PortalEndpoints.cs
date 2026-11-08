@@ -1,0 +1,219 @@
+using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
+using BrightPAS.Core.Audit;
+using BrightPAS.Core.Data;
+using BrightPAS.Core.Setup;
+using BrightPAS.Identity;
+using BrightPAS.Modules.Credentialing;
+using BrightPAS.Modules.Patients;
+using BrightPAS.Modules.Portal;
+using BrightPAS.Modules.Referrals;
+using BrightPAS.Modules.Theatre;
+using BrightPAS.Web.Licensing;
+
+namespace BrightPAS.Web.Api;
+
+/// <summary>Credentialing module, and the specialist/PA and patient portals (0.10.0).</summary>
+public static class PortalEndpoints
+{
+    private static string Me(ClaimsPrincipal u) => u.Identity!.Name!;
+    private static IResult Done(string? error) => error is null ? Results.Ok() : Results.BadRequest(new { errors = new[] { error } });
+    private static IResult Errors(IReadOnlyList<string> e) => e.Count == 0 ? Results.Ok() : Results.BadRequest(new { errors = e });
+
+    public sealed record DelegateRequest(string UserName, Guid ClinicianId);
+    public sealed record HandleRequest(PortalRequestStatus Status, string? Response);
+    public sealed record PortalDob(DateOnly DateOfBirth);
+    public sealed record PortalRequestBody(DateOnly DateOfBirth, PortalRequestKind Kind, Guid? BookingId, string Message);
+    public sealed record PortalUpload(DateOnly DateOfBirth, string FileName, string ContentBase64, string? Title);
+
+    public static void MapPortalEndpoints(this IEndpointRouteBuilder app)
+    {
+        MapCredentialing(app);
+        MapSpecialistPortal(app);
+        MapPatientPortal(app);
+    }
+
+    // ================================================================== credentialing
+    private static void MapCredentialing(IEndpointRouteBuilder app)
+    {
+        var g = app.MapGroup("/api/credentialing").RequireModule(CredentialingModule.Id);
+        g.MapGet("/status", async (CredentialingService svc) => Results.Ok(await svc.StatusAsync())).RequireAuthorization(Permissions.CredentialingView);
+        g.MapGet("/settings", async (CredentialingService svc) =>
+        {
+            var s = await svc.SettingsAsync();
+            return Results.Ok(new { requiredTypes = CredentialingService.Required(s).Select(t => t.ToString()), s.WarningDays, s.CheckPrivileges,
+                types = Enum.GetValues<CredentialType>().Select(t => new { id = t.ToString(), label = CredentialingService.Label(t) }), services = CredentialingService.Services });
+        }).RequireAuthorization(Permissions.CredentialingView);
+        g.MapPut("/settings", async (CredSettingsEdit e, ClaimsPrincipal u, CredentialingService svc) => Errors(await svc.UpdateSettingsAsync(e, Me(u))))
+            .RequireAuthorization(Permissions.CredentialingManage);
+        g.MapGet("/clinicians/{id:guid}", async (Guid id, CredentialingService svc) =>
+            Results.Ok(new { credentials = await svc.CredentialsAsync(id), privileges = await svc.PrivilegesAsync(id) })).RequireAuthorization(Permissions.CredentialingView);
+        g.MapPost("/credentials", async (CredentialEdit e, ClaimsPrincipal u, CredentialingService svc) => Errors(await svc.SaveCredentialAsync(e, Me(u))))
+            .RequireAuthorization(Permissions.CredentialingManage);
+        g.MapPost("/privileges", async (PrivilegeEdit e, ClaimsPrincipal u, CredentialingService svc) => Errors(await svc.SavePrivilegeAsync(e, Me(u))))
+            .RequireAuthorization(Permissions.CredentialingManage);
+        g.MapGet("/check", async (DateOnly date, string? surgeon, string? anaesthetist, string? procedure, CredentialingService svc) =>
+            Results.Ok(await svc.CheckCaseAsync(date, surgeon, anaesthetist, procedure))).RequireAuthorization(Permissions.TheatreBook);
+    }
+
+    /// <summary>Credential warnings for a theatre booking (empty when the module is not licensed).</summary>
+    public static async Task<IReadOnlyList<string>> BookingCredentialWarningsAsync(IServiceProvider sp, Guid sessionId, string procedure)
+    {
+        if (sp.GetRequiredService<LicenceCache>().Status.AccessTo(CredentialingModule.Id) == BrightPAS.Licensing.ModuleAccess.None) return [];
+        var s = await sp.GetRequiredService<TheatreDbContext>().Sessions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == sessionId);
+        if (s is null) return [];
+        return await sp.GetRequiredService<CredentialingService>().CheckCaseAsync(s.Date, s.Surgeon, s.Anaesthetist, procedure);
+    }
+
+    // ================================================================== specialist / PA portal
+    private static async Task<List<string>> MyClinicianNamesAsync(ClaimsPrincipal u, PasDbContext core, PortalService portal)
+    {
+        var delegated = await portal.DelegatedCliniciansAsync(Me(u));
+        var me = Me(u);
+        return await core.Clinicians.AsNoTracking().Where(c => c.UserName == me || delegated.Contains(c.Id)).Select(c => c.Name).ToListAsync();
+    }
+
+    private static async Task<bool> LinkedAsync(Guid patientId, List<string> names, TheatreDbContext theatre, ReferralsDbContext referrals)
+    {
+        if (names.Count == 0) return false;
+        return await theatre.Bookings.Where(b => b.PatientId == patientId).Join(theatre.Sessions, b => b.SessionId, s => s.Id, (b, s) => s)
+                   .AnyAsync(s => names.Contains(s.Surgeon) || (s.Anaesthetist != null && names.Contains(s.Anaesthetist)))
+               || await theatre.Appointments.AnyAsync(a => a.PatientId == patientId && names.Contains(a.Clinician))
+               || await referrals.Waitlist.AnyAsync(w => w.PatientId == patientId && names.Contains(w.Specialist));
+    }
+
+    private static void MapSpecialistPortal(IEndpointRouteBuilder app)
+    {
+        var g = app.MapGroup("/api/portal").RequireModule(PortalModule.Id);
+        g.MapGet("/specialist", async (ClaimsPrincipal u, PasDbContext core, PortalService portal, TheatreDbContext theatre, ReferralsDbContext referrals, PatientsDbContext patients,
+            TimeProvider clock, AuditWriter audit, HttpContext http) =>
+        {
+            var names = await MyClinicianNamesAsync(u, core, portal);
+            var today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+            var from = today.AddDays(-14); var to = today.AddDays(120);
+            var cases = await theatre.Bookings.AsNoTracking().Join(theatre.Sessions, b => b.SessionId, s => s.Id, (b, s) => new { b, s })
+                .Where(x => x.s.Date >= from && x.s.Date <= to && !x.s.IsCancelled && (names.Contains(x.s.Surgeon) || (x.s.Anaesthetist != null && names.Contains(x.s.Anaesthetist)))).ToListAsync();
+            var appts = await theatre.Appointments.AsNoTracking().Where(a => a.Date >= from && a.Date <= to && names.Contains(a.Clinician)).ToListAsync();
+            var waits = await referrals.Waitlist.AsNoTracking().Where(w => names.Contains(w.Specialist) && (w.Status == WaitlistStatus.Waiting || w.Status == WaitlistStatus.OnHold || w.Status == WaitlistStatus.Booked)).ToListAsync();
+            var ids = cases.Select(c => c.b.PatientId).Concat(appts.Select(a => a.PatientId)).Concat(waits.Select(w => w.PatientId)).Distinct().ToList();
+            var people = await patients.Patients.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
+            string N(Guid id) => people.TryGetValue(id, out var p) ? $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}" : "?";
+            await audit.WriteAsync(Me(u), "View", "SpecialistPortal", Me(u), reason: $"{cases.Count} cases, {appts.Count} appointments, {waits.Count} waiting", workstation: AuthEndpoints.Workstation(http));
+            return Results.Ok(new
+            {
+                clinicians = names,
+                cases = cases.OrderBy(c => c.s.Date).ThenBy(c => c.b.Order).Select(c => new { c.b.Id, c.b.PatientId, patient = N(c.b.PatientId), nhi = people.GetValueOrDefault(c.b.PatientId)?.Nhi,
+                    c.s.Date, c.s.StartTime, location = c.s.LocationName, c.s.Surgeon, c.s.Anaesthetist, c.b.Procedure, status = c.b.Status.ToString(), c.b.IsTentative, c.b.Order }),
+                appointments = appts.OrderBy(a => a.Date).ThenBy(a => a.StartTime).Select(a => new { a.Id, a.PatientId, patient = N(a.PatientId), a.Date, a.StartTime, kind = a.Kind.ToString(),
+                    a.Clinician, status = a.Status.ToString() }),
+                waitlist = waits.OrderBy(w => w.TargetDate).Select(w => new { w.Id, w.PatientId, patient = N(w.PatientId), w.Procedure, priority = w.Priority.ToString(), w.AddedOn, w.TargetDate,
+                    status = w.Status.ToString(), w.BookedFor, overdue = w.Status == WaitlistStatus.Waiting && w.TargetDate < today }),
+            });
+        }).RequireAuthorization(Permissions.PortalSpecialist);
+        g.MapGet("/specialist/patients/{id:guid}", async (Guid id, ClaimsPrincipal u, HttpContext http, PasDbContext core, PortalService portal, TheatreDbContext theatre,
+            ReferralsDbContext referrals, PatientService patients, DocumentService docs) =>
+        {
+            var names = await MyClinicianNamesAsync(u, core, portal);
+            if (!await LinkedAsync(id, names, theatre, referrals)) return Results.Json(new { errors = new[] { "This patient is not one of your patients at TDS." } }, statusCode: 403);
+            var p = await patients.GetAsync(id, Me(u), AuthEndpoints.Workstation(http));
+            if (p is null) return Results.NotFound();
+            return Results.Ok(new
+            {
+                p.Id, p.Mrn, p.Nhi, p.FamilyName, p.GivenNames, p.PreferredName, p.DateOfBirth, sex = p.Sex.ToString(), p.MobilePhone,
+                alerts = p.Alerts.Where(a => a.IsActive).Select(a => new { type = a.Type.ToString(), severity = a.Severity.ToString(), a.Description }),
+                documents = await docs.ListAsync(id),
+            });
+        }).RequireAuthorization(Permissions.PortalSpecialist);
+        g.MapGet("/specialist/documents/{docId:guid}", async (Guid docId, ClaimsPrincipal u, HttpContext http, PasDbContext core, PortalService portal, TheatreDbContext theatre,
+            ReferralsDbContext referrals, PatientsDbContext pdb, DocumentService docs) =>
+        {
+            var meta = await pdb.Documents.AsNoTracking().Where(d => d.Id == docId && !d.IsDeleted).Select(d => new { d.PatientId }).SingleOrDefaultAsync();
+            if (meta is null) return Results.NotFound();
+            if (!await LinkedAsync(meta.PatientId, await MyClinicianNamesAsync(u, core, portal), theatre, referrals)) return Results.Json(new { errors = new[] { "Not your patient." } }, statusCode: 403);
+            var r = await docs.OpenAsync(docId, Me(u), AuthEndpoints.Workstation(http));
+            if (r is not { } d) return Results.NotFound();
+            http.Response.Headers["Content-Security-Policy"] = "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; object-src 'self'";
+            return Results.File(d.Bytes, d.Meta.ContentType, d.Meta.FileName);
+        }).RequireAuthorization(Permissions.PortalSpecialist);
+
+        // Staff side of the patient portal.
+        g.MapGet("/patients/{id:guid}/link", async (Guid id, PortalService svc) => Results.Ok(await svc.LinkStatusAsync(id))).RequireAuthorization(Permissions.PortalManage);
+        g.MapPost("/patients/{id:guid}/link", async (Guid id, ClaimsPrincipal u, PortalService svc, SettingsService settings) =>
+        {
+            var (token, expires, error) = await svc.CreateLinkAsync(id, Me(u), (await settings.SecurityAsync()).PortalLinkDays);
+            return token is null ? Results.BadRequest(new { errors = new[] { error } }) : Results.Ok(new { path = $"/my/{token}", expiresAt = expires });
+        }).RequireAuthorization(Permissions.PortalManage);
+        g.MapPost("/patients/{id:guid}/revoke", async (Guid id, ClaimsPrincipal u, PortalService svc) => Done(await svc.RevokeAsync(id, Me(u)))).RequireAuthorization(Permissions.PortalManage);
+        g.MapGet("/requests", async (bool? all, PortalService svc) => Results.Ok(await svc.RequestsAsync(all != true))).RequireAuthorization(Permissions.PortalManage);
+        g.MapPost("/requests/{id:guid}/handle", async (Guid id, HandleRequest r, ClaimsPrincipal u, PortalService svc) => Done(await svc.HandleRequestAsync(id, r.Status, r.Response, Me(u))))
+            .RequireAuthorization(Permissions.PortalManage);
+        // PA ↔ specialist links (administrator).
+        g.MapGet("/delegates", async (PortalService svc, PasDbContext core) =>
+        {
+            var names = await core.Clinicians.AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.Name);
+            return Results.Ok((await svc.DelegatesAsync()).Select(d => new { d.Id, d.UserName, d.ClinicianId, clinician = names.GetValueOrDefault(d.ClinicianId, "?"), d.CreatedAt, d.CreatedBy }));
+        }).RequireAuthorization(Permissions.UsersManage);
+        g.MapPost("/delegates", async (DelegateRequest r, ClaimsPrincipal u, PortalService svc, PasDbContext core) =>
+            !await core.Clinicians.AnyAsync(c => c.Id == r.ClinicianId) ? Results.BadRequest(new { errors = new[] { "Choose the specialist." } }) : Done(await svc.AddDelegateAsync(r.UserName, r.ClinicianId, Me(u))))
+            .RequireAuthorization(Permissions.UsersManage);
+        g.MapPost("/delegates/remove", async (DelegateRequest r, ClaimsPrincipal u, PortalService svc) =>
+            await svc.RemoveDelegatesAsync(r.UserName, r.ClinicianId, Me(u)) > 0 ? Results.Ok() : Results.BadRequest(new { errors = new[] { "Link not found." } }))
+            .RequireAuthorization(Permissions.UsersManage);
+    }
+
+    // ================================================================== patient portal (public: secret link + date of birth)
+    private static IResult OpenError(PortalOpenError e) => e switch
+    {
+        PortalOpenError.Expired => Results.BadRequest(new { errors = new[] { "This link has expired. Please phone Tasman Day Surgery for a new one." } }),
+        PortalOpenError.Locked => Results.BadRequest(new { errors = new[] { "Too many attempts. Please try again in 30 minutes, or phone us." } }),
+        PortalOpenError.WrongDetails => Results.BadRequest(new { errors = new[] { "The date of birth does not match our records." } }),
+        _ => Results.NotFound(),
+    };
+
+    private static void MapPatientPortal(IEndpointRouteBuilder app)
+    {
+        var g = app.MapGroup("/api/my/{token}").RequireModule(PortalModule.Id).RequireRateLimiting("patient-portal").AllowAnonymous();
+        g.MapPost("/open", async (string token, PortalDob r, HttpContext http, PortalService svc, TheatreDbContext theatre, TimeProvider clock) =>
+        {
+            var (access, p, error) = await svc.OpenAsync(token, r.DateOfBirth, AuthEndpoints.Workstation(http));
+            if (access is null || p is null) return OpenError(error);
+            var today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+            var cases = await theatre.Bookings.AsNoTracking().Where(b => b.PatientId == p.Id && b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.DidNotAttend)
+                .Join(theatre.Sessions, b => b.SessionId, s => s.Id, (b, s) => new { b, s }).Where(x => x.s.Date >= today && !x.s.IsCancelled).ToListAsync();
+            var appts = await theatre.Appointments.AsNoTracking().Where(a => a.PatientId == p.Id && a.Date >= today && a.Status != AppointmentStatus.Cancelled).ToListAsync();
+            return Results.Ok(new
+            {
+                givenName = p.PreferredName ?? p.GivenNames.Split(' ')[0],
+                procedures = cases.OrderBy(c => c.s.Date).Select(c => new { c.b.Id, c.s.Date, listStarts = c.s.StartTime, location = c.s.LocationName, c.b.Procedure, surgeon = c.s.Surgeon, confirmed = !c.b.IsTentative }),
+                appointments = appts.OrderBy(a => a.Date).ThenBy(a => a.StartTime).Select(a => new { a.Id, a.Date, a.StartTime, kind = a.Kind.ToString(), a.Clinician }),
+                requests = (await svc.PatientRequestsAsync(p.Id)).Select(x => new { x.Id, kind = x.Kind.ToString(), x.Message, status = x.Status.ToString(), x.CreatedAt, x.Response }),
+                contact = new { mobile = Mask(p.MobilePhone), email = Mask(p.Email) },
+            });
+        });
+        g.MapPost("/requests", async (string token, PortalRequestBody r, HttpContext http, PortalService svc) =>
+        {
+            var (access, p, error) = await svc.OpenAsync(token, r.DateOfBirth, AuthEndpoints.Workstation(http));
+            if (access is null || p is null) return OpenError(error);
+            var (_, e) = await svc.AddRequestAsync(access, p.Id, new PortalRequestCreate(r.Kind, r.BookingId, r.Message));
+            return e is null ? Results.Ok() : Results.BadRequest(new { errors = new[] { e } });
+        });
+        g.MapPost("/documents", async (string token, PortalUpload r, HttpContext http, PortalService svc, DocumentService docs) =>
+        {
+            var (access, p, error) = await svc.OpenAsync(token, r.DateOfBirth, AuthEndpoints.Workstation(http));
+            if (access is null || p is null) return OpenError(error);
+            if (!await svc.TryCountUploadAsync(access)) return Results.BadRequest(new { errors = new[] { $"You can upload up to {PortalService.UploadsPerDay} files a day." } });
+            var (row, errors) = await docs.AddAsync(new NewPatientDocument(p.Id, null, DocumentCategory.Other, string.IsNullOrWhiteSpace(r.Title) ? "Uploaded by patient" : "Patient: " + r.Title,
+                r.FileName, r.ContentBase64, DocumentSource.Portal), "patient-portal", maxMegabytes: 10);
+            return row is null ? Results.BadRequest(new { errors }) : Results.Ok();
+        });
+    }
+
+    /// <summary>Shows just enough for the patient to recognise their details (e.g. 021•••••67).</summary>
+    public static string? Mask(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        s = s.Trim();
+        if (s.Contains('@')) { var at = s.IndexOf('@'); return (at <= 1 ? s[..at] : s[0] + new string('•', at - 1)) + s[at..]; }
+        return s.Length <= 5 ? new string('•', s.Length) : s[..3] + new string('•', s.Length - 5) + s[^2..];
+    }
+}

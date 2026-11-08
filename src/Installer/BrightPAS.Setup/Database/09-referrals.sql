@@ -158,3 +158,48 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222728_NbrsCodes'
+)
+BEGIN
+    ALTER TABLE [referrals].[Settings] ADD [NbrsAgencyCode] nvarchar(10) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222728_NbrsCodes'
+)
+BEGIN
+    ALTER TABLE [referrals].[Settings] ADD [NbrsFacilityCode] nvarchar(10) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222728_NbrsCodes'
+)
+BEGIN
+    ALTER TABLE [referrals].[Settings] ADD [NbrsSpecialtyEndoscopy] nvarchar(10) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222728_NbrsCodes'
+)
+BEGIN
+    ALTER TABLE [referrals].[Settings] ADD [NbrsSpecialtySurgical] nvarchar(10) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222728_NbrsCodes'
+)
+BEGIN
+    INSERT INTO [referrals].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261107222728_NbrsCodes', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

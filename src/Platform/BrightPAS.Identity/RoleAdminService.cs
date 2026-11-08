@@ -19,7 +19,7 @@ public sealed class RoleAdminService(RoleManager<PasRole> roles, UserManager<Pas
         [Permissions.PatientView] = ("Patients", "View patient records"),
         [Permissions.PatientRegister] = ("Patients", "Register new patients"),
         [Permissions.PatientEdit] = ("Patients", "Edit patient details"),
-        [Permissions.PatientMerge] = ("Patients", "Merge duplicate patients"),
+        [Permissions.PatientMerge] = ("Patients", "Approve identity corrections and patient merges (second-person check)"),
         [Permissions.PatientAlertsManage] = ("Patients", "Add and remove clinical alerts"),
         [Permissions.BreakGlass] = ("Privacy", "Emergency access (break-glass)"),
         [Permissions.BreakGlassReview] = ("Privacy", "Review emergency access"),
@@ -47,8 +47,12 @@ public sealed class RoleAdminService(RoleManager<PasRole> roles, UserManager<Pas
         [Permissions.LettersView] = ("Letters", "View letters"),
         [Permissions.LettersWrite] = ("Letters", "Write, finalise, print and send letters"),
         [Permissions.LettersTemplates] = ("Letters", "Edit letter templates and GP practices"),
-        [Permissions.RosterView] = ("Rostering", "See the staff roster and request own leave"),
-        [Permissions.RosterManage] = ("Rostering", "Write the roster, staff list and approve leave"),
+        [Permissions.RosterView] = ("Rostering", "See the staff roster, request own leave and shift swaps"),
+        [Permissions.RosterManage] = ("Rostering", "Write the roster, staff list, approve leave and swaps, export payroll"),
+        [Permissions.CredentialingView] = ("Credentialing", "See clinician credentials and expiry alerts"),
+        [Permissions.CredentialingManage] = ("Credentialing", "Record credentials, scope of practice and credentialing settings"),
+        [Permissions.PortalSpecialist] = ("Portals", "Specialist/PA portal: own patients' lists, appointments, waitlist and documents"),
+        [Permissions.PortalManage] = ("Portals", "Send patient portal links and answer patient requests"),
     };
 
     public async Task<IReadOnlyList<RoleView>> ListAsync()

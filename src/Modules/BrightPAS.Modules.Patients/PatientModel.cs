@@ -29,6 +29,8 @@ public sealed class Patient
     /// <summary>HPI facility id of the enrolled GP practice.</summary>
     public string? GpPracticeHpiFacilityId { get; set; }
     public bool IsTestPatient { get; set; }
+    /// <summary>Set when this record was merged into another (the survivor); merged records are hidden from search.</summary>
+    public Guid? MergedIntoId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public DateTimeOffset? UpdatedAt { get; set; }

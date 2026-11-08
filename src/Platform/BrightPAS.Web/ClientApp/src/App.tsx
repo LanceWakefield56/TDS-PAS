@@ -33,6 +33,14 @@ import Billing from './pages/Billing';
 import BillingDocument from './pages/BillingDocument';
 import BillingNew from './pages/BillingNew';
 import Reminders from './pages/Reminders';
+import TransferPack from './pages/TransferPack';
+import IdentityQueue from './pages/IdentityQueue';
+import Credentialing from './pages/Credentialing';
+import SpecialistPortal from './pages/SpecialistPortal';
+import PortalRequests from './pages/PortalRequests';
+import MyPortal from './pages/MyPortal';
+import SecuritySettings from './pages/SecuritySettings';
+import Nbrs from './pages/Nbrs';
 
 interface Session { me: Me | null; refresh: () => Promise<void>; signOut: () => Promise<void>; can: (perm: string) => boolean; mod: (id: string) => boolean; writable: (id: string) => boolean }
 const SessionContext = createContext<Session>(null!);
@@ -50,7 +58,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (location.pathname.startsWith('/q/')) { setLoading(false); return; }
+    if (location.pathname.startsWith('/q/') || location.pathname.startsWith('/my/')) { setLoading(false); return; }
     (async () => {
       try { setNeedsSetup((await api<{ firstAdminNeeded: boolean }>('/api/setup/status')).firstAdminNeeded); } catch { /* ignore */ }
       await refresh();
@@ -75,6 +83,7 @@ export default function App() {
   const writable = useCallback((id: string) => me?.modules[id] === 'Full', [me]);
 
   if (location.pathname.startsWith('/q/')) return <Routes><Route path="/q/:token" element={<PatientQuestionnaire />} /></Routes>;
+  if (location.pathname.startsWith('/my/')) return <Routes><Route path="/my/:token" element={<MyPortal />} /></Routes>;
   if (loading) return <div className="splash"><div className="brand-mark">BrightPAS</div><p>Loading…</p></div>;
 
   const session: Session = { me, refresh, signOut, can, mod, writable };
@@ -118,6 +127,13 @@ export default function App() {
           <Route path="/billing/new" element={<BillingNew />} />
           <Route path="/billing/:id" element={<BillingDocument />} />
           <Route path="/reminders" element={<Reminders />} />
+          <Route path="/patients/:id/transfer" element={<TransferPack />} />
+          <Route path="/admin/identity" element={<IdentityQueue />} />
+          <Route path="/credentialing" element={<Credentialing />} />
+          <Route path="/portal" element={<SpecialistPortal />} />
+          <Route path="/portal/requests" element={<PortalRequests />} />
+          <Route path="/admin/security" element={<SecuritySettings />} />
+          <Route path="/waitlist/nbrs" element={<Nbrs />} />
           <Route path="*" element={<div className="card"><h1>Page not found</h1><p>Use the menu to find what you need.</p></div>} />
         </Route>
       </Routes>

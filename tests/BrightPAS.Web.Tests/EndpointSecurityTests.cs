@@ -41,18 +41,21 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         ("/api/q/{token}/submit", "Patient questionnaire.", true),
         ("/api/hooks/sms/{key}/inbound", "SMS vendor callback: secret key in URL, constant-time check.", true),
         ("/api/hooks/sms/{key}/status", "SMS vendor callback: secret key in URL, constant-time check.", true),
+        ("/api/my/{token}/open", "Patient portal: secret link + date of birth, lockout after 5 attempts.", true),
+        ("/api/my/{token}/requests", "Patient portal: secret link + date of birth on every call.", true),
+        ("/api/my/{token}/documents", "Patient portal upload: link + date of birth, 5 files a day, 10 MB, PDF/images only.", true),
         ("/api/{**rest}", "Unknown API routes answer 404.", false),
         ("/{*path:nonfile}", "The browser app shell (index.html); holds no data.", false),
     ];
 
     /// <summary>Signed-in users without a specific permission are allowed only here.</summary>
-    private static readonly string[] AnySignedInUser = ["/api/me", "/api/organisation/locations", "/api/organisation/clinicians", "/api/organisation/procedures"];
+    private static readonly string[] AnySignedInUser = ["/api/me", "/api/export-policy", "/api/organisation/locations", "/api/organisation/clinicians", "/api/organisation/procedures"];
 
     /// <summary>Each module's URL prefix and the licence module it must be gated by.</summary>
     private static readonly (string Prefix, string? Module)[] Areas =
     [
         ("/api/labs", "labs"), ("/api/theatre", "theatre"), ("/api/forms", "forms"), ("/api/q/", "forms"), ("/api/billing", "billing"),
-        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"),
+        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/export-policy", null),
         ("/api/patients", null), ("/api/admin", null), ("/api/audit", null), ("/api/auth", null), ("/api/setup", null), ("/api/me", null),
         ("/api/organisation", null), ("/api/{**rest}", null), ("/health", null), ("/{*path", null),
     ];

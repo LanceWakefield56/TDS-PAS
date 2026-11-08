@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { addDays, api, errText, formatDate, nzDateTime, todayIso } from '../api';
+import ExportButton from '../components/ExportButton';
 import CalendarGrid, { AllDayItem, CalendarNav, CalItem, daysFor, weekStart } from '../components/CalendarGrid';
 
 interface Staff { id: string; name: string; role: string; colour: number; isActive: boolean; userName: string | null; contractedHours: number | null; phone: string | null }
@@ -22,14 +23,15 @@ export default function Roster() {
   useEffect(() => { api<any>('/api/roster/me').then(setMe).catch(() => setMe({ staff: null, manager: false })); }, []);
   if (!me) return <p>Loading…</p>;
   const tabs: [string, string][] = me.manager
-    ? [['roster', 'Roster'], ['leave', 'Leave'], ['staff', 'Staff'], ['regular', 'Regular shifts'], ['hours', 'Hours']]
-    : [['roster', 'Roster'], ['leave', 'My leave']];
+    ? [['roster', 'Roster'], ['leave', 'Leave'], ['swaps', 'Swaps'], ['staff', 'Staff'], ['regular', 'Regular shifts'], ['hours', 'Hours & payroll']]
+    : [['roster', 'Roster'], ['leave', 'My leave'], ['swaps', 'Swaps']];
   return (
     <div className="stack-lg">
       <div className="page-head"><h1>Roster</h1><p className="muted">{me.manager ? 'Click an empty time to add a shift; click a shift to change it.' : me.staff ? `You are ${me.staff.name} on the roster.` : 'Ask the roster manager to link your account to the roster to request leave here.'}</p></div>
       <div className="tabs no-print">{tabs.map(([k, t]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setParams({ tab: k })}>{t}</button>)}</div>
       {tab === 'roster' && <RosterCalendar manager={me.manager} myId={me.staff?.id ?? null} />}
       {tab === 'leave' && <LeaveTab manager={me.manager} me={me.staff} />}
+      {tab === 'swaps' && <SwapsTab manager={me.manager} me={me.staff} />}
       {tab === 'staff' && me.manager && <StaffTab />}
       {tab === 'regular' && me.manager && <RegularTab />}
       {tab === 'hours' && me.manager && <HoursTab />}
@@ -197,6 +199,8 @@ function StaffTab() {
             <label>Contracted hours a week<input type="number" min={0} max={80} step={0.5} value={edit.contractedHours ?? ''} onChange={(e) => setEdit({ ...edit, contractedHours: e.target.value })} /></label>
             <label>Phone<input value={edit.phone ?? ''} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} /></label>
             <label>BrightPAS username (optional)<input value={edit.userName ?? ''} onChange={(e) => setEdit({ ...edit, userName: e.target.value })} /></label>
+            <label>Payroll / Xero employee ID<input value={edit.payrollCode ?? ''} onChange={(e) => setEdit({ ...edit, payrollCode: e.target.value })} /></label>
+            <label>Xero earnings rate<input value={edit.earningsRate ?? ''} placeholder="Ordinary Hours" onChange={(e) => setEdit({ ...edit, earningsRate: e.target.value })} /></label>
             <label>Colour<div className="row">{Array.from({ length: 12 }, (_, i) => <button type="button" key={i} aria-label={`Colour ${i + 1}`} className={`swatch cal-c${i} ${edit.colour === i ? 'on' : ''}`} onClick={() => setEdit({ ...edit, colour: i })} />)}</div></label>
             <label className="check"><input type="checkbox" checked={!!edit.isActive} onChange={(e) => setEdit({ ...edit, isActive: e.target.checked })} /> Active</label>
           </div>
@@ -284,7 +288,9 @@ function HoursTab() {
   useEffect(() => { setRows(null); api<any[]>(`/api/roster/hours?from=${from}&to=${to}`).then(setRows).catch(() => setRows([])); }, [from]);
   return (
     <section className="card stack">
-      <div className="row"><label>Fortnight starting<input type="date" value={from} onChange={(e) => e.target.value && setFrom(weekStart(e.target.value))} /></label><span className="muted">to {formatDate(to)}</span></div>
+      <div className="row"><label>Fortnight starting<input type="date" value={from} onChange={(e) => e.target.value && setFrom(weekStart(e.target.value))} /></label><span className="muted">to {formatDate(to)}</span>
+        <ExportButton label="Export timesheet for Xero payroll" path="/api/roster/payroll-export" body={{ from, to }} /></div>
+      <p className="hint">The export has a Xero-style timesheet (hours per person per day, by earnings rate) and a shift detail sheet. Tentative shifts are left out. Set each person's payroll ID and earnings rate on the Staff tab.</p>
       {rows && (
         <table className="results compact">
           <thead><tr><th>Staff</th><th>Role</th><th className="money">Rostered</th><th className="money">Contracted</th><th className="money">Shifts</th><th className="money">Leave days</th></tr></thead>
@@ -299,5 +305,52 @@ function HoursTab() {
       )}
       <p className="hint">Hours exclude breaks. A payroll export (Xero) comes later.</p>
     </section>
+  );
+}
+
+function SwapsTab({ manager, me }: { manager: boolean; me: Staff | null }) {
+  const [rows, setRows] = useState<any[] | null>(null);
+  const [all, setAll] = useState(false);
+  const [mine, setMine] = useState<ShiftV[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [theirs, setTheirs] = useState<ShiftV[]>([]);
+  const [f, setF] = useState({ shiftId: '', toStaffId: '', offeredShiftId: '', note: '' });
+  const [errors, setErrors] = useState<string[]>([]);
+  const from = todayIso(), to = addDays(todayIso(), 56);
+  const load = () => api<any[]>(`/api/roster/swaps?all=${all}`).then(setRows).catch((e) => setErrors(errsOf(e)));
+  useEffect(() => { load(); }, [all]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    api<Staff[]>('/api/roster/staff').then(setStaff).catch(() => undefined);
+    if (me) api<ShiftV[]>(`/api/roster/shifts?from=${from}&to=${to}&staffId=${me.id}`).then(setMine).catch(() => undefined);
+  }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setTheirs([]); if (f.toStaffId) api<ShiftV[]>(`/api/roster/shifts?from=${from}&to=${to}&staffId=${f.toStaffId}`).then(setTheirs).catch(() => undefined); }, [f.toStaffId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const act = async (path: string, body: unknown) => { setErrors([]); try { await api(path, { body }); load(); return true; } catch (x) { setErrors(errsOf(x)); return false; } };
+  const ask = async () => { if (await act('/api/roster/swaps', { shiftId: f.shiftId, toStaffId: f.toStaffId || null, offeredShiftId: f.offeredShiftId || null, note: f.note || null })) setF({ shiftId: '', toStaffId: '', offeredShiftId: '', note: '' }); };
+  const label = (s: ShiftV) => `${formatDate(s.date)} ${s.allDay ? 'all day' : `${s.start?.slice(0, 5)}–${s.end?.slice(0, 5)}`} ${s.area ?? ''}`;
+  return (
+    <div className="stack">
+      {me && <section className="card subtle stack"><h2>Offer one of my shifts</h2>
+        <div className="form-grid">
+          <label>My shift<select value={f.shiftId} onChange={(e) => setF({ ...f, shiftId: e.target.value })}><option value="">Choose…</option>{mine.map((s) => <option key={s.id} value={s.id}>{label(s)}</option>)}</select></label>
+          <label>To<select value={f.toStaffId} onChange={(e) => setF({ ...f, toStaffId: e.target.value, offeredShiftId: '' })}><option value="">Anyone (open offer)</option>{staff.filter((s) => s.id !== me.id).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+          {f.toStaffId && <label>In exchange for (optional)<select value={f.offeredShiftId} onChange={(e) => setF({ ...f, offeredShiftId: e.target.value })}><option value="">Nothing – they just take it</option>{theirs.map((s) => <option key={s.id} value={s.id}>{label(s)}</option>)}</select></label>}
+          <label>Note<input value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></label>
+        </div>
+        <button className="btn btn-primary" disabled={!f.shiftId} onClick={ask}>Ask</button>
+        <p className="hint">Your colleague accepts, then the roster manager approves – only then do the shifts change.</p>
+      </section>}
+      <label className="check"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Show closed requests</label>
+      <Errs list={errors} />
+      {!rows ? <p>Loading…</p> : rows.length === 0 ? <p className="muted">No swap requests.</p> : (
+        <table className="results compact"><thead><tr><th>Shift</th><th>From</th><th>To</th><th>Exchange</th><th>Status</th><th></th></tr></thead>
+          <tbody>{rows.map((r) => <tr key={r.id}><td>{r.shiftText}{r.note && <div className="small muted">{r.note}</div>}</td><td>{r.fromName}</td><td>{r.toName ?? 'anyone'}</td><td>{r.offeredText ?? '—'}</td>
+            <td>{r.status}{r.decisionNote && <div className="small muted">{r.decisionNote}</div>}</td>
+            <td className="actions">
+              {r.status === 'Requested' && me && r.fromStaffId !== me.id && (!r.toStaffId || r.toStaffId === me.id) && <button className="btn btn-link" onClick={() => act(`/api/roster/swaps/${r.id}/accept`, {})}>Accept</button>}
+              {r.status === 'Accepted' && manager && <button className="btn btn-link" onClick={() => act(`/api/roster/swaps/${r.id}/decide`, { decision: 'Approved', note: null })}>Approve</button>}
+              {['Requested', 'Accepted'].includes(r.status) && (manager || r.toStaffId === me?.id) && <button className="btn btn-link" onClick={() => act(`/api/roster/swaps/${r.id}/decide`, { decision: 'Declined', note: null })}>Decline</button>}
+              {['Requested', 'Accepted'].includes(r.status) && r.fromStaffId === me?.id && <button className="btn btn-link" onClick={() => act(`/api/roster/swaps/${r.id}/decide`, { decision: 'Cancelled', note: null })}>Cancel</button>}
+            </td></tr>)}</tbody></table>)}
+    </div>
   );
 }

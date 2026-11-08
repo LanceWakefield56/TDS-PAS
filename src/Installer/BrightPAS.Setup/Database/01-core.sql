@@ -391,3 +391,30 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222713_SystemSettings'
+)
+BEGIN
+    CREATE TABLE [core].[Settings] (
+        [Key] nvarchar(60) NOT NULL,
+        [Value] nvarchar(500) NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        [UpdatedBy] nvarchar(100) NOT NULL,
+        CONSTRAINT [PK_Settings] PRIMARY KEY ([Key])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261107222713_SystemSettings'
+)
+BEGIN
+    INSERT INTO [core].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261107222713_SystemSettings', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

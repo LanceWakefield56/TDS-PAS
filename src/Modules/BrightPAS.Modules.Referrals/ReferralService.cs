@@ -361,6 +361,65 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         return sb.ToString();
     }
 
+    // ---------------------------------------------------------------- NBRS extract (0.10.0)
+
+    public sealed record NbrsCodes(string? AgencyCode, string? FacilityCode, string? SpecialtySurgical, string? SpecialtyEndoscopy);
+
+    public async Task<IReadOnlyList<string>> UpdateNbrsCodesAsync(NbrsCodes c, string user, CancellationToken ct = default)
+    {
+        static bool Ok(string? v) => v is null || (v.Length <= 10 && v.All(char.IsLetterOrDigit));
+        var codes = new[] { c.AgencyCode, c.FacilityCode, c.SpecialtySurgical, c.SpecialtyEndoscopy }.Select(Blank).ToArray();
+        if (!codes.All(Ok)) return ["Codes are letters and numbers only (up to 10)."];
+        var s = await SettingsAsync(ct);
+        s.NbrsAgencyCode = codes[0]?.ToUpperInvariant(); s.NbrsFacilityCode = codes[1]?.ToUpperInvariant(); s.NbrsSpecialtySurgical = codes[2]?.ToUpperInvariant(); s.NbrsSpecialtyEndoscopy = codes[3]?.ToUpperInvariant();
+        s.UpdatedAt = clock.GetUtcNow(); s.UpdatedBy = user;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Update", "ReferralSettings", "1", reason: $"NBRS codes: agency {s.NbrsAgencyCode}, facility {s.NbrsFacilityCode}, specialties {s.NbrsSpecialtySurgical}/{s.NbrsSpecialtyEndoscopy}", ct: ct);
+        return [];
+    }
+
+    public static string NbrsPriority(Priority p) => p switch { Priority.Urgent => "1", Priority.SemiUrgent => "2", _ => "3" };
+
+    public static string NbrsStatus(WaitlistStatus s) => s switch
+    {
+        WaitlistStatus.Waiting => "WAITING", WaitlistStatus.OnHold => "DEFERRED", WaitlistStatus.Booked => "BOOKED", WaitlistStatus.Completed => "TREATED", _ => "REMOVED"
+    };
+
+    /// <summary>
+    /// NBRS extract for publicly funded (Health NZ) waitlist entries open at any time in the period. One row per entry; rows that
+    /// cannot be reported (no NHI, codes not set) are listed as problems and left out. Layout follows the NBRS data items; check the
+    /// column order and code sets against the current Health NZ NBRS file specification before the first submission.
+    /// </summary>
+    public async Task<(string Csv, IReadOnlyList<string> Problems, int Rows)> NbrsExtractAsync(DateOnly from, DateOnly to, string user, CancellationToken ct = default)
+    {
+        var s = await SettingsAsync(ct);
+        var problems = new List<string>();
+        if (string.IsNullOrWhiteSpace(s.NbrsAgencyCode) || string.IsNullOrWhiteSpace(s.NbrsFacilityCode)) problems.Add("Set the NBRS agency and facility codes (Referral targets → NBRS codes).");
+        var entries = await db.Waitlist.AsNoTracking().Where(w => w.Funder == Funder.HealthNz && w.AddedOn <= to).ToListAsync(ct);
+        entries = entries.Where(w => w.Status is WaitlistStatus.Waiting or WaitlistStatus.OnHold or WaitlistStatus.Booked || DateOnly.FromDateTime(w.StatusAt.ToLocalTime().DateTime) >= from).ToList();
+        var people = await People(entries.Select(e => e.PatientId), ct);
+        var ethnic = await patients.Patients.AsNoTracking().Where(p => people.Keys.Contains(p.Id)).SelectMany(p => p.Ethnicities).ToListAsync(ct);
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("AGENCY_CODE,FACILITY_CODE,EVENT_LOCAL_ID,NHI,DATE_OF_BIRTH,SEX,ETHNICITY_1,ETHNICITY_2,ETHNICITY_3,HEALTH_SPECIALTY_CODE,PLANNED_PROCEDURE,CLINICAL_PRIORITY,DATE_ADDED,TARGET_DATE,STATUS,STATUS_DATE,DEFERRED_UNTIL,BOOKED_FOR,REMOVAL_REASON,SPECIALIST");
+        var rows = 0;
+        foreach (var w in entries.OrderBy(e => e.AddedOn))
+        {
+            var p = people.GetValueOrDefault(w.PatientId);
+            var spec = w.Service == ServiceType.Endoscopy ? s.NbrsSpecialtyEndoscopy : s.NbrsSpecialtySurgical;
+            if (p?.Nhi is null) { problems.Add($"{Name(p)} ({p?.Mrn}) – {w.Procedure}: no NHI recorded."); continue; }
+            if (string.IsNullOrWhiteSpace(spec)) { problems.Add($"{p.Nhi} – {w.Procedure}: no NBRS health specialty code for {w.Service}."); continue; }
+            var eth = ethnic.Where(e => e.PatientId == p.Id).OrderBy(e => e.Order).Select(e => e.Code).ToList();
+            var sex = p.Sex switch { BirthSex.Female => "F", BirthSex.Male => "M", BirthSex.Indeterminate => "I", _ => "U" };
+            sb.AppendLine(string.Join(",", new[] { s.NbrsAgencyCode ?? "", s.NbrsFacilityCode ?? "", w.Id.ToString("N")[..20].ToUpperInvariant(), p.Nhi, p.DateOfBirth.ToString("yyyyMMdd"), sex,
+                eth.ElementAtOrDefault(0) ?? "99", eth.ElementAtOrDefault(1) ?? "", eth.ElementAtOrDefault(2) ?? "", spec!, w.Procedure, NbrsPriority(w.Priority),
+                w.AddedOn.ToString("yyyyMMdd"), w.TargetDate.ToString("yyyyMMdd"), NbrsStatus(w.Status), w.StatusAt.ToLocalTime().ToString("yyyyMMdd"),
+                w.HoldUntil?.ToString("yyyyMMdd") ?? "", w.BookedFor?.ToString("yyyyMMdd") ?? "", w.RemovedReason ?? "", w.Specialist }.Select(Csv)));
+            rows++;
+        }
+        await audit.WriteAsync(user, "Export", "NbrsExtract", $"{from:yyyy-MM-dd}..{to:yyyy-MM-dd}", reason: $"{rows} rows, {problems.Count} problem(s)", ct: ct);
+        return (sb.ToString(), problems, rows);
+    }
+
     /// <summary>CSV cell: quoted, with spreadsheet formula injection neutralised.</summary>
     public static string Csv(string v)
     {

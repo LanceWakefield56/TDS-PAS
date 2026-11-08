@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -61,6 +61,8 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "reminders" => await RemindersChecksAsync(ct),
         "letters" => await LettersChecksAsync(ct),
         "rostering" => await RosterChecksAsync(ct),
+        "credentialing" => await CredentialingChecksAsync(ct),
+        "portal" => await PortalChecksAsync(ct),
         _ => []
     };
 
@@ -188,6 +190,42 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 linked > 0, $"{linked} of {staff} linked.", true, null, null, null, "Roster Manager (Roster › Staff)"),
             new("templates", "Regular shifts", "Set up each person's usual weekly shifts, then create the roster weeks ahead in one step.",
                 templates > 0, $"{templates} regular shift(s).", true, null, null, null, "Roster Manager (Roster › Regular shifts)"),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> CredentialingChecksAsync(CancellationToken ct)
+    {
+        var db = Svc<BrightPAS.Modules.Credentialing.CredDbContext>();
+        var clinicians = await core.Clinicians.CountAsync(c => c.IsActive, ct);
+        var withCreds = await db.Credentials.Where(c => c.IsActive).Select(c => c.ClinicianId).Distinct().CountAsync(ct);
+        var privs = await db.Privileges.Where(p => p.IsActive).Select(p => p.ClinicianId).Distinct().CountAsync(ct);
+        var managers = await UsersWithAsync(Permissions.CredentialingManage, ct);
+        return
+        [
+            new("clinicians", "Clinician register", "Credentials are recorded against the clinicians in Organisation set-up › Clinicians.",
+                clinicians > 0, $"{clinicians} active clinician(s).", false, "Open organisation set-up", "/admin/organisation", Permissions.OrganisationManage),
+            new("managers", "Who keeps credentials up to date", "Give the credentialing administrator a role with 'Record credentials' (System Administrator has it).",
+                managers > 0, $"{managers} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("credentials", "Record current credentials", "Enter each clinician's APC, indemnity and TDS approval with expiry dates. Bookings warn when one has expired.",
+                withCreds > 0, $"{withCreds} of {clinicians} clinician(s) have credentials recorded.", false, "Open credentialing", "/credentialing", Permissions.CredentialingManage),
+            new("privileges", "Scope of practice", "Record what each surgeon/endoscopist is approved to do at TDS (whole service or individual procedures).",
+                privs > 0, $"{privs} clinician(s) with scope recorded.", true, "Open credentialing", "/credentialing", Permissions.CredentialingManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> PortalChecksAsync(CancellationToken ct)
+    {
+        var linked = await core.Clinicians.CountAsync(c => c.IsActive && c.UserName != null, ct);
+        var delegates = await Svc<BrightPAS.Modules.Portal.PortalDbContext>().Delegates.CountAsync(ct);
+        var staff = await UsersWithAsync(Permissions.PortalManage, ct);
+        return
+        [
+            new("staff", "Who sends patient links and answers requests", "Reception has 'Send patient portal links' by default.",
+                staff > 0, $"{staff} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("specialists", "Specialists linked to their accounts", "In Organisation set-up › Clinicians, enter each specialist's BrightPAS user name. Give visiting specialists the 'Specialist (portal only)' role.",
+                linked > 0, $"{linked} clinician(s) linked to a user account.", true, "Open organisation set-up", "/admin/organisation", Permissions.OrganisationManage),
+            new("pas", "Practice assistants", "Link each PA to the specialist(s) they work for (User accounts › PA links).",
+                delegates > 0, $"{delegates} PA link(s).", true, "Open user accounts", "/admin/users", Permissions.UsersManage),
         ];
     }
 

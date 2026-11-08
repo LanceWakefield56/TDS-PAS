@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.10.0 – 2026-11-08 – **Patient records, portals, credentialing, secure exports**
+- **Secure exports (ADR 0018):** every export (waitlist, NBRS, payroll, transfer pack) is an AES-256 encrypted, password-protected ZIP by default. Administrators choose "required" (default) or "optional", the minimum password length, upload size and portal link lifetime – in the app (**Security & printers**), not at install. Every export is audited with whether it was protected.
+- **Documents & scanning:** attach PDF/JPEG/PNG/TIFF scans and photos to a patient (or booking). File type checked from the content, contents encrypted at rest (Data Protection), SHA-256 tamper check, every opening audited, removal needs a reason (soft delete). Phones/tablets can scan with the camera.
+- **Patient identity correction & merge:** name/DOB/sex/NHI corrections and duplicate merges need a second person (Privacy Officer; requester cannot approve). Merges move bookings, appointments, forms, invoices, lab results, referrals, waitlist, letters, SMS, portal items, documents and alerts to the kept record; re-runnable if interrupted. Merged records disappear from search.
+- **Wristbands & labels (Zebra ZPL):** network printers set up by the administrator (port 9100); wristband with name, DOB, NHI, MRN, Code 128 barcode and ALLERGY flag; patient labels; ZPL download for USB printers.
+- **Emergency transfer pack:** one page from every module (demographics, alerts, procedure, pre-admission flags, labs, GP, documents) with an SBAR handover; transfer recorded; print or protected export.
+- **Roster:** shift swaps and give-aways (colleague accepts, roster manager approves); payroll ID and Xero earnings rate per staff member; **Xero payroll timesheet export**.
+- **NBRS extract** for publicly funded waitlist entries, with Health NZ codes set by an administrator and a problem list (e.g. missing NHI). Layout to be confirmed against the current NBRS file specification.
+- **Credentialing module (new, licensed):** APC, vocational scope, indemnity, TDS approval and other credentials with expiry; scope of practice per service/procedure; status dashboard; **theatre bookings warn** when a credential has expired by the case date or the procedure is outside scope (accepted warnings are audited).
+- **Specialist, PA & patient portals module (now available):** read-only portal for specialists (linked by user name) and their PAs – own theatre cases, clinics, waitlist, patient documents; other patients refused. Patient portal: secret link + date of birth (5 tries then 30-minute lock), upcoming procedure and appointments, requests (change/cancel/question/update details) answered by staff, document upload (5 a day, 10 MB). New role **Specialist (portal only)**; Reception can send links.
+- **Staff offboarding:** one step switches off sign-in, removes future shifts (listed for cover), stops regular shifts, closes swaps/leave, deactivates roster and clinician entries, removes PA links – audited.
+- HealthLink/EDI stays an in-app administrator setting (Letter templates → HealthLink); Theatre 2 and extra rooms via Organisation set-up.
+- Self-test: "HTTPS-only site" accepts the port-80 redirect binding (0.9.2 fix carried forward); new module suites for Credentialing and Portals; patient suite covers documents, merges, printing and exports.
+- Installer: 12-credentialing.sql, 13-portal.sql; core, patients, roster and referrals schema updates. Guide: H13–H16.
+- Tests: 258 + browser walk-through on SQL Server (documents, correction, merge, transfer export, printers, credentialing, offboarding, specialist portal, patient portal, swaps, payroll export, NBRS).
+
+## 0.9.2 – 2026-11-08 – Self-test fix
+- Self-test IIS "HTTPS-only site" accepts the port-80 redirect binding (was a false FAIL). No app changes.
+
 ## 0.9.1 – 2026-11-08 – Always open the secure page
 - Typing `BRIGHTPAS-SRV` or `http://BRIGHTPAS-SRV` now lands on `https://BRIGHTPAS-SRV` instead of "can't reach this page". Setup binds port 80 to the BrightPAS site, but BrightPAS answers plain HTTP **only** with a permanent redirect to https:// (GET/HEAD) and refuses everything else (HTTP 403 "https_required") – no page, sign-in or patient data ever travels unencrypted. HSTS then keeps the browser on https://. `--no-http-redirect` keeps port 80 closed; if another IIS site already uses port 80, Setup leaves it alone and says so.
 - Replaced ASP.NET's UseHttpsRedirection (which silently does nothing under IIS when it cannot find the HTTPS port) with an explicit HTTPS-only rule; Setup writes `Https:Port`.

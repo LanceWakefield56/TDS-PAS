@@ -44,12 +44,17 @@ Status: ☐ to do · ◐ in progress · ☑ done
 ## Increment 0.9.0 (done)
 - ☑ Booking calendar, clinic appointments, TeamUp booking fields; Rostering module (ADR 0017)
 
+## Increment 0.10.0 (done)
+- ☑ Secure exports (AES-256 ZIP, admin policy), security settings in-app (ADR 0018)
+- ☑ Documents & scanning; identity corrections + merge (second-person check); wristbands & labels (Zebra); emergency transfer pack
+- ☑ Roster swaps + Xero payroll export; NBRS extract; staff offboarding
+- ☑ Credentialing module; Specialist/PA & patient portals module
+
 ## Next
-- ☐ Roster: shift swaps, Xero payroll export; booking attachments (with document scanning)
+- ☐ Password-protected PDF letters/reports (in addition to encrypted ZIP); OCR of scanned documents
+- ☐ Patient portal: SMS the link automatically (Reminders), portal for pre-admission form and estimates
+- ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)
 - ☐ HealthLink: confirm message profile + EDI accounts with HealthLink; live test via the messaging client
-- ☐ Patient identity corrections (name/DOB/NHI) with second-person check; patient merge
-- ☐ Wristbands and labels (Zebra); document scanning with OCR; specialist/PA portal; patient portal; credentialing; basic emergency transfer pack
-- ☐ NBRS extract from the waitlist (Health NZ file specification) for publicly funded patients
 - ☐ Sandbox: verify reminders UI end-to-end on Windows; live Modica test (needs Modica account + DMZ callback path)
 - ☐ Modica REST v2 gateway; SMS delivery dashboards; te reo Māori templates (TDS to write/review)
 - ☐ Security: dependency vulnerability scan + SBOM in the build; DAST (OWASP ZAP baseline) against the sandbox; TDE + backups (spec 4.6)

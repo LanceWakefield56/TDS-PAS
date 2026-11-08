@@ -13,5 +13,8 @@ public sealed class PatientsModule : IPasModule
     {
         services.AddDbContext<PatientsDbContext>((sp, o) => sp.GetRequiredService<PasDatabaseOptions>().Configure(o, PatientsDbContext.Schema));
         services.AddScoped<PatientService>();
+        services.AddScoped<DocumentService>();
+        services.AddScoped<IdentityService>();
+        services.AddScoped<LabelService>();
     }
 }

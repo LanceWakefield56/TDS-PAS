@@ -52,13 +52,20 @@ public static class Permissions
     // Rostering module
     public const string RosterView = "roster.view";
     public const string RosterManage = "roster.manage";
+    // Credentialing module
+    public const string CredentialingView = "credentialing.view";
+    public const string CredentialingManage = "credentialing.manage";
+    // Portals module
+    public const string PortalSpecialist = "portal.specialist";
+    public const string PortalManage = "portal.manage";
 
     public static readonly IReadOnlyList<string> All =
     [
         PatientView, PatientRegister, PatientEdit, PatientMerge, PatientAlertsManage, BreakGlass, BreakGlassReview,
         AuditView, UsersManage, OrganisationManage, ModulesManage, IntegrationManage,
         LabsView, LabsAcknowledge, LabsMatch, TheatreView, TheatreBook, TheatreManage, FormsSend, FormsTriage,
-        BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage
+        BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage,
+        CredentialingView, CredentialingManage, PortalSpecialist, PortalManage
     ];
 }
 
@@ -76,6 +83,7 @@ public static class DefaultRoles
     public const string PracticeAssistant = "Practice Assistant (PA)";
     public const string IntegrationAdministrator = "Integration Administrator";
     public const string RosterManager = "Roster Manager";
+    public const string SpecialistPortal = "Specialist (portal only)";
 
     private static readonly string[] Clinical =
         [Permissions.PatientView, Permissions.PatientEdit, Permissions.PatientAlertsManage, Permissions.BreakGlass,
@@ -86,28 +94,30 @@ public static class DefaultRoles
         {
             [SystemAdministrator] = ("Manages users, organisation set-up and modules. No routine clinical access.",
                 [Permissions.UsersManage, Permissions.OrganisationManage, Permissions.ModulesManage, Permissions.TheatreManage, Permissions.RemindersView, Permissions.RemindersManage,
-                 Permissions.LettersTemplates]),
-            [PrivacyOfficer] = ("Reviews break-glass use and audit reports; handles privacy requests.",
-                [Permissions.AuditView, Permissions.BreakGlassReview, Permissions.PatientView]),
+                 Permissions.LettersTemplates, Permissions.CredentialingView, Permissions.CredentialingManage]),
+            [PrivacyOfficer] = ("Reviews break-glass use and audit reports; handles privacy requests; second-person check for identity corrections and merges.",
+                [Permissions.AuditView, Permissions.BreakGlassReview, Permissions.PatientView, Permissions.PatientMerge]),
             [Reception] = ("Registers patients and manages bookings.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.PatientEdit, Permissions.TheatreView, Permissions.TheatreBook,
                  Permissions.TheatreManage, Permissions.FormsSend, Permissions.BillingView, Permissions.BillingManage, Permissions.LabsMatch, Permissions.RemindersView,
-                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView]),
+                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.PortalManage]),
             [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.PatientRegister, Permissions.TheatreBook, Permissions.FormsSend,
                  Permissions.FormsTriage, Permissions.LabsMatch, Permissions.RemindersView, Permissions.ReferralsView, Permissions.ReferralsManage,
                  Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView]),
-            [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsTriage, Permissions.ReferralsView, Permissions.LettersView, Permissions.RosterView]),
+            [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsTriage, Permissions.ReferralsView, Permissions.LettersView, Permissions.RosterView, Permissions.PortalSpecialist]),
             [Surgeon] = ("Clinical access for surgeons and endoscopists.", [.. Clinical, Permissions.TheatreBook, Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.ReferralsTriage,
-                 Permissions.LettersView, Permissions.LettersWrite]),
+                 Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",
                 [Permissions.PatientView, Permissions.RosterView]),
             [Finance] = ("Billing, invoices and payments.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees]),
             [PracticeAssistant] = ("Specialist's practice assistant: bookings for their specialist's patients.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.TheatreView, Permissions.TheatreBook, Permissions.FormsSend, Permissions.LabsView,
-                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite]),
+                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist]),
             [IntegrationAdministrator] = ("Manages interfaces, message profiles and translation tables.",
                 [Permissions.IntegrationManage, Permissions.LettersView]),
             [RosterManager] = ("Writes the staff roster and approves leave (no patient access).",
                 [Permissions.RosterView, Permissions.RosterManage]),
+            [SpecialistPortal] = ("Visiting specialist or PA: sees only their own TDS patients' lists, appointments, waitlist and documents (read-only).",
+                [Permissions.PortalSpecialist]),
         };
 }

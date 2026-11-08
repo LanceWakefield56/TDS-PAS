@@ -18,6 +18,9 @@ public static class ReferralsEndpoints
     public sealed record BookRequest(Guid SessionId, bool AcceptWarnings);
     public sealed record TargetsRequest(int UrgentDays, int SemiUrgentDays, int RoutineDays);
 
+    public sealed record ExportRequest(string? View, BrightPAS.Web.Security.ExportOptions? Export);
+    public sealed record NbrsRequest(DateOnly From, DateOnly To, BrightPAS.Web.Security.ExportOptions? Export);
+
     public static void MapReferralsEndpoints(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/referrals").RequireModule(ReferralsModule.Id);
@@ -76,11 +79,34 @@ public static class ReferralsEndpoints
             var res = await svc.BookAsync(id, r.SessionId, r.AcceptWarnings, Me(u));
             return res.Booking is not null ? Results.Ok(new { bookingId = res.Booking.Id, res.Warnings }) : Results.BadRequest(new { errors = res.Errors, warnings = res.Warnings });
         }).RequireAuthorization(Permissions.ReferralsManage);
-        w.MapGet("/export", async (string? view, ClaimsPrincipal u, ReferralService svc, TimeProvider clock) =>
+        w.MapPost("/export", async (ExportRequest r, ClaimsPrincipal u, ReferralService svc, BrightPAS.Web.Security.SecureExportService export) =>
         {
-            var csv = await svc.ExportCsvAsync(view ?? "all-open", Me(u));
-            return Results.File(System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv)).ToArray(), "text/csv",
-                $"BrightPAS-waitlist-{clock.GetLocalNow():yyyyMMdd-HHmm}.csv");
+            var csv = await svc.ExportCsvAsync(r.View ?? "all-open", Me(u));
+            return await export.ExportAsync(r.Export, "BrightPAS-waitlist", [new("waitlist.csv", BrightPAS.Web.Security.SecureExportService.Utf8Bom(csv))], Me(u), "Waitlist");
+        }).RequireAuthorization(Permissions.ReferralsManage);
+        // NBRS extract (Health NZ, publicly funded patients).
+        w.MapGet("/nbrs/codes", async (ReferralService svc) =>
+        {
+            var s = await svc.SettingsAsync();
+            return Results.Ok(new { agencyCode = s.NbrsAgencyCode, facilityCode = s.NbrsFacilityCode, specialtySurgical = s.NbrsSpecialtySurgical, specialtyEndoscopy = s.NbrsSpecialtyEndoscopy });
+        }).RequireAuthorization(Permissions.ReferralsManage);
+        w.MapPut("/nbrs/codes", async (ReferralService.NbrsCodes c, ClaimsPrincipal u, ReferralService svc) =>
+        {
+            var e = await svc.UpdateNbrsCodesAsync(c, Me(u));
+            return e.Count == 0 ? Results.Ok() : Results.BadRequest(new { errors = e });
+        }).RequireAuthorization(Permissions.ReferralsTriage);
+        w.MapPost("/nbrs/check", async (NbrsRequest r, ClaimsPrincipal u, ReferralService svc) =>
+        {
+            var (_, problems, rows) = await svc.NbrsExtractAsync(r.From, r.To, Me(u));
+            return Results.Ok(new { rows, problems });
+        }).RequireAuthorization(Permissions.ReferralsManage);
+        w.MapPost("/nbrs/export", async (NbrsRequest r, ClaimsPrincipal u, ReferralService svc, BrightPAS.Web.Security.SecureExportService export) =>
+        {
+            if (r.To < r.From) return Results.BadRequest(new { errors = new[] { "The period must end after it starts." } });
+            var (csv, problems, _) = await svc.NbrsExtractAsync(r.From, r.To, Me(u));
+            var files = new List<BrightPAS.Web.Security.SecureExportService.ExportFile> { new("nbrs-extract.csv", System.Text.Encoding.UTF8.GetBytes(csv)) };
+            if (problems.Count > 0) files.Add(new("nbrs-problems.txt", System.Text.Encoding.UTF8.GetBytes(string.Join(Environment.NewLine, problems))));
+            return await export.ExportAsync(r.Export, $"BrightPAS-NBRS-{r.From:yyyyMMdd}-{r.To:yyyyMMdd}", files, Me(u), "NbrsExtract");
         }).RequireAuthorization(Permissions.ReferralsManage);
     }
 }

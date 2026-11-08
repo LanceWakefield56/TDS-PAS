@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
 import { useEffect, useState } from 'react';
-import { api, ApiError } from '../api';
+import { api, ApiError, errText, formatDate, todayIso } from '../api';
 import { useSession } from '../App';
 
 interface User { id: string; userName: string; displayName: string; isActive: boolean; mfaEnabled: boolean; lockedOut: boolean; createdAt: string; lastSignInAt: string | null; roles: string[] }
@@ -15,6 +15,7 @@ export default function AdminUsers() {
   const [editing, setEditing] = useState<string | null>(null);
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [offboard, setOffboard] = useState<User | null>(null);
 
   const load = async () => { setUsers(await api<User[]>('/api/admin/users')); };
   useEffect(() => { load(); api<Role[]>('/api/admin/users/roles').then(setRoles); }, []);
@@ -71,6 +72,7 @@ export default function AdminUsers() {
         </form>
       )}
 
+      {offboard && <Offboard user={offboard} onDone={(t) => { setOffboard(null); if (t) setMessage({ ok: true, text: t }); load(); }} />}
       <section className="card">
         <table className="results compact">
           <thead><tr><th>Name</th><th>Username</th><th>Roles</th><th>Status</th><th>Last sign-in</th><th>Actions</th></tr></thead>
@@ -98,6 +100,7 @@ export default function AdminUsers() {
                   {u.lockedOut && <button className="btn btn-link" onClick={() => action(u, 'unlock', `${u.userName} unlocked.`)}>Unlock</button>}
                   <button className="btn btn-link" onClick={() => resetPassword(u)}>Reset password</button>
                   {u.mfaEnabled && <button className="btn btn-link" onClick={() => action(u, 'reset-mfa', `${u.userName} will set up their phone app again at next sign-in.`, `Reset two-step sign-in for ${u.displayName}? Use this if they lost their phone.`)}>Reset phone app</button>}
+                  {u.userName !== me?.userName && <button className="btn btn-link danger" onClick={() => setOffboard(u)}>Staff leaving…</button>}
                   {u.userName !== me?.userName && (u.isActive
                     ? <button className="btn btn-link danger" onClick={() => action(u, 'deactivate', `${u.userName} deactivated.`, `Deactivate ${u.displayName}? They will be signed out and cannot sign in.`)}>Deactivate</button>
                     : <button className="btn btn-link" onClick={() => action(u, 'reactivate', `${u.userName} reactivated.`)}>Reactivate</button>)}
@@ -108,5 +111,36 @@ export default function AdminUsers() {
         </table>
       </section>
     </div>
+  );
+}
+
+/** Staff leaving: switch off sign-in, roster, clinician entry and portal links in one step (audited). */
+function Offboard({ user, onDone }: { user: { id: string; displayName: string }; onDone: (msg: string | null) => void }) {
+  const [p, setP] = useState<any>(null);
+  const [f, setF] = useState({ deactivateAccount: true, endRoster: true, deactivateClinician: true, removePortalLinks: true, lastDay: todayIso(), reason: '' });
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { api(`/api/admin/users/${user.id}/offboard`).then(setP).catch((e) => setError(errText(e))); }, [user.id]);
+  const go = async () => {
+    setError(null);
+    try { const r = await api(`/api/admin/users/${user.id}/offboard`, { body: f }); onDone(`${user.displayName}: ${r.done.join(' ')}`); } catch (x: any) { setError(x?.body?.errors?.join(' ') ?? errText(x)); }
+  };
+  const c = (k: keyof typeof f, t: string) => <label className="check" key={k}><input type="checkbox" checked={f[k] as boolean} onChange={(e) => setF({ ...f, [k]: e.target.checked })} /> {t}</label>;
+  return (
+    <section className="card stack">
+      <h2>Staff leaving – {user.displayName}</h2>
+      {!p ? <p>Loading…</p> : <>
+        <p className="small">Roles: {p.roles.join(', ') || 'none'} · Roster: {p.staff.length ? p.staff.map((s: any) => s.name).join(', ') : 'not on roster'} · Future shifts: {p.futureShifts.length}
+          {p.futureShifts.length > 0 && ` (${p.futureShifts.slice(0, 6).map((s: any) => formatDate(s.date)).join(', ')}${p.futureShifts.length > 6 ? '…' : ''})`} · Clinician entry: {p.clinicians.map((x: any) => x.name).join(', ') || 'none'} · PA links: {p.portalLinks}</p>
+        <label>Last working day<input type="date" value={f.lastDay} onChange={(e) => setF({ ...f, lastDay: e.target.value })} /></label>
+        {c('deactivateAccount', 'Switch off sign-in now and end all sessions')}
+        {c('endRoster', 'Remove shifts after the last day (listed for cover), stop regular shifts, close open swaps/leave, set roster record inactive')}
+        {c('deactivateClinician', 'Set their clinician register entry inactive')}
+        {c('removePortalLinks', 'Remove PA ↔ specialist portal links')}
+        <label>Note (optional)<input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="e.g. Resigned" /></label>
+        <p className="hint">Records they created stay as they are (audit trail). Nothing is deleted except future shifts.</p>
+      </>}
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="row"><button className="btn btn-warn" disabled={!p} onClick={go}>Offboard</button><button className="btn btn-light" onClick={() => onDone(null)}>Cancel</button></div>
+    </section>
   );
 }

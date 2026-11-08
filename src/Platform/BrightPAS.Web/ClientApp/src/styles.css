@@ -258,3 +258,14 @@ textarea.short { min-height: 80px; }
 .cal-item > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .cal-item.short { flex-direction: row; align-items: center; gap: .3rem; white-space: nowrap; padding-top: 0; padding-bottom: 0; }
 .cal-item.short .cal-sub { display: none; }
+
+/* 0.10.0 */
+.pill.bad { background: #fde2e1; color: #8a1c14; }
+input.narrow { width: 6rem; }
+tr.selected td { background: #eef5ff; }
+.results tr[class] td, .results tbody tr { cursor: default; }
+.file-btn { cursor: pointer; display: inline-flex; align-items: center; }
+.export-box { max-width: 40rem; }
+.portal-page { max-width: 46rem; margin: 0 auto; padding: 1rem; }
+.portal-page h1 { font-size: 1.5rem; }
+@media print { .transfer-pack .print-sheet { box-shadow: none; border: none; } .transfer-pack .print-sheet h3 { margin-top: .6rem; } }

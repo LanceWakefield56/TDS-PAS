@@ -42,9 +42,17 @@ builder.Services.AddPasIdentity(o => UseSql(o, PasIdentityDbContext.Schema));
 builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs.LabsModule(), new BrightPAS.Modules.Theatre.TheatreModule(),
     new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule(),
     new BrightPAS.Modules.Referrals.ReferralsModule(), new BrightPAS.Modules.Letters.LettersModule(),
-    new BrightPAS.Modules.Rostering.RosteringModule()]);
+    new BrightPAS.Modules.Rostering.RosteringModule(), new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule()]);
 builder.Services.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
 builder.Services.AddScoped<RoleAdminService>();
+builder.Services.AddScoped<BrightPAS.Core.Setup.SettingsService>();
+builder.Services.AddScoped<BrightPAS.Web.Security.SecureExportService>();
+builder.Services.AddSingleton<BrightPAS.Modules.Patients.IDocumentCipher, BrightPAS.Web.Security.DataProtectionDocumentCipher>();
+builder.Services.AddScoped<BrightPAS.Web.Integration.OffboardingService>();
+foreach (var t in new[] { typeof(BrightPAS.Web.Integration.TheatreMerge), typeof(BrightPAS.Web.Integration.FormsMerge), typeof(BrightPAS.Web.Integration.BillingMerge),
+    typeof(BrightPAS.Web.Integration.LabsMerge), typeof(BrightPAS.Web.Integration.ReferralsMerge), typeof(BrightPAS.Web.Integration.LettersMerge),
+    typeof(BrightPAS.Web.Integration.RemindersMerge), typeof(BrightPAS.Web.Integration.PortalMerge) })
+    builder.Services.AddScoped(typeof(BrightPAS.Modules.Patients.IPatientMergeParticipant), t);
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.HealthLinkWorker>();
 builder.Services.AddScoped<BrightPAS.Web.Licensing.ModuleSetupService>();
 builder.Services.AddSingleton<BrightPAS.Modules.Reminders.ISecretProtector, BrightPAS.Web.Integration.DataProtectionSecretProtector>();
@@ -66,6 +74,9 @@ builder.Services.AddRateLimiter(o =>
     // SMS delivery receipts can never lock patients out of their forms (and vice versa).
     o.AddPolicy("patient-links", ctx => RateLimitPartition.GetFixedWindowLimiter("links:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 40, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // Patient portal links: per client IP, separate from questionnaire links.
+    o.AddPolicy("patient-portal", ctx => RateLimitPartition.GetFixedWindowLimiter("portal:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     // SMS vendor callbacks (replies and delivery receipts): per client IP, sized for vendor bursts.
     o.AddPolicy("vendor-callbacks", ctx => RateLimitPartition.GetFixedWindowLimiter("hooks:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
@@ -142,6 +153,8 @@ app.MapRemindersEndpoints();
 app.MapReferralsEndpoints();
 app.MapLettersEndpoints();
 app.MapRosterEndpoints();
+app.MapPatientRecordsEndpoints();
+app.MapPortalEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.
 app.MapFallback("/api/{**rest}", () => Results.NotFound()).AllowAnonymous();

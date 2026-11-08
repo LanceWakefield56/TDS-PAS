@@ -255,3 +255,49 @@ Regular shift: StaffId, DayOfWeek, AllDay, Start, End, BreakMinutes, Area, Every
 
 ## roster.Leave
 StaffId, From, To, Type (Annual/Sick/Training/Parental/Other), Status (Requested/Approved/Declined/Cancelled), Note, RequestedAt/By, DecidedAt/By.
+
+## 0.10.0 additions
+
+### core.Settings
+| Column | Type | Null | Description | Sensitivity |
+|---|---|---|---|---|
+| Key | nvarchar(60) | No | PK, e.g. export.protection, export.minPasswordLength, documents.maxUploadMegabytes, portal.linkDays | P |
+| Value | nvarchar(500) | No | Setting value | P |
+| UpdatedAt / UpdatedBy | datetimeoffset / nvarchar(100) | No | Last change | I |
+
+### patients.Patients (new column)
+| MergedIntoId | uniqueidentifier | Yes | Survivor record when this record was merged; hidden from search | R |
+
+### patients.Documents
+| Column | Type | Null | Description | Sensitivity |
+|---|---|---|---|---|
+| Id, PatientId, BookingId | uniqueidentifier | No/No/Yes | Keys | R |
+| Category / Source | nvarchar(20)/(10) | No | Referral…Other / Upload, Scan, Portal | I |
+| Title, FileName, ContentType, SizeBytes | | No | Description of the file | R |
+| Sha256 | nvarchar(64) | No | Hash of the original file (tamper check) | I |
+| Content | varbinary(max) | No | Encrypted contents (Data Protection) | R |
+| UploadedAt/By, IsDeleted, DeletedReason/By/At | | | Audit fields; removal is a soft delete | I |
+
+### patients.Corrections
+Requested identity change: PatientId, New* fields, ClearNhi, Before (summary), Reason, Evidence, Status (Pending/Approved/Rejected/Cancelled), RequestedAt/By, DecidedAt/By, DecisionNote. **R**
+
+### patients.Merges
+SurvivorId, DuplicateId, DuplicateSummary, Reason, Status, RequestedAt/By, DecidedAt/By, DecisionNote, CompletedAt, Result (what moved). **R**
+
+### patients.Printers
+Name, Kind (Wristband/Label), Host, Port, Dpi, WidthMm, LengthMm, IsDefault, IsActive. **P**
+
+### patients.Transfers
+PatientId, BookingId, ReceivingFacility, Reason, Situation, Background, Assessment, Recommendation, Escort, TransportMode, CreatedAt/By. **R**
+
+### roster.Staff (new columns) / roster.Swaps
+PayrollCode, EarningsRate (I). Swaps: ShiftId, FromStaffId, ToStaffId, OfferedShiftId, Status (Requested/Accepted/Approved/Declined/Cancelled), Note, RequestedAt/By, AcceptedAt/By, DecidedAt/By, DecisionNote (I).
+
+### referrals.Settings (new columns)
+NbrsAgencyCode, NbrsFacilityCode, NbrsSpecialtySurgical, NbrsSpecialtyEndoscopy (P).
+
+### cred.Credentials / cred.Privileges / cred.Settings
+Credentials: ClinicianId, Type (Apc, VocationalScope, Indemnity, CredentialingApproval, Resuscitation, Other), Reference, Issuer, IssuedOn, ExpiresOn, Notes, VerifiedBy/At, IsActive (I). Privileges: ClinicianId, Service, ProcedureCode (null = whole service), ApprovedOn, ReviewDue, Conditions, ApprovedBy, IsActive (I). Settings: RequiredTypes, WarningDays, CheckPrivileges (P).
+
+### portal.Access / portal.Requests / portal.Delegates
+Access: PatientId, TokenHash (SHA-256; token never stored), CreatedAt/By, ExpiresAt, RevokedAt/By, FailedAttempts, LockedUntil, LastUsedAt, UploadsToday, UploadDay (R). Requests: PatientId, AccessId, Kind, BookingId, Message, Status, CreatedAt, HandledAt/By, Response (R). Delegates: UserName (PA), ClinicianId, CreatedAt/By (I).

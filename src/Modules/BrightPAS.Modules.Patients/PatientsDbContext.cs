@@ -11,6 +11,11 @@ public sealed class PatientsDbContext(DbContextOptions<PatientsDbContext> option
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<PatientAlert> Alerts => Set<PatientAlert>();
     public DbSet<MrnCounter> MrnCounter => Set<MrnCounter>();
+    public DbSet<PatientDocument> Documents => Set<PatientDocument>();
+    public DbSet<IdentityCorrection> Corrections => Set<IdentityCorrection>();
+    public DbSet<PatientMerge> Merges => Set<PatientMerge>();
+    public DbSet<LabelPrinter> Printers => Set<LabelPrinter>();
+    public DbSet<TransferRecord> Transfers => Set<TransferRecord>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -61,6 +66,66 @@ public sealed class PatientsDbContext(DbContextOptions<PatientsDbContext> option
             e.Property(x => x.Severity).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Description).HasMaxLength(500);
             e.Property(x => x.RecordedBy).HasMaxLength(100);
+        });
+        b.Entity<PatientDocument>(e =>
+        {
+            e.Property(x => x.Category).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Source).HasConversion<string>().HasMaxLength(10);
+            e.Property(x => x.Title).HasMaxLength(150);
+            e.Property(x => x.FileName).HasMaxLength(130);
+            e.Property(x => x.ContentType).HasMaxLength(40);
+            e.Property(x => x.Sha256).HasMaxLength(64);
+            e.Property(x => x.UploadedBy).HasMaxLength(100);
+            e.Property(x => x.DeletedReason).HasMaxLength(300);
+            e.Property(x => x.DeletedBy).HasMaxLength(100);
+            e.HasIndex(x => new { x.PatientId, x.IsDeleted });
+            e.HasIndex(x => x.BookingId);
+        });
+        b.Entity<IdentityCorrection>(e =>
+        {
+            e.Property(x => x.NewFamilyName).HasMaxLength(100);
+            e.Property(x => x.NewGivenNames).HasMaxLength(150);
+            e.Property(x => x.NewSex).HasConversion<string>().HasMaxLength(15);
+            e.Property(x => x.NewNhi).HasMaxLength(7);
+            e.Property(x => x.Before).HasMaxLength(400);
+            e.Property(x => x.Reason).HasMaxLength(500);
+            e.Property(x => x.Evidence).HasMaxLength(200);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(15);
+            e.Property(x => x.RequestedBy).HasMaxLength(100);
+            e.Property(x => x.DecidedBy).HasMaxLength(100);
+            e.Property(x => x.DecisionNote).HasMaxLength(300);
+            e.HasIndex(x => new { x.Status, x.PatientId });
+        });
+        b.Entity<PatientMerge>(e =>
+        {
+            e.Property(x => x.DuplicateSummary).HasMaxLength(400);
+            e.Property(x => x.Reason).HasMaxLength(500);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(15);
+            e.Property(x => x.RequestedBy).HasMaxLength(100);
+            e.Property(x => x.DecidedBy).HasMaxLength(100);
+            e.Property(x => x.DecisionNote).HasMaxLength(300);
+            e.Property(x => x.Result).HasMaxLength(1000);
+            e.HasIndex(x => x.Status);
+        });
+        b.Entity<LabelPrinter>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(80);
+            e.HasIndex(x => x.Name).IsUnique();
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(15);
+            e.Property(x => x.Host).HasMaxLength(100);
+        });
+        b.Entity<TransferRecord>(e =>
+        {
+            e.Property(x => x.ReceivingFacility).HasMaxLength(150);
+            e.Property(x => x.Reason).HasMaxLength(500);
+            e.Property(x => x.Situation).HasMaxLength(1000);
+            e.Property(x => x.Background).HasMaxLength(2000);
+            e.Property(x => x.Assessment).HasMaxLength(2000);
+            e.Property(x => x.Recommendation).HasMaxLength(1000);
+            e.Property(x => x.Escort).HasMaxLength(150);
+            e.Property(x => x.TransportMode).HasMaxLength(50);
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.HasIndex(x => x.PatientId);
         });
         b.Entity<MrnCounter>(e =>
         {

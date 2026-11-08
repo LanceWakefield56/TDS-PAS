@@ -82,7 +82,8 @@ public static class ProductModules
         new("endoscopy", "Endoscopy", "Endoscopy reporting and scope tracking (replaces Endobase).", false),
         new("messaging", "Messaging & workflow engine", "HL7/FHIR/DICOM interfaces and workflows.", false),
         new("reminders", "SMS & email reminders", "Booking confirmations, reminders, questionnaire links and two-way SMS replies.", true),
-        new("portal", "Specialist & PA portal", "Portal for specialists and practice assistants.", false),
+        new("portal", "Specialist, PA & patient portals", "Read-only portal for specialists and their practice assistants; secure patient portal (appointments, requests, document upload).", true),
+        new("credentialing", "Credentialing", "Clinician credentials and scope of practice, expiry alerts, and checks when booking theatre.", true),
         new("letters", "Letters & documents", "Letter templates, letters to patients, GPs and referrers, printing, and GP messaging via HealthLink.", true),
         new("reporting", "Coding & statutory reporting", "Clinical coding, ACC, Health NZ and MoH reporting.", false),
     ];

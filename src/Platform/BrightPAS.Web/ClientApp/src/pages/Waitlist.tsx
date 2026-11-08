@@ -1,3 +1,4 @@
+import ExportButton from '../components/ExportButton';
 import { Fragment, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { addDays, api, errText, formatDate, PatientSummary, Perm, todayIso } from '../api';
@@ -52,7 +53,8 @@ export default function Waitlist() {
         <div className="page-head"><h1>Waitlist</h1><p className="muted">Patients accepted for a procedure, oldest target first. Book them onto a theatre list from here.</p></div>
         <div className="row">
           <Link className="btn btn-light" to="/referrals">Referrals{summary?.toTriage ? <span className="count">{summary.toTriage}</span> : null}</Link>
-          {can(Perm.ReferralsManage) && <a className="btn btn-light" href={`/api/waitlist/export?view=${view === 'waiting' ? 'all-open' : view}`} download>Export (CSV)</a>}
+          {can(Perm.ReferralsManage) && <ExportButton label="Export (CSV)" path="/api/waitlist/export" body={{ view: view === 'waiting' ? 'all-open' : view }} />}
+          {can(Perm.ReferralsManage) && <Link className="btn btn-light" to="/waitlist/nbrs">NBRS extract</Link>}
           {can(Perm.ReferralsManage) && canWrite && !adding && <button className="btn btn-primary" onClick={() => setAdding(true)}>Add to waitlist</button>}
         </div>
       </div>
