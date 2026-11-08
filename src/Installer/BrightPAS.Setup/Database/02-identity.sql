@@ -241,3 +241,24 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [identity].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040601_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_BreakGlassGrants_PatientId] ON [identity].[BreakGlassGrants] ([PatientId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [identity].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040601_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [identity].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040601_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

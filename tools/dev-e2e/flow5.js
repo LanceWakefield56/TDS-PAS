@@ -63,7 +63,7 @@ await shot(rp,'02-transfer-pack');
 const pp=await priv.newPage();watch(pp,'priv');await pp.goto(BASE+'/admin/identity');await pp.waitForSelector('h2:has-text("Corrections")');await shot(pp,'03-identity-queue');
 await pp.click('button:has-text("Approve") >> nth=0');await pp.waitForTimeout(800);await pp.click('button:has-text("Approve and merge")');await pp.waitForSelector('.ok-text');await shot(pp,'04-identity-done');
 // ---------- admin: security & printers, credentialing, offboarding
-const ap=await admin.newPage();watch(ap,'admin');await ap.goto(BASE+'/admin/security');await ap.waitForSelector('h2:has-text("Zebra")');
+const ap=await admin.newPage();watch(ap,'admin');await ap.goto(BASE+'/admin/security');await ap.waitForSelector('h2:has-text("Label and wristband printers")');
 await ap.click('button:has-text("Add wristband printer")');await ap.locator('.card.subtle label:has-text("Name") input').first().fill('Admissions wristbands');await ap.locator('.card.subtle label:has-text("IP address") input').fill('192.168.1.60');
 await ap.click('.card.subtle button:has-text("Save")');await ap.waitForTimeout(600);await shot(ap,'05-security-printers');
 await ap.goto(BASE+'/credentialing');await ap.waitForSelector('table');await ap.click('button:has-text("Dr Ben Hall")');await ap.waitForSelector('h3:has-text("Scope")');await shot(ap,'06-credentialing');
@@ -94,4 +94,18 @@ await mgp.goto(BASE+'/roster?tab=hours');await mgp.waitForSelector('table');awai
 const [dl2]=await Promise.all([mgp.waitForEvent('download'),mgp.click('.export-box button:has-text("Download")')]);await dl2.saveAs('/tmp/e5-payroll.zip');await shot(mgp,'13-payroll');
 // ---------- NBRS
 await rq.goto(BASE+'/waitlist/nbrs');await rq.waitForSelector('h2:has-text("Extract")');await rq.locator('label:has-text("From") input').fill(add(t,-30));await rq.locator('label:has-text("To") input').fill(t);await rq.click('button:has-text("Check")');await rq.waitForTimeout(800);await shot(rq,'14-nbrs');
+
+// ---------- 0.10.1: forms rows, booking checks, DYMO labels, 7-Zip link
+await post(admin.request,'/api/admin/modules/forms/setup/complete',{});
+const f=ok(await post(rec.request,'/api/forms',{patientId:p3,bookingId:null,sendSms:false,sendEmail:false}),'form').json;const tok=f.link.split('/q/')[1];
+const pubR=pub.request;ok(await post(pubR,`/api/q/${tok}/open`,{dateOfBirth:'1980-02-02'}),'qopen');
+ok(await post(pubR,`/api/q/${tok}/save`,{dateOfBirth:'1980-02-02',answers:{height_cm:'165',weight_kg:'70'}}),'qsave');
+ok(await post(pubR,`/api/q/${tok}/save`,{dateOfBirth:'1980-02-02',answers:{height_cm:'166'}}),'qsave2');
+const fl=(await get(rec,'/api/forms?view=all&patientId='+p3)).json;console.log('form status',fl[0]?.status);
+const bk=(await get(rec,'/api/theatre/patients/'+p1)).json[0];
+ok(await rec.request.put(BASE+`/api/theatre/bookings/${bk.id}/details`,{headers:H,data:{isTentative:false,payment:'Insurer',depositNote:null,checklist:['consent','form'],billedExternally:false,theatreIn:null,theatreOut:null,traysNeeded:null,traysUsed:null,loanItems:null,scopeId:null,notes:null}}).then(async r=>({status:r.status(),json:await r.text()})),'details');
+ok(await rec.request.put(BASE+`/api/theatre/bookings/${bk.id}/details`,{headers:H,data:{isTentative:false,payment:'Insurer',depositNote:null,checklist:['form','tests'],billedExternally:false,theatreIn:null,theatreOut:null,traysNeeded:null,traysUsed:null,loanItems:null,scopeId:null,notes:null}}).then(async r=>({status:r.status(),json:await r.text()})),'details2');
+ok(await post(admin.request,'/api/admin/printers',{name:'Reception DYMO',kind:'Label',language:'Dymo',mediaCode:'99012',host:'',port:0,dpi:300,widthMm:0,lengthMm:0,isDefault:true,isActive:true}),'dymo');
+await ap.goto(BASE+'/admin/security');await ap.waitForSelector('text=Download 7-Zip');await shot(ap,'15-security-7zip-dymo');
+const lp=await rec.newPage();watch(lp,'labels');await lp.goto(BASE+'/patients/'+p1);await lp.waitForSelector('text=Print labels (DYMO)');await lp.click('text=Print labels (DYMO)');await lp.waitForSelector('.dymo-label');await shot(lp,'16-dymo-labels');
 console.log('ERRORS',JSON.stringify(errs));await b.close();})().catch(e=>{console.error(e.message.split('\n')[0]);console.log('ERRORS',JSON.stringify(ERR));process.exit(1)});

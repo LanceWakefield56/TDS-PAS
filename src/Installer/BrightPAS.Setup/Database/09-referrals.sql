@@ -203,3 +203,32 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040634_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Waitlist_ReferralId] ON [referrals].[Waitlist] ([ReferralId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040634_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [referrals].[Waitlist] ADD CONSTRAINT [FK_Waitlist_Referrals_ReferralId] FOREIGN KEY ([ReferralId]) REFERENCES [referrals].[Referrals] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040634_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [referrals].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040634_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

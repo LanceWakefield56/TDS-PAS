@@ -41,6 +41,7 @@ import PortalRequests from './pages/PortalRequests';
 import MyPortal from './pages/MyPortal';
 import SecuritySettings from './pages/SecuritySettings';
 import Nbrs from './pages/Nbrs';
+import DymoLabels from './pages/DymoLabels';
 
 interface Session { me: Me | null; refresh: () => Promise<void>; signOut: () => Promise<void>; can: (perm: string) => boolean; mod: (id: string) => boolean; writable: (id: string) => boolean }
 const SessionContext = createContext<Session>(null!);
@@ -96,6 +97,7 @@ export default function App() {
       <Routes>
         <Route path="/setup" element={<FirstAdmin onDone={() => { setNeedsSetup(false); navigate('/signin', { replace: true }); }} />} />
         <Route path="/signin" element={me ? <Navigate to="/" replace /> : <SignIn />} />
+        <Route path="/patients/:id/labels" element={<DymoLabels />} />
         <Route element={<Shell />}>
           <Route path="/" element={<Home />} />
           <Route path="/patients" element={<PatientSearch />} />

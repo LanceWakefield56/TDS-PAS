@@ -86,6 +86,11 @@ public sealed class PortalDbContext(DbContextOptions<PortalDbContext> options) :
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema(Schema);
+        // 0.10.1: indexes on lookup columns and referential integrity within the schema.
+        b.Entity<PortalRequest>().HasOne<PortalAccess>().WithMany().HasForeignKey(x => x.AccessId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<PortalRequest>().HasIndex(x => x.BookingId);
+        b.Entity<Delegate>().HasIndex(x => x.ClinicianId);
+
         b.Entity<PortalAccess>(e =>
         {
             e.Property(x => x.TokenHash).HasMaxLength(64);

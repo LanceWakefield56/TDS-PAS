@@ -216,3 +216,46 @@ public class PatientRecordsTests
         Assert.Null(await svc.HandleRequestAsync(req!.Id, PortalRequestStatus.Done, "Yes, if someone drives you.", "rec"));
     }
 }
+
+public class DymoAndNormalisationTests
+{
+    [Fact]
+    public void Code128_has_start_checksum_and_stop()
+    {
+        var (bars, width) = Code128.Encode("ZAA0024");
+        // Start B + 7 data + checksum + stop = 9 × 11 + 13 modules, plus 2 × 10 quiet zone.
+        Assert.Equal(9 * 11 + 13 + 20, width);
+        Assert.Equal(10, bars[0][0]);
+        Assert.Equal(2, bars[^1][1]); // final termination bar
+    }
+
+    [Fact]
+    public async Task Dymo_printer_needs_label_stock_and_cannot_print_wristbands()
+    {
+        await using var h = new ModulesHost();
+        var p = await h.PatientAsync();
+        await using var s = h.Scope();
+        var svc = s.ServiceProvider.GetRequiredService<LabelService>();
+        Assert.Contains(await svc.SavePrinterAsync(new(null, "Desk DYMO", PrinterKind.Wristband, "", 0, 300, 0, 0, true, true, PrinterLanguage.Dymo, "99012"), "admin"), e => e.Contains("wristbands"));
+        Assert.Empty(await svc.SavePrinterAsync(new(null, "Desk DYMO", PrinterKind.Label, "", 0, 300, 0, 0, true, true, PrinterLanguage.Dymo, "99012"), "admin"));
+        var printer = (await svc.PrintersAsync(true)).Single();
+        Assert.Equal((89, 36), (printer.WidthMm, printer.LengthMm));
+        Assert.Contains("DYMO", await svc.PrintAsync(p.Id, PrinterKind.Label, 2, null, "rec"));
+        var (error, sheet) = await svc.DymoSheetAsync(p.Id, 3, null, "rec");
+        Assert.Null(error);
+        Assert.NotNull(sheet);
+    }
+
+    [Fact]
+    public async Task Questionnaire_answers_and_booking_checks_are_rows_not_lists()
+    {
+        await using var h = new ModulesHost();
+        await using var s = h.Scope();
+        var forms = s.ServiceProvider.GetRequiredService<BrightPAS.Modules.Forms.FormsDbContext>();
+        var theatre = s.ServiceProvider.GetRequiredService<TheatreDbContext>();
+        Assert.NotNull(forms.Model.FindEntityType(typeof(BrightPAS.Modules.Forms.FormAnswer)));
+        Assert.NotNull(theatre.Model.FindEntityType(typeof(BookingCheck)));
+        var cred = s.ServiceProvider.GetRequiredService<CredentialingService>();
+        Assert.Equal([CredentialType.Apc, CredentialType.Indemnity, CredentialType.CredentialingApproval], await cred.RequiredAsync());
+    }
+}

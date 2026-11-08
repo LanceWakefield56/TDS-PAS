@@ -69,6 +69,8 @@ namespace BrightPAS.Modules.Labs.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ControlId");
+
                     b.HasIndex("ReceivedAt");
 
                     b.HasIndex("SendingFacility", "ControlId");
@@ -244,7 +246,11 @@ namespace BrightPAS.Modules.Labs.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("MessageId");
+
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("SupersededById");
 
                     b.HasIndex("AcknowledgedAt", "ReceivedAt");
 
@@ -260,6 +266,20 @@ namespace BrightPAS.Modules.Labs.Migrations
                         .HasForeignKey("ReportId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Labs.LabReport", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Labs.LabMessage", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BrightPAS.Modules.Labs.LabReport", null)
+                        .WithMany()
+                        .HasForeignKey("SupersededById")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Labs.LabReport", b =>

@@ -100,8 +100,13 @@ public static class PatientRecordsEndpoints
             await audit.WriteAsync(Me(u), "Download", r.Kind == PrinterKind.Wristband ? "Wristband" : "PatientLabel", id.ToString(), id.ToString(), reason: "ZPL file for a USB/local Zebra printer");
             return Results.File(Encoding.UTF8.GetBytes(zpl), "application/octet-stream", $"{r.Kind.ToString().ToLowerInvariant()}.zpl");
         }).RequireAuthorization(Permissions.PatientView);
-        g.MapGet("/printers", async (LabelService svc) => Results.Ok((await svc.PrintersAsync(true)).Select(p => new { p.Id, p.Name, kind = p.Kind.ToString(), p.IsDefault })))
+        g.MapGet("/printers", async (LabelService svc) => Results.Ok((await svc.PrintersAsync(true)).Select(p => new { p.Id, p.Name, kind = p.Kind.ToString(), language = p.Language.ToString(), p.MediaCode, p.IsDefault })))
             .RequireAuthorization(Permissions.PatientView);
+        g.MapPost("/{id:guid}/print/dymo", async (Guid id, PrintRequest r, ClaimsPrincipal u, LabelService svc) =>
+        {
+            var (error, sheet) = await svc.DymoSheetAsync(id, r.Copies, r.PrinterId, Me(u));
+            return error is null ? Results.Ok(sheet) : Results.BadRequest(new { errors = new[] { error } });
+        }).RequireAuthorization(Permissions.PatientView);
 
         // ---------------------------------------------------------------- emergency transfer pack
         g.MapGet("/{id:guid}/transfer-pack", async (Guid id, ClaimsPrincipal u, HttpContext http, IServiceProvider sp) =>
@@ -122,7 +127,8 @@ public static class PatientRecordsEndpoints
 
         // ---------------------------------------------------------------- administration: printers, security settings, offboarding
         var admin = app.MapGroup("/api/admin");
-        admin.MapGet("/printers", async (LabelService svc) => Results.Ok(await svc.PrintersAsync(false))).RequireAuthorization(Permissions.OrganisationManage);
+        admin.MapGet("/printers", async (LabelService svc) => Results.Ok(new { printers = await svc.PrintersAsync(false), dymoMedia = LabelService.DymoMediaList }))
+            .RequireAuthorization(Permissions.OrganisationManage);
         admin.MapPost("/printers", async (PrinterEdit e, ClaimsPrincipal u, LabelService svc) => Errors(await svc.SavePrinterAsync(e, Me(u)))).RequireAuthorization(Permissions.OrganisationManage);
         admin.MapGet("/security-settings", async (SettingsService s) => Results.Ok(await s.SecurityAsync())).RequireAuthorization(Permissions.UsersManage);
         admin.MapPut("/security-settings", async (SecuritySettings e, ClaimsPrincipal u, SettingsService s) => Errors(await s.UpdateSecurityAsync(e, Me(u))))
@@ -193,7 +199,7 @@ public static class PatientRecordsEndpoints
         pack["preAdmission"] = form is null ? null : new
         {
             form.SubmittedAt, triage = form.TriageCategory?.ToString(), form.TriageOutcome, form.TriageNotes,
-            flags = form.FlagsJson is null ? [] : JsonSerializer.Deserialize<List<BrightPAS.Modules.Forms.FormFlag>>(form.FlagsJson, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [],
+            flags = BrightPAS.Modules.Forms.FormService.FlagsOf(form),
         };
         var labs = sp.GetRequiredService<BrightPAS.Modules.Labs.LabsDbContext>();
         pack["labs"] = (await labs.Reports.AsNoTracking().Where(r => r.PatientId == id && r.SupersededById == null).ToListAsync())

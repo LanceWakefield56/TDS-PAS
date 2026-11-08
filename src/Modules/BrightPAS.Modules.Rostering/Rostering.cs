@@ -131,6 +131,15 @@ public sealed class RosterDbContext(DbContextOptions<RosterDbContext> options) :
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema(Schema);
+        // 0.10.1: indexes on lookup columns and referential integrity within the schema.
+        b.Entity<Shift>().HasOne<StaffMember>().WithMany().HasForeignKey(x => x.StaffId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<ShiftTemplate>().HasOne<StaffMember>().WithMany().HasForeignKey(x => x.StaffId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<Leave>().HasOne<StaffMember>().WithMany().HasForeignKey(x => x.StaffId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<SwapRequest>().HasOne<Shift>().WithMany().HasForeignKey(x => x.ShiftId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<SwapRequest>().HasOne<Shift>().WithMany().HasForeignKey(x => x.OfferedShiftId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<SwapRequest>().HasOne<StaffMember>().WithMany().HasForeignKey(x => x.FromStaffId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<SwapRequest>().HasOne<StaffMember>().WithMany().HasForeignKey(x => x.ToStaffId).OnDelete(DeleteBehavior.Restrict);
+
         b.Entity<StaffMember>(e =>
         {
             e.Property(x => x.Name).HasMaxLength(150);
@@ -276,6 +285,7 @@ public sealed class RosterService(RosterDbContext db, AuditWriter audit, TimePro
     {
         var row = await db.Shifts.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (row is null) return "Shift not found.";
+        db.Swaps.RemoveRange(await db.Swaps.Where(x => x.ShiftId == id || x.OfferedShiftId == id).ToListAsync(ct)); // swap history of a deleted shift
         db.Shifts.Remove(row);
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Delete", "Shift", id.ToString(), reason: $"{row.Date:yyyy-MM-dd} staff {row.StaffId}", ct: ct);

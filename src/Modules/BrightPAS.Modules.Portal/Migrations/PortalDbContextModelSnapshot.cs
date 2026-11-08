@@ -47,6 +47,8 @@ namespace BrightPAS.Modules.Portal.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClinicianId");
+
                     b.HasIndex("UserName", "ClinicianId")
                         .IsUnique();
 
@@ -156,11 +158,24 @@ namespace BrightPAS.Modules.Portal.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AccessId");
+
+                    b.HasIndex("BookingId");
+
                     b.HasIndex("PatientId");
 
                     b.HasIndex("Status", "CreatedAt");
 
                     b.ToTable("Requests", "portal");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Portal.PortalRequest", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Portal.PortalAccess", null)
+                        .WithMany()
+                        .HasForeignKey("AccessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

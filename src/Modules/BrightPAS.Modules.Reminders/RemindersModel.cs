@@ -183,6 +183,12 @@ public sealed class RemindersDbContext(DbContextOptions<RemindersDbContext> opti
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema(Schema);
+        // 0.10.1: indexes on lookup columns and referential integrity within the schema.
+        b.Entity<OutboundMessage>().HasIndex(x => x.BookingId);
+        b.Entity<InboundMessage>().HasIndex(x => x.BookingId);
+        b.Entity<InboundMessage>().HasIndex(x => x.PatientId);
+        b.Entity<InboundMessage>().HasOne<OutboundMessage>().WithMany().HasForeignKey(x => x.MatchedMessageId).OnDelete(DeleteBehavior.Restrict);
+
         b.Entity<ReminderSettings>(e =>
         {
             e.Property(x => x.Id).ValueGeneratedNever();

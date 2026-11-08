@@ -352,3 +352,141 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Transfers_BookingId] ON [patients].[Transfers] ([BookingId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Patients_GpPracticeHpiFacilityId] ON [patients].[Patients] ([GpPracticeHpiFacilityId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Patients_MergedIntoId] ON [patients].[Patients] ([MergedIntoId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Merges_DuplicateId] ON [patients].[Merges] ([DuplicateId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Merges_SurvivorId] ON [patients].[Merges] ([SurvivorId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Corrections_PatientId] ON [patients].[Corrections] ([PatientId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [patients].[Corrections] ADD CONSTRAINT [FK_Corrections_Patients_PatientId] FOREIGN KEY ([PatientId]) REFERENCES [patients].[Patients] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [patients].[Documents] ADD CONSTRAINT [FK_Documents_Patients_PatientId] FOREIGN KEY ([PatientId]) REFERENCES [patients].[Patients] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [patients].[Merges] ADD CONSTRAINT [FK_Merges_Patients_DuplicateId] FOREIGN KEY ([DuplicateId]) REFERENCES [patients].[Patients] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [patients].[Merges] ADD CONSTRAINT [FK_Merges_Patients_SurvivorId] FOREIGN KEY ([SurvivorId]) REFERENCES [patients].[Patients] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [patients].[Patients] ADD CONSTRAINT [FK_Patients_Patients_MergedIntoId] FOREIGN KEY ([MergedIntoId]) REFERENCES [patients].[Patients] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [patients].[Transfers] ADD CONSTRAINT [FK_Transfers_Patients_PatientId] FOREIGN KEY ([PatientId]) REFERENCES [patients].[Patients] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040605_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [patients].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040605_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108041151_DymoPrinters'
+)
+BEGIN
+    ALTER TABLE [patients].[Printers] ADD [Language] nvarchar(10) NOT NULL DEFAULT N'';
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108041151_DymoPrinters'
+)
+BEGIN
+    ALTER TABLE [patients].[Printers] ADD [MediaCode] nvarchar(20) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108041151_DymoPrinters'
+)
+BEGIN
+    INSERT INTO [patients].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108041151_DymoPrinters', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

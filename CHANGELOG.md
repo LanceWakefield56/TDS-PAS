@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.1 – 2026-11-08 – **Database design, DYMO labels, 7-Zip**
+- **Database (ADR 0019):** every table has a clustered primary key (no heaps) – now enforced by an installer test against SQL Server; indexes added on every lookup/foreign-key column (audit by user and by record, bookings, letters, reminders, roster, portal…); foreign keys within each module and **across modules** (all patient references → patients.Patients, booking references → theatre.Bookings, rooms → core.Locations, credentials/PA links → core.Clinicians); all trusted.
+- **Normalisation (1NF/3NF):** booking checklist (was a comma-separated list) → `theatre.BookingChecks` (who ticked it, when); questionnaire answers and flags (were JSON) → `forms.Answers` / `forms.Flags`; required credentials → `cred.RequiredTypes`. Upgrade copies existing data across. Remaining name snapshots listed in the data dictionary (planned: clinician IDs instead of names).
+- **Reporting (new script 14-reporting.sql):** schemas `reporting` and `maintenance`; views vPatient, vTheatreCase, vAppointment, vWaitlist, vInvoiceSummary, vCredentialStatus, vRosterShift, vAuditDaily; procedures usp_TheatreList, usp_WaitlistOverdue, usp_CredentialExpiries, usp_RosterHours, usp_InvoicesOutstanding, usp_PatientAccessReport (Privacy Officer); `maintenance.usp_IndexMaintenance` (schedule weekly); database role **brightpas_reporting** (views + reporting procedures only, no table access).
+- **DYMO LabelWriter support:** printers can be Zebra (network ZPL) or DYMO (USB on the workstation). DYMO patient labels open in the browser sized to the label stock (11352, 11354, 99010, 99012, 99014) with name, DOB, NHI, MRN, allergy flag and a Code 128 barcode, and print through the Windows driver. Audited.
+- **7-Zip:** Security & printers shows a "Download 7-Zip" link (official site) and deployment tip; export dialogs link to it.
+- Tests: 262 + browser walk-through.
+
 ## 0.10.0 – 2026-11-08 – **Patient records, portals, credentialing, secure exports**
 - **Secure exports (ADR 0018):** every export (waitlist, NBRS, payroll, transfer pack) is an AES-256 encrypted, password-protected ZIP by default. Administrators choose "required" (default) or "optional", the minimum password length, upload size and portal link lifetime – in the app (**Security & printers**), not at install. Every export is audited with whether it was protected.
 - **Documents & scanning:** attach PDF/JPEG/PNG/TIFF scans and photos to a patient (or booking). File type checked from the content, contents encrypted at rest (Data Protection), SHA-256 tamper check, every opening audited, removal needs a reason (soft delete). Phones/tablets can scan with the camera.

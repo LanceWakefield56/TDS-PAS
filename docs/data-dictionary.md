@@ -301,3 +301,15 @@ Credentials: ClinicianId, Type (Apc, VocationalScope, Indemnity, CredentialingAp
 
 ### portal.Access / portal.Requests / portal.Delegates
 Access: PatientId, TokenHash (SHA-256; token never stored), CreatedAt/By, ExpiresAt, RevokedAt/By, FailedAttempts, LockedUntil, LastUsedAt, UploadsToday, UploadDay (R). Requests: PatientId, AccessId, Kind, BookingId, Message, Status, CreatedAt, HandledAt/By, Response (R). Delegates: UserName (PA), ClinicianId, CreatedAt/By (I).
+
+
+## 0.10.1 – normalisation and reporting
+- **theatre.BookingChecks** (BookingId, ItemKey) PK; CheckedAt, CheckedBy – replaces Bookings.Checklist (comma-separated). I
+- **forms.Answers** (RequestId, QuestionKey) PK; Value – replaces Requests.AnswersJson. R
+- **forms.Flags** (RequestId, Sequence) PK; Level, Text – replaces Requests.FlagsJson (flags as shown to the triage nurse). R
+- **cred.RequiredTypes** (Type) PK – replaces Settings.RequiredTypes (comma-separated). P
+- **patients.Printers**: + Language (Zpl/Dymo), MediaCode (DYMO stock). P
+- **reporting.*** views/procedures and **maintenance.*** procedures: see 14-reporting.sql; role brightpas_reporting.
+
+### Normal-form review
+All tables have a single-purpose primary key; repeating groups removed (1NF); no partial dependencies on composite keys (2NF). Intentional point-in-time copies (not 3NF violations in meaning, as they record what was true then): billing.Documents.Surgeon/Anaesthetist and Lines.Description, patients.Corrections.Before, patients.Merges.DuplicateSummary, letters.Letters.Author/RecipientName/RecipientAddress. **Open item:** clinician names stored on theatre.Sessions/Templates (Surgeon, Anaesthetist), theatre.Appointments.Clinician, referrals.Waitlist.Specialist, and theatre.Sessions.LocationName – to be replaced by ClinicianId/LocationId references.

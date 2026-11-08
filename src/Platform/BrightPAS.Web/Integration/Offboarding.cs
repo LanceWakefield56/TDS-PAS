@@ -58,6 +58,8 @@ public sealed class OffboardingService(UserManager<PasUser> users, UserAdminServ
             if (future.Count > 0)
             {
                 done.Add($"{future.Count} shift(s) after {lastDay:d MMM yyyy} removed – need cover: " + string.Join(", ", future.OrderBy(f => f.Date).Take(20).Select(f => $"{f.Date:ddd d MMM}{(f.AllDay ? "" : $" {f.Start:HH\\:mm}")}")) + (future.Count > 20 ? "…" : ""));
+                var futureIds = future.Select(f => f.Id).ToList();
+                roster.Swaps.RemoveRange(await roster.Swaps.Where(x => futureIds.Contains(x.ShiftId) || (x.OfferedShiftId != null && futureIds.Contains(x.OfferedShiftId.Value))).ToListAsync());
                 roster.Shifts.RemoveRange(future);
             }
             var templates = await roster.Templates.Where(t => ids.Contains(t.StaffId) && t.IsActive).ToListAsync();

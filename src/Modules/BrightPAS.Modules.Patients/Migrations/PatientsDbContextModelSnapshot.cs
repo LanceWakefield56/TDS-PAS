@@ -94,6 +94,8 @@ namespace BrightPAS.Modules.Patients.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PatientId");
+
                     b.HasIndex("Status", "PatientId");
 
                     b.ToTable("Corrections", "patients");
@@ -124,8 +126,17 @@ namespace BrightPAS.Modules.Patients.Migrations
                         .HasMaxLength(15)
                         .HasColumnType("nvarchar(15)");
 
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
                     b.Property<int>("LengthMm")
                         .HasColumnType("int");
+
+                    b.Property<string>("MediaCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -278,6 +289,10 @@ namespace BrightPAS.Modules.Patients.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DateOfBirth");
+
+                    b.HasIndex("GpPracticeHpiFacilityId");
+
+                    b.HasIndex("MergedIntoId");
 
                     b.HasIndex("Mrn")
                         .IsUnique();
@@ -486,7 +501,11 @@ namespace BrightPAS.Modules.Patients.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DuplicateId");
+
                     b.HasIndex("Status");
+
+                    b.HasIndex("SurvivorId");
 
                     b.ToTable("Merges", "patients");
                 });
@@ -547,9 +566,28 @@ namespace BrightPAS.Modules.Patients.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BookingId");
+
                     b.HasIndex("PatientId");
 
                     b.ToTable("Transfers", "patients");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Patients.IdentityCorrection", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Patients.Patient", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("MergedIntoId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Patients.PatientAlert", b =>
@@ -561,12 +599,45 @@ namespace BrightPAS.Modules.Patients.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("BrightPAS.Modules.Patients.PatientDocument", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Patients.PatientEthnicity", b =>
                 {
                     b.HasOne("BrightPAS.Modules.Patients.Patient", null)
                         .WithMany("Ethnicities")
                         .HasForeignKey("PatientId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Patients.PatientMerge", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("DuplicateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BrightPAS.Modules.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("SurvivorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Patients.TransferRecord", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

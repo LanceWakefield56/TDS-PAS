@@ -129,3 +129,48 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [portal].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040630_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Requests_AccessId] ON [portal].[Requests] ([AccessId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [portal].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040630_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Requests_BookingId] ON [portal].[Requests] ([BookingId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [portal].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040630_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Delegates_ClinicianId] ON [portal].[Delegates] ([ClinicianId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [portal].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040630_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [portal].[Requests] ADD CONSTRAINT [FK_Requests_Access_AccessId] FOREIGN KEY ([AccessId]) REFERENCES [portal].[Access] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [portal].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040630_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [portal].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040630_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

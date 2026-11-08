@@ -85,9 +85,33 @@ namespace BrightPAS.Modules.Theatre.Migrations
 
                     b.HasIndex("Date");
 
+                    b.HasIndex("LocationId");
+
                     b.HasIndex("PatientId");
 
                     b.ToTable("Appointments", "theatre");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Theatre.BookingCheck", b =>
+                {
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ItemKey")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTimeOffset>("CheckedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CheckedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("BookingId", "ItemKey");
+
+                    b.ToTable("BookingChecks", "theatre");
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Theatre.SessionTemplate", b =>
@@ -146,6 +170,8 @@ namespace BrightPAS.Modules.Theatre.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("LocationId");
+
                     b.ToTable("Templates", "theatre");
                 });
 
@@ -164,10 +190,6 @@ namespace BrightPAS.Modules.Theatre.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("CancelReason")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<string>("Checklist")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
@@ -251,6 +273,8 @@ namespace BrightPAS.Modules.Theatre.Migrations
 
                     b.HasIndex("PatientId");
 
+                    b.HasIndex("ScopeId");
+
                     b.HasIndex("SessionId");
 
                     b.ToTable("Bookings", "theatre");
@@ -310,9 +334,20 @@ namespace BrightPAS.Modules.Theatre.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("LocationId");
+
                     b.HasIndex("Date", "LocationId");
 
                     b.ToTable("Sessions", "theatre");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Theatre.BookingCheck", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Theatre.TheatreBooking", null)
+                        .WithMany("Checks")
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Theatre.TheatreBooking", b =>
@@ -322,6 +357,11 @@ namespace BrightPAS.Modules.Theatre.Migrations
                         .HasForeignKey("SessionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Theatre.TheatreBooking", b =>
+                {
+                    b.Navigation("Checks");
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Theatre.TheatreSession", b =>

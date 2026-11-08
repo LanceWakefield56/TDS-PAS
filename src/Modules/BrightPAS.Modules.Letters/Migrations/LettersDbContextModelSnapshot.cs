@@ -242,12 +242,18 @@ namespace BrightPAS.Modules.Letters.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("GpPracticeId");
+
                     b.HasIndex("MessageControlId");
 
                     b.HasIndex("Number")
                         .IsUnique();
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("ReferralId");
 
                     b.HasIndex("Status", "CreatedAt");
 
@@ -308,6 +314,14 @@ namespace BrightPAS.Modules.Letters.Migrations
                         .IsUnique();
 
                     b.ToTable("Templates", "letters");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Letters.Letter", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Letters.GpPractice", null)
+                        .WithMany()
+                        .HasForeignKey("GpPracticeId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 #pragma warning restore 612, 618
         }

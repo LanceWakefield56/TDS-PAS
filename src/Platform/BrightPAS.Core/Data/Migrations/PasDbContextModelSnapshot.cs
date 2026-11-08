@@ -79,6 +79,10 @@ namespace BrightPAS.Core.Data.Migrations
 
                     b.HasIndex("PatientId");
 
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.HasIndex("UserId", "OccurredAt");
+
                     b.ToTable("AuditEvents", "core");
                 });
 

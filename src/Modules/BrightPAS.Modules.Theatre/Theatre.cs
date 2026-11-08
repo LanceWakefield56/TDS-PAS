@@ -85,8 +85,8 @@ public sealed class TheatreBooking
     public PaymentType Payment { get; set; }
     /// <summary>Deposit required (insurance shortfall or self-funding) – amount or note.</summary>
     public string? DepositNote { get; set; }
-    /// <summary>Completed pre-booking checks (keys from <see cref="TheatreService.ChecklistItems"/>), comma-separated.</summary>
-    public string? Checklist { get; set; }
+    /// <summary>Completed pre-booking checks (one row per item; keys from <see cref="TheatreService.ChecklistItems"/>).</summary>
+    public List<BookingCheck> Checks { get; set; } = [];
     /// <summary>Office only: entered in the external billing systems (e.g. Incisive and Xero).</summary>
     public bool BilledExternally { get; set; }
     public TimeOnly? TheatreIn { get; set; }
@@ -96,6 +96,15 @@ public sealed class TheatreBooking
     public string? LoanItems { get; set; }
     /// <summary>Endoscope used (traceability).</summary>
     public string? ScopeId { get; set; }
+}
+
+/// <summary>A completed pre-booking check for a booking (normalised from the old comma-separated list, 0.10.1).</summary>
+public sealed class BookingCheck
+{
+    public Guid BookingId { get; set; }
+    public string ItemKey { get; set; } = "";
+    public DateTimeOffset CheckedAt { get; set; }
+    public string CheckedBy { get; set; } = "";
 }
 
 public enum PaymentType { NotSet = 0, SelfFunded = 1, Insurer = 2, Acc = 3, HealthNz = 4, NoCharge = 5 }
@@ -134,6 +143,7 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
     public DbSet<TheatreBooking> Bookings => Set<TheatreBooking>();
     public DbSet<SessionTemplate> Templates => Set<SessionTemplate>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
+    public DbSet<BookingCheck> Checks => Set<BookingCheck>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
@@ -153,6 +163,7 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
             e.Property(x => x.Notes).HasMaxLength(1000);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.HasIndex(x => new { x.Date, x.LocationId });
+            e.HasIndex(x => x.LocationId);
             e.HasMany(x => x.Bookings).WithOne().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict);
         });
         b.Entity<SessionTemplate>(e =>
@@ -162,6 +173,7 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
             e.Property(x => x.Surgeon).HasMaxLength(150);
             e.Property(x => x.Anaesthetist).HasMaxLength(150);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.HasIndex(x => x.LocationId);
         });
         b.Entity<TheatreBooking>(e =>
         {
@@ -174,12 +186,21 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.Property(x => x.Payment).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.DepositNote).HasMaxLength(200);
-            e.Property(x => x.Checklist).HasMaxLength(300);
             e.Property(x => x.TraysNeeded).HasMaxLength(500);
             e.Property(x => x.TraysUsed).HasMaxLength(500);
             e.Property(x => x.LoanItems).HasMaxLength(500);
             e.Property(x => x.ScopeId).HasMaxLength(50);
             e.HasIndex(x => x.PatientId);
+            e.HasIndex(x => x.ScopeId);
+            e.HasMany(x => x.Checks).WithOne().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.Cascade);
+            e.Navigation(x => x.Checks).AutoInclude();
+        });
+        b.Entity<BookingCheck>(e =>
+        {
+            e.ToTable("BookingChecks");
+            e.HasKey(x => new { x.BookingId, x.ItemKey });
+            e.Property(x => x.ItemKey).HasMaxLength(30);
+            e.Property(x => x.CheckedBy).HasMaxLength(100);
         });
         b.Entity<Appointment>(e =>
         {
@@ -191,6 +212,7 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.HasIndex(x => x.Date);
             e.HasIndex(x => x.PatientId);
+            e.HasIndex(x => x.LocationId);
         });
     }
 }
@@ -435,7 +457,6 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         ("approval", "Insurer or ACC approval"), ("tests", "Bloods / tests done"), ("anaesthetic", "Anaesthetic review"), ("adult", "Responsible adult confirmed"),
     ];
 
-    private static IReadOnlyList<string> SplitList(string? s) => string.IsNullOrWhiteSpace(s) ? [] : s.Split(',', StringSplitOptions.RemoveEmptyEntries);
 
     public async Task<string?> UpdateDetailsAsync(Guid id, BookingDetails d, string user, CancellationToken ct = default)
     {
@@ -447,12 +468,15 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         if (unknown.Count > 0) return "Unknown checklist item.";
         var changes = new List<string>();
         void Track(string name, object? a, object? c) { if (!Equals(a, c)) changes.Add(name); }
-        var checklist = string.Join(",", (d.Checklist ?? []).Distinct().OrderBy(k => k));
+        var wanted = (d.Checklist ?? []).Distinct().OrderBy(k => k).ToList();
+        var checklist = string.Join(",", wanted);
         Track("tentative", b.IsTentative, d.IsTentative); Track("payment", b.Payment, d.Payment); Track("deposit", b.DepositNote, Blank(d.DepositNote));
-        Track("checklist", b.Checklist ?? "", checklist); Track("billed", b.BilledExternally, d.BilledExternally); Track("theatre times", (b.TheatreIn, b.TheatreOut), (d.TheatreIn, d.TheatreOut));
+        Track("checklist", string.Join(",", b.Checks.Select(c => c.ItemKey).OrderBy(k => k)), checklist); Track("billed", b.BilledExternally, d.BilledExternally); Track("theatre times", (b.TheatreIn, b.TheatreOut), (d.TheatreIn, d.TheatreOut));
         Track("trays", (b.TraysNeeded, b.TraysUsed), (Blank(d.TraysNeeded), Blank(d.TraysUsed))); Track("loan items", b.LoanItems, Blank(d.LoanItems));
         Track("scope", b.ScopeId, Blank(d.ScopeId)); Track("notes", b.Notes, Blank(d.Notes));
-        b.IsTentative = d.IsTentative; b.Payment = d.Payment; b.DepositNote = Blank(d.DepositNote); b.Checklist = checklist.Length == 0 ? null : checklist;
+        b.IsTentative = d.IsTentative; b.Payment = d.Payment; b.DepositNote = Blank(d.DepositNote);
+        foreach (var gone in b.Checks.Where(c => !wanted.Contains(c.ItemKey)).ToList()) { b.Checks.Remove(gone); db.Checks.Remove(gone); }
+        foreach (var k in wanted.Where(k => b.Checks.All(c => c.ItemKey != k))) db.Checks.Add(new BookingCheck { BookingId = b.Id, ItemKey = k, CheckedAt = clock.GetUtcNow(), CheckedBy = user });
         b.BilledExternally = d.BilledExternally; b.TheatreIn = d.TheatreIn; b.TheatreOut = d.TheatreOut; b.TraysNeeded = Blank(d.TraysNeeded); b.TraysUsed = Blank(d.TraysUsed);
         b.LoanItems = Blank(d.LoanItems); b.ScopeId = Blank(d.ScopeId)?.ToUpperInvariant(); b.Notes = Blank(d.Notes);
         if (changes.Count == 0) return null;
@@ -536,7 +560,7 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
             if (active) t = end.AddMinutes(TurnoverMinutes);
             list.Add(new BookingView(b.Id, b.PatientId, p is null ? "(unknown)" : $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}", p?.Nhi, p?.Mrn ?? "",
                 p?.DateOfBirth ?? default, b.Order, b.Procedure, b.Laterality.ToString(), b.DurationMinutes, b.Anaesthetic.ToString(), b.Status.ToString(),
-                b.CancelReason, b.Notes, start, end, b.IsTentative, b.Payment.ToString(), b.DepositNote, SplitList(b.Checklist), b.BilledExternally, b.TheatreIn, b.TheatreOut,
+                b.CancelReason, b.Notes, start, end, b.IsTentative, b.Payment.ToString(), b.DepositNote, b.Checks.Select(c => c.ItemKey).OrderBy(k => k).ToList(), b.BilledExternally, b.TheatreIn, b.TheatreOut,
                 b.TraysNeeded, b.TraysUsed, b.LoanItems, b.ScopeId, p?.MobilePhone ?? p?.HomePhone));
         }
         var booked = s.Bookings.Where(b => b.Status is not (BookingStatus.Cancelled or BookingStatus.DidNotAttend)).Sum(b => b.DurationMinutes + TurnoverMinutes);

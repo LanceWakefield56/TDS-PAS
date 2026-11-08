@@ -102,3 +102,56 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [cred].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040645_IndexesIntegrity'
+)
+BEGIN
+    DECLARE @var nvarchar(max);
+    SELECT @var = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[cred].[Settings]') AND [c].[name] = N'RequiredTypes');
+    IF @var IS NOT NULL EXEC(N'ALTER TABLE [cred].[Settings] DROP CONSTRAINT ' + @var + ';');
+    ALTER TABLE [cred].[Settings] DROP COLUMN [RequiredTypes];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [cred].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040645_IndexesIntegrity'
+)
+BEGIN
+    CREATE TABLE [cred].[RequiredTypes] (
+        [Type] nvarchar(30) NOT NULL,
+        CONSTRAINT [PK_RequiredTypes] PRIMARY KEY ([Type])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [cred].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040645_IndexesIntegrity'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Type') AND [object_id] = OBJECT_ID(N'[cred].[RequiredTypes]'))
+        SET IDENTITY_INSERT [cred].[RequiredTypes] ON;
+    EXEC(N'INSERT INTO [cred].[RequiredTypes] ([Type])
+    VALUES (N''Apc''),
+    (N''CredentialingApproval''),
+    (N''Indemnity'')');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Type') AND [object_id] = OBJECT_ID(N'[cred].[RequiredTypes]'))
+        SET IDENTITY_INSERT [cred].[RequiredTypes] OFF;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [cred].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040645_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [cred].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040645_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

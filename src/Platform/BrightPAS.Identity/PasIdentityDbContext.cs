@@ -23,6 +23,9 @@ public sealed class PasIdentityDbContext(DbContextOptions<PasIdentityDbContext> 
     {
         base.OnModelCreating(b);
         b.HasDefaultSchema(Schema);
+        // 0.10.1: indexes on lookup columns and referential integrity within the schema.
+        b.Entity<BreakGlassGrant>().HasIndex(x => x.PatientId);
+
         b.Entity<PasUser>(e =>
         {
             e.Property(x => x.DisplayName).HasMaxLength(200);

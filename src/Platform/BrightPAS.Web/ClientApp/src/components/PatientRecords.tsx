@@ -90,14 +90,17 @@ function Labels({ patientId }: { patientId: string }) {
     catch (x) { setError(errsOf(x)); }
   };
   const has = (k: string) => printers.some((p) => p.kind === k && p.isDefault);
+  const dymo = printers.find((p) => p.kind === 'Label' && p.isDefault && p.language === 'Dymo');
   return (
     <div className="stack">
       <div className="row">
         <button className="btn btn-light" disabled={!has('Wristband')} onClick={() => print('Wristband', 1)}>Print wristband</button>
         <label>Labels<input type="number" min={1} max={50} value={copies} onChange={(e) => setCopies(Number(e.target.value))} className="narrow" /></label>
-        <button className="btn btn-light" disabled={!has('Label')} onClick={() => print('Label', copies)}>Print labels</button>
+        {dymo
+          ? <Link className="btn btn-light" to={`/patients/${patientId}/labels?copies=${copies}&printer=${dymo.id}`}>Print labels (DYMO)</Link>
+          : <button className="btn btn-light" disabled={!has('Label')} onClick={() => print('Label', copies)}>Print labels</button>}
       </div>
-      {printers.length === 0 && <p className="hint">No Zebra printers are set up yet (Administration → Security &amp; printers).</p>}
+      {printers.length === 0 && <p className="hint">No label or wristband printers are set up yet (Administration → Security &amp; printers).</p>}
       {msg && <p className="ok-text">{msg}</p>}
       {error && <p className="error" role="alert">{error}</p>}
     </div>

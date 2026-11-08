@@ -269,3 +269,23 @@ tr.selected td { background: #eef5ff; }
 .portal-page { max-width: 46rem; margin: 0 auto; padding: 1rem; }
 .portal-page h1 { font-size: 1.5rem; }
 @media print { .transfer-pack .print-sheet { box-shadow: none; border: none; } .transfer-pack .print-sheet h3 { margin-top: .6rem; } }
+/* 0.10.1 – DYMO labels (named pages: one per supported label stock; CSP forbids inline sizes) */
+@page dymo-11352 { size: 54mm 25mm; margin: 0; }
+@page dymo-11354 { size: 57mm 32mm; margin: 0; }
+@page dymo-99010 { size: 89mm 28mm; margin: 0; }
+@page dymo-99012 { size: 89mm 36mm; margin: 0; }
+@page dymo-99014 { size: 101mm 54mm; margin: 0; }
+.dymo-sheet { background: #fff; padding: 1rem; }
+.dymo-help { margin-bottom: 1rem; }
+.dymo-label { box-sizing: border-box; padding: 1.5mm 2.5mm; overflow: hidden; border: 1px dashed #bbb; margin-bottom: 4mm; font-family: Arial, sans-serif; color: #000; display: flex; flex-direction: column; break-after: page; }
+.dymo-label:last-child { break-after: auto; }
+.media-11352 { page: dymo-11352; width: 54mm; height: 25mm; font-size: 6.5pt; }
+.media-11354 { page: dymo-11354; width: 57mm; height: 32mm; font-size: 7.5pt; }
+.media-99010 { page: dymo-99010; width: 89mm; height: 28mm; font-size: 8pt; }
+.media-99012 { page: dymo-99012; width: 89mm; height: 36mm; font-size: 9pt; }
+.media-99014 { page: dymo-99014; width: 101mm; height: 54mm; font-size: 11pt; }
+.dymo-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dymo-line { white-space: nowrap; }
+.dymo-allergy { border: 1px solid #000; padding: 0 1mm; }
+.dymo-barcode { flex: 1; width: 100%; min-height: 5mm; margin-top: .5mm; fill: #000; }
+@media print { .dymo-sheet { padding: 0; } .dymo-label { border: 0; margin: 0; } }

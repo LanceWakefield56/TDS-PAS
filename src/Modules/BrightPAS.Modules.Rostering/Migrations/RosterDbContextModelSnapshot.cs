@@ -119,6 +119,8 @@ namespace BrightPAS.Modules.Rostering.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("StaffId");
+
                     b.HasIndex("Date", "StaffId");
 
                     b.ToTable("Shifts", "roster");
@@ -167,6 +169,8 @@ namespace BrightPAS.Modules.Rostering.Migrations
                         .HasColumnType("date");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("StaffId");
 
                     b.ToTable("Templates", "roster");
                 });
@@ -276,9 +280,69 @@ namespace BrightPAS.Modules.Rostering.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FromStaffId");
+
+                    b.HasIndex("OfferedShiftId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("ToStaffId");
+
                     b.HasIndex("Status", "ShiftId");
 
                     b.ToTable("Swaps", "roster");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Rostering.Leave", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Rostering.StaffMember", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Rostering.Shift", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Rostering.StaffMember", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Rostering.ShiftTemplate", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Rostering.StaffMember", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Rostering.SwapRequest", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Rostering.StaffMember", null)
+                        .WithMany()
+                        .HasForeignKey("FromStaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BrightPAS.Modules.Rostering.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("OfferedShiftId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BrightPAS.Modules.Rostering.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BrightPAS.Modules.Rostering.StaffMember", null)
+                        .WithMany()
+                        .HasForeignKey("ToStaffId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 #pragma warning restore 612, 618
         }

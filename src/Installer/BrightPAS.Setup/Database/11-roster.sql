@@ -198,3 +198,120 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Templates_StaffId] ON [roster].[Templates] ([StaffId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Swaps_FromStaffId] ON [roster].[Swaps] ([FromStaffId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Swaps_OfferedShiftId] ON [roster].[Swaps] ([OfferedShiftId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Swaps_ShiftId] ON [roster].[Swaps] ([ShiftId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Swaps_ToStaffId] ON [roster].[Swaps] ([ToStaffId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Shifts_StaffId] ON [roster].[Shifts] ([StaffId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [roster].[Leave] ADD CONSTRAINT [FK_Leave_Staff_StaffId] FOREIGN KEY ([StaffId]) REFERENCES [roster].[Staff] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [roster].[Shifts] ADD CONSTRAINT [FK_Shifts_Staff_StaffId] FOREIGN KEY ([StaffId]) REFERENCES [roster].[Staff] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [roster].[Swaps] ADD CONSTRAINT [FK_Swaps_Shifts_OfferedShiftId] FOREIGN KEY ([OfferedShiftId]) REFERENCES [roster].[Shifts] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [roster].[Swaps] ADD CONSTRAINT [FK_Swaps_Shifts_ShiftId] FOREIGN KEY ([ShiftId]) REFERENCES [roster].[Shifts] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [roster].[Swaps] ADD CONSTRAINT [FK_Swaps_Staff_FromStaffId] FOREIGN KEY ([FromStaffId]) REFERENCES [roster].[Staff] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [roster].[Swaps] ADD CONSTRAINT [FK_Swaps_Staff_ToStaffId] FOREIGN KEY ([ToStaffId]) REFERENCES [roster].[Staff] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [roster].[Templates] ADD CONSTRAINT [FK_Templates_Staff_StaffId] FOREIGN KEY ([StaffId]) REFERENCES [roster].[Staff] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [roster].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040642_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [roster].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040642_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

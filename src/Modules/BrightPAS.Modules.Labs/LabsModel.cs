@@ -107,6 +107,11 @@ public sealed class LabsDbContext(DbContextOptions<LabsDbContext> options) : DbC
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema(Schema);
+        // 0.10.1: indexes on lookup columns and referential integrity within the schema.
+        b.Entity<LabMessage>().HasIndex(x => x.ControlId);
+        b.Entity<LabReport>().HasOne<LabMessage>().WithMany().HasForeignKey(x => x.MessageId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<LabReport>().HasOne<LabReport>().WithMany().HasForeignKey(x => x.SupersededById).OnDelete(DeleteBehavior.Restrict);
+
         b.Entity<LabMessage>(e =>
         {
             e.Property(x => x.Source).HasMaxLength(20);

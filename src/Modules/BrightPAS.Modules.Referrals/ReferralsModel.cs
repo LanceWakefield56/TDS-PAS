@@ -124,6 +124,9 @@ public sealed class ReferralsDbContext(DbContextOptions<ReferralsDbContext> opti
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema(Schema);
+        // 0.10.1: indexes on lookup columns and referential integrity within the schema.
+        b.Entity<WaitlistEntry>().HasOne<Referral>().WithMany().HasForeignKey(x => x.ReferralId).OnDelete(DeleteBehavior.Restrict);
+
         b.Entity<Referral>(e =>
         {
             e.Property(x => x.Number).HasMaxLength(20);

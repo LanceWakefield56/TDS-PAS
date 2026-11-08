@@ -251,3 +251,56 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040638_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Replies_BookingId] ON [reminders].[Replies] ([BookingId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040638_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Replies_MatchedMessageId] ON [reminders].[Replies] ([MatchedMessageId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040638_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Replies_PatientId] ON [reminders].[Replies] ([PatientId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040638_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Messages_BookingId] ON [reminders].[Messages] ([BookingId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040638_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [reminders].[Replies] ADD CONSTRAINT [FK_Replies_Messages_MatchedMessageId] FOREIGN KEY ([MatchedMessageId]) REFERENCES [reminders].[Messages] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040638_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [reminders].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040638_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

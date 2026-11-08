@@ -41,7 +41,7 @@ public static class PortalEndpoints
         g.MapGet("/settings", async (CredentialingService svc) =>
         {
             var s = await svc.SettingsAsync();
-            return Results.Ok(new { requiredTypes = CredentialingService.Required(s).Select(t => t.ToString()), s.WarningDays, s.CheckPrivileges,
+            return Results.Ok(new { requiredTypes = (await svc.RequiredAsync()).Select(t => t.ToString()), s.WarningDays, s.CheckPrivileges,
                 types = Enum.GetValues<CredentialType>().Select(t => new { id = t.ToString(), label = CredentialingService.Label(t) }), services = CredentialingService.Services });
         }).RequireAuthorization(Permissions.CredentialingView);
         g.MapPut("/settings", async (CredSettingsEdit e, ClaimsPrincipal u, CredentialingService svc) => Errors(await svc.UpdateSettingsAsync(e, Me(u))))

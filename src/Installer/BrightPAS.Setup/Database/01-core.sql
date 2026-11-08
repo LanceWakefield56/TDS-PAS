@@ -418,3 +418,32 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040557_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_AuditEvents_EntityType_EntityId] ON [core].[AuditEvents] ([EntityType], [EntityId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040557_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_AuditEvents_UserId_OccurredAt] ON [core].[AuditEvents] ([UserId], [OccurredAt]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [core].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040557_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [core].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040557_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

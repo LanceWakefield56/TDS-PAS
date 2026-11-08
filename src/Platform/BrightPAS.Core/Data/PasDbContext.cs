@@ -32,6 +32,10 @@ public sealed class PasDbContext(DbContextOptions<PasDbContext> options) : DbCon
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema(Schema);
+        // 0.10.1: indexes on lookup columns and referential integrity within the schema.
+        b.Entity<AuditEvent>().HasIndex(x => new { x.UserId, x.OccurredAt });
+        b.Entity<AuditEvent>().HasIndex(x => new { x.EntityType, x.EntityId });
+
 
         b.Entity<ModuleSetupState>(e =>
         {

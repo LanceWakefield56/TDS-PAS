@@ -179,3 +179,48 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040626_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Letters_BookingId] ON [letters].[Letters] ([BookingId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040626_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Letters_GpPracticeId] ON [letters].[Letters] ([GpPracticeId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040626_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Letters_ReferralId] ON [letters].[Letters] ([ReferralId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040626_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [letters].[Letters] ADD CONSTRAINT [FK_Letters_Practices_GpPracticeId] FOREIGN KEY ([GpPracticeId]) REFERENCES [letters].[Practices] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040626_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [letters].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040626_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

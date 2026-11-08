@@ -26,6 +26,16 @@ public sealed class PatientsDbContext(DbContextOptions<PatientsDbContext> option
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema(Schema);
+        // 0.10.1: indexes on lookup columns and referential integrity within the schema.
+        b.Entity<Patient>().HasIndex(x => x.GpPracticeHpiFacilityId);
+        b.Entity<Patient>().HasOne<Patient>().WithMany().HasForeignKey(x => x.MergedIntoId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<PatientDocument>().HasOne<Patient>().WithMany().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<IdentityCorrection>().HasOne<Patient>().WithMany().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<PatientMerge>().HasOne<Patient>().WithMany().HasForeignKey(x => x.SurvivorId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<PatientMerge>().HasOne<Patient>().WithMany().HasForeignKey(x => x.DuplicateId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<TransferRecord>().HasOne<Patient>().WithMany().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<TransferRecord>().HasIndex(x => x.BookingId);
+
         b.Entity<Patient>(e =>
         {
             e.Property(x => x.Mrn).HasMaxLength(20);
@@ -113,6 +123,8 @@ public sealed class PatientsDbContext(DbContextOptions<PatientsDbContext> option
             e.HasIndex(x => x.Name).IsUnique();
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(15);
             e.Property(x => x.Host).HasMaxLength(100);
+            e.Property(x => x.Language).HasConversion<string>().HasMaxLength(10);
+            e.Property(x => x.MediaCode).HasMaxLength(20);
         });
         b.Entity<TransferRecord>(e =>
         {

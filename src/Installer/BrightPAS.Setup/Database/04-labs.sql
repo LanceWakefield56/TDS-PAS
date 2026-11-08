@@ -158,3 +158,56 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [labs].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040621_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Reports_MessageId] ON [labs].[Reports] ([MessageId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [labs].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040621_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Reports_SupersededById] ON [labs].[Reports] ([SupersededById]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [labs].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040621_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Messages_ControlId] ON [labs].[Messages] ([ControlId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [labs].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040621_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [labs].[Reports] ADD CONSTRAINT [FK_Reports_Messages_MessageId] FOREIGN KEY ([MessageId]) REFERENCES [labs].[Messages] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [labs].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040621_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [labs].[Reports] ADD CONSTRAINT [FK_Reports_Reports_SupersededById] FOREIGN KEY ([SupersededById]) REFERENCES [labs].[Reports] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [labs].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040621_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [labs].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040621_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

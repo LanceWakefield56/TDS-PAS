@@ -101,11 +101,15 @@ namespace BrightPAS.Modules.Billing.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BookingId");
+
                     b.HasIndex("Number")
                         .IsUnique()
                         .HasFilter("[Number] IS NOT NULL");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("SourceEstimateId");
 
                     b.ToTable("Documents", "billing");
                 });
@@ -301,6 +305,14 @@ namespace BrightPAS.Modules.Billing.Migrations
                     b.HasIndex("DocumentId");
 
                     b.ToTable("Payments", "billing");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Billing.BillingDocument", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Billing.BillingDocument", null)
+                        .WithMany()
+                        .HasForeignKey("SourceEstimateId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Billing.BillingLine", b =>

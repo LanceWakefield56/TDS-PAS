@@ -23,14 +23,53 @@ namespace BrightPAS.Modules.Forms.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormAnswer", b =>
+                {
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("QuestionKey")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("RequestId", "QuestionKey");
+
+                    b.ToTable("Answers", "forms");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormFlagRow", b =>
+                {
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("RequestId", "Sequence");
+
+                    b.ToTable("Flags", "forms");
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Forms.FormRequest", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AnswersJson")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid?>("BookingId")
                         .HasColumnType("uniqueidentifier");
@@ -53,9 +92,6 @@ namespace BrightPAS.Modules.Forms.Migrations
 
                     b.Property<int>("FailedAttempts")
                         .HasColumnType("int");
-
-                    b.Property<string>("FlagsJson")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTimeOffset?>("LockedUntil")
                         .HasColumnType("datetimeoffset");
@@ -104,6 +140,8 @@ namespace BrightPAS.Modules.Forms.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BookingId");
+
                     b.HasIndex("PatientId");
 
                     b.HasIndex("TokenHash")
@@ -112,6 +150,31 @@ namespace BrightPAS.Modules.Forms.Migrations
                     b.HasIndex("Status", "SubmittedAt");
 
                     b.ToTable("Requests", "forms");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormAnswer", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Forms.FormRequest", null)
+                        .WithMany("Answers")
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormFlagRow", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Forms.FormRequest", null)
+                        .WithMany("Flags")
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormRequest", b =>
+                {
+                    b.Navigation("Answers");
+
+                    b.Navigation("Flags");
                 });
 #pragma warning restore 612, 618
         }

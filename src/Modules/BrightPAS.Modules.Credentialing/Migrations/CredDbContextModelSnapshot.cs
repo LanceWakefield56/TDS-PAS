@@ -31,11 +31,6 @@ namespace BrightPAS.Modules.Credentialing.Migrations
                     b.Property<bool>("CheckPrivileges")
                         .HasColumnType("bit");
 
-                    b.Property<string>("RequiredTypes")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -142,6 +137,31 @@ namespace BrightPAS.Modules.Credentialing.Migrations
                     b.HasIndex("ClinicianId");
 
                     b.ToTable("Privileges", "cred");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Credentialing.RequiredCredential", b =>
+                {
+                    b.Property<string>("Type")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Type");
+
+                    b.ToTable("RequiredTypes", "cred");
+
+                    b.HasData(
+                        new
+                        {
+                            Type = "Apc"
+                        },
+                        new
+                        {
+                            Type = "Indemnity"
+                        },
+                        new
+                        {
+                            Type = "CredentialingApproval"
+                        });
                 });
 #pragma warning restore 612, 618
         }

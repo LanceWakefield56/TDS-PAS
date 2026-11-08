@@ -344,13 +344,18 @@ public sealed class IdentityService(PatientsDbContext db, AuditWriter audit, Tim
 // =====================================================================================================================
 
 public enum PrinterKind { Wristband = 1, Label = 2 }
+/// <summary>Zpl = Zebra network printer (BrightPAS sends to port 9100). Dymo = basic DYMO LabelWriter on the workstation (printed from the browser through the Windows driver).</summary>
+public enum PrinterLanguage { Zpl = 1, Dymo = 2 }
 
 public sealed class LabelPrinter
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = "";
     public PrinterKind Kind { get; set; }
-    /// <summary>Printer IP address or host name on the TDS network (raw printing, port 9100).</summary>
+    public PrinterLanguage Language { get; set; } = PrinterLanguage.Zpl;
+    /// <summary>DYMO label stock (e.g. 99012); null for Zebra.</summary>
+    public string? MediaCode { get; set; }
+    /// <summary>Printer IP address or host name on the TDS network (Zebra raw printing, port 9100). Empty for DYMO.</summary>
     public string Host { get; set; } = "";
     public int Port { get; set; } = 9100;
     public int Dpi { get; set; } = 300;
@@ -360,12 +365,83 @@ public sealed class LabelPrinter
     public bool IsActive { get; set; } = true;
 }
 
-public sealed record PrinterEdit(Guid? Id, string Name, PrinterKind Kind, string Host, int Port, int Dpi, int WidthMm, int LengthMm, bool IsDefault, bool IsActive);
+public sealed record PrinterEdit(Guid? Id, string Name, PrinterKind Kind, string Host, int Port, int Dpi, int WidthMm, int LengthMm, bool IsDefault, bool IsActive,
+    PrinterLanguage Language = PrinterLanguage.Zpl, string? MediaCode = null);
+
+/// <summary>DYMO LabelWriter label stock BrightPAS can lay out (width × height in mm, as the label sits in the printer output).</summary>
+public sealed record DymoMedia(string Code, string Name, int WidthMm, int HeightMm);
+
+/// <summary>Code 128 (set B) barcode as bar positions in modules, for drawing as SVG in the browser.</summary>
+public static class Code128
+{
+    private static readonly string[] Patterns =
+    [
+        "212222","222122","222221","121223","121322","131222","122213","122312","132212","221213","221312","231212","112232","122132","122231","113222","123122","123221",
+        "223211","221132","221231","213212","223112","312131","311222","321122","321221","312212","322112","322211","212123","212321","232121","111323","131123","131321",
+        "112313","132113","132311","211313","231113","231311","112133","112331","132131","113123","113321","133121","313121","211331","231131","213113","213311","213131",
+        "311123","311321","331121","312113","312311","332111","314111","221411","431111","111224","111422","121124","121421","141122","141221","112214","112412","122114",
+        "122411","142112","142211","241211","221114","413111","241112","134111","111242","121142","121241","114212","124112","124211","411212","421112","421211","212141",
+        "214121","412121","111143","111341","131141","114113","114311","411113","411311","113141","114131","311141","411131","211412","211214","211232","2331112",
+    ];
+
+    /// <summary>Returns (x, width) of each black bar in modules, and the total width including 10-module quiet zones.</summary>
+    public static (IReadOnlyList<int[]> Bars, int Width) Encode(string text)
+    {
+        var data = new string(text.Where(c => c is >= ' ' and <= '~').ToArray());
+        var codes = new List<int> { 104 }; // Start B
+        codes.AddRange(data.Select(c => c - 32));
+        var sum = 104;
+        for (var i = 0; i < data.Length; i++) sum += (data[i] - 32) * (i + 1);
+        codes.Add(sum % 103);
+        codes.Add(106); // Stop
+        var bars = new List<int[]>();
+        var x = 10;
+        foreach (var code in codes)
+        {
+            var p = Patterns[code];
+            for (var i = 0; i < p.Length; i++)
+            {
+                var w = p[i] - '0';
+                if (i % 2 == 0) bars.Add([x, w]);
+                x += w;
+            }
+        }
+        return (bars, x + 10);
+    }
+}
 
 /// <summary>Builds ZPL for Zebra wristband and label printers and sends it to the printer (raw TCP 9100).</summary>
 public sealed class LabelService(PatientsDbContext db, AuditWriter audit)
 {
     public static bool AllowedPort(int port) => port is >= 9100 and <= 9199 or 6101;
+
+    public static readonly IReadOnlyList<DymoMedia> DymoMediaList =
+    [
+        new("11352", "11352 Return address 54 × 25 mm", 54, 25),
+        new("11354", "11354 Multi-purpose 57 × 32 mm", 57, 32),
+        new("99010", "99010 Standard address 89 × 28 mm", 89, 28),
+        new("99012", "99012 Large address 89 × 36 mm", 89, 36),
+        new("99014", "99014 Shipping 101 × 54 mm", 101, 54),
+    ];
+
+    /// <summary>Data for printing patient labels from the browser on a DYMO (or any Windows label printer). Audited as a print.</summary>
+    public async Task<(string? Error, object? Sheet)> DymoSheetAsync(Guid patientId, int copies, Guid? printerId, string user, CancellationToken ct = default)
+    {
+        var p = await db.Patients.AsNoTracking().Include(x => x.Alerts).SingleOrDefaultAsync(x => x.Id == patientId && x.MergedIntoId == null, ct);
+        if (p is null) return ("Patient not found.", null);
+        var printer = printerId is { } pid ? await db.Printers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == pid && x.IsActive, ct)
+            : await db.Printers.AsNoTracking().FirstOrDefaultAsync(x => x.Kind == PrinterKind.Label && x.IsDefault && x.IsActive, ct);
+        if (printer is null || printer.Language != PrinterLanguage.Dymo) return ("No DYMO label printer is set up.", null);
+        var (bars, width) = Code128.Encode(p.Nhi ?? p.Mrn);
+        copies = Math.Clamp(copies, 1, 50);
+        await audit.WriteAsync(user, "Print", "PatientLabel", patientId.ToString(), patientId.ToString(), reason: $"{copies} label(s) on {printer.Name} (DYMO {printer.MediaCode}, from the browser)", ct: ct);
+        return (null, new
+        {
+            media = printer.MediaCode, printer = printer.Name, copies,
+            name = $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}", dateOfBirth = p.DateOfBirth, sex = p.Sex.ToString(), p.Nhi, p.Mrn,
+            allergy = p.Alerts.Any(a => a.IsActive && a.Type == AlertType.Allergy), barcode = new { bars, width, text = p.Nhi ?? p.Mrn },
+        });
+    }
 
     public async Task<IReadOnlyList<LabelPrinter>> PrintersAsync(bool activeOnly, CancellationToken ct = default) =>
         (await db.Printers.AsNoTracking().Where(p => !activeOnly || p.IsActive).ToListAsync(ct)).OrderBy(p => p.Kind).ThenBy(p => p.Name).ToList();
@@ -375,16 +451,28 @@ public sealed class LabelService(PatientsDbContext db, AuditWriter audit)
         var errors = new List<string>();
         var name = e.Name?.Trim() ?? ""; var host = e.Host?.Trim() ?? "";
         if (name.Length < 2) errors.Add("Name the printer (e.g. 'Admissions wristbands').");
-        if (host.Length is < 1 or > 100 || host.Any(c => !(char.IsLetterOrDigit(c) || c is '.' or '-'))) errors.Add("Enter the printer's IP address or host name.");
-        if (!AllowedPort(e.Port)) errors.Add("Zebra network printers use port 9100 (allowed: 9100–9199, 6101).");
-        if (e.Dpi is not (203 or 300 or 600)) errors.Add("Resolution must be 203, 300 or 600 dpi.");
-        if (e.WidthMm is < 10 or > 120 || e.LengthMm is < 10 or > 400) errors.Add("Check the media size (width 10–120 mm, length 10–400 mm).");
+        var media = e.Language == PrinterLanguage.Dymo ? DymoMediaList.FirstOrDefault(m => m.Code == e.MediaCode) : null;
+        if (e.Language == PrinterLanguage.Dymo)
+        {
+            if (e.Kind != PrinterKind.Label) errors.Add("DYMO LabelWriters print labels, not wristbands – use a Zebra wristband printer for wristbands.");
+            if (media is null) errors.Add("Choose the DYMO label stock loaded in the printer.");
+        }
+        else
+        {
+            if (host.Length is < 1 or > 100 || host.Any(c => !(char.IsLetterOrDigit(c) || c is '.' or '-'))) errors.Add("Enter the printer's IP address or host name.");
+            if (!AllowedPort(e.Port)) errors.Add("Zebra network printers use port 9100 (allowed: 9100–9199, 6101).");
+            if (e.Dpi is not (203 or 300 or 600)) errors.Add("Resolution must be 203, 300 or 600 dpi.");
+            if (e.WidthMm is < 10 or > 120 || e.LengthMm is < 10 or > 400) errors.Add("Check the media size (width 10–120 mm, length 10–400 mm).");
+        }
+        if (!Enum.IsDefined(e.Language)) errors.Add("Choose Zebra or DYMO.");
         if (await db.Printers.AnyAsync(p => p.Name == name && p.Id != e.Id, ct)) errors.Add("A printer with this name already exists.");
         if (errors.Count > 0) return errors;
         LabelPrinter row;
         if (e.Id is { } id) row = await db.Printers.SingleAsync(p => p.Id == id, ct);
         else { row = new LabelPrinter(); db.Printers.Add(row); }
-        row.Name = name; row.Kind = e.Kind; row.Host = host; row.Port = e.Port; row.Dpi = e.Dpi; row.WidthMm = e.WidthMm; row.LengthMm = e.LengthMm; row.IsActive = e.IsActive;
+        row.Name = name; row.Kind = e.Kind; row.Language = e.Language; row.IsActive = e.IsActive;
+        if (media is not null) { row.MediaCode = media.Code; row.Host = ""; row.Port = 0; row.Dpi = 300; row.WidthMm = media.WidthMm; row.LengthMm = media.HeightMm; }
+        else { row.MediaCode = null; row.Host = host; row.Port = e.Port; row.Dpi = e.Dpi; row.WidthMm = e.WidthMm; row.LengthMm = e.LengthMm; }
         row.IsDefault = e.IsDefault && e.IsActive;
         if (row.IsDefault) foreach (var other in await db.Printers.Where(p => p.Kind == e.Kind && p.Id != row.Id && p.IsDefault).ToListAsync(ct)) other.IsDefault = false;
         await db.SaveChangesAsync(ct);
@@ -449,6 +537,7 @@ public sealed class LabelService(PatientsDbContext db, AuditWriter audit)
         var printer = printerId is { } pid ? await db.Printers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == pid && x.IsActive, ct)
             : await db.Printers.AsNoTracking().FirstOrDefaultAsync(x => x.Kind == kind && x.IsDefault && x.IsActive, ct);
         if (printer is null) return $"No {kind.ToString().ToLowerInvariant()} printer is set up. An administrator can add one in Organisation set-up → Printers.";
+        if (printer.Language == PrinterLanguage.Dymo) return "This is a DYMO printer – print from the browser (Print labels).";
         if (!AllowedPort(printer.Port)) return "The printer port is not allowed.";
         var (error, zpl) = await BuildAsync(patientId, kind, copies, printer.Id, ct);
         if (error is not null) return error;

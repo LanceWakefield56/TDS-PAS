@@ -281,3 +281,87 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040609_IndexesIntegrity'
+)
+BEGIN
+    CREATE TABLE [theatre].[BookingChecks] (
+        [BookingId] uniqueidentifier NOT NULL,
+        [ItemKey] nvarchar(30) NOT NULL,
+        [CheckedAt] datetimeoffset NOT NULL,
+        [CheckedBy] nvarchar(100) NOT NULL,
+        CONSTRAINT [PK_BookingChecks] PRIMARY KEY ([BookingId], [ItemKey]),
+        CONSTRAINT [FK_BookingChecks_Bookings_BookingId] FOREIGN KEY ([BookingId]) REFERENCES [theatre].[Bookings] ([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040609_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Templates_LocationId] ON [theatre].[Templates] ([LocationId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040609_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Sessions_LocationId] ON [theatre].[Sessions] ([LocationId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040609_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Bookings_ScopeId] ON [theatre].[Bookings] ([ScopeId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040609_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Appointments_LocationId] ON [theatre].[Appointments] ([LocationId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040609_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [theatre].[BookingChecks] ([BookingId], [ItemKey], [CheckedAt], [CheckedBy])
+    SELECT DISTINCT b.[Id], LEFT(LTRIM(RTRIM(v.[value])), 30), SYSDATETIMEOFFSET(), N'migrated' FROM [theatre].[Bookings] b CROSS APPLY STRING_SPLIT(b.[Checklist], ',') v
+    WHERE b.[Checklist] IS NOT NULL AND LEN(LTRIM(RTRIM(v.[value]))) > 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040609_IndexesIntegrity'
+)
+BEGIN
+    DECLARE @var nvarchar(max);
+    SELECT @var = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[theatre].[Bookings]') AND [c].[name] = N'Checklist');
+    IF @var IS NOT NULL EXEC(N'ALTER TABLE [theatre].[Bookings] DROP CONSTRAINT ' + @var + ';');
+    ALTER TABLE [theatre].[Bookings] DROP COLUMN [Checklist];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040609_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [theatre].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040609_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

@@ -266,9 +266,19 @@ namespace BrightPAS.Modules.Referrals.Migrations
 
                     b.HasIndex("PatientId");
 
+                    b.HasIndex("ReferralId");
+
                     b.HasIndex("Status", "TargetDate");
 
                     b.ToTable("Waitlist", "referrals");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Referrals.WaitlistEntry", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Referrals.Referral", null)
+                        .WithMany()
+                        .HasForeignKey("ReferralId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 #pragma warning restore 612, 618
         }

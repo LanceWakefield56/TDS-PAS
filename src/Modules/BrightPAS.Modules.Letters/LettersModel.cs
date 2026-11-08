@@ -126,6 +126,11 @@ public sealed class LettersDbContext(DbContextOptions<LettersDbContext> options)
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema(Schema);
+        // 0.10.1: indexes on lookup columns and referential integrity within the schema.
+        b.Entity<Letter>().HasIndex(x => x.BookingId);
+        b.Entity<Letter>().HasIndex(x => x.ReferralId);
+        b.Entity<Letter>().HasOne<GpPractice>().WithMany().HasForeignKey(x => x.GpPracticeId).OnDelete(DeleteBehavior.Restrict);
+
         b.Entity<GpPractice>(e =>
         {
             e.Property(x => x.Name).HasMaxLength(150);

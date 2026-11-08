@@ -38,7 +38,7 @@ export default function ExportButton({ label, path, body, className = 'btn btn-l
           <label>Password (at least {policy.minLength} characters)<input type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} required minLength={policy.minLength} /></label>
           <label>Type it again<input type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} required /></label>
         </div>}
-        <p className="hint">{policy.required || protect ? 'You will get an AES-256 encrypted ZIP. Open it with 7-Zip, WinZip or WinRAR and the password.' : 'The file will not be protected. This is recorded in the audit log.'}</p>
+        <p className="hint">{policy.required || protect ? <>You will get an AES-256 encrypted ZIP. Open it with <a href="https://www.7-zip.org/download.html" target="_blank" rel="noopener noreferrer">7-Zip</a> (free), WinZip or WinRAR and the password.</> : 'The file will not be protected. This is recorded in the audit log.'}</p>
       </>}
       {error && <p className="error" role="alert">{error}</p>}
       {msg && <p className="ok-text">{msg}</p>}

@@ -192,3 +192,40 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [billing].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040617_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Documents_BookingId] ON [billing].[Documents] ([BookingId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [billing].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040617_IndexesIntegrity'
+)
+BEGIN
+    CREATE INDEX [IX_Documents_SourceEstimateId] ON [billing].[Documents] ([SourceEstimateId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [billing].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040617_IndexesIntegrity'
+)
+BEGIN
+    ALTER TABLE [billing].[Documents] ADD CONSTRAINT [FK_Documents_Documents_SourceEstimateId] FOREIGN KEY ([SourceEstimateId]) REFERENCES [billing].[Documents] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [billing].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261108040617_IndexesIntegrity'
+)
+BEGIN
+    INSERT INTO [billing].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261108040617_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

@@ -39,8 +39,10 @@ public sealed class FormRequest
     public DateTimeOffset? LockedUntil { get; set; }
     public DateTimeOffset? OpenedAt { get; set; }
     public DateTimeOffset? SubmittedAt { get; set; }
-    public string? AnswersJson { get; set; }
-    public string? FlagsJson { get; set; }
+    /// <summary>One row per answered question (normalised; 0.10.1).</summary>
+    public List<FormAnswer> Answers { get; set; } = [];
+    /// <summary>Safety flags raised when the form was submitted (kept as shown to the nurse).</summary>
+    public List<FormFlagRow> Flags { get; set; } = [];
     public TriageCategory? SuggestedCategory { get; set; }
     public TriageCategory? TriageCategory { get; set; }
     public string? TriageOutcome { get; set; }
@@ -55,10 +57,27 @@ public enum TriageCategory { Green = 1, Amber = 2, Red = 3 }
 
 public sealed record FormFlag(string Level, string Text);
 
+public sealed class FormAnswer
+{
+    public Guid RequestId { get; set; }
+    public string QuestionKey { get; set; } = "";
+    public string Value { get; set; } = "";
+}
+
+public sealed class FormFlagRow
+{
+    public Guid RequestId { get; set; }
+    public int Sequence { get; set; }
+    public string Level { get; set; } = "";
+    public string Text { get; set; } = "";
+}
+
 public sealed class FormsDbContext(DbContextOptions<FormsDbContext> options) : DbContext(options)
 {
     public const string Schema = "forms";
     public DbSet<FormRequest> Requests => Set<FormRequest>();
+    public DbSet<FormAnswer> Answers => Set<FormAnswer>();
+    public DbSet<FormFlagRow> Flags => Set<FormFlagRow>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
@@ -83,6 +102,25 @@ public sealed class FormsDbContext(DbContextOptions<FormsDbContext> options) : D
             e.Property(x => x.TriagedBy).HasMaxLength(100);
             e.HasIndex(x => x.PatientId);
             e.HasIndex(x => new { x.Status, x.SubmittedAt });
+            e.HasIndex(x => x.BookingId);
+            e.HasMany(x => x.Answers).WithOne().HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Flags).WithOne().HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade);
+            e.Navigation(x => x.Answers).AutoInclude();
+            e.Navigation(x => x.Flags).AutoInclude();
+        });
+        b.Entity<FormAnswer>(e =>
+        {
+            e.ToTable("Answers");
+            e.HasKey(x => new { x.RequestId, x.QuestionKey });
+            e.Property(x => x.QuestionKey).HasMaxLength(60);
+            e.Property(x => x.Value).HasMaxLength(2000);
+        });
+        b.Entity<FormFlagRow>(e =>
+        {
+            e.ToTable("Flags");
+            e.HasKey(x => new { x.RequestId, x.Sequence });
+            e.Property(x => x.Level).HasMaxLength(10);
+            e.Property(x => x.Text).HasMaxLength(300);
         });
     }
 }
@@ -306,11 +344,24 @@ public sealed class FormService(FormsDbContext db, PatientsDbContext patients, P
             var errors = Questionnaire.Validate(clean);
             if (errors.Count > 0) return (false, errors);
         }
-        r!.AnswersJson = JsonSerializer.Serialize(clean, Json);
+        var given = clean.Where(kv => kv.Value.Length > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
+        foreach (var a in r!.Answers.ToList())
+        {
+            if (given.TryGetValue(a.QuestionKey, out var v)) { a.Value = v; given.Remove(a.QuestionKey); }
+            else { r.Answers.Remove(a); db.Answers.Remove(a); }
+        }
+        foreach (var (k, v) in given) db.Answers.Add(new FormAnswer { RequestId = r.Id, QuestionKey = k, Value = v });
         if (final)
         {
             var (flags, cat) = Questionnaire.Assess(clean);
-            r.FlagsJson = JsonSerializer.Serialize(flags, Json);
+            var rows = flags.Select((f, i) => (Seq: i + 1, f.Level, Text: f.Text.Length > 300 ? f.Text[..300] : f.Text)).ToList();
+            foreach (var old in r.Flags.Where(x => x.Sequence > rows.Count).ToList()) { r.Flags.Remove(old); db.Flags.Remove(old); }
+            foreach (var (seq, level, text) in rows)
+            {
+                var existing = r.Flags.FirstOrDefault(x => x.Sequence == seq);
+                if (existing is null) db.Flags.Add(new FormFlagRow { RequestId = r.Id, Sequence = seq, Level = level, Text = text });
+                else { existing.Level = level; existing.Text = text; }
+            }
             r.SuggestedCategory = cat;
             r.Status = FormStatus.Submitted;
             r.SubmittedAt = clock.GetUtcNow();
@@ -321,7 +372,9 @@ public sealed class FormService(FormsDbContext db, PatientsDbContext patients, P
     }
 
     public static Dictionary<string, string> Draft(FormRequest r) =>
-        r.AnswersJson is null ? [] : JsonSerializer.Deserialize<Dictionary<string, string>>(r.AnswersJson, Json) ?? [];
+        r.Answers.ToDictionary(a => a.QuestionKey, a => a.Value);
+
+    public static List<FormFlag> FlagsOf(FormRequest r) => r.Flags.OrderBy(f => f.Sequence).Select(f => new FormFlag(f.Level, f.Text)).ToList();
 
     public async Task<IReadOnlyList<FormRow>> ListAsync(string view, Guid? patientId, CancellationToken ct = default)
     {
@@ -340,7 +393,7 @@ public sealed class FormService(FormsDbContext db, PatientsDbContext patients, P
         return list.Select(r =>
         {
             var p = people.GetValueOrDefault(r.PatientId);
-            var flags = r.FlagsJson is null ? [] : JsonSerializer.Deserialize<List<FormFlag>>(r.FlagsJson, Json) ?? [];
+            var flags = FlagsOf(r);
             return new FormRow(r.Id, r.PatientId, p is null ? "" : $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}", p?.Nhi, p?.Mrn ?? "", r.Status.ToString(),
                 r.CreatedAt, r.CreatedBy, r.ExpiresAt, r.SubmittedAt, r.SuggestedCategory?.ToString(), r.TriageCategory?.ToString(), r.TriagedBy, flags);
         }).ToList();

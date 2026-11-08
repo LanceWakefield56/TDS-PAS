@@ -129,6 +129,10 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options)
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema(Schema);
+        // 0.10.1: indexes on lookup columns and referential integrity within the schema.
+        b.Entity<BillingDocument>().HasIndex(x => x.BookingId);
+        b.Entity<BillingDocument>().HasOne<BillingDocument>().WithMany().HasForeignKey(x => x.SourceEstimateId).OnDelete(DeleteBehavior.Restrict);
+
         b.Entity<BillingSettings>(e =>
         {
             e.ToTable("Settings", t => t.HasCheckConstraint("CK_Settings_SingleRow", "[Id] = 1"));

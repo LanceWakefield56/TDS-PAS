@@ -58,13 +58,17 @@ public sealed class Privilege
 public sealed class CredSettings
 {
     public int Id { get; set; } = 1;
-    /// <summary>Comma-separated credential types every active clinician must hold.</summary>
-    public string RequiredTypes { get; set; } = "Apc,Indemnity,CredentialingApproval";
     public int WarningDays { get; set; } = 60;
     /// <summary>When true, bookings for procedures outside the clinician's privileges are warned about.</summary>
     public bool CheckPrivileges { get; set; } = true;
     public DateTimeOffset? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }
+}
+
+/// <summary>A credential type every active clinician must hold (one row per type).</summary>
+public sealed class RequiredCredential
+{
+    public CredentialType Type { get; set; }
 }
 
 public sealed class CredDbContext(DbContextOptions<CredDbContext> options) : DbContext(options)
@@ -73,6 +77,7 @@ public sealed class CredDbContext(DbContextOptions<CredDbContext> options) : DbC
     public DbSet<Credential> Credentials => Set<Credential>();
     public DbSet<Privilege> Privileges => Set<Privilege>();
     public DbSet<CredSettings> Settings => Set<CredSettings>();
+    public DbSet<RequiredCredential> Required => Set<RequiredCredential>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
@@ -100,10 +105,16 @@ public sealed class CredDbContext(DbContextOptions<CredDbContext> options) : DbC
             e.Property(x => x.ApprovedBy).HasMaxLength(100);
             e.HasIndex(x => x.ClinicianId);
         });
+        b.Entity<RequiredCredential>(e =>
+        {
+            e.ToTable("RequiredTypes");
+            e.HasKey(x => x.Type);
+            e.Property(x => x.Type).HasConversion<string>().HasMaxLength(30);
+            e.HasData(new RequiredCredential { Type = CredentialType.Apc }, new RequiredCredential { Type = CredentialType.Indemnity }, new RequiredCredential { Type = CredentialType.CredentialingApproval });
+        });
         b.Entity<CredSettings>(e =>
         {
             e.Property(x => x.Id).ValueGeneratedNever();
-            e.Property(x => x.RequiredTypes).HasMaxLength(200);
             e.Property(x => x.UpdatedBy).HasMaxLength(100);
         });
     }
@@ -145,18 +156,21 @@ public sealed class CredentialingService(CredDbContext db, PasDbContext core, Au
         return s;
     }
 
-    public static IReadOnlyList<CredentialType> Required(CredSettings s) =>
-        s.RequiredTypes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => Enum.TryParse<CredentialType>(x, out var t) ? t : (CredentialType?)null)
-            .Where(t => t is not null).Select(t => t!.Value).Distinct().ToList();
+    public async Task<IReadOnlyList<CredentialType>> RequiredAsync(CancellationToken ct = default) =>
+        (await db.Required.AsNoTracking().Select(r => r.Type).ToListAsync(ct)).OrderBy(t => t).ToList();
 
     public async Task<IReadOnlyList<string>> UpdateSettingsAsync(CredSettingsEdit e, string user, CancellationToken ct = default)
     {
         if (e.WarningDays is < 7 or > 365) return ["Warn between 7 and 365 days before expiry."];
         var s = await SettingsAsync(ct);
-        s.RequiredTypes = string.Join(",", e.RequiredTypes.Distinct()); s.WarningDays = e.WarningDays; s.CheckPrivileges = e.CheckPrivileges;
+        var want = e.RequiredTypes.Where(Enum.IsDefined).Distinct().ToList();
+        db.Required.RemoveRange(await db.Required.Where(r => !want.Contains(r.Type)).ToListAsync(ct));
+        var have = await db.Required.Select(r => r.Type).ToListAsync(ct);
+        foreach (var t in want.Where(t => !have.Contains(t))) db.Required.Add(new RequiredCredential { Type = t });
+        s.WarningDays = e.WarningDays; s.CheckPrivileges = e.CheckPrivileges;
         s.UpdatedAt = clock.GetUtcNow(); s.UpdatedBy = user;
         await db.SaveChangesAsync(ct);
-        await audit.WriteAsync(user, "Update", "CredSettings", "1", reason: $"Required: {s.RequiredTypes}; warn {s.WarningDays} days; privileges checked: {s.CheckPrivileges}", ct: ct);
+        await audit.WriteAsync(user, "Update", "CredSettings", "1", reason: $"Required: {string.Join(",", want)}; warn {s.WarningDays} days; privileges checked: {s.CheckPrivileges}", ct: ct);
         return [];
     }
 
@@ -215,7 +229,7 @@ public sealed class CredentialingService(CredDbContext db, PasDbContext core, Au
     public async Task<IReadOnlyList<ClinicianStatus>> StatusAsync(CancellationToken ct = default)
     {
         var s = await SettingsAsync(ct);
-        var required = Required(s);
+        var required = await RequiredAsync(ct);
         var clinicians = await core.Clinicians.AsNoTracking().Where(c => c.IsActive).ToListAsync(ct);
         var creds = await db.Credentials.AsNoTracking().Where(c => c.IsActive).ToListAsync(ct);
         var privs = await db.Privileges.AsNoTracking().Where(p => p.IsActive).ToListAsync(ct);
@@ -250,7 +264,7 @@ public sealed class CredentialingService(CredDbContext db, PasDbContext core, Au
     public async Task<IReadOnlyList<string>> CheckCaseAsync(DateOnly date, string? surgeon, string? anaesthetist, string? procedure, CancellationToken ct = default)
     {
         var s = await SettingsAsync(ct);
-        var required = Required(s);
+        var required = await RequiredAsync(ct);
         var warnings = new List<string>();
         var names = new[] { surgeon, anaesthetist }.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n!.Trim()).ToList();
         var clinicians = await core.Clinicians.AsNoTracking().Where(c => names.Contains(c.Name)).ToListAsync(ct);

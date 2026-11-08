@@ -122,6 +122,12 @@ namespace BrightPAS.Modules.Reminders.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("MatchedMessageId");
+
+                    b.HasIndex("PatientId");
+
                     b.HasIndex("ProviderMessageId");
 
                     b.HasIndex("Status", "ReceivedAt");
@@ -299,6 +305,8 @@ namespace BrightPAS.Modules.Reminders.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BookingId");
+
                     b.HasIndex("DedupeKey")
                         .IsUnique()
                         .HasFilter("[DedupeKey] IS NOT NULL");
@@ -439,6 +447,14 @@ namespace BrightPAS.Modules.Reminders.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Settings", "reminders");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Reminders.InboundMessage", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Reminders.OutboundMessage", null)
+                        .WithMany()
+                        .HasForeignKey("MatchedMessageId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 #pragma warning restore 612, 618
         }
