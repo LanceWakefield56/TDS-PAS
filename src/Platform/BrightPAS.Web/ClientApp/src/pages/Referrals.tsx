@@ -3,11 +3,11 @@ import { Link, useSearchParams } from 'react-router';
 import { api, errText, formatDate, nzDateTime, PatientSummary, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import PatientPicker from '../components/PatientPicker';
-import { findProcedure, RefLists, useRefData } from '../components/RefData';
+import { findProcedure, RefLists, useRefData, ClinicianSelect } from '../components/RefData';
 
 export interface ReferralRow {
   id: string; number: string; patientId: string; patientName: string; mrn: string; nhi: string | null; dateOfBirth: string; receivedOn: string; source: string;
-  referrerName: string; referrerOrganisation: string | null; referrerHpi: string | null; specialist: string; service: string; funder: string; funderReference: string | null;
+  referrerName: string; referrerOrganisation: string | null; referrerHpi: string | null; specialistId: string; specialist: string; service: string; funder: string; funderReference: string | null;
   reason: string; status: string; triagedAt: string | null; triagedBy: string | null; triageNotes: string | null; declineReason: string | null; daysSinceReceived: number; waitlistEntryId: string | null;
 }
 
@@ -77,7 +77,7 @@ export default function Referrals() {
 
 function NewReferral({ onDone, onCancel }: { onDone: (number: string) => void; onCancel: () => void }) {
   const [patient, setPatient] = useState<PatientSummary | null>(null);
-  const [f, setF] = useState({ receivedOn: todayIso(), source: 'GeneralPractice', referrerName: '', referrerOrganisation: '', referrerHpi: '', specialist: '', service: 'Surgical', funder: 'SelfPay', funderReference: '', reason: '' });
+  const [f, setF] = useState({ receivedOn: todayIso(), source: 'GeneralPractice', referrerName: '', referrerOrganisation: '', referrerHpi: '', specialistId: '', service: 'Surgical', funder: 'SelfPay', funderReference: '', reason: '' });
   const [errors, setErrors] = useState<string[]>([]);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
   const save = async (e: React.FormEvent) => {
@@ -97,7 +97,7 @@ function NewReferral({ onDone, onCancel }: { onDone: (number: string) => void; o
         <label>Referrer's name<input value={f.referrerName} onChange={set('referrerName')} required placeholder="e.g. Dr Mere Smith" /></label>
         <label>Practice / organisation<input value={f.referrerOrganisation} onChange={set('referrerOrganisation')} /></label>
         <label>Referrer HPI number (optional)<input value={f.referrerHpi} onChange={set('referrerHpi')} placeholder="e.g. 12ABC345" /></label>
-        <label>Referred to (specialist)<input list="dl-surgeons" value={f.specialist} onChange={set('specialist')} required /></label>
+        <ClinicianSelect label="Referred to (specialist)" role="surgeon" required value={f.specialistId} onChange={(id) => setF({ ...f, specialistId: id })} />
         <label>Service<select value={f.service} onChange={set('service')}><option>Surgical</option><option>Endoscopy</option></select></label>
         <label>Funder<select value={f.funder} onChange={set('funder')}>{FUNDERS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
         <label>Approval / claim / referral number<input value={f.funderReference} onChange={set('funderReference')} placeholder="Insurer approval, ACC claim or Health NZ id" /></label>

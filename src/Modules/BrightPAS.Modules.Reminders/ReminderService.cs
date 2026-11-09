@@ -234,13 +234,15 @@ public sealed class ReminderService(
         var sessions = await theatre.Sessions.AsNoTracking().Include(s => s.Bookings)
             .Where(s => !s.IsCancelled && s.Date >= from && s.Date <= to && (bookingId == null || s.Bookings.Any(b => b.Id == bookingId))).ToListAsync(ct);
         var list = new List<Appointment>();
+        var people = sessions.Count == 0 ? [] : await theatreService.ClinicianNamesAsync(ct);
+        var rooms = sessions.Count == 0 ? [] : await theatreService.LocationNamesAsync(ct);
         foreach (var s in sessions)
         {
             var t = s.StartTime;
             foreach (var b in s.Bookings.OrderBy(b => b.Order))
             {
                 var active = b.Status is not (BookingStatus.Cancelled or BookingStatus.DidNotAttend);
-                list.Add(new Appointment(b.Id, b.PatientId, s.Date, t, s.LocationName, s.Surgeon, b.Status, b.CreatedAt));
+                list.Add(new Appointment(b.Id, b.PatientId, s.Date, t, rooms.GetValueOrDefault(s.LocationId, ""), people.GetValueOrDefault(s.SurgeonId, ""), b.Status, b.CreatedAt));
                 if (active) t = t.AddMinutes(b.DurationMinutes + TheatreService.TurnoverMinutes);
             }
         }

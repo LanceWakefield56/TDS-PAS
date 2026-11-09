@@ -4,17 +4,17 @@ import { Link, useSearchParams } from 'react-router';
 import { addDays, api, errText, formatDate, PatientSummary, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import PatientPicker from '../components/PatientPicker';
-import { findProcedure, RefLists, useRefData } from '../components/RefData';
+import { findProcedure, RefLists, useRefData, ClinicianSelect } from '../components/RefData';
 import { ANAES, FUNDERS, label, PRIORITIES, SIDES } from './Referrals';
 
 export interface WaitRow {
   id: string; referralId: string | null; referralNumber: string | null; patientId: string; patientName: string; mrn: string; nhi: string | null; dateOfBirth: string;
-  procedure: string; laterality: string; anaesthetic: string; durationMinutes: number; service: string; specialist: string; funder: string; priority: string;
+  procedure: string; laterality: string; anaesthetic: string; durationMinutes: number; service: string; specialistId: string; specialist: string; funder: string; priority: string;
   addedOn: string; targetDate: string; daysWaiting: number; daysToTarget: number; overdue: boolean; status: string; holdReason: string | null; holdUntil: string | null;
   bookingId: string | null; bookedFor: string | null; removedReason: string | null; notes: string | null; publiclyFunded: boolean;
 }
-interface Summary { toTriage: number; waiting: number; onHold: number; overdue: number; dueIn14Days: number; byPriority: { priority: string; count: number }[]; specialists: string[] }
-interface Session { id: string; locationName: string; date: string; startTime: string; endTime: string; type: string; surgeon: string; bookedMinutes: number; availableMinutes: number }
+interface Summary { toTriage: number; waiting: number; onHold: number; overdue: number; dueIn14Days: number; byPriority: { priority: string; count: number }[]; specialists: { id: string; name: string }[] }
+interface Session { id: string; locationName: string; date: string; startTime: string; endTime: string; type: string; surgeonId: string; surgeon: string; bookedMinutes: number; availableMinutes: number }
 const prClass: Record<string, string> = { Urgent: 'red', SemiUrgent: 'amber', Routine: '' };
 const hm = (t: string) => t.slice(0, 5);
 
@@ -77,7 +77,7 @@ export default function Waitlist() {
               <div className="tabs">{[['waiting', 'Waiting'], ['on-hold', 'On hold'], ['booked', 'Booked'], ['closed', 'Done / removed']].map(([k, t]) =>
                 <button key={k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{t}</button>)}</div>
               <div className="row">
-                <label className="inline">Specialist<select value={specialist} onChange={(e) => setSpecialist(e.target.value)}><option value="">All</option>{summary?.specialists.map((s) => <option key={s}>{s}</option>)}</select></label>
+                <label className="inline">Specialist<select value={specialist} onChange={(e) => setSpecialist(e.target.value)}><option value="">All</option>{summary?.specialists.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
                 <label className="inline">Priority<select value={priority} onChange={(e) => setPriority(e.target.value)}><option value="">All</option>{PRIORITIES.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
               </div>
             </div>}
@@ -152,7 +152,7 @@ function BookFromWaitlist({ r, onDone, onCancel }: { r: WaitRow; onDone: (m: str
       onDone(`${r.patientName} booked on ${formatDate(s.date)} (${s.locationName}, ${s.surgeon}). A confirmation SMS goes out automatically if reminders are on.`);
     } catch (x: any) { setWarnings(x?.body?.warnings ?? []); setErrors(x?.body?.errors ?? (x?.body?.warnings?.length ? [] : [errText(x)])); }
   };
-  const mine = (s: Session) => s.surgeon.toLowerCase().includes(r.specialist.toLowerCase()) || r.specialist.toLowerCase().includes(s.surgeon.toLowerCase());
+  const mine = (s: Session) => s.surgeonId === r.specialistId;
   const sorted = sessions ? [...sessions].sort((a, b) => Number(mine(b)) - Number(mine(a)) || a.date.localeCompare(b.date)) : null;
   return (
     <div className="card subtle stack">
@@ -208,7 +208,7 @@ function HoldEntry({ r, onDone, onCancel }: { r: WaitRow; onDone: (m: string) =>
 }
 
 function EditEntry({ r, onDone, onCancel }: { r: WaitRow; onDone: (m: string) => void; onCancel: () => void }) {
-  const [f, setF] = useState({ procedure: r.procedure, laterality: r.laterality, anaesthetic: r.anaesthetic, durationMinutes: r.durationMinutes, specialist: r.specialist, priority: r.priority, notes: r.notes ?? '' });
+  const [f, setF] = useState({ procedure: r.procedure, laterality: r.laterality, anaesthetic: r.anaesthetic, durationMinutes: r.durationMinutes, specialistId: r.specialistId, priority: r.priority, notes: r.notes ?? '' });
   const [errors, setErrors] = useState<string[]>([]);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: k === 'durationMinutes' ? Number(e.target.value) : e.target.value });
   const save = async () => {
@@ -224,7 +224,7 @@ function EditEntry({ r, onDone, onCancel }: { r: WaitRow; onDone: (m: string) =>
         <label>Side<select value={f.laterality} onChange={set('laterality')}>{SIDES.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
         <label>Anaesthetic<select value={f.anaesthetic} onChange={set('anaesthetic')}>{ANAES.map((a) => <option key={a}>{a}</option>)}</select></label>
         <label>Expected minutes<input type="number" min={5} max={720} value={f.durationMinutes} onChange={set('durationMinutes')} /></label>
-        <label>Specialist<input list="dl-surgeons" value={f.specialist} onChange={set('specialist')} /></label>
+        <ClinicianSelect label="Specialist" role="surgeon" required value={f.specialistId} currentName={r.specialist} onChange={(id) => setF({ ...f, specialistId: id })} />
         <label>Priority<select value={f.priority} onChange={set('priority')}>{PRIORITIES.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
       </div>
       <label>Notes<input value={f.notes} onChange={set('notes')} /></label>
@@ -254,7 +254,7 @@ function RemoveEntry({ r, onDone, onCancel }: { r: WaitRow; onDone: (m: string) 
 
 function AddEntry({ onDone, onCancel }: { onDone: (m: string) => void; onCancel: () => void }) {
   const [patient, setPatient] = useState<PatientSummary | null>(null);
-  const [f, setF] = useState({ procedure: '', laterality: 'NotApplicable', anaesthetic: 'General', durationMinutes: 60, service: 'Surgical', specialist: '', funder: 'SelfPay', priority: 'Routine', addedOn: todayIso(), notes: '' });
+  const [f, setF] = useState({ procedure: '', laterality: 'NotApplicable', anaesthetic: 'General', durationMinutes: 60, service: 'Surgical', specialistId: '', funder: 'SelfPay', priority: 'Routine', addedOn: todayIso(), notes: '' });
   const [errors, setErrors] = useState<string[]>([]);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: k === 'durationMinutes' ? Number(e.target.value) : e.target.value });
   const { procedures } = useRefData();
@@ -276,7 +276,7 @@ function AddEntry({ onDone, onCancel }: { onDone: (m: string) => void; onCancel:
         <label>Service<select value={f.service} onChange={set('service')}><option>Surgical</option><option>Endoscopy</option></select></label>
         <label>Anaesthetic<select value={f.anaesthetic} onChange={set('anaesthetic')}>{ANAES.map((a) => <option key={a}>{a}</option>)}</select></label>
         <label>Expected minutes<input type="number" min={5} max={720} value={f.durationMinutes} onChange={set('durationMinutes')} /></label>
-        <label>Specialist<input list="dl-surgeons" value={f.specialist} onChange={set('specialist')} required /></label>
+        <ClinicianSelect label="Specialist" role="surgeon" required value={f.specialistId} onChange={(id) => setF({ ...f, specialistId: id })} />
         <label>Funder<select value={f.funder} onChange={set('funder')}>{FUNDERS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
         <label>Priority<select value={f.priority} onChange={set('priority')}>{PRIORITIES.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
         <label>Decision to treat (date)<input type="date" max={todayIso()} value={f.addedOn} onChange={set('addedOn')} /></label>

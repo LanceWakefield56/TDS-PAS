@@ -177,9 +177,10 @@ public sealed partial class LetterService(LettersDbContext db, PatientsDbContext
             v["FastingFrom"] = Time(arrive.AddHours(-6)) + (arrive.Hour < 6 ? " the night before" : "");
             v["Procedure"] = b.Procedure;
             v["Side"] = Side(b.Laterality);
-            v["Surgeon"] = sess.Surgeon;
-            v["Anaesthetist"] = sess.Anaesthetist ?? "";
-            v["Theatre"] = sess.LocationName;
+            var people = await org.ClinicianNamesAsync(ct);
+            v["Surgeon"] = people.GetValueOrDefault(sess.SurgeonId, "");
+            v["Anaesthetist"] = sess.AnaesthetistId is { } an ? people.GetValueOrDefault(an, "") : "";
+            v["Theatre"] = (await org.LocationNamesAsync(ct)).GetValueOrDefault(sess.LocationId, "");
             v["Anaesthetic"] = b.Anaesthetic.ToString().ToLowerInvariant();
         }
         if (referralId is { } rid && await referrals.Referrals.AsNoTracking().SingleOrDefaultAsync(r => r.Id == rid, ct) is { } r)
@@ -190,7 +191,7 @@ public sealed partial class LetterService(LettersDbContext db, PatientsDbContext
             v["ReferrerPractice"] = r.ReferrerOrganisation ?? "";
             v["ReferralReason"] = r.Reason;
             v["DeclineReason"] = r.DeclineReason ?? "";
-            if (string.IsNullOrEmpty(v["Surgeon"])) v["Surgeon"] = r.Specialist;
+            if (string.IsNullOrEmpty(v["Surgeon"])) v["Surgeon"] = (await org.ClinicianNamesAsync(ct)).GetValueOrDefault(r.SpecialistId, "");
             if (await referrals.Waitlist.AsNoTracking().FirstOrDefaultAsync(w => w.ReferralId == rid, ct) is { } w)
             {
                 v["Priority"] = w.Priority == Priority.SemiUrgent ? "semi-urgent" : w.Priority.ToString().ToLowerInvariant();

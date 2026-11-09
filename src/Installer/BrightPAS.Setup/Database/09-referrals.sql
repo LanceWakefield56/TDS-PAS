@@ -232,3 +232,88 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071506_ClinicianIds'
+)
+BEGIN
+    ALTER TABLE [referrals].[Waitlist] ADD [SpecialistId] uniqueidentifier NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071506_ClinicianIds'
+)
+BEGIN
+    ALTER TABLE [referrals].[Referrals] ADD [SpecialistId] uniqueidentifier NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071506_ClinicianIds'
+)
+BEGIN
+    CREATE INDEX [IX_Waitlist_SpecialistId] ON [referrals].[Waitlist] ([SpecialistId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071506_ClinicianIds'
+)
+BEGIN
+    CREATE INDEX [IX_Referrals_SpecialistId] ON [referrals].[Referrals] ([SpecialistId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071506_ClinicianIds'
+)
+BEGIN
+    EXEC(N'INSERT INTO [core].[Clinicians] ([Id], [Name], [Type], [Colour], [IsActive])
+    SELECT NEWID(), x.[Name], N''Other'', 0, 0 FROM (SELECT DISTINCT LEFT(LTRIM(RTRIM(n.[Name])), 150) AS [Name] FROM (SELECT [Specialist] AS [Name] FROM [referrals].[Referrals] UNION ALL SELECT [Specialist] FROM [referrals].[Waitlist]) n WHERE n.[Name] IS NOT NULL AND LTRIM(RTRIM(n.[Name])) <> N'''') x
+    WHERE NOT EXISTS (SELECT 1 FROM [core].[Clinicians] c WHERE c.[Name] = x.[Name]);
+    UPDATE r SET [SpecialistId] = c.[Id] FROM [referrals].[Referrals] r JOIN [core].[Clinicians] c ON c.[Name] = LTRIM(RTRIM(r.[Specialist]));
+    UPDATE w SET [SpecialistId] = c.[Id] FROM [referrals].[Waitlist] w JOIN [core].[Clinicians] c ON c.[Name] = LTRIM(RTRIM(w.[Specialist]));');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071506_ClinicianIds'
+)
+BEGIN
+    DECLARE @var nvarchar(max);
+    SELECT @var = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[referrals].[Waitlist]') AND [c].[name] = N'Specialist');
+    IF @var IS NOT NULL EXEC(N'ALTER TABLE [referrals].[Waitlist] DROP CONSTRAINT ' + @var + ';');
+    ALTER TABLE [referrals].[Waitlist] DROP COLUMN [Specialist];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071506_ClinicianIds'
+)
+BEGIN
+    DECLARE @var1 nvarchar(max);
+    SELECT @var1 = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[referrals].[Referrals]') AND [c].[name] = N'Specialist');
+    IF @var1 IS NOT NULL EXEC(N'ALTER TABLE [referrals].[Referrals] DROP CONSTRAINT ' + @var1 + ';');
+    ALTER TABLE [referrals].[Referrals] DROP COLUMN [Specialist];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [referrals].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071506_ClinicianIds'
+)
+BEGIN
+    INSERT INTO [referrals].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261109071506_ClinicianIds', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

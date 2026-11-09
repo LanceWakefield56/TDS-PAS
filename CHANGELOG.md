@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.2 – 2026-11-09 – **Clinicians and rooms by reference (third normal form)**
+- Theatre lists and regular list templates store **SurgeonId / AnaesthetistId**, clinic appointments **ClinicianId**, referrals and the waitlist **SpecialistId** – all linked to the clinician register with foreign keys. Theatre lists no longer copy the room name (looked up from the room). Renaming a clinician or a room now shows everywhere straight away.
+- Screens pick clinicians from the register (new list, regular lists, appointments, referrals, add/edit waitlist); the waitlist filter and "this specialist's lists first" use the id. Letters, SMS/email, portals, transfer pack, NBRS, credentialing checks and the reporting views look names up.
+- Upgrade: every name already typed on lists, templates, appointments, referrals and the waitlist is matched to the clinician register; names not in the register are added as **inactive** clinicians (type Other) so nothing is lost – tidy them in Organisation set-up › Clinicians.
+- Fix: very long audit reasons (e.g. several credential warnings accepted together) are shortened instead of failing the booking.
+- Installer test now also fails if any theatre/referrals table stores a clinician or room name. Tests: 264.
+
 ## 0.10.1 – 2026-11-08 – **Database design, DYMO labels, 7-Zip**
 - **Database (ADR 0019):** every table has a clustered primary key (no heaps) – now enforced by an installer test against SQL Server; indexes added on every lookup/foreign-key column (audit by user and by record, bookings, letters, reminders, roster, portal…); foreign keys within each module and **across modules** (all patient references → patients.Patients, booking references → theatre.Bookings, rooms → core.Locations, credentials/PA links → core.Clinicians); all trusted.
 - **Normalisation (1NF/3NF):** booking checklist (was a comma-separated list) → `theatre.BookingChecks` (who ticked it, when); questionnaire answers and flags (were JSON) → `forms.Answers` / `forms.Flags`; required credentials → `cred.RequiredTypes`. Upgrade copies existing data across. Remaining name snapshots listed in the data dictionary (planned: clinician IDs instead of names).

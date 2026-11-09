@@ -155,9 +155,9 @@ public class PatientRecordsTests
         var noNhi = await h.PatientAsync("Brown", "Sam", nhi: null, dob: new DateOnly(1970, 1, 1));
         await using var s = h.Scope();
         var svc = s.ServiceProvider.GetRequiredService<ReferralService>();
-        await svc.AddToWaitlistAsync(new(p.Id, "Lap chole", Laterality.NotApplicable, AnaestheticType.General, 90, ServiceType.Surgical, "Dr Ben Hall", Funder.HealthNz, Priority.Urgent, Mon, null), "rec");
-        await svc.AddToWaitlistAsync(new(noNhi.Id, "Hernia", Laterality.Left, AnaestheticType.General, 60, ServiceType.Surgical, "Dr Ben Hall", Funder.HealthNz, Priority.Routine, Mon, null), "rec");
-        await svc.AddToWaitlistAsync(new(p.Id, "Colonoscopy", Laterality.NotApplicable, AnaestheticType.Sedation, 30, ServiceType.Endoscopy, "Dr Ben Hall", Funder.Insurer, Priority.Routine, Mon, null), "rec");
+        await svc.AddToWaitlistAsync(new(p.Id, "Lap chole", Laterality.NotApplicable, AnaestheticType.General, 90, ServiceType.Surgical, Doc.Id("Dr Ben Hall"), Funder.HealthNz, Priority.Urgent, Mon, null), "rec");
+        await svc.AddToWaitlistAsync(new(noNhi.Id, "Hernia", Laterality.Left, AnaestheticType.General, 60, ServiceType.Surgical, Doc.Id("Dr Ben Hall"), Funder.HealthNz, Priority.Routine, Mon, null), "rec");
+        await svc.AddToWaitlistAsync(new(p.Id, "Colonoscopy", Laterality.NotApplicable, AnaestheticType.Sedation, 30, ServiceType.Endoscopy, Doc.Id("Dr Ben Hall"), Funder.Insurer, Priority.Routine, Mon, null), "rec");
         var (_, problems0, rows0) = await svc.NbrsExtractAsync(Mon.AddDays(-30), Mon, "rec");
         Assert.Equal(0, rows0);
         Assert.Contains(problems0, x => x.Contains("agency and facility"));
@@ -176,18 +176,18 @@ public class PatientRecordsTests
         await using var h = new ModulesHost();
         await using var s = h.Scope();
         var org = s.ServiceProvider.GetRequiredService<OrganisationService>();
-        var (hall, _) = await org.SaveClinicianAsync(new(null, "Dr Ben Hall", ClinicianType.Surgeon, "General surgery", null, null, null, null, "ben.hall", true), "admin");
+        var hall = await s.ServiceProvider.GetRequiredService<PasDbContext>().Clinicians.SingleAsync(c => c.Id == Doc.Id("Dr Ben Hall"));
         await org.AddExampleProceduresAsync("admin");
         var svc = s.ServiceProvider.GetRequiredService<CredentialingService>();
-        Assert.Equal("Missing", (await svc.StatusAsync()).Single().State);
-        Assert.NotEmpty(await svc.SaveCredentialAsync(new(null, hall!.Id, CredentialType.Apc, "APC-1", "MCNZ", null, null, null, true), "admin")); // APC needs expiry
+        Assert.Equal("Missing", (await svc.StatusAsync()).Single(c => c.Name == "Dr Ben Hall").State);
+        Assert.NotEmpty(await svc.SaveCredentialAsync(new(null, hall.Id, CredentialType.Apc, "APC-1", "MCNZ", null, null, null, true), "admin")); // APC needs expiry
         await svc.SaveCredentialAsync(new(null, hall.Id, CredentialType.Apc, "APC-1", "MCNZ", Mon.AddMonths(-11), Mon.AddDays(20), null, true), "admin");
         await svc.SaveCredentialAsync(new(null, hall.Id, CredentialType.Indemnity, "MPS-9", "MPS", null, Mon.AddYears(1), null, true), "admin");
         await svc.SaveCredentialAsync(new(null, hall.Id, CredentialType.CredentialingApproval, "Min 2026/4", null, null, Mon.AddYears(3), null, true), "admin");
         await svc.SavePrivilegeAsync(new(null, hall.Id, "Endoscopy", null, Mon.AddYears(-1), null, null, true), "admin");
-        Assert.Equal("ExpiringSoon", (await svc.StatusAsync()).Single().State);
-        Assert.DoesNotContain(await svc.CheckCaseAsync(Mon.AddDays(5), "Dr Ben Hall", null, "Colonoscopy"), w => w.Contains("practising"));
-        var later = await svc.CheckCaseAsync(Mon.AddDays(30), "Dr Ben Hall", null, "Laparoscopic cholecystectomy");
+        Assert.Equal("ExpiringSoon", (await svc.StatusAsync()).Single(c => c.Name == "Dr Ben Hall").State);
+        Assert.DoesNotContain(await svc.CheckCaseAsync(Mon.AddDays(5), hall.Id, null, "Colonoscopy"), w => w.Contains("practising"));
+        var later = await svc.CheckCaseAsync(Mon.AddDays(30), hall.Id, null, "Laparoscopic cholecystectomy");
         Assert.Contains(later, w => w.Contains("practising certificate expires before"));
         Assert.Contains(later, w => w.Contains("outside"));
     }
@@ -257,5 +257,45 @@ public class DymoAndNormalisationTests
         Assert.NotNull(theatre.Model.FindEntityType(typeof(BookingCheck)));
         var cred = s.ServiceProvider.GetRequiredService<CredentialingService>();
         Assert.Equal([CredentialType.Apc, CredentialType.Indemnity, CredentialType.CredentialingApproval], await cred.RequiredAsync());
+    }
+}
+
+public class ClinicianReferenceTests
+{
+    [Fact]
+    public async Task Lists_appointments_and_waitlist_store_clinician_ids_so_a_rename_shows_everywhere()
+    {
+        await using var h = new ModulesHost();
+        var p = await h.PatientAsync();
+        await using var s = h.Scope();
+        var sp = s.ServiceProvider;
+        var theatre = sp.GetRequiredService<TheatreService>();
+        var th1 = await sp.GetRequiredService<PasDbContext>().Locations.SingleAsync(l => l.Code == "TH1");
+        var day = new DateOnly(2026, 11, 20);
+        var (_, bad) = await theatre.CreateSessionAsync(new(th1.Id, day, new(8, 0), new(12, 0), SessionType.Surgical, Guid.NewGuid(), null, null), "rec");
+        Assert.Contains("clinician register", bad);
+        await theatre.CreateSessionAsync(new(th1.Id, day, new(8, 0), new(12, 0), SessionType.Surgical, Doc.Id("Dr Ben Hall"), Doc.Id("Dr Kate Ford"), null), "rec");
+        await theatre.BookAppointmentAsync(new(p.Id, day, new(17, 0), 15, AppointmentKind.FollowUp, Doc.Id("Dr Kate Ford"), null, false, false, null, AcceptWarnings: true), "rec");
+        await sp.GetRequiredService<ReferralService>().AddToWaitlistAsync(new(p.Id, "Hernia", Laterality.Left, AnaestheticType.General, 60, ServiceType.Surgical, Doc.Id("Dr Kate Ford"),
+            Funder.SelfPay, Priority.Routine, null, null), "rec");
+        var org = sp.GetRequiredService<OrganisationService>();
+        var (_, errs) = await org.SaveClinicianAsync(new(Doc.Id("Dr Kate Ford"), "Dr Kate Ford-Smith", ClinicianType.Anaesthetist, null, null, null, null, null, null, true), "admin");
+        Assert.Empty(errs);
+        Assert.Equal("Dr Kate Ford-Smith", (await theatre.SessionsAsync(day, day)).Single().Anaesthetist);
+        Assert.Equal("Dr Kate Ford-Smith", (await theatre.AppointmentsAsync(day, day, null)).Single().Clinician);
+        Assert.Equal("Dr Kate Ford-Smith", (await sp.GetRequiredService<ReferralService>().WaitlistAsync("waiting", Doc.Id("Dr Kate Ford"), null, null)).Single().Specialist);
+    }
+}
+
+public class AuditLengthTests
+{
+    [Fact]
+    public async Task Long_audit_reasons_are_shortened_not_lost()
+    {
+        await using var h = new ModulesHost();
+        await using var s = h.Scope();
+        var e = await s.ServiceProvider.GetRequiredService<BrightPAS.Core.Audit.AuditWriter>().WriteAsync("rec", "Test", "Thing", "1", reason: new string('x', 900));
+        Assert.Equal(500, e.Reason!.Length);
+        Assert.EndsWith("…", e.Reason);
     }
 }

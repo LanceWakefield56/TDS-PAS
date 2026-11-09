@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { addDays, api, errText, formatDate, Perm, todayIso } from '../api';
 import { useSession } from '../App';
-import { RefLists, useRefData } from '../components/RefData';
+import { RefLists, useRefData, ClinicianSelect } from '../components/RefData';
 
-interface Tpl { id: string; locationId: string; locationName: string; dayOfWeek: string; startTime: string; endTime: string; type: string; surgeon: string; anaesthetist: string | null; everyWeeks: number; startsOn: string; endsOn: string | null; isActive: boolean }
+interface Tpl { id: string; locationId: string; locationName: string; dayOfWeek: string; startTime: string; endTime: string; type: string; surgeonId: string; surgeon: string; anaesthetistId: string | null; anaesthetist: string | null; everyWeeks: number; startsOn: string; endsOn: string | null; isActive: boolean }
 interface Loc { id: string; name: string }
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const hm = (t: string) => t.slice(0, 5);
@@ -25,7 +25,7 @@ export default function ListTemplates() {
   const save = async () => {
     setErrors([]);
     try {
-      await api('/api/theatre/templates', { body: { ...edit, locationId: edit.locationId || locs[0]?.id, startTime: edit.startTime.slice(0, 5) + ':00', endTime: edit.endTime.slice(0, 5) + ':00', everyWeeks: Number(edit.everyWeeks), endsOn: edit.endsOn || null } });
+      await api('/api/theatre/templates', { body: { ...edit, locationId: edit.locationId || locs[0]?.id, startTime: edit.startTime.slice(0, 5) + ':00', endTime: edit.endTime.slice(0, 5) + ':00', everyWeeks: Number(edit.everyWeeks), endsOn: edit.endsOn || null, anaesthetistId: edit.anaesthetistId || null } });
       setEdit(null); load();
     } catch (x: any) { setErrors(x?.body?.errors ?? [errText(x)]); }
   };
@@ -39,7 +39,7 @@ export default function ListTemplates() {
       <RefLists {...ref} />
       <div className="row-between">
         <div className="page-head"><p className="small"><Link to="/theatre">← Theatre lists</Link></p><h1>Regular list templates</h1><p className="muted">Each surgeon's regular sessions. Create the real lists for the coming weeks in one step; existing lists are never changed.</p></div>
-        {manage && !edit && <button className="btn btn-primary" onClick={() => setEdit({ locationId: locs[0]?.id, dayOfWeek: 'Tuesday', startTime: '08:00', endTime: '12:30', type: 'Surgical', surgeon: '', anaesthetist: '', everyWeeks: 1, startsOn: todayIso(), endsOn: '', isActive: true })}>Add template</button>}
+        {manage && !edit && <button className="btn btn-primary" onClick={() => setEdit({ locationId: locs[0]?.id, dayOfWeek: 'Tuesday', startTime: '08:00', endTime: '12:30', type: 'Surgical', surgeonId: '', anaesthetistId: '', everyWeeks: 1, startsOn: todayIso(), endsOn: '', isActive: true })}>Add template</button>}
       </div>
       {edit && (
         <section className="card stack">
@@ -50,8 +50,8 @@ export default function ListTemplates() {
             <label>Starts<input type="time" value={edit.startTime.slice(0, 5)} onChange={set('startTime')} /></label>
             <label>Finishes<input type="time" value={edit.endTime.slice(0, 5)} onChange={set('endTime')} /></label>
             <label>Type<select value={edit.type} onChange={set('type')}>{['Surgical', 'Endoscopy', 'Mixed'].map((t) => <option key={t}>{t}</option>)}</select></label>
-            <label>Surgeon / endoscopist<input list="dl-surgeons" value={edit.surgeon} onChange={set('surgeon')} /></label>
-            <label>Anaesthetist<input list="dl-anaesthetists" value={edit.anaesthetist ?? ''} onChange={set('anaesthetist')} /></label>
+            <ClinicianSelect label="Surgeon / endoscopist" role="surgeon" required value={edit.surgeonId} currentName={edit.surgeon} onChange={(id) => setEdit({ ...edit, surgeonId: id })} />
+            <ClinicianSelect label="Anaesthetist" role="anaesthetist" value={edit.anaesthetistId} currentName={edit.anaesthetist} onChange={(id) => setEdit({ ...edit, anaesthetistId: id })} />
             <label>Repeat<select value={edit.everyWeeks} onChange={set('everyWeeks')}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n === 1 ? 'Every week' : `Every ${n} weeks`}</option>)}</select></label>
             <label>From<input type="date" value={edit.startsOn} onChange={set('startsOn')} /></label>
             <label>Until (optional)<input type="date" value={edit.endsOn ?? ''} onChange={set('endsOn')} /></label>
@@ -71,7 +71,7 @@ export default function ListTemplates() {
                 <td data-label="Room">{t.locationName}</td><td data-label="Surgeon">{t.surgeon}<div className="small muted">{t.type}{t.anaesthetist ? ` · ${t.anaesthetist}` : ''}</div></td>
                 <td data-label="Repeat">{t.everyWeeks === 1 ? 'Weekly' : `Every ${t.everyWeeks} weeks`}<div className="small muted">from {formatDate(t.startsOn)}{t.endsOn ? ` to ${formatDate(t.endsOn)}` : ''}</div></td>
                 <td data-label="Status"><span className={`pill ${t.isActive ? 'green' : ''}`}>{t.isActive ? 'Active' : 'Off'}</span></td>
-                <td>{manage && <button className="btn btn-link" onClick={() => setEdit({ ...t, anaesthetist: t.anaesthetist ?? '', endsOn: t.endsOn ?? '' })}>Edit</button>}</td></tr>
+                <td>{manage && <button className="btn btn-link" onClick={() => setEdit({ ...t, anaesthetistId: t.anaesthetistId ?? '', endsOn: t.endsOn ?? '' })}>Edit</button>}</td></tr>
             ))}</tbody>
           </table>
         )}

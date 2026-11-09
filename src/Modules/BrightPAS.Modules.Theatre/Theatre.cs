@@ -27,13 +27,14 @@ public sealed class TheatreSession
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid LocationId { get; set; }
-    public string LocationName { get; set; } = "";
     public DateOnly Date { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
     public SessionType Type { get; set; }
-    public string Surgeon { get; set; } = "";
-    public string? Anaesthetist { get; set; }
+    /// <summary>Surgeon or endoscopist (core.Clinicians).</summary>
+    public Guid SurgeonId { get; set; }
+    /// <summary>Anaesthetist (core.Clinicians), if any.</summary>
+    public Guid? AnaesthetistId { get; set; }
     public string? Notes { get; set; }
     public bool IsCancelled { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -52,8 +53,8 @@ public sealed class SessionTemplate
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
     public SessionType Type { get; set; }
-    public string Surgeon { get; set; } = "";
-    public string? Anaesthetist { get; set; }
+    public Guid SurgeonId { get; set; }
+    public Guid? AnaesthetistId { get; set; }
     /// <summary>1 = every week, 2 = every second week, … counted from <see cref="StartsOn"/>.</summary>
     public int EveryWeeks { get; set; } = 1;
     public DateOnly StartsOn { get; set; }
@@ -121,7 +122,8 @@ public sealed class Appointment
     public TimeOnly StartTime { get; set; }
     public int DurationMinutes { get; set; } = 15;
     public AppointmentKind Kind { get; set; }
-    public string Clinician { get; set; } = "";
+    /// <summary>Clinician seen (core.Clinicians).</summary>
+    public Guid ClinicianId { get; set; }
     public Guid? LocationId { get; set; }
     public bool NoCharge { get; set; }
     public bool IsTentative { get; set; }
@@ -156,10 +158,9 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
         b.HasDefaultSchema(Schema);
         b.Entity<TheatreSession>(e =>
         {
-            e.Property(x => x.LocationName).HasMaxLength(100);
             e.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
-            e.Property(x => x.Surgeon).HasMaxLength(150);
-            e.Property(x => x.Anaesthetist).HasMaxLength(150);
+            e.HasIndex(x => new { x.SurgeonId, x.Date });
+            e.HasIndex(x => x.AnaesthetistId);
             e.Property(x => x.Notes).HasMaxLength(1000);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.HasIndex(x => new { x.Date, x.LocationId });
@@ -170,8 +171,8 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
         {
             e.Property(x => x.DayOfWeek).HasConversion<string>().HasMaxLength(10);
             e.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
-            e.Property(x => x.Surgeon).HasMaxLength(150);
-            e.Property(x => x.Anaesthetist).HasMaxLength(150);
+            e.HasIndex(x => x.SurgeonId);
+            e.HasIndex(x => x.AnaesthetistId);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.HasIndex(x => x.LocationId);
         });
@@ -206,7 +207,7 @@ public sealed class TheatreDbContext(DbContextOptions<TheatreDbContext> options)
         {
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
-            e.Property(x => x.Clinician).HasMaxLength(150);
+            e.HasIndex(x => new { x.ClinicianId, x.Date });
             e.Property(x => x.CancelReason).HasMaxLength(300);
             e.Property(x => x.Notes).HasMaxLength(1000);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
@@ -224,32 +225,47 @@ public sealed class TheatreDbContextFactory : IDesignTimeDbContextFactory<Theatr
             s => s.MigrationsHistoryTable("__EFMigrationsHistory", TheatreDbContext.Schema)).Options);
 }
 
-public sealed record NewSession(Guid LocationId, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, SessionType Type, string Surgeon, string? Anaesthetist, string? Notes);
-public sealed record TemplateEdit(Guid? Id, Guid LocationId, DayOfWeek DayOfWeek, TimeOnly StartTime, TimeOnly EndTime, SessionType Type, string Surgeon,
-    string? Anaesthetist, int EveryWeeks, DateOnly StartsOn, DateOnly? EndsOn, bool IsActive);
+public sealed record NewSession(Guid LocationId, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, SessionType Type, Guid SurgeonId, Guid? AnaesthetistId, string? Notes);
+public sealed record TemplateEdit(Guid? Id, Guid LocationId, DayOfWeek DayOfWeek, TimeOnly StartTime, TimeOnly EndTime, SessionType Type, Guid SurgeonId,
+    Guid? AnaesthetistId, int EveryWeeks, DateOnly StartsOn, DateOnly? EndsOn, bool IsActive);
 public sealed record GenerateResult(int Created, IReadOnlyList<string> Skipped);
 
 public sealed record NewBooking(Guid SessionId, Guid PatientId, string Procedure, Laterality Laterality, int DurationMinutes, AnaestheticType Anaesthetic,
     string? Notes, bool AcceptWarnings = false, PaymentType Payment = PaymentType.NotSet, bool IsTentative = false);
 public sealed record BookingDetails(bool IsTentative, PaymentType Payment, string? DepositNote, IReadOnlyList<string>? Checklist, bool BilledExternally,
     TimeOnly? TheatreIn, TimeOnly? TheatreOut, string? TraysNeeded, string? TraysUsed, string? LoanItems, string? ScopeId, string? Notes);
-public sealed record NewAppointment(Guid PatientId, DateOnly Date, TimeOnly StartTime, int DurationMinutes, AppointmentKind Kind, string Clinician, Guid? LocationId,
+public sealed record NewAppointment(Guid PatientId, DateOnly Date, TimeOnly StartTime, int DurationMinutes, AppointmentKind Kind, Guid ClinicianId, Guid? LocationId,
     bool NoCharge, bool IsTentative, string? Notes, bool AcceptWarnings = false);
 public sealed record AppointmentView(Guid Id, Guid PatientId, string PatientName, string? Nhi, string Mrn, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime,
-    int DurationMinutes, string Kind, string Clinician, string? LocationName, bool NoCharge, bool IsTentative, string Status, string? CancelReason, string? Notes);
+    int DurationMinutes, string Kind, Guid ClinicianId, string Clinician, string? LocationName, bool NoCharge, bool IsTentative, string Status, string? CancelReason, string? Notes);
 public sealed record BookingResult(TheatreBooking? Booking, IReadOnlyList<string> Errors, IReadOnlyList<string> Warnings);
 
 public sealed record BookingView(Guid Id, Guid PatientId, string PatientName, string? Nhi, string Mrn, DateOnly DateOfBirth, int Order, string Procedure,
     string Laterality, int DurationMinutes, string Anaesthetic, string Status, string? CancelReason, string? Notes, TimeOnly PlannedStart, TimeOnly PlannedEnd,
     bool IsTentative, string Payment, string? DepositNote, IReadOnlyList<string> Checklist, bool BilledExternally, TimeOnly? TheatreIn, TimeOnly? TheatreOut,
     string? TraysNeeded, string? TraysUsed, string? LoanItems, string? ScopeId, string? Phone);
-public sealed record SessionView(Guid Id, Guid LocationId, string LocationName, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, string Type, string Surgeon,
-    string? Anaesthetist, string? Notes, bool IsCancelled, int BookedMinutes, int AvailableMinutes, bool Overrun, IReadOnlyList<BookingView> Bookings);
+public sealed record SessionView(Guid Id, Guid LocationId, string LocationName, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, string Type, Guid SurgeonId, string Surgeon,
+    Guid? AnaesthetistId, string? Anaesthetist, string? Notes, bool IsCancelled, int BookedMinutes, int AvailableMinutes, bool Overrun, IReadOnlyList<BookingView> Bookings);
 
 public sealed class TheatreService(TheatreDbContext db, PasDbContext core, PatientsDbContext patients, AuditWriter audit, TimeProvider clock)
 {
     /// <summary>Minutes allowed between cases for cleaning and set-up when planning start times.</summary>
     public const int TurnoverMinutes = 10;
+
+    /// <summary>Names of every clinician (active or not) – names are looked up, never stored on lists or appointments (3NF, 0.10.2).</summary>
+    public async Task<Dictionary<Guid, string>> ClinicianNamesAsync(CancellationToken ct = default) =>
+        await core.Clinicians.AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.Name, ct);
+
+    public async Task<Dictionary<Guid, string>> LocationNamesAsync(CancellationToken ct = default) =>
+        await core.Locations.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
+
+    /// <summary>Error text when the clinician is missing or inactive (null = fine).</summary>
+    public async Task<string?> ClinicianProblemAsync(Guid? id, bool required, string what, CancellationToken ct = default)
+    {
+        if (id is null || id == Guid.Empty) return required ? $"Choose the {what}." : null;
+        var c = await core.Clinicians.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+        return c is null ? $"Choose the {what} from the clinician register." : !c.IsActive ? $"{c.Name} is not active in the clinician register." : null;
+    }
 
     public async Task<IReadOnlyList<object>> BookableLocationsAsync(CancellationToken ct = default) =>
         await core.Locations.AsNoTracking().Where(l => l.IsActive && (l.Type == LocationType.Theatre || l.Type == LocationType.ProcedureRoom))
@@ -261,28 +277,31 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         if (loc is null || !loc.IsActive || loc.Type is not (LocationType.Theatre or LocationType.ProcedureRoom))
             return (null, "Choose an active theatre or procedure room.");
         if (s.EndTime <= s.StartTime) return (null, "The list must finish after it starts.");
-        if (string.IsNullOrWhiteSpace(s.Surgeon)) return (null, "Enter the surgeon or endoscopist for the list.");
+        if (await ClinicianProblemAsync(s.SurgeonId, true, "surgeon or endoscopist", ct) is { } e1) return (null, e1);
+        if (await ClinicianProblemAsync(s.AnaesthetistId, false, "anaesthetist", ct) is { } e2) return (null, e2);
         var clash = await db.Sessions.AnyAsync(x => x.LocationId == s.LocationId && x.Date == s.Date && !x.IsCancelled
             && x.StartTime < s.EndTime && s.StartTime < x.EndTime, ct);
         if (clash) return (null, $"{loc.Name} already has a list at that time on {s.Date:d MMM yyyy}.");
         var session = new TheatreSession
         {
-            LocationId = loc.Id, LocationName = loc.Name, Date = s.Date, StartTime = s.StartTime, EndTime = s.EndTime, Type = s.Type,
-            Surgeon = s.Surgeon.Trim(), Anaesthetist = Blank(s.Anaesthetist), Notes = Blank(s.Notes), CreatedAt = clock.GetUtcNow(), CreatedBy = user
+            LocationId = loc.Id, Date = s.Date, StartTime = s.StartTime, EndTime = s.EndTime, Type = s.Type,
+            SurgeonId = s.SurgeonId, AnaesthetistId = s.AnaesthetistId == Guid.Empty ? null : s.AnaesthetistId, Notes = Blank(s.Notes), CreatedAt = clock.GetUtcNow(), CreatedBy = user
         };
         db.Sessions.Add(session);
         await db.SaveChangesAsync(ct);
-        await audit.WriteAsync(user, "Create", "TheatreSession", session.Id.ToString(), reason: $"{loc.Name} {s.Date:yyyy-MM-dd} {s.StartTime:HH\\:mm}-{s.EndTime:HH\\:mm} {session.Surgeon}", ct: ct);
+        await audit.WriteAsync(user, "Create", "TheatreSession", session.Id.ToString(), reason: $"{loc.Name} {s.Date:yyyy-MM-dd} {s.StartTime:HH\\:mm}-{s.EndTime:HH\\:mm} surgeon {session.SurgeonId}", ct: ct);
         return (session, null);
     }
 
     public async Task<IReadOnlyList<object>> TemplatesAsync(CancellationToken ct = default)
     {
-        var names = await core.Locations.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
+        var names = await LocationNamesAsync(ct);
+        var people = await ClinicianNamesAsync(ct);
         // Sorted in memory: the day is stored as text, so SQL cannot sort it Monday-first.
         return (await db.Templates.AsNoTracking().ToListAsync(ct)).OrderBy(t => t.DayOfWeek == DayOfWeek.Sunday ? 7 : (int)t.DayOfWeek).ThenBy(t => t.StartTime)
             .Select(t => (object)new { t.Id, t.LocationId, locationName = names.GetValueOrDefault(t.LocationId, "?"), dayOfWeek = t.DayOfWeek.ToString(), t.StartTime, t.EndTime,
-                type = t.Type.ToString(), t.Surgeon, t.Anaesthetist, t.EveryWeeks, t.StartsOn, t.EndsOn, t.IsActive }).ToList();
+                type = t.Type.ToString(), t.SurgeonId, surgeon = people.GetValueOrDefault(t.SurgeonId, "?"), t.AnaesthetistId,
+                anaesthetist = t.AnaesthetistId is { } a ? people.GetValueOrDefault(a) : null, t.EveryWeeks, t.StartsOn, t.EndsOn, t.IsActive }).ToList();
     }
 
     public async Task<(SessionTemplate? Template, string? Error)> SaveTemplateAsync(TemplateEdit t, string user, CancellationToken ct = default)
@@ -290,7 +309,8 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         var loc = await core.Locations.AsNoTracking().SingleOrDefaultAsync(l => l.Id == t.LocationId, ct);
         if (loc is null || loc.Type is not (LocationType.Theatre or LocationType.ProcedureRoom)) return (null, "Choose a theatre or procedure room.");
         if (t.EndTime <= t.StartTime) return (null, "The list must finish after it starts.");
-        if (string.IsNullOrWhiteSpace(t.Surgeon)) return (null, "Choose the surgeon or endoscopist.");
+        if (await ClinicianProblemAsync(t.SurgeonId, true, "surgeon or endoscopist", ct) is { } e1) return (null, e1);
+        if (await ClinicianProblemAsync(t.AnaesthetistId, false, "anaesthetist", ct) is { } e2) return (null, e2);
         if (t.EveryWeeks is < 1 or > 8) return (null, "Repeat every 1 to 8 weeks.");
         if (t.EndsOn is { } end && end < t.StartsOn) return (null, "The end date must be after the start date.");
         var clash = await db.Templates.AnyAsync(x => x.Id != t.Id && x.IsActive && t.IsActive && x.LocationId == t.LocationId && x.DayOfWeek == t.DayOfWeek
@@ -300,10 +320,10 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         if (t.Id is { } id) row = await db.Templates.SingleAsync(x => x.Id == id, ct);
         else { row = new SessionTemplate { CreatedAt = clock.GetUtcNow(), CreatedBy = user }; db.Templates.Add(row); }
         row.LocationId = t.LocationId; row.DayOfWeek = t.DayOfWeek; row.StartTime = t.StartTime; row.EndTime = t.EndTime; row.Type = t.Type;
-        row.Surgeon = t.Surgeon.Trim(); row.Anaesthetist = Blank(t.Anaesthetist); row.EveryWeeks = t.EveryWeeks; row.StartsOn = t.StartsOn; row.EndsOn = t.EndsOn; row.IsActive = t.IsActive;
+        row.SurgeonId = t.SurgeonId; row.AnaesthetistId = t.AnaesthetistId == Guid.Empty ? null : t.AnaesthetistId; row.EveryWeeks = t.EveryWeeks; row.StartsOn = t.StartsOn; row.EndsOn = t.EndsOn; row.IsActive = t.IsActive;
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, t.Id is null ? "Create" : "Update", "SessionTemplate", row.Id.ToString(),
-            reason: $"{loc.Name} {row.DayOfWeek} {row.StartTime:HH\\:mm}-{row.EndTime:HH\\:mm} {row.Surgeon} every {row.EveryWeeks} week(s){(row.IsActive ? "" : " (inactive)")}", ct: ct);
+            reason: $"{loc.Name} {row.DayOfWeek} {row.StartTime:HH\\:mm}-{row.EndTime:HH\\:mm} surgeon {row.SurgeonId} every {row.EveryWeeks} week(s){(row.IsActive ? "" : " (inactive)")}", ct: ct);
         return (row, null);
     }
 
@@ -324,8 +344,8 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
                 if (loc is null || !loc.IsActive) { skipped.Add($"{d:ddd d MMM}: {loc?.Name ?? "room"} is not active."); continue; }
                 var clash = await db.Sessions.AnyAsync(x => x.LocationId == t.LocationId && x.Date == d && !x.IsCancelled && x.StartTime < t.EndTime && t.StartTime < x.EndTime, ct);
                 if (clash) { skipped.Add($"{d:ddd d MMM}: {loc.Name} already has a list at that time."); continue; }
-                db.Sessions.Add(new TheatreSession { LocationId = loc.Id, LocationName = loc.Name, Date = d, StartTime = t.StartTime, EndTime = t.EndTime, Type = t.Type,
-                    Surgeon = t.Surgeon, Anaesthetist = t.Anaesthetist, Notes = "From template", CreatedAt = clock.GetUtcNow(), CreatedBy = user });
+                db.Sessions.Add(new TheatreSession { LocationId = loc.Id, Date = d, StartTime = t.StartTime, EndTime = t.EndTime, Type = t.Type,
+                    SurgeonId = t.SurgeonId, AnaesthetistId = t.AnaesthetistId, Notes = "From template", CreatedAt = clock.GetUtcNow(), CreatedBy = user });
                 await db.SaveChangesAsync(ct);
                 created++;
             }
@@ -351,7 +371,9 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
             .Where(s => s.Date >= from && s.Date <= to && !s.IsCancelled).OrderBy(s => s.Date).ThenBy(s => s.StartTime).ToListAsync(ct);
         var ids = sessions.SelectMany(s => s.Bookings).Select(b => b.PatientId).Distinct().ToList();
         var people = await patients.Patients.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        return sessions.Select(s => View(s, people)).ToList();
+        var clinicians = await ClinicianNamesAsync(ct);
+        var rooms = await LocationNamesAsync(ct);
+        return sessions.Select(s => View(s, people, clinicians, rooms)).ToList();
     }
 
     public async Task<IReadOnlyList<object>> PatientBookingsAsync(Guid patientId, CancellationToken ct = default)
@@ -360,9 +382,12 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
                           join s in db.Sessions.AsNoTracking() on b.SessionId equals s.Id
                           where b.PatientId == patientId
                           orderby s.Date descending
-                          select new { b.Id, s.Date, s.LocationName, s.Surgeon, b.Procedure, laterality = b.Laterality.ToString(), status = b.Status.ToString(), sessionId = s.Id })
+                          select new { b.Id, s.Date, s.LocationId, s.SurgeonId, b.Procedure, laterality = b.Laterality.ToString(), status = b.Status.ToString(), sessionId = s.Id })
             .ToListAsync(ct);
-        return rows.Cast<object>().ToList();
+        var clinicians = await ClinicianNamesAsync(ct);
+        var rooms = await LocationNamesAsync(ct);
+        return rows.Select(r => (object)new { r.Id, r.Date, locationName = rooms.GetValueOrDefault(r.LocationId, "?"), r.SurgeonId, surgeon = clinicians.GetValueOrDefault(r.SurgeonId, "?"),
+            r.Procedure, r.laterality, r.status, r.sessionId }).ToList();
     }
 
     /// <param name="validateOnly">Run every check and return errors and warnings without booking (used by the waitlist to show all warnings at once).</param>
@@ -387,8 +412,9 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
             var sameDay = await (from b in db.Bookings join x in db.Sessions on b.SessionId equals x.Id
                                  where b.PatientId == r.PatientId && x.Date == s.Date && x.Id != s.Id && !x.IsCancelled
                                        && b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.DidNotAttend
-                                 select x.LocationName).ToListAsync(ct);
-            if (sameDay.Count > 0) warnings.Add($"This patient is already booked on {s.Date:d MMM} ({string.Join(", ", sameDay)}).");
+                                 select x.LocationId).ToListAsync(ct);
+            var rooms = await LocationNamesAsync(ct);
+            if (sameDay.Count > 0) warnings.Add($"This patient is already booked on {s.Date:d MMM} ({string.Join(", ", sameDay.Select(l => rooms.GetValueOrDefault(l, "?")))}).");
         }
         var booked = active.Sum(b => b.DurationMinutes + TurnoverMinutes);
         var available = (int)(s.EndTime - s.StartTime).TotalMinutes;
@@ -407,7 +433,7 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         db.Bookings.Add(booking);
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Create", "TheatreBooking", booking.Id.ToString(), r.PatientId.ToString(),
-            reason: $"{s.LocationName} {s.Date:yyyy-MM-dd}: {booking.Procedure}{(warnings.Count > 0 ? " (warnings accepted: " + string.Join("; ", warnings) + ")" : "")}", ct: ct);
+            reason: $"list {s.Id} {s.Date:yyyy-MM-dd}: {booking.Procedure}{(warnings.Count > 0 ? " (warnings accepted: " + string.Join("; ", warnings) + ")" : "")}", ct: ct);
         return new(booking, errors, warnings);
     }
 
@@ -492,28 +518,28 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         var errors = new List<string>();
         var warnings = new List<string>();
         if (!await patients.Patients.AnyAsync(p => p.Id == a.PatientId, ct)) errors.Add("Choose the patient.");
-        if (string.IsNullOrWhiteSpace(a.Clinician)) errors.Add("Choose the clinician.");
+        if (await ClinicianProblemAsync(a.ClinicianId, true, "clinician", ct) is { } ce) errors.Add(ce);
         if (a.DurationMinutes is < 5 or > 240) errors.Add("Enter a length between 5 and 240 minutes.");
         if (a.StartTime.AddMinutes(a.DurationMinutes) < a.StartTime) errors.Add("The appointment must finish on the same day.");
         if (errors.Count > 0) return (null, errors, warnings);
         var end = a.StartTime.AddMinutes(a.DurationMinutes);
-        var clinician = a.Clinician.Trim();
-        var sameClinician = await db.Appointments.AsNoTracking().Where(x => x.Date == a.Date && x.Clinician == clinician && x.Status != AppointmentStatus.Cancelled
+        var clinician = (await ClinicianNamesAsync(ct)).GetValueOrDefault(a.ClinicianId, "The clinician");
+        var sameClinician = await db.Appointments.AsNoTracking().Where(x => x.Date == a.Date && x.ClinicianId == a.ClinicianId && x.Status != AppointmentStatus.Cancelled
             && x.Status != AppointmentStatus.DidNotAttend).ToListAsync(ct);
         if (sameClinician.Any(x => x.StartTime < end && a.StartTime < x.StartTime.AddMinutes(x.DurationMinutes))) warnings.Add($"{clinician} already has an appointment at that time.");
-        var lists = await db.Sessions.AsNoTracking().Where(s => s.Date == a.Date && !s.IsCancelled && s.Surgeon == clinician).ToListAsync(ct);
+        var lists = await db.Sessions.AsNoTracking().Where(s => s.Date == a.Date && !s.IsCancelled && (s.SurgeonId == a.ClinicianId || s.AnaesthetistId == a.ClinicianId)).ToListAsync(ct);
         if (lists.Any(s => s.StartTime < end && a.StartTime < s.EndTime)) warnings.Add($"{clinician} has a theatre list at that time.");
         if (a.Date < DateOnly.FromDateTime(clock.GetLocalNow().DateTime)) warnings.Add("This date is in the past.");
         if (warnings.Count > 0 && !a.AcceptWarnings) return (null, errors, warnings);
         var row = new Appointment
         {
-            PatientId = a.PatientId, Date = a.Date, StartTime = a.StartTime, DurationMinutes = a.DurationMinutes, Kind = a.Kind, Clinician = clinician, LocationId = a.LocationId,
+            PatientId = a.PatientId, Date = a.Date, StartTime = a.StartTime, DurationMinutes = a.DurationMinutes, Kind = a.Kind, ClinicianId = a.ClinicianId, LocationId = a.LocationId,
             NoCharge = a.NoCharge, IsTentative = a.IsTentative, Notes = Blank(a.Notes), CreatedAt = clock.GetUtcNow(), CreatedBy = user
         };
         db.Appointments.Add(row);
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Create", "Appointment", row.Id.ToString(), row.PatientId.ToString(),
-            reason: $"{row.Kind} {row.Date:yyyy-MM-dd} {row.StartTime:HH\\:mm} with {row.Clinician}{(row.NoCharge ? " (no charge)" : "")}", ct: ct);
+            reason: $"{row.Kind} {row.Date:yyyy-MM-dd} {row.StartTime:HH\\:mm} with {clinician}{(row.NoCharge ? " (no charge)" : "")}", ct: ct);
         return (row, errors, warnings);
     }
 
@@ -537,17 +563,18 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         var list = (await q.ToListAsync(ct)).OrderBy(a => a.Date).ThenBy(a => a.StartTime).ToList();
         var ids = list.Select(a => a.PatientId).Distinct().ToList();
         var people = await patients.Patients.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        var rooms = await core.Locations.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
+        var rooms = await LocationNamesAsync(ct);
+        var clinicians = await ClinicianNamesAsync(ct);
         return list.Select(a =>
         {
             var p = people.GetValueOrDefault(a.PatientId);
             return new AppointmentView(a.Id, a.PatientId, p is null ? "(unknown)" : $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}", p?.Nhi, p?.Mrn ?? "", a.Date, a.StartTime,
-                a.StartTime.AddMinutes(a.DurationMinutes), a.DurationMinutes, a.Kind.ToString(), a.Clinician, a.LocationId is { } l ? rooms.GetValueOrDefault(l) : null, a.NoCharge,
+                a.StartTime.AddMinutes(a.DurationMinutes), a.DurationMinutes, a.Kind.ToString(), a.ClinicianId, clinicians.GetValueOrDefault(a.ClinicianId, "?"), a.LocationId is { } l ? rooms.GetValueOrDefault(l) : null, a.NoCharge,
                 a.IsTentative, a.Status.ToString(), a.CancelReason, a.Notes);
         }).ToList();
     }
 
-    private static SessionView View(TheatreSession s, Dictionary<Guid, Patient> people)
+    private static SessionView View(TheatreSession s, Dictionary<Guid, Patient> people, Dictionary<Guid, string> clinicians, Dictionary<Guid, string> rooms)
     {
         var t = s.StartTime;
         var list = new List<BookingView>();
@@ -565,7 +592,8 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         }
         var booked = s.Bookings.Where(b => b.Status is not (BookingStatus.Cancelled or BookingStatus.DidNotAttend)).Sum(b => b.DurationMinutes + TurnoverMinutes);
         var available = (int)(s.EndTime - s.StartTime).TotalMinutes;
-        return new SessionView(s.Id, s.LocationId, s.LocationName, s.Date, s.StartTime, s.EndTime, s.Type.ToString(), s.Surgeon, s.Anaesthetist, s.Notes,
+        return new SessionView(s.Id, s.LocationId, rooms.GetValueOrDefault(s.LocationId, "?"), s.Date, s.StartTime, s.EndTime, s.Type.ToString(), s.SurgeonId,
+            clinicians.GetValueOrDefault(s.SurgeonId, "?"), s.AnaesthetistId, s.AnaesthetistId is { } an ? clinicians.GetValueOrDefault(an) : null, s.Notes,
             s.IsCancelled, booked, available, booked > available + TurnoverMinutes, list);
     }
 

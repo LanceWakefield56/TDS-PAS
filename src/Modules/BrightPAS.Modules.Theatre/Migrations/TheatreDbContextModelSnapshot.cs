@@ -33,10 +33,8 @@ namespace BrightPAS.Modules.Theatre.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
-                    b.Property<string>("Clinician")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                    b.Property<Guid>("ClinicianId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -89,6 +87,8 @@ namespace BrightPAS.Modules.Theatre.Migrations
 
                     b.HasIndex("PatientId");
 
+                    b.HasIndex("ClinicianId", "Date");
+
                     b.ToTable("Appointments", "theatre");
                 });
 
@@ -120,9 +120,8 @@ namespace BrightPAS.Modules.Theatre.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Anaesthetist")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                    b.Property<Guid?>("AnaesthetistId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -158,10 +157,8 @@ namespace BrightPAS.Modules.Theatre.Migrations
                     b.Property<DateOnly>("StartsOn")
                         .HasColumnType("date");
 
-                    b.Property<string>("Surgeon")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                    b.Property<Guid>("SurgeonId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -170,7 +167,11 @@ namespace BrightPAS.Modules.Theatre.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AnaesthetistId");
+
                     b.HasIndex("LocationId");
+
+                    b.HasIndex("SurgeonId");
 
                     b.ToTable("Templates", "theatre");
                 });
@@ -286,9 +287,8 @@ namespace BrightPAS.Modules.Theatre.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Anaesthetist")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                    b.Property<Guid?>("AnaesthetistId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -310,11 +310,6 @@ namespace BrightPAS.Modules.Theatre.Migrations
                     b.Property<Guid>("LocationId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("LocationName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -322,10 +317,8 @@ namespace BrightPAS.Modules.Theatre.Migrations
                     b.Property<TimeOnly>("StartTime")
                         .HasColumnType("time");
 
-                    b.Property<string>("Surgeon")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                    b.Property<Guid>("SurgeonId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -334,9 +327,13 @@ namespace BrightPAS.Modules.Theatre.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AnaesthetistId");
+
                     b.HasIndex("LocationId");
 
                     b.HasIndex("Date", "LocationId");
+
+                    b.HasIndex("SurgeonId", "Date");
 
                     b.ToTable("Sessions", "theatre");
                 });

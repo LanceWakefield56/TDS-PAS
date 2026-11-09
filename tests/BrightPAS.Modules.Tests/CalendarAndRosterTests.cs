@@ -16,7 +16,7 @@ public class BookingDetailsAndAppointmentTests
         await using var s = h.Scope();
         var svc = s.ServiceProvider.GetRequiredService<TheatreService>();
         var th1 = await s.ServiceProvider.GetRequiredService<PasDbContext>().Locations.SingleAsync(l => l.Code == "TH1");
-        var (list, _) = await svc.CreateSessionAsync(new(th1.Id, new DateOnly(2026, 11, 12), new(8, 0), new(12, 0), SessionType.Endoscopy, "Dr Ana Lee", null, null), "rec");
+        var (list, _) = await svc.CreateSessionAsync(new(th1.Id, new DateOnly(2026, 11, 12), new(8, 0), new(12, 0), SessionType.Endoscopy, Doc.Id("Dr Ana Lee"), null, null), "rec");
         var b = (await svc.BookAsync(new(list!.Id, p.Id, "Colonoscopy", Laterality.NotApplicable, 30, AnaestheticType.Sedation, null, false, PaymentType.Insurer, IsTentative: true), "rec")).Booking!;
         Assert.True(b.IsTentative);
 
@@ -43,15 +43,15 @@ public class BookingDetailsAndAppointmentTests
         var svc = s.ServiceProvider.GetRequiredService<TheatreService>();
         var th1 = await s.ServiceProvider.GetRequiredService<PasDbContext>().Locations.SingleAsync(l => l.Code == "TH1");
         var day = new DateOnly(2026, 11, 12);
-        await svc.CreateSessionAsync(new(th1.Id, day, new(8, 0), new(12, 0), SessionType.Surgical, "Dr Ben Hall", null, null), "rec");
-        var (_, errors, _) = await svc.BookAppointmentAsync(new(p.Id, day, new(17, 0), 2, AppointmentKind.Consultation, "", null, false, false, null), "rec");
+        await svc.CreateSessionAsync(new(th1.Id, day, new(8, 0), new(12, 0), SessionType.Surgical, Doc.Id("Dr Ben Hall"), null, null), "rec");
+        var (_, errors, _) = await svc.BookAppointmentAsync(new(p.Id, day, new(17, 0), 2, AppointmentKind.Consultation, Guid.Empty, null, false, false, null), "rec");
         Assert.Equal(2, errors.Count);
-        var (none, _, warnings) = await svc.BookAppointmentAsync(new(p.Id, day, new(11, 30), 15, AppointmentKind.Consultation, "Dr Ben Hall", null, false, false, null), "rec");
+        var (none, _, warnings) = await svc.BookAppointmentAsync(new(p.Id, day, new(11, 30), 15, AppointmentKind.Consultation, Doc.Id("Dr Ben Hall"), null, false, false, null), "rec");
         Assert.Null(none);
         Assert.Contains(warnings, w => w.Contains("theatre list"));
-        var (fu, _, _) = await svc.BookAppointmentAsync(new(p.Id, day, new(17, 0), 15, AppointmentKind.FollowUp, "Dr Ben Hall", null, NoCharge: true, IsTentative: false, "Wound check"), "rec");
+        var (fu, _, _) = await svc.BookAppointmentAsync(new(p.Id, day, new(17, 0), 15, AppointmentKind.FollowUp, Doc.Id("Dr Ben Hall"), null, NoCharge: true, IsTentative: false, "Wound check"), "rec");
         Assert.NotNull(fu);
-        var (_, _, clash) = await svc.BookAppointmentAsync(new(p.Id, day, new(17, 10), 15, AppointmentKind.PhoneCall, "Dr Ben Hall", null, false, false, null), "rec");
+        var (_, _, clash) = await svc.BookAppointmentAsync(new(p.Id, day, new(17, 10), 15, AppointmentKind.PhoneCall, Doc.Id("Dr Ben Hall"), null, false, false, null), "rec");
         Assert.Contains(clash, w => w.Contains("already has an appointment"));
         Assert.Contains("reason", await svc.UpdateAppointmentAsync(fu!.Id, AppointmentStatus.Cancelled, null, false, null, "rec"));
         Assert.Null(await svc.UpdateAppointmentAsync(fu.Id, AppointmentStatus.Arrived, null, false, "Wound check", "rec"));

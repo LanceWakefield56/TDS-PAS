@@ -89,10 +89,8 @@ namespace BrightPAS.Modules.Referrals.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<string>("Specialist")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                    b.Property<Guid>("SpecialistId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -116,6 +114,8 @@ namespace BrightPAS.Modules.Referrals.Migrations
                         .IsUnique();
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("SpecialistId");
 
                     b.HasIndex("Status", "ReceivedOn");
 
@@ -244,10 +244,8 @@ namespace BrightPAS.Modules.Referrals.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<string>("Specialist")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                    b.Property<Guid>("SpecialistId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -267,6 +265,8 @@ namespace BrightPAS.Modules.Referrals.Migrations
                     b.HasIndex("PatientId");
 
                     b.HasIndex("ReferralId");
+
+                    b.HasIndex("SpecialistId");
 
                     b.HasIndex("Status", "TargetDate");
 

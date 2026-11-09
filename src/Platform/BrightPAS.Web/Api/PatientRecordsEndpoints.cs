@@ -189,9 +189,13 @@ public static class PatientRecordsEndpoints
             : null;
         var theatre = sp.GetRequiredService<BrightPAS.Modules.Theatre.TheatreDbContext>();
         var bookings = await theatre.Bookings.AsNoTracking().Where(b => b.PatientId == id).Join(theatre.Sessions, b => b.SessionId, s => s.Id, (b, s) => new { b, s }).ToListAsync();
+        var org = sp.GetRequiredService<BrightPAS.Core.Organisation.OrganisationService>();
+        var people = await org.ClinicianNamesAsync();
+        var rooms = await org.LocationNamesAsync();
         pack["bookings"] = bookings.OrderByDescending(x => x.s.Date).Take(3).Select(x => new
         {
-            x.b.Id, x.s.Date, location = x.s.LocationName, x.s.Surgeon, x.s.Anaesthetist, x.b.Procedure, laterality = x.b.Laterality.ToString(), anaesthetic = x.b.Anaesthetic.ToString(),
+            x.b.Id, x.s.Date, location = rooms.GetValueOrDefault(x.s.LocationId, ""), surgeon = people.GetValueOrDefault(x.s.SurgeonId, ""),
+            anaesthetist = x.s.AnaesthetistId is { } an ? people.GetValueOrDefault(an) : null, x.b.Procedure, laterality = x.b.Laterality.ToString(), anaesthetic = x.b.Anaesthetic.ToString(),
             status = x.b.Status.ToString(), x.b.TheatreIn, x.b.TheatreOut, x.b.Notes, x.b.LoanItems, x.b.ScopeId,
         }).ToList();
         var forms = sp.GetRequiredService<BrightPAS.Modules.Forms.FormsDbContext>();

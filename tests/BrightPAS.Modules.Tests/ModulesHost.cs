@@ -53,6 +53,11 @@ public sealed class ModulesHost : IAsyncDisposable
             db.Database.EnsureCreated();
         var core = sp.GetRequiredService<PasDbContext>();
         core.Organisations.Add(BrightPAS.Core.Organisation.TdsDefaultSetup.Create());
+        // Clinician register used by the tests (lists, appointments and the waitlist reference clinicians by id).
+        var colour = 0;
+        foreach (var (name, type) in new[] { ("Dr Ben Hall", BrightPAS.Core.Organisation.ClinicianType.Surgeon), ("Dr Kate Ford", BrightPAS.Core.Organisation.ClinicianType.Anaesthetist),
+                     ("Dr Ana Lee", BrightPAS.Core.Organisation.ClinicianType.Endoscopist), ("Dr X", BrightPAS.Core.Organisation.ClinicianType.Surgeon), ("Dr A", BrightPAS.Core.Organisation.ClinicianType.Surgeon) })
+            core.Clinicians.Add(new BrightPAS.Core.Organisation.Clinician { Id = Doc.Id(name), Name = name, Type = type, Colour = colour++, IsActive = true });
         core.SaveChanges();
     }
 
@@ -86,4 +91,10 @@ public sealed class TestDocumentCipher : IDocumentCipher
 {
     public byte[] Protect(byte[] plain) => [0xEE, .. plain.Select(b => (byte)(b ^ 0x5A))];
     public byte[] Unprotect(byte[] c) => c.Length > 0 && c[0] == 0xEE ? c[1..].Select(b => (byte)(b ^ 0x5A)).ToArray() : throw new System.Security.Cryptography.CryptographicException();
+}
+
+/// <summary>Stable ids for the test clinician register.</summary>
+public static class Doc
+{
+    public static Guid Id(string name) => new(System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(name)));
 }

@@ -46,7 +46,8 @@ public sealed class Referral
     public string? ReferrerOrganisation { get; set; }
     /// <summary>HPI person or facility identifier of the referrer, when known.</summary>
     public string? ReferrerHpi { get; set; }
-    public string Specialist { get; set; } = "";
+    /// <summary>Specialist (core.Clinicians).</summary>
+    public Guid SpecialistId { get; set; }
     public ServiceType Service { get; set; }
     public Funder Funder { get; set; }
     /// <summary>Insurer approval, ACC claim number or Health NZ referral id.</summary>
@@ -72,7 +73,8 @@ public sealed class WaitlistEntry
     public Theatre.AnaestheticType Anaesthetic { get; set; } = Theatre.AnaestheticType.General;
     public int DurationMinutes { get; set; } = 30;
     public ServiceType Service { get; set; }
-    public string Specialist { get; set; } = "";
+    /// <summary>Specialist (core.Clinicians).</summary>
+    public Guid SpecialistId { get; set; }
     public Funder Funder { get; set; }
     public Priority Priority { get; set; }
     /// <summary>Date the decision to treat was made (start of the waiting time).</summary>
@@ -135,7 +137,7 @@ public sealed class ReferralsDbContext(DbContextOptions<ReferralsDbContext> opti
             e.Property(x => x.ReferrerName).HasMaxLength(150);
             e.Property(x => x.ReferrerOrganisation).HasMaxLength(150);
             e.Property(x => x.ReferrerHpi).HasMaxLength(20);
-            e.Property(x => x.Specialist).HasMaxLength(150);
+            e.HasIndex(x => x.SpecialistId);
             e.Property(x => x.Service).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Funder).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.FunderReference).HasMaxLength(60);
@@ -154,7 +156,7 @@ public sealed class ReferralsDbContext(DbContextOptions<ReferralsDbContext> opti
             e.Property(x => x.Laterality).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Anaesthetic).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Service).HasConversion<string>().HasMaxLength(20);
-            e.Property(x => x.Specialist).HasMaxLength(150);
+            e.HasIndex(x => x.SpecialistId);
             e.Property(x => x.Funder).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Priority).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);

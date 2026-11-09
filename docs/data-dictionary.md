@@ -312,4 +312,16 @@ Access: PatientId, TokenHash (SHA-256; token never stored), CreatedAt/By, Expire
 - **reporting.*** views/procedures and **maintenance.*** procedures: see 14-reporting.sql; role brightpas_reporting.
 
 ### Normal-form review
-All tables have a single-purpose primary key; repeating groups removed (1NF); no partial dependencies on composite keys (2NF). Intentional point-in-time copies (not 3NF violations in meaning, as they record what was true then): billing.Documents.Surgeon/Anaesthetist and Lines.Description, patients.Corrections.Before, patients.Merges.DuplicateSummary, letters.Letters.Author/RecipientName/RecipientAddress. **Open item:** clinician names stored on theatre.Sessions/Templates (Surgeon, Anaesthetist), theatre.Appointments.Clinician, referrals.Waitlist.Specialist, and theatre.Sessions.LocationName – to be replaced by ClinicianId/LocationId references.
+All tables have a single-purpose primary key; repeating groups removed (1NF); no partial dependencies on composite keys (2NF). Intentional point-in-time copies (not 3NF violations in meaning, as they record what was true then): billing.Documents.Surgeon/Anaesthetist and Lines.Description, patients.Corrections.Before, patients.Merges.DuplicateSummary, letters.Letters.Author/RecipientName/RecipientAddress. Closed in 0.10.2: clinicians and rooms are referenced by id only – see below.
+
+
+## 0.10.2 – clinician and room references
+| Table | Column | Type | Null | Description | Sensitivity |
+|---|---|---|---|---|---|
+| theatre.Sessions | SurgeonId | uniqueidentifier | No | FK → core.Clinicians (replaces Surgeon text) | I |
+| theatre.Sessions | AnaesthetistId | uniqueidentifier | Yes | FK → core.Clinicians (replaces Anaesthetist text) | I |
+| theatre.Sessions | (LocationName removed) | | | Room name now read from core.Locations via LocationId | |
+| theatre.Templates | SurgeonId / AnaesthetistId | uniqueidentifier | No / Yes | FK → core.Clinicians | I |
+| theatre.Appointments | ClinicianId | uniqueidentifier | No | FK → core.Clinicians (replaces Clinician text) | I |
+| referrals.Referrals | SpecialistId | uniqueidentifier | No | FK → core.Clinicians (replaces Specialist text) | I |
+| referrals.Waitlist | SpecialistId | uniqueidentifier | No | FK → core.Clinicians (replaces Specialist text) | I |

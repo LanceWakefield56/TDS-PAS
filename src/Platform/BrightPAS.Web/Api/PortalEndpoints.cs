@@ -52,7 +52,7 @@ public static class PortalEndpoints
             .RequireAuthorization(Permissions.CredentialingManage);
         g.MapPost("/privileges", async (PrivilegeEdit e, ClaimsPrincipal u, CredentialingService svc) => Errors(await svc.SavePrivilegeAsync(e, Me(u))))
             .RequireAuthorization(Permissions.CredentialingManage);
-        g.MapGet("/check", async (DateOnly date, string? surgeon, string? anaesthetist, string? procedure, CredentialingService svc) =>
+        g.MapGet("/check", async (DateOnly date, Guid? surgeon, Guid? anaesthetist, string? procedure, CredentialingService svc) =>
             Results.Ok(await svc.CheckCaseAsync(date, surgeon, anaesthetist, procedure))).RequireAuthorization(Permissions.TheatreBook);
     }
 
@@ -62,24 +62,25 @@ public static class PortalEndpoints
         if (sp.GetRequiredService<LicenceCache>().Status.AccessTo(CredentialingModule.Id) == BrightPAS.Licensing.ModuleAccess.None) return [];
         var s = await sp.GetRequiredService<TheatreDbContext>().Sessions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == sessionId);
         if (s is null) return [];
-        return await sp.GetRequiredService<CredentialingService>().CheckCaseAsync(s.Date, s.Surgeon, s.Anaesthetist, procedure);
+        return await sp.GetRequiredService<CredentialingService>().CheckCaseAsync(s.Date, s.SurgeonId, s.AnaesthetistId, procedure);
     }
 
     // ================================================================== specialist / PA portal
-    private static async Task<List<string>> MyClinicianNamesAsync(ClaimsPrincipal u, PasDbContext core, PortalService portal)
+    /// <summary>The clinician-register entries this user is (linked by user name) or works for (PA delegation).</summary>
+    private static async Task<List<Guid>> MyClinicianIdsAsync(ClaimsPrincipal u, PasDbContext core, PortalService portal)
     {
         var delegated = await portal.DelegatedCliniciansAsync(Me(u));
         var me = Me(u);
-        return await core.Clinicians.AsNoTracking().Where(c => c.UserName == me || delegated.Contains(c.Id)).Select(c => c.Name).ToListAsync();
+        return await core.Clinicians.AsNoTracking().Where(c => c.UserName == me || delegated.Contains(c.Id)).Select(c => c.Id).ToListAsync();
     }
 
-    private static async Task<bool> LinkedAsync(Guid patientId, List<string> names, TheatreDbContext theatre, ReferralsDbContext referrals)
+    private static async Task<bool> LinkedAsync(Guid patientId, List<Guid> mine, TheatreDbContext theatre, ReferralsDbContext referrals)
     {
-        if (names.Count == 0) return false;
+        if (mine.Count == 0) return false;
         return await theatre.Bookings.Where(b => b.PatientId == patientId).Join(theatre.Sessions, b => b.SessionId, s => s.Id, (b, s) => s)
-                   .AnyAsync(s => names.Contains(s.Surgeon) || (s.Anaesthetist != null && names.Contains(s.Anaesthetist)))
-               || await theatre.Appointments.AnyAsync(a => a.PatientId == patientId && names.Contains(a.Clinician))
-               || await referrals.Waitlist.AnyAsync(w => w.PatientId == patientId && names.Contains(w.Specialist));
+                   .AnyAsync(s => mine.Contains(s.SurgeonId) || (s.AnaesthetistId != null && mine.Contains(s.AnaesthetistId.Value)))
+               || await theatre.Appointments.AnyAsync(a => a.PatientId == patientId && mine.Contains(a.ClinicianId))
+               || await referrals.Waitlist.AnyAsync(w => w.PatientId == patientId && mine.Contains(w.SpecialistId));
     }
 
     private static void MapSpecialistPortal(IEndpointRouteBuilder app)
@@ -88,33 +89,35 @@ public static class PortalEndpoints
         g.MapGet("/specialist", async (ClaimsPrincipal u, PasDbContext core, PortalService portal, TheatreDbContext theatre, ReferralsDbContext referrals, PatientsDbContext patients,
             TimeProvider clock, AuditWriter audit, HttpContext http) =>
         {
-            var names = await MyClinicianNamesAsync(u, core, portal);
+            var mine = await MyClinicianIdsAsync(u, core, portal);
+            var names = await core.Clinicians.AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.Name);
+            var rooms = await core.Locations.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Name);
+            string C(Guid? id) => id is { } x ? names.GetValueOrDefault(x, "?") : "";
             var today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
             var from = today.AddDays(-14); var to = today.AddDays(120);
             var cases = await theatre.Bookings.AsNoTracking().Join(theatre.Sessions, b => b.SessionId, s => s.Id, (b, s) => new { b, s })
-                .Where(x => x.s.Date >= from && x.s.Date <= to && !x.s.IsCancelled && (names.Contains(x.s.Surgeon) || (x.s.Anaesthetist != null && names.Contains(x.s.Anaesthetist)))).ToListAsync();
-            var appts = await theatre.Appointments.AsNoTracking().Where(a => a.Date >= from && a.Date <= to && names.Contains(a.Clinician)).ToListAsync();
-            var waits = await referrals.Waitlist.AsNoTracking().Where(w => names.Contains(w.Specialist) && (w.Status == WaitlistStatus.Waiting || w.Status == WaitlistStatus.OnHold || w.Status == WaitlistStatus.Booked)).ToListAsync();
+                .Where(x => x.s.Date >= from && x.s.Date <= to && !x.s.IsCancelled && (mine.Contains(x.s.SurgeonId) || (x.s.AnaesthetistId != null && mine.Contains(x.s.AnaesthetistId.Value)))).ToListAsync();
+            var appts = await theatre.Appointments.AsNoTracking().Where(a => a.Date >= from && a.Date <= to && mine.Contains(a.ClinicianId)).ToListAsync();
+            var waits = await referrals.Waitlist.AsNoTracking().Where(w => mine.Contains(w.SpecialistId) && (w.Status == WaitlistStatus.Waiting || w.Status == WaitlistStatus.OnHold || w.Status == WaitlistStatus.Booked)).ToListAsync();
             var ids = cases.Select(c => c.b.PatientId).Concat(appts.Select(a => a.PatientId)).Concat(waits.Select(w => w.PatientId)).Distinct().ToList();
             var people = await patients.Patients.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
             string N(Guid id) => people.TryGetValue(id, out var p) ? $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}" : "?";
             await audit.WriteAsync(Me(u), "View", "SpecialistPortal", Me(u), reason: $"{cases.Count} cases, {appts.Count} appointments, {waits.Count} waiting", workstation: AuthEndpoints.Workstation(http));
             return Results.Ok(new
             {
-                clinicians = names,
+                clinicians = mine.Select(id => names.GetValueOrDefault(id, "?")).ToList(),
                 cases = cases.OrderBy(c => c.s.Date).ThenBy(c => c.b.Order).Select(c => new { c.b.Id, c.b.PatientId, patient = N(c.b.PatientId), nhi = people.GetValueOrDefault(c.b.PatientId)?.Nhi,
-                    c.s.Date, c.s.StartTime, location = c.s.LocationName, c.s.Surgeon, c.s.Anaesthetist, c.b.Procedure, status = c.b.Status.ToString(), c.b.IsTentative, c.b.Order }),
+                    c.s.Date, c.s.StartTime, location = rooms.GetValueOrDefault(c.s.LocationId, "?"), surgeon = C(c.s.SurgeonId), anaesthetist = c.s.AnaesthetistId is null ? null : C(c.s.AnaesthetistId), c.b.Procedure, status = c.b.Status.ToString(), c.b.IsTentative, c.b.Order }),
                 appointments = appts.OrderBy(a => a.Date).ThenBy(a => a.StartTime).Select(a => new { a.Id, a.PatientId, patient = N(a.PatientId), a.Date, a.StartTime, kind = a.Kind.ToString(),
-                    a.Clinician, status = a.Status.ToString() }),
-                waitlist = waits.OrderBy(w => w.TargetDate).Select(w => new { w.Id, w.PatientId, patient = N(w.PatientId), w.Procedure, priority = w.Priority.ToString(), w.AddedOn, w.TargetDate,
+                    clinician = C(a.ClinicianId), status = a.Status.ToString() }),
+                waitlist = waits.OrderBy(w => w.TargetDate).Select(w => new { w.Id, w.PatientId, patient = N(w.PatientId), specialist = C(w.SpecialistId), w.Procedure, priority = w.Priority.ToString(), w.AddedOn, w.TargetDate,
                     status = w.Status.ToString(), w.BookedFor, overdue = w.Status == WaitlistStatus.Waiting && w.TargetDate < today }),
             });
         }).RequireAuthorization(Permissions.PortalSpecialist);
         g.MapGet("/specialist/patients/{id:guid}", async (Guid id, ClaimsPrincipal u, HttpContext http, PasDbContext core, PortalService portal, TheatreDbContext theatre,
             ReferralsDbContext referrals, PatientService patients, DocumentService docs) =>
         {
-            var names = await MyClinicianNamesAsync(u, core, portal);
-            if (!await LinkedAsync(id, names, theatre, referrals)) return Results.Json(new { errors = new[] { "This patient is not one of your patients at TDS." } }, statusCode: 403);
+            if (!await LinkedAsync(id, await MyClinicianIdsAsync(u, core, portal), theatre, referrals)) return Results.Json(new { errors = new[] { "This patient is not one of your patients at TDS." } }, statusCode: 403);
             var p = await patients.GetAsync(id, Me(u), AuthEndpoints.Workstation(http));
             if (p is null) return Results.NotFound();
             return Results.Ok(new
@@ -129,7 +132,7 @@ public static class PortalEndpoints
         {
             var meta = await pdb.Documents.AsNoTracking().Where(d => d.Id == docId && !d.IsDeleted).Select(d => new { d.PatientId }).SingleOrDefaultAsync();
             if (meta is null) return Results.NotFound();
-            if (!await LinkedAsync(meta.PatientId, await MyClinicianNamesAsync(u, core, portal), theatre, referrals)) return Results.Json(new { errors = new[] { "Not your patient." } }, statusCode: 403);
+            if (!await LinkedAsync(meta.PatientId, await MyClinicianIdsAsync(u, core, portal), theatre, referrals)) return Results.Json(new { errors = new[] { "Not your patient." } }, statusCode: 403);
             var r = await docs.OpenAsync(docId, Me(u), AuthEndpoints.Workstation(http));
             if (r is not { } d) return Results.NotFound();
             http.Response.Headers["Content-Security-Policy"] = "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; object-src 'self'";
@@ -173,7 +176,7 @@ public static class PortalEndpoints
     private static void MapPatientPortal(IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/my/{token}").RequireModule(PortalModule.Id).RequireRateLimiting("patient-portal").AllowAnonymous();
-        g.MapPost("/open", async (string token, PortalDob r, HttpContext http, PortalService svc, TheatreDbContext theatre, TimeProvider clock) =>
+        g.MapPost("/open", async (string token, PortalDob r, HttpContext http, PortalService svc, TheatreDbContext theatre, BrightPAS.Core.Organisation.OrganisationService org, TimeProvider clock) =>
         {
             var (access, p, error) = await svc.OpenAsync(token, r.DateOfBirth, AuthEndpoints.Workstation(http));
             if (access is null || p is null) return OpenError(error);
@@ -181,11 +184,13 @@ public static class PortalEndpoints
             var cases = await theatre.Bookings.AsNoTracking().Where(b => b.PatientId == p.Id && b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.DidNotAttend)
                 .Join(theatre.Sessions, b => b.SessionId, s => s.Id, (b, s) => new { b, s }).Where(x => x.s.Date >= today && !x.s.IsCancelled).ToListAsync();
             var appts = await theatre.Appointments.AsNoTracking().Where(a => a.PatientId == p.Id && a.Date >= today && a.Status != AppointmentStatus.Cancelled).ToListAsync();
+            var people = await org.ClinicianNamesAsync();
+            var rooms = await org.LocationNamesAsync();
             return Results.Ok(new
             {
                 givenName = p.PreferredName ?? p.GivenNames.Split(' ')[0],
-                procedures = cases.OrderBy(c => c.s.Date).Select(c => new { c.b.Id, c.s.Date, listStarts = c.s.StartTime, location = c.s.LocationName, c.b.Procedure, surgeon = c.s.Surgeon, confirmed = !c.b.IsTentative }),
-                appointments = appts.OrderBy(a => a.Date).ThenBy(a => a.StartTime).Select(a => new { a.Id, a.Date, a.StartTime, kind = a.Kind.ToString(), a.Clinician }),
+                procedures = cases.OrderBy(c => c.s.Date).Select(c => new { c.b.Id, c.s.Date, listStarts = c.s.StartTime, location = rooms.GetValueOrDefault(c.s.LocationId, ""), c.b.Procedure, surgeon = people.GetValueOrDefault(c.s.SurgeonId, ""), confirmed = !c.b.IsTentative }),
+                appointments = appts.OrderBy(a => a.Date).ThenBy(a => a.StartTime).Select(a => new { a.Id, a.Date, a.StartTime, kind = a.Kind.ToString(), clinician = people.GetValueOrDefault(a.ClinicianId, "") }),
                 requests = (await svc.PatientRequestsAsync(p.Id)).Select(x => new { x.Id, kind = x.Kind.ToString(), x.Message, status = x.Status.ToString(), x.CreatedAt, x.Response }),
                 contact = new { mobile = Mask(p.MobilePhone), email = Mask(p.Email) },
             });

@@ -123,7 +123,7 @@ public class RemindersTests
         Assert.True(reg.Succeeded, string.Join("; ", reg.Errors));
         var th1 = await sp.GetRequiredService<PasDbContext>().Locations.SingleAsync(l => l.Code == "TH1");
         var theatre = sp.GetRequiredService<TheatreService>();
-        var (session, _) = await theatre.CreateSessionAsync(new(th1.Id, date ?? Tomorrow, new(8, 0), new(12, 0), SessionType.Surgical, "Dr Ben Hall", null, null), "rec");
+        var (session, _) = await theatre.CreateSessionAsync(new(th1.Id, date ?? Tomorrow, new(8, 0), new(12, 0), SessionType.Surgical, Doc.Id("Dr Ben Hall"), null, null), "rec");
         var b = await theatre.BookAsync(new(session!.Id, reg.Patient!.Id, "Inguinal hernia repair", Laterality.Left, 60, AnaestheticType.General, null), "rec");
         Assert.NotNull(b.Booking);
         return (h, reg.Patient, b.Booking!.Id);

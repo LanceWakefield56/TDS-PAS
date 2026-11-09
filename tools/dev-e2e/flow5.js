@@ -21,7 +21,7 @@ const nurse=await userCtx(b,admin,'jacqui.nurse','Jacqui Nurse','Nurse');
 const nurse2=await userCtx(b,admin,'mere.nurse','Mere Nurse','Nurse');
 const spec=await userCtx(b,admin,'ben.hall','Dr Ben Hall','Specialist (portal only)');
 for(const c of [['Dr Ben Hall','Surgeon','ben.hall'],['Dr Kate Ford','Anaesthetist',null]]) ok(await post(admin.request,'/api/admin/organisation/clinicians',{name:c[0],type:c[1],userName:c[2],isActive:true}),'clin');
-const clins=(await get(admin,'/api/organisation/clinicians')).json;const hall=clins.find(c=>c.name==='Dr Ben Hall');
+const clins=(await get(admin,'/api/organisation/clinicians')).json;const hall=clins.find(c=>c.name==='Dr Ben Hall');const kate=clins.find(c=>c.name==='Dr Kate Ford');
 // credentialing: APC expiring in 20 days, endoscopy scope only
 const t=nzToday();
 for(const [ty,exp] of [['Apc',add(t,20)],['Indemnity',add(t,300)],['CredentialingApproval',add(t,900)]]) ok(await post(admin.request,'/api/credentialing/credentials',{clinicianId:hall.id,type:ty,reference:ty+'-1',issuer:'MCNZ',issuedOn:null,expiresOn:exp,notes:null,isActive:true}),'cred');
@@ -33,11 +33,11 @@ const p1=await mk('Carpenter','Sarah',null,'1975-03-01');const dup=await mk('Car
 await post(rec.request,`/api/patients/${p1}/alerts`,{type:'Allergy',severity:'Critical',description:'Penicillin – anaphylaxis'});
 // theatre: list for Dr Ben Hall in 30 days -> lap chole => credential warnings
 const locs=(await get(rec,'/api/theatre/locations')).json;const d30=add(t,30);
-const s=ok(await post(rec.request,'/api/theatre/sessions',{locationId:locs[0].id,date:d30,startTime:'08:00:00',endTime:'12:30:00',type:'Surgical',surgeon:'Dr Ben Hall',anaesthetist:'Dr Kate Ford',notes:null}),'session').json;
+const s=ok(await post(rec.request,'/api/theatre/sessions',{locationId:locs[0].id,date:d30,startTime:'08:00:00',endTime:'12:30:00',type:'Surgical',surgeonId:hall.id,anaesthetistId:kate.id,notes:null}),'session').json;
 const w=await post(rec.request,'/api/theatre/bookings',{sessionId:s.id,patientId:p1,procedure:'Laparoscopic cholecystectomy',laterality:'NotApplicable',durationMinutes:75,anaesthetic:'General',notes:null,acceptWarnings:false});
 console.log('booking warnings:',w.status,JSON.stringify(w.json));
 ok(await post(rec.request,'/api/theatre/bookings',{sessionId:s.id,patientId:p1,procedure:'Laparoscopic cholecystectomy',laterality:'NotApplicable',durationMinutes:75,anaesthetic:'General',notes:null,acceptWarnings:true}),'book');
-ok(await post(rec.request,'/api/waitlist',{patientId:p3,procedure:'Inguinal hernia repair',laterality:'Right',anaesthetic:'General',durationMinutes:60,service:'Surgical',specialist:'Dr Ben Hall',funder:'HealthNz',priority:'Urgent',addedOn:add(t,-10),notes:null}),'wait');
+ok(await post(rec.request,'/api/waitlist',{patientId:p3,procedure:'Inguinal hernia repair',laterality:'Right',anaesthetic:'General',durationMinutes:60,service:'Surgical',specialistId:hall.id,funder:'HealthNz',priority:'Urgent',addedOn:add(t,-10),notes:null}),'wait');
 // ---------- UI: patient record (reception)
 const rp=await rec.newPage();watch(rp,'rec');await rp.goto(BASE+'/patients/'+p1);await rp.waitForSelector('h2:has-text("Documents")');
 fs.writeFileSync('/tmp/consent.pdf','%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
@@ -108,4 +108,13 @@ ok(await rec.request.put(BASE+`/api/theatre/bookings/${bk.id}/details`,{headers:
 ok(await post(admin.request,'/api/admin/printers',{name:'Reception DYMO',kind:'Label',language:'Dymo',mediaCode:'99012',host:'',port:0,dpi:300,widthMm:0,lengthMm:0,isDefault:true,isActive:true}),'dymo');
 await ap.goto(BASE+'/admin/security');await ap.waitForSelector('text=Download 7-Zip');await shot(ap,'15-security-7zip-dymo');
 const lp=await rec.newPage();watch(lp,'labels');await lp.goto(BASE+'/patients/'+p1);await lp.waitForSelector('text=Print labels (DYMO)');await lp.click('text=Print labels (DYMO)');await lp.waitForSelector('.dymo-label');await shot(lp,'16-dymo-labels');
+
+// ---------- 0.10.2: clinicians by id – new list via the form, rename flows through everywhere
+const tp=await rec.newPage();watch(tp,'theatre');await tp.goto(BASE+'/theatre?date='+add(t,31));await tp.waitForSelector('h1');
+await tp.click('button:has-text("New theatre list")');await tp.locator('label:has-text("Surgeon / endoscopist") select').selectOption({label:'Dr Ben Hall'});
+await tp.locator('label:has-text("Anaesthetist") select').selectOption({label:'Dr Kate Ford'});await tp.click('button:has-text("Create list")');await tp.waitForTimeout(1000);
+ok(await post(admin.request,'/api/admin/organisation/clinicians',{id:kate.id,name:'Dr Kate Ford-Smith',type:'Anaesthetist',isActive:true}),'rename');
+await tp.reload();await tp.waitForSelector('text=Dr Kate Ford-Smith');await shot(tp,'17-renamed-clinician-on-list');
+const wl=(await get(rec,'/api/waitlist?view=waiting&specialist='+hall.id)).json;console.log('waitlist by specialist id',wl.length,wl[0]?.specialist);
+const sess=(await get(rec,`/api/theatre/sessions?from=${d30}&to=${d30}`)).json;console.log('session anaesthetist now',sess[0]?.anaesthetist);
 console.log('ERRORS',JSON.stringify(errs));await b.close();})().catch(e=>{console.error(e.message.split('\n')[0]);console.log('ERRORS',JSON.stringify(ERR));process.exit(1)});

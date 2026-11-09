@@ -12,7 +12,7 @@ public class ReferralsTests
     private static readonly DateOnly Today = new(2026, 11, 9);
 
     private static NewReferral Referral(Guid patientId, Funder funder = Funder.Insurer) =>
-        new(patientId, Today.AddDays(-3), ReferralSource.GeneralPractice, "Dr Mere Smith", "Stoke Medical Centre", "12ABCD", "Dr Ben Hall", ServiceType.Surgical,
+        new(patientId, Today.AddDays(-3), ReferralSource.GeneralPractice, "Dr Mere Smith", "Stoke Medical Centre", "12ABCD", Doc.Id("Dr Ben Hall"), ServiceType.Surgical,
             funder, "SX-1234", "Symptomatic gallstones, three episodes of biliary colic.");
 
     private static TriageDecision Accept(Priority p = Priority.SemiUrgent, DateOnly? decided = null) =>
@@ -77,12 +77,12 @@ public class ReferralsTests
         var p = await h.PatientAsync();
         await using var s = h.Scope();
         var svc = s.ServiceProvider.GetRequiredService<ReferralService>();
-        var n = new NewWaitlistEntry(p.Id, "Right inguinal hernia repair", Laterality.Right, AnaestheticType.General, 60, ServiceType.Surgical, "Dr Ben Hall", Funder.SelfPay, Priority.Routine, Today, null);
+        var n = new NewWaitlistEntry(p.Id, "Right inguinal hernia repair", Laterality.Right, AnaestheticType.General, 60, ServiceType.Surgical, Doc.Id("Dr Ben Hall"), Funder.SelfPay, Priority.Routine, Today, null);
         var (e, _) = await svc.AddToWaitlistAsync(n, "rec");
         Assert.Equal(Today.AddDays(120), e!.TargetDate);
         var (_, dup) = await svc.AddToWaitlistAsync(n, "rec");
         Assert.Contains("already on the waitlist", dup[0]);
-        Assert.Null(await svc.UpdateEntryAsync(e.Id, new WaitlistUpdate(e.Procedure, e.Laterality, e.Anaesthetic, 60, e.Specialist, Priority.Urgent, null), "rec"));
+        Assert.Null(await svc.UpdateEntryAsync(e.Id, new WaitlistUpdate(e.Procedure, e.Laterality, e.Anaesthetic, 60, e.SpecialistId, Priority.Urgent, null), "rec"));
         Assert.Equal(Today.AddDays(30), (await svc.WaitlistAsync("waiting", null, null, null)).Single().TargetDate);
     }
 
@@ -93,7 +93,7 @@ public class ReferralsTests
         var p = await h.PatientAsync();
         await using var s = h.Scope();
         var svc = s.ServiceProvider.GetRequiredService<ReferralService>();
-        var (e, _) = await svc.AddToWaitlistAsync(new(p.Id, "Colonoscopy", Laterality.NotApplicable, AnaestheticType.Sedation, 30, ServiceType.Endoscopy, "Dr Ana Lee", Funder.Acc, Priority.Urgent, null, null), "rec");
+        var (e, _) = await svc.AddToWaitlistAsync(new(p.Id, "Colonoscopy", Laterality.NotApplicable, AnaestheticType.Sedation, 30, ServiceType.Endoscopy, Doc.Id("Dr Ana Lee"), Funder.Acc, Priority.Urgent, null, null), "rec");
         Assert.Contains("why", await svc.HoldAsync(e!.Id, true, null, null, "rec"));
         Assert.Null(await svc.HoldAsync(e.Id, true, "Patient overseas", Today.AddDays(14), "rec"));
         Assert.Single(await svc.WaitlistAsync("on-hold", null, null, null));
@@ -117,7 +117,7 @@ public class ReferralsTests
         var svc = s.ServiceProvider.GetRequiredService<ReferralService>();
         var theatre = s.ServiceProvider.GetRequiredService<TheatreService>();
         var th1 = await s.ServiceProvider.GetRequiredService<PasDbContext>().Locations.SingleAsync(l => l.Code == "TH1");
-        var (list, _) = await theatre.CreateSessionAsync(new(th1.Id, Today.AddDays(7), new(8, 0), new(12, 0), SessionType.Surgical, "Dr Kate Ford", null, null), "rec");
+        var (list, _) = await theatre.CreateSessionAsync(new(th1.Id, Today.AddDays(7), new(8, 0), new(12, 0), SessionType.Surgical, Doc.Id("Dr Kate Ford"), null, null), "rec");
         var (r, _) = await svc.CreateReferralAsync(Referral(p.Id), "rec");
         var (e, _) = await svc.TriageAsync(r!.Id, Accept(), "dr.hall");
 
@@ -155,7 +155,7 @@ public class ReferralsTests
         var p = await h.PatientAsync();
         await using var s = h.Scope();
         var svc = s.ServiceProvider.GetRequiredService<ReferralService>();
-        await svc.AddToWaitlistAsync(new(p.Id, "+cmd|' /C calc'!A0", Laterality.Left, AnaestheticType.Local, 20, ServiceType.Surgical, "Dr Ben Hall", Funder.SelfPay, Priority.Routine, null, null), "rec");
+        await svc.AddToWaitlistAsync(new(p.Id, "+cmd|' /C calc'!A0", Laterality.Left, AnaestheticType.Local, 20, ServiceType.Surgical, Doc.Id("Dr Ben Hall"), Funder.SelfPay, Priority.Routine, null, null), "rec");
         var csv = await svc.ExportCsvAsync("all-open", "rec");
         Assert.Contains("\"'+cmd", csv);
         Assert.True(await s.ServiceProvider.GetRequiredService<PasDbContext>().AuditEvents.AnyAsync(a => a.Action == "Export" && a.EntityType == "Waitlist"));

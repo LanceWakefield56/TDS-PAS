@@ -13,6 +13,7 @@ const watch=(pg,n)=>{pg.on('pageerror',e=>errs.push(n+': '+e.message));pg.on('co
 await post(admin.request,'/api/admin/licence',{text:fs.readFileSync('/home/claude/repo/TDS-PAS/licensing/sandbox/BrightPAS-Sandbox-Licence.lic','utf8')});
 for(const c of [['Dr Ben Hall','Surgeon'],['Dr Kate Ford','Anaesthetist'],['Dr Ana Lee','Endoscopist'],['Dr Mia Grant','Surgeon']]) await post(admin.request,'/api/admin/organisation/clinicians',{name:c[0],type:c[1],isActive:true});
 await post(admin.request,'/api/admin/organisation/procedures/examples',{});
+const CL=Object.fromEntries((await (await admin.request.get(BASE+'/api/organisation/clinicians',{headers:H})).json()).map(c=>[c.name,c.id]));
 const rec=await userCtx(b,admin,'sam.reception','Sam Reception','Reception / Booking');
 const mgr=await userCtx(b,admin,'lynda.roster','Lynda Roster','Roster Manager');
 const nurse=await userCtx(b,admin,'jacqui.nurse','Jacqui Nurse','Nurse');
@@ -28,21 +29,21 @@ for(const m of ['theatre','rostering']){const r=await post(admin.request,`/api/a
 // theatre lists + bookings
 const locs=await (await rec.request.get(BASE+'/api/theatre/locations',{headers:H})).json();
 const tue=add(mon,1),wed=add(mon,2),thu=add(mon,3);
-const s1=await post(rec.request,'/api/theatre/sessions',{locationId:locs[0].id,date:wed,startTime:'08:00:00',endTime:'12:30:00',type:'Endoscopy',surgeon:'Dr Ana Lee',anaesthetist:null,notes:null});
-const s2=await post(rec.request,'/api/theatre/sessions',{locationId:locs[0].id,date:thu,startTime:'08:00:00',endTime:'16:00:00',type:'Surgical',surgeon:'Dr Mia Grant',anaesthetist:'Dr Kate Ford',notes:null});
+const s1=await post(rec.request,'/api/theatre/sessions',{locationId:locs[0].id,date:wed,startTime:'08:00:00',endTime:'12:30:00',type:'Endoscopy',surgeonId:CL['Dr Ana Lee'],anaesthetistId:null,notes:null});
+const s2=await post(rec.request,'/api/theatre/sessions',{locationId:locs[0].id,date:thu,startTime:'08:00:00',endTime:'16:00:00',type:'Surgical',surgeonId:CL['Dr Mia Grant'],anaesthetistId:CL['Dr Kate Ford'],notes:null});
 const names=[['Carpenter','Sarah','ZAA0024'],['Benjamin','Kristi','ZAA0067'],['Volmer','Eleanor','ZAA0105'],['Kitney','Kirstin','ZAA0148'],['Jordan','Melissa','ZAA0180']];
 const pts=[];for(const [f,g] of names){const r=await post(rec.request,'/api/patients',{familyName:f,givenNames:g,dateOfBirth:'1975-03-0'+(pts.length+1),sex:'Female',confirmedNotDuplicate:true,mobilePhone:'0215550'+(100+pts.length)});pts.push(r.json.id);}
 for(let i=0;i<3;i++) await post(rec.request,'/api/theatre/bookings',{sessionId:s1.json.id,patientId:pts[i],procedure:['Colonoscopy','Gastroscopy','Gastroscopy and colonoscopy'][i],laterality:'NotApplicable',durationMinutes:[30,15,45][i],anaesthetic:'Sedation',notes:null,acceptWarnings:true,isTentative:i===2,payment:'Insurer'});
 for(let i=3;i<5;i++) await post(rec.request,'/api/theatre/bookings',{sessionId:s2.json.id,patientId:pts[i],procedure:i===3?'Laparoscopic cholecystectomy':'Inguinal hernia repair',laterality:i===3?'NotApplicable':'Right',durationMinutes:i===3?75:60,anaesthetic:'General',notes:null,acceptWarnings:true,isTentative:i===4});
 for(const [t,k,c,nc] of [['17:00','FollowUp','Dr Mia Grant',true],['17:30','Consultation','Dr Mia Grant',false],['18:00','PhoneCall','Dr Mia Grant',true],['13:00','Consultation','Dr Ben Hall',false]])
-  await post(rec.request,'/api/theatre/appointments',{patientId:pts[0],date:thu,startTime:t+':00',durationMinutes:k==='PhoneCall'?10:20,kind:k,clinician:c,noCharge:nc,isTentative:false,notes:null,acceptWarnings:true});
+  await post(rec.request,'/api/theatre/appointments',{patientId:pts[0],date:thu,startTime:t+':00',durationMinutes:k==='PhoneCall'?10:20,kind:k,clinicianId:CL[c],noCharge:nc,isTentative:false,notes:null,acceptWarnings:true});
 // UI: calendar
 const rp=await rec.newPage();watch(rp,'rec');await rp.goto(BASE+'/calendar?date='+wed);await rp.waitForSelector('.cal');await shot(rp,'01-calendar-week');
 await rp.goto(BASE+'/calendar?date='+thu+'&view=day');await rp.waitForSelector('.cal');await shot(rp,'02-calendar-day');
 // new appointment by clicking a slot
 await rp.click('.cal-slot >> nth=24');await rp.waitForSelector('h2:has-text("New appointment")');
 await rp.fill('input[placeholder^="e.g. ZSC21TN"]','Volmer');await rp.click('button:has-text("Find")');await rp.click('.picker-results button');
-await rp.locator('label:has-text("Clinician") input').fill('Dr Ben Hall');await rp.check('label:has-text("No charge") input');
+await rp.locator('label:has-text("Clinician") select').selectOption({label:'Dr Ben Hall'});await rp.check('label:has-text("No charge") input');
 await rp.click('section button:has-text("Book")');await rp.waitForTimeout(800);if(await rp.locator('button:has-text("Book anyway")').count())await rp.click('button:has-text("Book anyway")');
 await rp.waitForTimeout(800);await rp.click('.cal-item:has-text("VOLMER")');await rp.waitForSelector('.side-panel');await shot(rp,'03-calendar-appt-selected');
 // booking details

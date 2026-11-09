@@ -54,6 +54,9 @@ public class DatabaseDesignTests
             Assert.True(patientFks.Count >= 15, $"Patient references protected by foreign keys: {patientFks.Count}");
             // No comma-separated / JSON list columns left (1NF).
             Assert.Empty(await Rows(c, "SELECT OBJECT_SCHEMA_NAME(object_id)+'.'+OBJECT_NAME(object_id)+'.'+name FROM sys.columns WHERE name IN ('Checklist','AnswersJson','FlagsJson','RequiredTypes') AND OBJECTPROPERTY(object_id,'IsUserTable')=1"));
+            // 3NF: clinicians and rooms are referenced by id, never stored by name, on lists, templates, appointments, referrals and the waitlist.
+            Assert.Empty(await Rows(c, "SELECT OBJECT_SCHEMA_NAME(object_id)+'.'+OBJECT_NAME(object_id)+'.'+name FROM sys.columns WHERE OBJECT_SCHEMA_NAME(object_id) IN ('theatre','referrals') AND name IN ('Surgeon','Anaesthetist','Clinician','Specialist','LocationName') AND OBJECTPROPERTY(object_id,'IsUserTable')=1"));
+            Assert.Equal(7, (await Rows(c, "SELECT name FROM sys.foreign_keys WHERE referenced_object_id = OBJECT_ID('core.Clinicians') AND OBJECT_SCHEMA_NAME(parent_object_id) IN ('theatre','referrals')")).Count);
 
             foreach (var v in new[] { "vPatient", "vTheatreCase", "vAppointment", "vWaitlist", "vInvoiceSummary", "vCredentialStatus", "vRosterShift", "vAuditDaily" })
                 await new SqlCommand($"SELECT TOP (0) * FROM [reporting].[{v}]", c).ExecuteNonQueryAsync();

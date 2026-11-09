@@ -7,23 +7,23 @@ using BrightPAS.Modules.Theatre;
 namespace BrightPAS.Modules.Referrals;
 
 public sealed record NewReferral(Guid PatientId, DateOnly ReceivedOn, ReferralSource Source, string ReferrerName, string? ReferrerOrganisation, string? ReferrerHpi,
-    string Specialist, ServiceType Service, Funder Funder, string? FunderReference, string Reason);
+    Guid SpecialistId, ServiceType Service, Funder Funder, string? FunderReference, string Reason);
 
 /// <summary>Accept (add to the waitlist) or decline a referral.</summary>
 public sealed record TriageDecision(bool Accept, string? Notes, string? DeclineReason, string? Procedure, Laterality Laterality, AnaestheticType Anaesthetic,
     int DurationMinutes, Priority Priority, DateOnly? DecisionDate);
 
 public sealed record NewWaitlistEntry(Guid PatientId, string Procedure, Laterality Laterality, AnaestheticType Anaesthetic, int DurationMinutes, ServiceType Service,
-    string Specialist, Funder Funder, Priority Priority, DateOnly? AddedOn, string? Notes);
+    Guid SpecialistId, Funder Funder, Priority Priority, DateOnly? AddedOn, string? Notes);
 
-public sealed record WaitlistUpdate(string Procedure, Laterality Laterality, AnaestheticType Anaesthetic, int DurationMinutes, string Specialist, Priority Priority, string? Notes);
+public sealed record WaitlistUpdate(string Procedure, Laterality Laterality, AnaestheticType Anaesthetic, int DurationMinutes, Guid SpecialistId, Priority Priority, string? Notes);
 
 public sealed record ReferralRow(Guid Id, string Number, Guid PatientId, string PatientName, string Mrn, string? Nhi, DateOnly DateOfBirth, DateOnly ReceivedOn,
-    string Source, string ReferrerName, string? ReferrerOrganisation, string? ReferrerHpi, string Specialist, string Service, string Funder, string? FunderReference,
+    string Source, string ReferrerName, string? ReferrerOrganisation, string? ReferrerHpi, Guid SpecialistId, string Specialist, string Service, string Funder, string? FunderReference,
     string Reason, string Status, DateTimeOffset? TriagedAt, string? TriagedBy, string? TriageNotes, string? DeclineReason, int DaysSinceReceived, Guid? WaitlistEntryId);
 
 public sealed record WaitlistRow(Guid Id, Guid? ReferralId, string? ReferralNumber, Guid PatientId, string PatientName, string Mrn, string? Nhi, DateOnly DateOfBirth,
-    string Procedure, string Laterality, string Anaesthetic, int DurationMinutes, string Service, string Specialist, string Funder, string Priority,
+    string Procedure, string Laterality, string Anaesthetic, int DurationMinutes, string Service, Guid SpecialistId, string Specialist, string Funder, string Priority,
     DateOnly AddedOn, DateOnly TargetDate, int DaysWaiting, int DaysToTarget, bool Overdue, string Status, string? HoldReason, DateOnly? HoldUntil,
     Guid? BookingId, DateOnly? BookedFor, string? RemovedReason, string? Notes, bool PubliclyFunded);
 
@@ -64,7 +64,7 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         var errors = new List<string>();
         if (!await patients.Patients.AnyAsync(p => p.Id == r.PatientId, ct)) errors.Add("Choose the patient this referral is for.");
         if (string.IsNullOrWhiteSpace(r.ReferrerName)) errors.Add("Enter who referred the patient.");
-        if (string.IsNullOrWhiteSpace(r.Specialist)) errors.Add("Enter the specialist the patient is referred to.");
+        if (await theatre.ClinicianProblemAsync(r.SpecialistId, true, "specialist the patient is referred to", ct) is { } se) errors.Add(se);
         if (string.IsNullOrWhiteSpace(r.Reason)) errors.Add("Enter the reason for referral.");
         if (r.ReceivedOn > Today) errors.Add("The date received cannot be in the future.");
         if (r.ReceivedOn < Today.AddYears(-2)) errors.Add("The date received is more than two years ago – check the date.");
@@ -76,14 +76,14 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         var referral = new Referral
         {
             Number = $"R{settings.NextReferralNumber:000000}", PatientId = r.PatientId, ReceivedOn = r.ReceivedOn, Source = r.Source, ReferrerName = r.ReferrerName.Trim(),
-            ReferrerOrganisation = Blank(r.ReferrerOrganisation), ReferrerHpi = Blank(r.ReferrerHpi)?.ToUpperInvariant(), Specialist = r.Specialist.Trim(), Service = r.Service,
+            ReferrerOrganisation = Blank(r.ReferrerOrganisation), ReferrerHpi = Blank(r.ReferrerHpi)?.ToUpperInvariant(), SpecialistId = r.SpecialistId, Service = r.Service,
             Funder = r.Funder, FunderReference = Blank(r.FunderReference), Reason = r.Reason.Trim(), CreatedAt = clock.GetUtcNow(), CreatedBy = user
         };
         settings.NextReferralNumber++;
         db.Referrals.Add(referral);
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Create", "Referral", referral.Id.ToString(), r.PatientId.ToString(),
-            reason: $"{referral.Number} from {referral.ReferrerName} to {referral.Specialist} ({referral.Funder})", ct: ct);
+            reason: $"{referral.Number} from {referral.ReferrerName} to specialist {referral.SpecialistId} ({referral.Funder})", ct: ct);
         return (referral, errors);
     }
 
@@ -102,7 +102,7 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
             return (null, []);
         }
         var (entry, errors) = await AddToWaitlistAsync(new NewWaitlistEntry(r.PatientId, d.Procedure ?? "", d.Laterality, d.Anaesthetic, d.DurationMinutes, r.Service,
-            r.Specialist, r.Funder, d.Priority, d.DecisionDate, Blank(d.Notes)), user, r.Id, ct);
+            r.SpecialistId, r.Funder, d.Priority, d.DecisionDate, Blank(d.Notes)), user, r.Id, ct);
         if (entry is null) return (null, errors);
         r.Status = ReferralStatus.Accepted; r.TriageNotes = Blank(d.Notes); r.TriagedAt = now; r.TriagedBy = user;
         await db.SaveChangesAsync(ct);
@@ -132,11 +132,12 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         var ids = list.Select(r => r.Id).ToList();
         var entries = await db.Waitlist.AsNoTracking().Where(w => w.ReferralId != null && ids.Contains(w.ReferralId.Value)).Select(w => new { w.ReferralId, w.Id }).ToListAsync(ct);
         var people = await People(list.Select(r => r.PatientId), ct);
+        var clinicians = await theatre.ClinicianNamesAsync(ct);
         return list.Select(r =>
         {
             var p = people.GetValueOrDefault(r.PatientId);
             return new ReferralRow(r.Id, r.Number, r.PatientId, Name(p), p?.Mrn ?? "", p?.Nhi, p?.DateOfBirth ?? default, r.ReceivedOn, r.Source.ToString(), r.ReferrerName,
-                r.ReferrerOrganisation, r.ReferrerHpi, r.Specialist, r.Service.ToString(), r.Funder.ToString(), r.FunderReference, r.Reason, r.Status.ToString(), r.TriagedAt,
+                r.ReferrerOrganisation, r.ReferrerHpi, r.SpecialistId, clinicians.GetValueOrDefault(r.SpecialistId, "?"), r.Service.ToString(), r.Funder.ToString(), r.FunderReference, r.Reason, r.Status.ToString(), r.TriagedAt,
                 r.TriagedBy, r.TriageNotes, r.DeclineReason, Today.DayNumber - r.ReceivedOn.DayNumber, entries.FirstOrDefault(e => e.ReferralId == r.Id)?.Id);
         }).ToList();
     }
@@ -150,7 +151,7 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         var errors = new List<string>();
         if (!await patients.Patients.AnyAsync(p => p.Id == n.PatientId, ct)) errors.Add("Choose the patient.");
         if (string.IsNullOrWhiteSpace(n.Procedure)) errors.Add("Enter the planned procedure.");
-        if (string.IsNullOrWhiteSpace(n.Specialist)) errors.Add("Enter the specialist.");
+        if (await theatre.ClinicianProblemAsync(n.SpecialistId, true, "specialist", ct) is { } se) errors.Add(se);
         if (n.DurationMinutes is < 5 or > 720) errors.Add("Enter an expected duration between 5 and 720 minutes.");
         var added = n.AddedOn ?? Today;
         if (added > Today) errors.Add("The decision-to-treat date cannot be in the future.");
@@ -164,13 +165,13 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         var e = new WaitlistEntry
         {
             ReferralId = referralId, PatientId = n.PatientId, Procedure = n.Procedure.Trim(), Laterality = n.Laterality, Anaesthetic = n.Anaesthetic, DurationMinutes = n.DurationMinutes,
-            Service = n.Service, Specialist = n.Specialist.Trim(), Funder = n.Funder, Priority = n.Priority, AddedOn = added, TargetDate = added.AddDays(TargetDays(settings, n.Priority)),
+            Service = n.Service, SpecialistId = n.SpecialistId, Funder = n.Funder, Priority = n.Priority, AddedOn = added, TargetDate = added.AddDays(TargetDays(settings, n.Priority)),
             Notes = Blank(n.Notes), StatusAt = now, CreatedAt = now, CreatedBy = user
         };
         db.Waitlist.Add(e);
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Create", "WaitlistEntry", e.Id.ToString(), e.PatientId.ToString(),
-            reason: $"{e.Procedure} with {e.Specialist}; {e.Priority}; target {e.TargetDate:yyyy-MM-dd}", ct: ct);
+            reason: $"{e.Procedure} with specialist {e.SpecialistId}; {e.Priority}; target {e.TargetDate:yyyy-MM-dd}", ct: ct);
         return (e, []);
     }
 
@@ -179,7 +180,8 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         var e = await db.Waitlist.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (e is null) return "Waitlist entry not found.";
         if (e.Status is WaitlistStatus.Completed or WaitlistStatus.Removed) return "This entry is closed.";
-        if (string.IsNullOrWhiteSpace(u.Procedure) || string.IsNullOrWhiteSpace(u.Specialist)) return "Enter the procedure and specialist.";
+        if (string.IsNullOrWhiteSpace(u.Procedure)) return "Enter the procedure.";
+        if (await theatre.ClinicianProblemAsync(u.SpecialistId, true, "specialist", ct) is { } se && u.SpecialistId != e.SpecialistId) return se;
         if (u.DurationMinutes is < 5 or > 720) return "Enter an expected duration between 5 and 720 minutes.";
         var changes = new List<string>();
         if (e.Priority != u.Priority)
@@ -190,9 +192,9 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
             e.TargetDate = e.AddedOn.AddDays(TargetDays(s, u.Priority));
         }
         if (e.Procedure != u.Procedure.Trim()) changes.Add($"procedure -> {u.Procedure.Trim()}");
-        if (e.Specialist != u.Specialist.Trim()) changes.Add($"specialist -> {u.Specialist.Trim()}");
+        if (e.SpecialistId != u.SpecialistId) changes.Add($"specialist -> {u.SpecialistId}");
         e.Procedure = u.Procedure.Trim(); e.Laterality = u.Laterality; e.Anaesthetic = u.Anaesthetic; e.DurationMinutes = u.DurationMinutes;
-        e.Specialist = u.Specialist.Trim(); e.Notes = Blank(u.Notes);
+        e.SpecialistId = u.SpecialistId; e.Notes = Blank(u.Notes);
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Update", "WaitlistEntry", e.Id.ToString(), e.PatientId.ToString(), reason: changes.Count > 0 ? string.Join("; ", changes) : "details", ct: ct);
         return null;
@@ -242,8 +244,11 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
             return new(null, [e.Status == WaitlistStatus.OnHold ? "This patient is on hold. Resume them first." : $"This entry is {e.Status.ToString().ToLowerInvariant()}, not waiting."], []);
         var warnings = new List<string>();
         var session = await theatreDb.Sessions.AsNoTracking().SingleOrDefaultAsync(s => s.Id == sessionId, ct);
-        if (session is not null && !session.Surgeon.Contains(e.Specialist, StringComparison.OrdinalIgnoreCase) && !e.Specialist.Contains(session.Surgeon, StringComparison.OrdinalIgnoreCase))
-            warnings.Add($"This list is for {session.Surgeon}, but the patient is waiting for {e.Specialist}.");
+        if (session is not null && session.SurgeonId != e.SpecialistId)
+        {
+            var names = await theatre.ClinicianNamesAsync(ct);
+            warnings.Add($"This list is for {names.GetValueOrDefault(session.SurgeonId, "another surgeon")}, but the patient is waiting for {names.GetValueOrDefault(e.SpecialistId, "another specialist")}.");
+        }
         if (session is not null && session.Date > e.TargetDate) warnings.Add($"This date is after the patient's target date ({e.TargetDate:d MMM yyyy}).");
         if (warnings.Count > 0 && !acceptWarnings)
         {
@@ -257,7 +262,7 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         e.Status = WaitlistStatus.Booked; e.BookingId = r.Booking.Id; e.BookedFor = session?.Date; e.StatusAt = clock.GetUtcNow();
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Book", "WaitlistEntry", e.Id.ToString(), e.PatientId.ToString(),
-            reason: $"Booked {session?.LocationName} {session?.Date:yyyy-MM-dd} (booking {r.Booking.Id}){(warnings.Count > 0 ? "; warnings accepted: " + string.Join("; ", warnings) : "")}", ct: ct);
+            reason: $"Booked list {session?.Id} {session?.Date:yyyy-MM-dd} (booking {r.Booking.Id}){(warnings.Count > 0 ? "; warnings accepted: " + string.Join("; ", warnings) : "")}", ct: ct);
         return new(r.Booking, [], [.. warnings, .. r.Warnings]);
     }
 
@@ -297,7 +302,7 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         return changed;
     }
 
-    public async Task<IReadOnlyList<WaitlistRow>> WaitlistAsync(string view, string? specialist, Priority? priority, Guid? patientId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<WaitlistRow>> WaitlistAsync(string view, Guid? specialistId, Priority? priority, Guid? patientId, CancellationToken ct = default)
     {
         var q = db.Waitlist.AsNoTracking().AsQueryable();
         if (patientId is { } pid) q = q.Where(w => w.PatientId == pid);
@@ -309,19 +314,20 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
             "all-open" => q.Where(w => w.Status == WaitlistStatus.Waiting || w.Status == WaitlistStatus.OnHold || w.Status == WaitlistStatus.Booked),
             _ => q.Where(w => w.Status == WaitlistStatus.Waiting),
         };
-        if (!string.IsNullOrWhiteSpace(specialist)) q = q.Where(w => w.Specialist == specialist);
+        if (specialistId is { } sid) q = q.Where(w => w.SpecialistId == sid);
         if (priority is { } pr) q = q.Where(w => w.Priority == pr);
         var list = await q.OrderBy(w => w.TargetDate).ThenBy(w => w.AddedOn).Take(1000).ToListAsync(ct);
         var refIds = list.Where(w => w.ReferralId != null).Select(w => w.ReferralId!.Value).ToList();
         var numbers = await db.Referrals.AsNoTracking().Where(r => refIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.Number, ct);
         var people = await People(list.Select(w => w.PatientId), ct);
+        var clinicians = await theatre.ClinicianNamesAsync(ct);
         var today = Today;
         return list.Select(w =>
         {
             var p = people.GetValueOrDefault(w.PatientId);
             var open = w.Status is WaitlistStatus.Waiting or WaitlistStatus.OnHold;
             return new WaitlistRow(w.Id, w.ReferralId, w.ReferralId is { } rid ? numbers.GetValueOrDefault(rid) : null, w.PatientId, Name(p), p?.Mrn ?? "", p?.Nhi,
-                p?.DateOfBirth ?? default, w.Procedure, w.Laterality.ToString(), w.Anaesthetic.ToString(), w.DurationMinutes, w.Service.ToString(), w.Specialist,
+                p?.DateOfBirth ?? default, w.Procedure, w.Laterality.ToString(), w.Anaesthetic.ToString(), w.DurationMinutes, w.Service.ToString(), w.SpecialistId, clinicians.GetValueOrDefault(w.SpecialistId, "?"),
                 w.Funder.ToString(), w.Priority.ToString(), w.AddedOn, w.TargetDate, today.DayNumber - w.AddedOn.DayNumber, w.TargetDate.DayNumber - today.DayNumber,
                 open && w.TargetDate < today, w.Status.ToString(), w.HoldReason, w.HoldUntil, w.BookingId, w.BookedFor, w.RemovedReason, w.Notes, w.Funder == Funder.HealthNz);
         }).ToList();
@@ -331,7 +337,8 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
     {
         var today = Today;
         var open = await db.Waitlist.AsNoTracking().Where(w => w.Status == WaitlistStatus.Waiting || w.Status == WaitlistStatus.OnHold)
-            .Select(w => new { w.Priority, w.TargetDate, w.Status, w.Specialist }).ToListAsync(ct);
+            .Select(w => new { w.Priority, w.TargetDate, w.Status, w.SpecialistId }).ToListAsync(ct);
+        var clinicians = await theatre.ClinicianNamesAsync(ct);
         return new
         {
             toTriage = await ToTriageCountAsync(ct),
@@ -340,7 +347,7 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
             overdue = open.Count(w => w.Status == WaitlistStatus.Waiting && w.TargetDate < today),
             dueIn14Days = open.Count(w => w.Status == WaitlistStatus.Waiting && w.TargetDate >= today && w.TargetDate <= today.AddDays(14)),
             byPriority = Enum.GetValues<Priority>().Select(p => new { priority = p.ToString(), count = open.Count(w => w.Priority == p && w.Status == WaitlistStatus.Waiting) }),
-            specialists = open.Select(w => w.Specialist).Distinct().OrderBy(s => s).ToList()
+            specialists = open.Select(w => w.SpecialistId).Distinct().Select(id => new { id, name = clinicians.GetValueOrDefault(id, "?") }).OrderBy(s => s.name).ToList()
         };
     }
 
@@ -398,6 +405,7 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         var entries = await db.Waitlist.AsNoTracking().Where(w => w.Funder == Funder.HealthNz && w.AddedOn <= to).ToListAsync(ct);
         entries = entries.Where(w => w.Status is WaitlistStatus.Waiting or WaitlistStatus.OnHold or WaitlistStatus.Booked || DateOnly.FromDateTime(w.StatusAt.ToLocalTime().DateTime) >= from).ToList();
         var people = await People(entries.Select(e => e.PatientId), ct);
+        var clinicianNames = await theatre.ClinicianNamesAsync(ct);
         var ethnic = await patients.Patients.AsNoTracking().Where(p => people.Keys.Contains(p.Id)).SelectMany(p => p.Ethnicities).ToListAsync(ct);
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("AGENCY_CODE,FACILITY_CODE,EVENT_LOCAL_ID,NHI,DATE_OF_BIRTH,SEX,ETHNICITY_1,ETHNICITY_2,ETHNICITY_3,HEALTH_SPECIALTY_CODE,PLANNED_PROCEDURE,CLINICAL_PRIORITY,DATE_ADDED,TARGET_DATE,STATUS,STATUS_DATE,DEFERRED_UNTIL,BOOKED_FOR,REMOVAL_REASON,SPECIALIST");
@@ -413,7 +421,7 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
             sb.AppendLine(string.Join(",", new[] { s.NbrsAgencyCode ?? "", s.NbrsFacilityCode ?? "", w.Id.ToString("N")[..20].ToUpperInvariant(), p.Nhi, p.DateOfBirth.ToString("yyyyMMdd"), sex,
                 eth.ElementAtOrDefault(0) ?? "99", eth.ElementAtOrDefault(1) ?? "", eth.ElementAtOrDefault(2) ?? "", spec!, w.Procedure, NbrsPriority(w.Priority),
                 w.AddedOn.ToString("yyyyMMdd"), w.TargetDate.ToString("yyyyMMdd"), NbrsStatus(w.Status), w.StatusAt.ToLocalTime().ToString("yyyyMMdd"),
-                w.HoldUntil?.ToString("yyyyMMdd") ?? "", w.BookedFor?.ToString("yyyyMMdd") ?? "", w.RemovedReason ?? "", w.Specialist }.Select(Csv)));
+                w.HoldUntil?.ToString("yyyyMMdd") ?? "", w.BookedFor?.ToString("yyyyMMdd") ?? "", w.RemovedReason ?? "", clinicianNames.GetValueOrDefault(w.SpecialistId, "") }.Select(Csv)));
             rows++;
         }
         await audit.WriteAsync(user, "Export", "NbrsExtract", $"{from:yyyy-MM-dd}..{to:yyyy-MM-dd}", reason: $"{rows} rows, {problems.Count} problem(s)", ct: ct);

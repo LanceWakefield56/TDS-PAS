@@ -4,7 +4,7 @@ import { api, errText, formatDate, PatientSummary, Perm, todayIso } from '../api
 import { useSession } from '../App';
 import CalendarGrid, { AllDayItem, CalendarNav, CalItem, daysFor } from '../components/CalendarGrid';
 import PatientPicker from '../components/PatientPicker';
-import { RefLists, useRefData } from '../components/RefData';
+import { RefLists, useRefData, ClinicianSelect } from '../components/RefData';
 
 interface Booking { id: string; patientId: string; patientName: string; nhi: string | null; procedure: string; laterality: string; status: string; plannedStart: string; plannedEnd: string; isTentative: boolean; payment: string; checklist: string[]; phone: string | null; notes: string | null }
 interface Session { id: string; locationName: string; date: string; startTime: string; endTime: string; type: string; surgeon: string; anaesthetist: string | null; bookings: Booking[] }
@@ -110,7 +110,7 @@ function Details({ sel, canBook, onClose, onChange }: { sel: any; canBook: boole
 
 function NewAppointment({ start, onDone, onCancel }: { start: { date: string; time: string }; onDone: () => void; onCancel: () => void }) {
   const [patient, setPatient] = useState<PatientSummary | null>(null);
-  const [f, setF] = useState({ date: start.date, startTime: start.time, durationMinutes: 15, kind: 'Consultation', clinician: '', noCharge: false, isTentative: false, notes: '' });
+  const [f, setF] = useState({ date: start.date, startTime: start.time, durationMinutes: 15, kind: 'Consultation', clinicianId: '', noCharge: false, isTentative: false, notes: '' });
   const [warnings, setWarnings] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   useEffect(() => setF((x) => ({ ...x, date: start.date, startTime: start.time })), [start.date, start.time]);
@@ -126,7 +126,7 @@ function NewAppointment({ start, onDone, onCancel }: { start: { date: string; ti
       <PatientPicker value={patient} onChange={setPatient} />
       <div className="form-grid">
         <label>Type<select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value, durationMinutes: e.target.value === 'PhoneCall' ? 10 : f.durationMinutes })}>{KINDS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
-        <label>Clinician<input list="dl-clinicians" value={f.clinician} onChange={(e) => setF({ ...f, clinician: e.target.value })} /></label>
+        <ClinicianSelect label="Clinician" required value={f.clinicianId} onChange={(id) => setF({ ...f, clinicianId: id })} />
         <label>Date<input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></label>
         <label>Time<input type="time" step={300} value={f.startTime} onChange={(e) => setF({ ...f, startTime: e.target.value })} /></label>
         <label>Minutes<input type="number" min={5} max={240} step={5} value={f.durationMinutes} onChange={(e) => setF({ ...f, durationMinutes: Number(e.target.value) })} /></label>

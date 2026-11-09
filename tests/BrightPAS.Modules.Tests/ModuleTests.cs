@@ -184,12 +184,12 @@ public class TheatreTests
         await using var s = h.Scope();
         var svc = s.ServiceProvider.GetRequiredService<TheatreService>();
         var day = new DateOnly(2026, 11, 16);
-        var (ok, e1) = await svc.CreateSessionAsync(new(th1, day, new(8, 0), new(12, 30), SessionType.Surgical, "Dr Ben Hall", "Dr Kate Ford", null), "rec");
+        var (ok, e1) = await svc.CreateSessionAsync(new(th1, day, new(8, 0), new(12, 30), SessionType.Surgical, Doc.Id("Dr Ben Hall"), Doc.Id("Dr Kate Ford"), null), "rec");
         Assert.NotNull(ok);
-        var (_, e2) = await svc.CreateSessionAsync(new(th1, day, new(12, 0), new(16, 0), SessionType.Endoscopy, "Dr X", null, null), "rec");
+        var (_, e2) = await svc.CreateSessionAsync(new(th1, day, new(12, 0), new(16, 0), SessionType.Endoscopy, Doc.Id("Dr X"), null, null), "rec");
         Assert.Contains("already has a list", e2);
         var th2 = await s.ServiceProvider.GetRequiredService<PasDbContext>().Locations.SingleAsync(l => l.Code == "TH2");
-        var (_, e3) = await svc.CreateSessionAsync(new(th2.Id, day, new(8, 0), new(12, 0), SessionType.Surgical, "Dr X", null, null), "rec");
+        var (_, e3) = await svc.CreateSessionAsync(new(th2.Id, day, new(8, 0), new(12, 0), SessionType.Surgical, Doc.Id("Dr X"), null, null), "rec");
         Assert.Contains("active", e3);
     }
 
@@ -203,7 +203,7 @@ public class TheatreTests
         await using var s = h.Scope();
         var svc = s.ServiceProvider.GetRequiredService<TheatreService>();
         var day = new DateOnly(2026, 11, 16);
-        var (list, _) = await svc.CreateSessionAsync(new(th1, day, new(8, 0), new(10, 0), SessionType.Surgical, "Dr Ben Hall", null, null), "rec");
+        var (list, _) = await svc.CreateSessionAsync(new(th1, day, new(8, 0), new(10, 0), SessionType.Surgical, Doc.Id("Dr Ben Hall"), null, null), "rec");
         var b1 = await svc.BookAsync(new(list!.Id, p.Id, "Carpal tunnel release", Laterality.Right, 45, AnaestheticType.Regional, null), "rec");
         Assert.NotNull(b1.Booking);
         var dup = await svc.BookAsync(new(list.Id, p.Id, "Again", Laterality.Left, 30, AnaestheticType.Local, null), "rec");
@@ -227,7 +227,7 @@ public class TheatreTests
         var p = await h.PatientAsync();
         await using var s = h.Scope();
         var svc = s.ServiceProvider.GetRequiredService<TheatreService>();
-        var (list, _) = await svc.CreateSessionAsync(new(th1, new DateOnly(2026, 11, 16), new(8, 0), new(12, 0), SessionType.Surgical, "Dr A", null, null), "rec");
+        var (list, _) = await svc.CreateSessionAsync(new(th1, new DateOnly(2026, 11, 16), new(8, 0), new(12, 0), SessionType.Surgical, Doc.Id("Dr A"), null, null), "rec");
         var b = (await svc.BookAsync(new(list!.Id, p.Id, "Colonoscopy", Laterality.NotApplicable, 30, AnaestheticType.Sedation, null), "rec")).Booking!;
         Assert.NotNull(await svc.SetStatusAsync(b.Id, BookingStatus.Discharged, null, "rn"));
         Assert.NotNull(await svc.SetStatusAsync(b.Id, BookingStatus.Cancelled, null, "rn"));

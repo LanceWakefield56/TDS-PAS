@@ -334,9 +334,9 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20261108040609_IndexesIntegrity'
 )
 BEGIN
-    INSERT INTO [theatre].[BookingChecks] ([BookingId], [ItemKey], [CheckedAt], [CheckedBy])
-    SELECT DISTINCT b.[Id], LEFT(LTRIM(RTRIM(v.[value])), 30), SYSDATETIMEOFFSET(), N'migrated' FROM [theatre].[Bookings] b CROSS APPLY STRING_SPLIT(b.[Checklist], ',') v
-    WHERE b.[Checklist] IS NOT NULL AND LEN(LTRIM(RTRIM(v.[value]))) > 0;
+    EXEC(N'INSERT INTO [theatre].[BookingChecks] ([BookingId], [ItemKey], [CheckedAt], [CheckedBy])
+    SELECT DISTINCT b.[Id], LEFT(LTRIM(RTRIM(v.[value])), 30), SYSDATETIMEOFFSET(), N''migrated'' FROM [theatre].[Bookings] b CROSS APPLY STRING_SPLIT(b.[Checklist], '','') v
+    WHERE b.[Checklist] IS NOT NULL AND LEN(LTRIM(RTRIM(v.[value]))) > 0;');
 END;
 
 IF NOT EXISTS (
@@ -360,6 +360,198 @@ IF NOT EXISTS (
 BEGIN
     INSERT INTO [theatre].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
     VALUES (N'20261108040609_IndexesIntegrity', N'10.0.14');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    ALTER TABLE [theatre].[Templates] ADD [AnaesthetistId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    ALTER TABLE [theatre].[Templates] ADD [SurgeonId] uniqueidentifier NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    ALTER TABLE [theatre].[Sessions] ADD [AnaesthetistId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    ALTER TABLE [theatre].[Sessions] ADD [SurgeonId] uniqueidentifier NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    ALTER TABLE [theatre].[Appointments] ADD [ClinicianId] uniqueidentifier NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    CREATE INDEX [IX_Templates_AnaesthetistId] ON [theatre].[Templates] ([AnaesthetistId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    CREATE INDEX [IX_Templates_SurgeonId] ON [theatre].[Templates] ([SurgeonId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    CREATE INDEX [IX_Sessions_AnaesthetistId] ON [theatre].[Sessions] ([AnaesthetistId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    CREATE INDEX [IX_Sessions_SurgeonId_Date] ON [theatre].[Sessions] ([SurgeonId], [Date]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    CREATE INDEX [IX_Appointments_ClinicianId_Date] ON [theatre].[Appointments] ([ClinicianId], [Date]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    EXEC(N'INSERT INTO [core].[Clinicians] ([Id], [Name], [Type], [Colour], [IsActive])
+    SELECT NEWID(), x.[Name], N''Other'', 0, 0 FROM (SELECT DISTINCT LEFT(LTRIM(RTRIM(n.[Name])), 150) AS [Name] FROM (SELECT [Surgeon] AS [Name] FROM [theatre].[Sessions] UNION ALL SELECT [Anaesthetist] FROM [theatre].[Sessions] UNION ALL SELECT [Surgeon] FROM [theatre].[Templates] UNION ALL SELECT [Anaesthetist] FROM [theatre].[Templates] UNION ALL SELECT [Clinician] FROM [theatre].[Appointments]) n WHERE n.[Name] IS NOT NULL AND LTRIM(RTRIM(n.[Name])) <> N'''') x
+    WHERE NOT EXISTS (SELECT 1 FROM [core].[Clinicians] c WHERE c.[Name] = x.[Name]);
+    UPDATE s SET [SurgeonId] = c.[Id] FROM [theatre].[Sessions] s JOIN [core].[Clinicians] c ON c.[Name] = LTRIM(RTRIM(s.[Surgeon]));
+    UPDATE s SET [AnaesthetistId] = c.[Id] FROM [theatre].[Sessions] s JOIN [core].[Clinicians] c ON c.[Name] = LTRIM(RTRIM(s.[Anaesthetist]));
+    UPDATE t SET [SurgeonId] = c.[Id] FROM [theatre].[Templates] t JOIN [core].[Clinicians] c ON c.[Name] = LTRIM(RTRIM(t.[Surgeon]));
+    UPDATE t SET [AnaesthetistId] = c.[Id] FROM [theatre].[Templates] t JOIN [core].[Clinicians] c ON c.[Name] = LTRIM(RTRIM(t.[Anaesthetist]));
+    UPDATE a SET [ClinicianId] = c.[Id] FROM [theatre].[Appointments] a JOIN [core].[Clinicians] c ON c.[Name] = LTRIM(RTRIM(a.[Clinician]));');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    DECLARE @var1 nvarchar(max);
+    SELECT @var1 = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[theatre].[Templates]') AND [c].[name] = N'Anaesthetist');
+    IF @var1 IS NOT NULL EXEC(N'ALTER TABLE [theatre].[Templates] DROP CONSTRAINT ' + @var1 + ';');
+    ALTER TABLE [theatre].[Templates] DROP COLUMN [Anaesthetist];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    DECLARE @var2 nvarchar(max);
+    SELECT @var2 = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[theatre].[Templates]') AND [c].[name] = N'Surgeon');
+    IF @var2 IS NOT NULL EXEC(N'ALTER TABLE [theatre].[Templates] DROP CONSTRAINT ' + @var2 + ';');
+    ALTER TABLE [theatre].[Templates] DROP COLUMN [Surgeon];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    DECLARE @var3 nvarchar(max);
+    SELECT @var3 = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[theatre].[Sessions]') AND [c].[name] = N'Anaesthetist');
+    IF @var3 IS NOT NULL EXEC(N'ALTER TABLE [theatre].[Sessions] DROP CONSTRAINT ' + @var3 + ';');
+    ALTER TABLE [theatre].[Sessions] DROP COLUMN [Anaesthetist];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    DECLARE @var4 nvarchar(max);
+    SELECT @var4 = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[theatre].[Sessions]') AND [c].[name] = N'LocationName');
+    IF @var4 IS NOT NULL EXEC(N'ALTER TABLE [theatre].[Sessions] DROP CONSTRAINT ' + @var4 + ';');
+    ALTER TABLE [theatre].[Sessions] DROP COLUMN [LocationName];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    DECLARE @var5 nvarchar(max);
+    SELECT @var5 = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[theatre].[Sessions]') AND [c].[name] = N'Surgeon');
+    IF @var5 IS NOT NULL EXEC(N'ALTER TABLE [theatre].[Sessions] DROP CONSTRAINT ' + @var5 + ';');
+    ALTER TABLE [theatre].[Sessions] DROP COLUMN [Surgeon];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    DECLARE @var6 nvarchar(max);
+    SELECT @var6 = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[theatre].[Appointments]') AND [c].[name] = N'Clinician');
+    IF @var6 IS NOT NULL EXEC(N'ALTER TABLE [theatre].[Appointments] DROP CONSTRAINT ' + @var6 + ';');
+    ALTER TABLE [theatre].[Appointments] DROP COLUMN [Clinician];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [theatre].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109071501_ClinicianIds'
+)
+BEGIN
+    INSERT INTO [theatre].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261109071501_ClinicianIds', N'10.0.14');
 END;
 
 COMMIT;

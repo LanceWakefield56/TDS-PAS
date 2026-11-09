@@ -54,7 +54,7 @@ public static class ReferralsEndpoints
         }).RequireAuthorization(Permissions.ModulesManage);
 
         var w = app.MapGroup("/api/waitlist").RequireModule(ReferralsModule.Id);
-        w.MapGet("/", async (string? view, string? specialist, Priority? priority, Guid? patientId, ReferralService svc) =>
+        w.MapGet("/", async (string? view, Guid? specialist, Priority? priority, Guid? patientId, ReferralService svc) =>
         {
             await svc.SyncWithTheatreAsync();
             return Results.Ok(await svc.WaitlistAsync(view ?? "waiting", specialist, priority, patientId));

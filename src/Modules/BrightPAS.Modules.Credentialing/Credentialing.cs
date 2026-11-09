@@ -261,13 +261,13 @@ public sealed class CredentialingService(CredDbContext db, PasDbContext core, Au
     /// Warnings for a theatre case on a date: each clinician (matched by register name) must hold the required credentials, unexpired on that date,
     /// and the surgeon/endoscopist must have a privilege covering the procedure (by catalogue name or code).
     /// </summary>
-    public async Task<IReadOnlyList<string>> CheckCaseAsync(DateOnly date, string? surgeon, string? anaesthetist, string? procedure, CancellationToken ct = default)
+    public async Task<IReadOnlyList<string>> CheckCaseAsync(DateOnly date, Guid? surgeonId, Guid? anaesthetistId, string? procedure, CancellationToken ct = default)
     {
         var s = await SettingsAsync(ct);
         var required = await RequiredAsync(ct);
         var warnings = new List<string>();
-        var names = new[] { surgeon, anaesthetist }.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n!.Trim()).ToList();
-        var clinicians = await core.Clinicians.AsNoTracking().Where(c => names.Contains(c.Name)).ToListAsync(ct);
+        var wanted = new[] { surgeonId, anaesthetistId }.Where(x => x is not null && x != Guid.Empty).Select(x => x!.Value).ToList();
+        var clinicians = await core.Clinicians.AsNoTracking().Where(c => wanted.Contains(c.Id)).ToListAsync(ct);
         var ids = clinicians.Select(c => c.Id).ToList();
         var creds = await db.Credentials.AsNoTracking().Where(c => ids.Contains(c.ClinicianId) && c.IsActive).ToListAsync(ct);
         foreach (var c in clinicians)
@@ -276,7 +276,7 @@ public sealed class CredentialingService(CredDbContext db, PasDbContext core, Au
                 var ok = creds.Any(x => x.ClinicianId == c.Id && x.Type == t && (x.ExpiresOn is null || x.ExpiresOn >= date));
                 if (!ok) warnings.Add($"Credentialing: {c.Name} – {Label(t)} {(creds.Any(x => x.ClinicianId == c.Id && x.Type == t) ? "expires before this date" : "not recorded")}.");
             }
-        if (s.CheckPrivileges && !string.IsNullOrWhiteSpace(procedure) && clinicians.FirstOrDefault(c => c.Name == surgeon?.Trim()) is { } surg)
+        if (s.CheckPrivileges && !string.IsNullOrWhiteSpace(procedure) && clinicians.FirstOrDefault(c => c.Id == surgeonId) is { } surg)
         {
             var proc = await core.Procedures.AsNoTracking().FirstOrDefaultAsync(p => p.Name == procedure.Trim() || p.Code == procedure.Trim(), ct);
             var privs = await db.Privileges.AsNoTracking().Where(p => p.ClinicianId == surg.Id && p.IsActive && p.ApprovedOn <= date).ToListAsync(ct);

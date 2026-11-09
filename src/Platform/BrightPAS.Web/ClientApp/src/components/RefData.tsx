@@ -29,3 +29,28 @@ export function RefLists({ clinicians, procedures }: { clinicians: ClinicianRef[
 
 /** Finds a catalogue entry by the typed name (case-insensitive). */
 export const findProcedure = (list: ProcedureRef[], name: string) => list.find((p) => p.name.toLowerCase() === name.trim().toLowerCase()) ?? null;
+
+let clinicianCache: Promise<ClinicianRef[]> | null = null;
+const loadClinicians = () => (clinicianCache ??= api<ClinicianRef[]>('/api/organisation/clinicians').catch(() => { clinicianCache = null; return []; }));
+
+/**
+ * Picks a clinician from the register (lists, appointments, referrals and the waitlist store the clinician's id, never a typed name).
+ * `role`: 'surgeon' = surgeons/endoscopists/physicians, 'anaesthetist', or 'any'. Shows the current value even if that clinician is now inactive.
+ */
+export function ClinicianSelect({ label, value, onChange, role = 'any', required = false, currentName }:
+  { label: string; value: string | null | undefined; onChange: (id: string) => void; role?: 'surgeon' | 'anaesthetist' | 'any'; required?: boolean; currentName?: string | null }) {
+  const [list, setList] = useState<ClinicianRef[]>([]);
+  useEffect(() => { loadClinicians().then(setList); }, []);
+  const shown = list.filter((c) => role === 'any' || (role === 'anaesthetist' ? c.type === 'Anaesthetist' : c.type !== 'Anaesthetist'));
+  const missing = value && !shown.some((c) => c.id === value);
+  return (
+    <label>{label}
+      <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} required={required}>
+        <option value="">{required ? 'Choose…' : '— none —'}</option>
+        {missing && <option value={value!}>{currentName ?? 'Current clinician'} (inactive)</option>}
+        {shown.map((c) => <option key={c.id} value={c.id}>{c.name}{c.specialty ? ` – ${c.specialty}` : ''}</option>)}
+      </select>
+      {list.length === 0 && <span className="hint">Add clinicians in Organisation set-up › Clinicians.</span>}
+    </label>
+  );
+}

@@ -50,12 +50,12 @@ public class OrganisationAdminTests
         var svc = s.ServiceProvider.GetRequiredService<OrganisationService>();
         var (_, bad) = await svc.SaveClinicianAsync(new(null, "Dr", ClinicianType.Surgeon, null, "12ABC345", null, "x", null, null, true), "admin");
         Assert.Equal(3, bad.Count);
-        var (hall, _) = await svc.SaveClinicianAsync(new(null, "Dr Ben Hall", ClinicianType.Surgeon, "General surgery", "12abcd", null, null, "Hall Surgical", null, true), "admin");
-        Assert.Equal("12ABCD", hall!.HpiCpn);
-        var (_, dup) = await svc.SaveClinicianAsync(new(null, "Dr Ben Hall", ClinicianType.Surgeon, null, "34EFGH", null, null, null, null, true), "admin");
+        var (reid, _) = await svc.SaveClinicianAsync(new(null, "Dr Tim Reid", ClinicianType.Surgeon, "General surgery", "12abcd", null, null, "Reid Surgical", null, true), "admin");
+        Assert.Equal("12ABCD", reid!.HpiCpn);
+        var (_, dup) = await svc.SaveClinicianAsync(new(null, "Dr Tim Reid", ClinicianType.Surgeon, null, "34EFGH", null, null, null, null, true), "admin");
         Assert.Contains(dup, e => e.Contains("already in the register"));
-        await svc.SaveClinicianAsync(new(hall.Id, "Dr Ben Hall", ClinicianType.Surgeon, null, "12ABCD", null, null, null, null, false), "admin");
-        Assert.Empty(await svc.CliniciansAsync(activeOnly: true));
+        await svc.SaveClinicianAsync(new(reid.Id, "Dr Tim Reid", ClinicianType.Surgeon, null, "12ABCD", null, null, null, null, false), "admin");
+        Assert.DoesNotContain(await svc.CliniciansAsync(activeOnly: true), c => c.Name == "Dr Tim Reid");
     }
 
     [Fact]
@@ -82,11 +82,11 @@ public class ListTemplateTests
         var svc = s.ServiceProvider.GetRequiredService<TheatreService>();
         var th1 = await s.ServiceProvider.GetRequiredService<PasDbContext>().Locations.SingleAsync(l => l.Code == "TH1");
         var mon = new DateOnly(2026, 11, 9);
-        var (weekly, _) = await svc.SaveTemplateAsync(new(null, th1.Id, DayOfWeek.Tuesday, new(8, 0), new(12, 30), SessionType.Surgical, "Dr Ben Hall", "Dr Kate Ford", 1, mon, null, true), "rec");
+        var (weekly, _) = await svc.SaveTemplateAsync(new(null, th1.Id, DayOfWeek.Tuesday, new(8, 0), new(12, 30), SessionType.Surgical, Doc.Id("Dr Ben Hall"), Doc.Id("Dr Kate Ford"), 1, mon, null, true), "rec");
         Assert.NotNull(weekly);
-        var (_, clash) = await svc.SaveTemplateAsync(new(null, th1.Id, DayOfWeek.Tuesday, new(12, 0), new(16, 0), SessionType.Endoscopy, "Dr Ana Lee", null, 1, mon, null, true), "rec");
+        var (_, clash) = await svc.SaveTemplateAsync(new(null, th1.Id, DayOfWeek.Tuesday, new(12, 0), new(16, 0), SessionType.Endoscopy, Doc.Id("Dr Ana Lee"), null, 1, mon, null, true), "rec");
         Assert.Contains("already uses", clash);
-        await svc.SaveTemplateAsync(new(null, th1.Id, DayOfWeek.Thursday, new(13, 0), new(17, 0), SessionType.Endoscopy, "Dr Ana Lee", null, 2, mon, null, true), "rec");
+        await svc.SaveTemplateAsync(new(null, th1.Id, DayOfWeek.Thursday, new(13, 0), new(17, 0), SessionType.Endoscopy, Doc.Id("Dr Ana Lee"), null, 2, mon, null, true), "rec");
 
         var r = await svc.GenerateFromTemplatesAsync(mon, mon.AddDays(27), "rec");
         Assert.Equal(4 + 2, r.Created);
@@ -109,7 +109,7 @@ public class LettersTests
         await org.UpdateDetailsAsync(new("Tasman Day Surgery", null, "Main site", null, "12 Example Street", null, null, "Nelson", "7010", "03 555 0100", null), "admin");
         var theatre = s.ServiceProvider.GetRequiredService<TheatreService>();
         var th1 = await core.Locations.SingleAsync(l => l.Code == "TH1");
-        var (list, _) = await theatre.CreateSessionAsync(new(th1.Id, new DateOnly(2026, 11, 17), new(8, 0), new(12, 30), SessionType.Surgical, "Dr Ben Hall", null, null), "rec");
+        var (list, _) = await theatre.CreateSessionAsync(new(th1.Id, new DateOnly(2026, 11, 17), new(8, 0), new(12, 30), SessionType.Surgical, Doc.Id("Dr Ben Hall"), null, null), "rec");
         var other = await h.PatientAsync("Smith", "John", "ZVB97XQ", new DateOnly(1957, 11, 2));
         await theatre.BookAsync(new(list!.Id, other.Id, "Colonoscopy", Laterality.NotApplicable, 50, AnaestheticType.Sedation, null), "rec");
         var b = await theatre.BookAsync(new(list.Id, p.Id, "Inguinal hernia repair", Laterality.Right, 60, AnaestheticType.General, null), "rec");
@@ -253,7 +253,7 @@ public class LettersTests
         var p = await h.PatientAsync();
         await using var s = h.Scope();
         var refs = s.ServiceProvider.GetRequiredService<ReferralService>();
-        var (r, _) = await refs.CreateReferralAsync(new(p.Id, new DateOnly(2026, 11, 2), ReferralSource.GeneralPractice, "Dr Mere Smith", "Stoke Medical Centre", null, "Dr Ben Hall",
+        var (r, _) = await refs.CreateReferralAsync(new(p.Id, new DateOnly(2026, 11, 2), ReferralSource.GeneralPractice, "Dr Mere Smith", "Stoke Medical Centre", null, Doc.Id("Dr Ben Hall"),
             ServiceType.Surgical, Funder.SelfPay, null, "Lump"), "rec");
         await refs.TriageAsync(r!.Id, new TriageDecision(false, null, "Better managed by the public service", null, default, default, 0, default, null), "dr");
         var svc = s.ServiceProvider.GetRequiredService<LetterService>();

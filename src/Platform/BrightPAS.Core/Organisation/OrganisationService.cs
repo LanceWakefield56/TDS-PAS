@@ -91,6 +91,13 @@ public sealed partial class OrganisationService(PasDbContext db, AuditWriter aud
 
     // ------------------------------------------------------------ clinicians
 
+    /// <summary>Id → name for every clinician (active or not). Lists, appointments and the waitlist store only the id (3NF).</summary>
+    public async Task<Dictionary<Guid, string>> ClinicianNamesAsync(CancellationToken ct = default) =>
+        await db.Clinicians.AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.Name, ct);
+
+    public async Task<Dictionary<Guid, string>> LocationNamesAsync(CancellationToken ct = default) =>
+        await db.Locations.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
+
     public async Task<IReadOnlyList<Clinician>> CliniciansAsync(bool activeOnly, CancellationToken ct = default) =>
         await db.Clinicians.AsNoTracking().Where(c => !activeOnly || c.IsActive).OrderBy(c => c.Type).ThenBy(c => c.Name).ToListAsync(ct);
 

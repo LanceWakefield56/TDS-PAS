@@ -62,13 +62,13 @@ namespace BrightPAS.Modules.Forms.Migrations
                 table: "Requests",
                 column: "BookingId");
 
-            // Move existing data into the normalised table before dropping the old column (0.10.1).
-            migrationBuilder.Sql(@"INSERT INTO [forms].[Answers] ([RequestId], [QuestionKey], [Value])
+            // Dynamic SQL so the batch compiles before the new columns exist. Move existing data into the normalised table before dropping the old column (0.10.1).
+            migrationBuilder.Sql(@"EXEC(N'INSERT INTO [forms].[Answers] ([RequestId], [QuestionKey], [Value])
 SELECT r.[Id], LEFT(j.[key], 60), LEFT(j.[value], 2000) FROM [forms].[Requests] r CROSS APPLY OPENJSON(r.[AnswersJson]) j
 WHERE r.[AnswersJson] IS NOT NULL AND ISJSON(r.[AnswersJson]) = 1 AND LEN(j.[value]) > 0;
 INSERT INTO [forms].[Flags] ([RequestId], [Sequence], [Level], [Text])
-SELECT r.[Id], CAST(j.[key] AS int) + 1, LEFT(ISNULL(JSON_VALUE(j.[value], '$.level'), ''), 10), LEFT(ISNULL(JSON_VALUE(j.[value], '$.text'), ''), 300)
-FROM [forms].[Requests] r CROSS APPLY OPENJSON(r.[FlagsJson]) j WHERE r.[FlagsJson] IS NOT NULL AND ISJSON(r.[FlagsJson]) = 1;");
+SELECT r.[Id], CAST(j.[key] AS int) + 1, LEFT(ISNULL(JSON_VALUE(j.[value], ''$.level''), ''''), 10), LEFT(ISNULL(JSON_VALUE(j.[value], ''$.text''), ''''), 300)
+FROM [forms].[Requests] r CROSS APPLY OPENJSON(r.[FlagsJson]) j WHERE r.[FlagsJson] IS NOT NULL AND ISJSON(r.[FlagsJson]) = 1;');");
 
             migrationBuilder.DropColumn(
                 name: "AnswersJson",

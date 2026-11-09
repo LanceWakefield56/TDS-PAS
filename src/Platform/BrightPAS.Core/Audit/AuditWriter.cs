@@ -23,8 +23,8 @@ public sealed class AuditWriter(PasDbContext db, TimeProvider clock)
                 {
                     // Millisecond precision: stored exactly by every supported database, so hashes re-verify after reload.
                     OccurredAt = TruncateToMilliseconds(clock.GetUtcNow()),
-                    UserId = userId, Action = action, EntityType = entityType, EntityId = entityId,
-                    PatientId = patientId, Reason = reason, Workstation = workstation,
+                    UserId = Fit(userId, 100)!, Action = Fit(action, 50)!, EntityType = Fit(entityType, 100)!, EntityId = Fit(entityId, 100)!,
+                    PatientId = patientId, Reason = Fit(reason, 500), Workstation = Fit(workstation, 100),
                     PreviousHash = string.Empty, Hash = string.Empty
                 }, last);
                 db.AuditEvents.Add(e);
@@ -39,6 +39,9 @@ public sealed class AuditWriter(PasDbContext db, TimeProvider clock)
             }
         }, ct);
     }
+
+    /// <summary>Long texts are shortened (with …) to the column size, so an audit entry is never lost to a length error.</summary>
+    private static string? Fit(string? s, int max) => s is null || s.Length <= max ? s : s[..(max - 1)] + "…";
 
     private static DateTimeOffset TruncateToMilliseconds(DateTimeOffset t) =>
         new(t.UtcTicks - t.UtcTicks % TimeSpan.TicksPerMillisecond, TimeSpan.Zero);

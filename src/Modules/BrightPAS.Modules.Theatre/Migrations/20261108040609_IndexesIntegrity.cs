@@ -58,10 +58,10 @@ namespace BrightPAS.Modules.Theatre.Migrations
                 table: "Appointments",
                 column: "LocationId");
 
-            // Move existing data into the normalised table before dropping the old column (0.10.1).
-            migrationBuilder.Sql(@"INSERT INTO [theatre].[BookingChecks] ([BookingId], [ItemKey], [CheckedAt], [CheckedBy])
-SELECT DISTINCT b.[Id], LEFT(LTRIM(RTRIM(v.[value])), 30), SYSDATETIMEOFFSET(), N'migrated' FROM [theatre].[Bookings] b CROSS APPLY STRING_SPLIT(b.[Checklist], ',') v
-WHERE b.[Checklist] IS NOT NULL AND LEN(LTRIM(RTRIM(v.[value]))) > 0;");
+            // Dynamic SQL so the batch compiles before the new columns exist. Move existing data into the normalised table before dropping the old column (0.10.1).
+            migrationBuilder.Sql(@"EXEC(N'INSERT INTO [theatre].[BookingChecks] ([BookingId], [ItemKey], [CheckedAt], [CheckedBy])
+SELECT DISTINCT b.[Id], LEFT(LTRIM(RTRIM(v.[value])), 30), SYSDATETIMEOFFSET(), N''migrated'' FROM [theatre].[Bookings] b CROSS APPLY STRING_SPLIT(b.[Checklist], '','') v
+WHERE b.[Checklist] IS NOT NULL AND LEN(LTRIM(RTRIM(v.[value]))) > 0;');");
 
             migrationBuilder.DropColumn(
                 name: "Checklist",

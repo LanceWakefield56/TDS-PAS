@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { addDays, api, errText, formatDate, PatientSummary, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import PatientPicker from '../components/PatientPicker';
-import { findProcedure, RefLists, useRefData } from '../components/RefData';
+import { findProcedure, RefLists, useRefData, ClinicianSelect } from '../components/RefData';
 
 interface Booking {
   id: string; patientId: string; patientName: string; nhi: string | null; mrn: string; dateOfBirth: string; order: number; procedure: string; laterality: string;
@@ -174,11 +174,11 @@ function BookingDetailsEditor({ b, items, onDone, onCancel }: { b: Booking; item
 }
 
 function NewList({ date, locations, onDone, onCancel }: { date: string; locations: Loc[]; onDone: () => void; onCancel: () => void }) {
-  const [f, setF] = useState({ locationId: locations[0]?.id ?? '', date, startTime: '08:00', endTime: '12:30', type: 'Surgical', surgeon: '', anaesthetist: '', notes: '' });
+  const [f, setF] = useState({ locationId: locations[0]?.id ?? '', date, startTime: '08:00', endTime: '12:30', type: 'Surgical', surgeonId: '', anaesthetistId: '', notes: '' });
   const [error, setError] = useState<string | null>(null);
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null);
-    try { await api('/api/theatre/sessions', { body: { ...f, startTime: f.startTime + ':00', endTime: f.endTime + ':00' } }); onDone(); } catch (x) { setError(errText(x)); }
+    try { await api('/api/theatre/sessions', { body: { ...f, anaesthetistId: f.anaesthetistId || null, startTime: f.startTime + ':00', endTime: f.endTime + ':00' } }); onDone(); } catch (x) { setError(errText(x)); }
   };
   return (
     <form className="card stack" onSubmit={save}>
@@ -189,8 +189,8 @@ function NewList({ date, locations, onDone, onCancel }: { date: string; location
         <label>Starts<input type="time" value={f.startTime} onChange={(e) => setF({ ...f, startTime: e.target.value })} required /></label>
         <label>Finishes<input type="time" value={f.endTime} onChange={(e) => setF({ ...f, endTime: e.target.value })} required /></label>
         <label>Type<select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>{['Surgical', 'Endoscopy', 'Mixed'].map((t) => <option key={t}>{t}</option>)}</select></label>
-        <label>Surgeon / endoscopist<input list="dl-surgeons" value={f.surgeon} onChange={(e) => setF({ ...f, surgeon: e.target.value })} required /></label>
-        <label>Anaesthetist<input list="dl-anaesthetists" value={f.anaesthetist} onChange={(e) => setF({ ...f, anaesthetist: e.target.value })} /></label>
+        <ClinicianSelect label="Surgeon / endoscopist" role="surgeon" required value={f.surgeonId} onChange={(id) => setF({ ...f, surgeonId: id })} />
+        <ClinicianSelect label="Anaesthetist" role="anaesthetist" value={f.anaesthetistId} onChange={(id) => setF({ ...f, anaesthetistId: id })} />
         <label>Notes<input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></label>
       </div>
       {error && <p className="error">{error}</p>}
