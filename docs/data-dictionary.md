@@ -336,3 +336,28 @@ All tables have a single-purpose primary key; repeating groups removed (1NF); no
 | theatre.Appointments | ClinicianId | uniqueidentifier | No | FK → core.Clinicians (replaces Clinician text) | I |
 | referrals.Referrals | SpecialistId | uniqueidentifier | No | FK → core.Clinicians (replaces Specialist text) | I |
 | referrals.Waitlist | SpecialistId | uniqueidentifier | No | FK → core.Clinicians (replaces Specialist text) | I |
+
+## 0.12.0 – messaging engine (schema msg)
+Sensitivity: **R** restricted (patient data), **I** internal, **S** secret (encrypted).
+
+| Table | Key columns and meaning |
+|---|---|
+| msg.Interfaces | Id, Code (unique), Name, Direction (Inbound/Outbound), Transport (MllpListen, MllpSend, FolderWatch, FolderWrite, HttpPost, HttpReceive, DicomListen, SqlQuery, SqlWrite, Monitored), Format (Hl7v2, Fhir, Json, Dicom, Xml, X12, Text), Handler (None, LabResults), Host, Port, FolderPath, Url, AeTitle, SqlText, PollSeconds, WatermarkColumn, **Secret** (S – auth header / REST key / SQL connection string, encrypted), SystemKey (monitored modules), IsActive, AlertAfterFailures, SilentAlertHours, Notes, Created/Updated At/By. **I** |
+| msg.AllowedClients | InterfaceId → Interfaces; Address (IP), AeTitle (DICOM devices), Description. **I** |
+| msg.InterfaceStates | InterfaceId (PK/FK); Watermark, LastPolledAt, LastRows, LastError (SQL polling). **I** |
+| msg.Messages | Id, InterfaceId, Direction, Status (Received, Processed, Queued, Sending, Sent, Failed, DeadLetter, Filtered, Recorded, Rejected), MessageType, ControlId, Reference (accession/order/letter), PatientId → patients.Patients, Nhi, **Content** (R, encrypted), Sha256, SizeBytes, Attempts, NextAttemptAt, LastError, AckCode, AckText, ParentId → Messages (routed/replayed from), FlowId → Flows, CreatedAt/By, CompletedAt. **R** |
+| msg.Events | MessageId → Messages (cascade); At, Step, Detail – each step a message went through. **R** (details may name codes) |
+| msg.Flows | Id, Name (unique), Description, IsActive, UpdatedAt/By. **I** |
+| msg.Nodes | FlowId → Flows; Kind (Input, Filter, Decision, Mapper, Output), Label, X, Y (canvas), InterfaceId, MappingId, Match (All/Any). **I** |
+| msg.Conditions | NodeId → Nodes; Sequence, Source (path), Operator, Value. **I** |
+| msg.Edges | FlowId; FromNodeId, ToNodeId → Nodes; Branch (Next, Yes, No). **I** |
+| msg.Mappings | Id, Name (unique), SourceFormat, TargetFormat, Description, CreatedAt/By. **I** |
+| msg.Versions | MappingId; Number (unique per mapping), Status (Draft, AwaitingApproval, Live, Retired), StartFrom, Template, SampleInput (synthetic only), ChangeNote, Edited/Submitted/Approved By/At. **I** |
+| msg.Rules | VersionId; Sequence, Target, Source, Function, Argument, TranslationTableId → Tables, ConditionSource/Operator/Value. **I** |
+| msg.Filters | VersionId; Sequence, Source, Operator, Value. **I** |
+| msg.Tables / msg.Entries | Translation tables: Name (unique), Description, WhenMissing (PassThrough/Blank/UseDefault/Reject), DefaultValue; entries FromCode (unique per table) → ToCode, Description. **I** |
+| msg.Alerts | InterfaceId; Kind (Failures, DeadLetter, Silent, Stopped), Detail, RaisedAt, NotifiedAt, ClearedAt/By. **I** |
+| msg.McpClients | Name, **TokenHash** (SHA-256 only), IsActive, ExpiresAt, LastUsedAt, CreatedAt/By. **S** |
+| msg.Settings (single row) | MaxAttempts, AlertEmail, RequireSecondApprover, AiEnabled, AiEndpoint, AiModel, **AiKey** (S, encrypted), AiPrivacyReference, AiApprovedBy/At. **I** |
+
+Cross-schema FK (90-reporting.sql): msg.Messages.PatientId → patients.Patients.

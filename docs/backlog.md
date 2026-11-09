@@ -57,7 +57,14 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Password-protected PDF letters/reports (AES-256) alongside encrypted ZIP; OCR + per-patient document search (ADR 0020)
 - ☑ Portal link by SMS (manual + automatic on booking); questionnaire and estimate acceptance in the patient portal
 
+## Increment 0.12.0 (done)
+- ☑ Messaging & integration engine (ADR 0021): message store, queues/retry/dead letter, dashboard, alerts, replay; MLLP, DICOM node, REST in/out, folders, SQL connector; HL7/FHIR/JSON/DICOM/CDA-XML/X12
+- ☑ Visual flow designer + test harness; mapping designer with versions, second-person approval, rollback; translation tables
+- ☑ MCP server (read-only, no content); AI troubleshooting assistant (opt-in, de-identified) + built-in explainer
+
 ## Next
+- ☐ Assets & CSSD (spec 7.9) – 0.13.0; Clinical record (eMR) – 0.14.0
+- ☐ Messaging: workflow engine (human tasks, timers, escalation), MLLP/DICOM over TLS, DICOM MWL/MPPS (with endoscopy), drag lines in mapper, C# extension scripts
 - ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends
 - ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)
 - ☐ HealthLink: confirm message profile + EDI accounts with HealthLink; live test via the messaging client

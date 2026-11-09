@@ -316,9 +316,13 @@ textarea.mono, .mono { font-family: Consolas, "Courier New", monospace; font-siz
 input.drop { min-width: 9rem; } input.drop.over { outline: 3px dashed var(--teal); background: var(--light); }
 .cond-row { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
 .stack-sm { display: flex; flex-direction: column; gap: .5rem; }
-.mapper { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(420px, 2fr) minmax(260px, 1fr); gap: 1rem; align-items: start; }
-@media (max-width: 1200px) { .mapper { grid-template-columns: 1fr; } }
-.rules td { vertical-align: top; } .rules td input, .rules td select { width: 100%; margin-bottom: .25rem; } .rules tr.focus td { background: #F5FAFD; }
+.mapper { display: grid; grid-template-columns: minmax(240px, 320px) 1fr; gap: 1rem; align-items: start; }
+.mapper > .mapper-col:last-child { grid-column: 1 / -1; }
+@media (min-width: 1800px) { .mapper { grid-template-columns: minmax(260px, 320px) 1fr minmax(320px, 420px); } .mapper > .mapper-col:last-child { grid-column: auto; } }
+@media (max-width: 1000px) { .mapper { grid-template-columns: 1fr; } }
+.rules { table-layout: fixed; width: 100%; } .rules th:nth-child(1) { width: 22%; } .rules th:nth-child(2) { width: 24%; } .rules th:nth-child(3) { width: 24%; } .rules th:nth-child(4) { width: 22%; } .rules th:nth-child(5) { width: 8%; }
+.rules td { vertical-align: top; } .rules td input, .rules td select { width: 100%; min-width: 0; margin-bottom: .25rem; } .rules tr.focus td { background: #F5FAFD; }
+.tree-row { flex-wrap: wrap; } .tree-value { margin-left: auto; text-align: right; }
 .canvas-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #FAFCFD; max-height: 560px; }
 .flow-canvas { display: block; touch-action: none; user-select: none; }
 .fnode { cursor: move; } .fnode-box { fill: #fff; stroke: var(--line); stroke-width: 2; }

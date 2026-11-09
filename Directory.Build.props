@@ -7,6 +7,6 @@
     <Company>Tasman Day Surgery</Company>
     <Product>BrightPAS</Product>
     <Copyright>Copyright © Tasman Day Surgery</Copyright>
-    <Version>0.11.0</Version>
+    <Version>0.12.0</Version>
   </PropertyGroup>
 </Project>

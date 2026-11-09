@@ -187,7 +187,7 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
         var i2 = existing ?? db.Interfaces.Add(new Interface { CreatedAt = now, CreatedBy = user }).Entity;
         i2.Code = code; i2.Name = e.Name.Trim(); i2.Direction = e.Direction; i2.Transport = e.Transport; i2.Format = e.Format; i2.Handler = e.Handler;
         i2.Host = e.Transport == Transport.MllpSend ? e.Host!.Trim() : null;
-        i2.Port = e.Transport is Transport.MllpListen or Transport.MllpSend ? e.Port : null;
+        i2.Port = e.Transport is Transport.MllpListen or Transport.MllpSend or Transport.DicomListen ? e.Port : null;
         i2.FolderPath = e.Transport is Transport.FolderWatch or Transport.FolderWrite ? e.FolderPath!.Trim() : null;
         i2.Url = e.Transport == Transport.HttpPost ? e.Url!.Trim() : null;
         i2.AeTitle = e.Transport == Transport.DicomListen ? ae : null;

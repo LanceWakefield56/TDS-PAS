@@ -83,7 +83,14 @@ export function FlowEditor() {
   };
   const update = (key: string, v: Partial<FNode>) => setNodes((ns) => ns.map((n) => (n.key === key ? { ...n, ...v } : n)));
   const add = (kind: Kind) => {
-    const n: FNode = { key: newKey(), kind, label: kind === 'Decision' ? 'Decision' : kind, x: 60 + (nodes.length % 5) * 200, y: 40 + Math.floor(nodes.length / 5) * 110 + (nodes.length % 2) * 40, interfaceId: null, mappingId: null, match: 'All', conditions: kind === 'Filter' || kind === 'Decision' ? [{ source: '', operator: 'Equals', value: '' }] : [] };
+    // New steps go to the right of the last one (outputs stack below each other) so nothing overlaps.
+    const right = nodes.length ? Math.max(...nodes.map((x) => x.x)) : 0;
+    const sameCol = nodes.filter((x) => x.x === right + 230 || (kind === 'Output' && x.kind === 'Output' && x.x === right));
+    const x = kind === 'Output' && nodes.some((o) => o.kind === 'Output') ? Math.max(...nodes.filter((o) => o.kind === 'Output').map((o) => o.x)) : right + 230;
+    const used = nodes.filter((o) => o.x === x).map((o) => o.y);
+    let y = 160; while (used.some((u) => Math.abs(u - y) < 90)) y += 100;
+    void sameCol;
+    const n: FNode = { key: newKey(), kind, label: kind === 'Decision' ? 'Decision' : kind, x: nodes.length ? x : 40, y, interfaceId: null, mappingId: null, match: 'All', conditions: kind === 'Filter' || kind === 'Decision' ? [{ source: '', operator: 'Equals', value: '' }] : [] };
     setNodes([...nodes, n]); setSel({ node: n.key });
   };
   const remove = () => {

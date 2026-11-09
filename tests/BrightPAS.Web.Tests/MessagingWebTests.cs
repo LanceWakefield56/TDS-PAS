@@ -9,6 +9,7 @@ using BrightPAS.Identity;
 using BrightPAS.Licensing;
 using BrightPAS.Web.Integration;
 using BrightPAS.Web.Licensing;
+using Interface = BrightPAS.Modules.Messaging.Interface;
 
 namespace BrightPAS.Web.Tests;
 
@@ -138,5 +139,62 @@ public class MessagingWebTests(PasWebFactory factory) : IClassFixture<PasWebFact
         await check.OpenAsync();
         var proc = (string)(await new SqlCommand("SELECT Proc_ FROM dbo.ExtOut WHERE Nhi = 'ZZZ0016'", check).ExecuteScalarAsync())!;
         Assert.StartsWith("Colonoscopy');", proc); // stored as text, never executed
+    }
+
+    [SqlServerFact]
+    public async Task Dicom_node_answers_echo_stores_images_and_refuses_unregistered_devices()
+    {
+        await LicenceAsync();
+        Guid id;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<BrightPAS.Modules.Messaging.MessagingService>();
+            var (i, errors) = await svc.SaveInterfaceAsync(new BrightPAS.Modules.Messaging.InterfaceEdit(null, "dicom-test", "DICOM test", BrightPAS.Modules.Messaging.InterfaceDirection.Inbound,
+                BrightPAS.Modules.Messaging.Transport.DicomListen, BrightPAS.Modules.Messaging.MessageFormat.Dicom, BrightPAS.Modules.Messaging.InboundHandler.None, null, 11199, null, null, null, "BRIGHTPAS",
+                [new BrightPAS.Modules.Messaging.ClientEdit("127.0.0.1", "ENDO1", "test tower")], true, 3, null, null), "test");
+            Assert.True(i is not null, string.Join(" ", errors));
+            id = i!.Id;
+        }
+        Interface iface;
+        IReadOnlyList<BrightPAS.Modules.Messaging.AllowedClient> devices;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<BrightPAS.Modules.Messaging.MessagingService>();
+            iface = (await svc.InterfaceAsync(id))!;
+            devices = await svc.AllowedClientsAsync(id);
+        }
+        FellowOakDicom.DicomSetupBuilder.UseServiceProvider(factory.Services);
+        var ctx = new DicomScpContext(iface, devices.Select(d => (System.Net.IPAddress.Parse(d.Address), d.AeTitle!)).ToList(),
+            factory.Services.GetRequiredService<IServiceScopeFactory>(), factory.Services.GetRequiredService<MessagingRuntime>(), Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        using var server = FellowOakDicom.Network.DicomServerFactory.Create<PasDicomScp>(11199, userState: ctx);
+
+        var echoOk = false;
+        var client = FellowOakDicom.Network.Client.DicomClientFactory.Create("127.0.0.1", 11199, false, "ENDO1", "BRIGHTPAS");
+        await client.AddRequestAsync(new FellowOakDicom.Network.DicomCEchoRequest { OnResponseReceived = (_, r) => echoOk = r.Status == FellowOakDicom.Network.DicomStatus.Success });
+        var ds = new FellowOakDicom.DicomDataset
+        {
+            { FellowOakDicom.DicomTag.SOPClassUID, FellowOakDicom.DicomUID.SecondaryCaptureImageStorage },
+            { FellowOakDicom.DicomTag.SOPInstanceUID, FellowOakDicom.DicomUIDGenerator.GenerateDerivedFromUUID() },
+            { FellowOakDicom.DicomTag.PatientID, "ZZZ0016" }, { FellowOakDicom.DicomTag.PatientName, "TEST^Dicom" }, { FellowOakDicom.DicomTag.AccessionNumber, "ACC-DCM-1" },
+            { FellowOakDicom.DicomTag.Modality, "ES" }, { FellowOakDicom.DicomTag.StudyInstanceUID, FellowOakDicom.DicomUIDGenerator.GenerateDerivedFromUUID() },
+        };
+        var stored = FellowOakDicom.Network.DicomStatus.Pending;
+        await client.AddRequestAsync(new FellowOakDicom.Network.DicomCStoreRequest(new FellowOakDicom.DicomFile(ds)) { OnResponseReceived = (_, r) => stored = r.Status });
+        await client.SendAsync();
+        Assert.True(echoOk);
+        Assert.Equal(FellowOakDicom.Network.DicomStatus.Success, stored);
+
+        var rejected = false;
+        var stranger = FellowOakDicom.Network.Client.DicomClientFactory.Create("127.0.0.1", 11199, false, "UNKNOWN", "BRIGHTPAS");
+        stranger.AssociationRejected += (_, _) => rejected = true;
+        await stranger.AddRequestAsync(new FellowOakDicom.Network.DicomCEchoRequest());
+        try { await stranger.SendAsync(); } catch (FellowOakDicom.Network.DicomAssociationRejectedException) { rejected = true; }
+        Assert.True(rejected);
+
+        await using var check = factory.Services.CreateAsyncScope();
+        var rows = await check.ServiceProvider.GetRequiredService<BrightPAS.Modules.Messaging.MessagingService>().SearchAsync(new BrightPAS.Modules.Messaging.MessageQuery(id));
+        var m = Assert.Single(rows);
+        Assert.Equal("ACC-DCM-1", m.Reference);
+        Assert.Equal("DICOM ES", m.MessageType);
     }
 }
