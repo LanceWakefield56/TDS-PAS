@@ -43,6 +43,7 @@ public static class AdminEndpoints
                 installationCode = cache.InstallationCode,
                 health = st.Health.ToString(), messages = st.Messages, developmentKey = st.SignedWithDevelopmentKey,
                 productionKeyBuiltIn = BrightPAS.Licensing.VendorKeys.HasProductionKey,
+                testBuild = !svc.Enforced,
                 licence = d is null ? null : new { d.LicenceId, d.Customer, d.Site, d.Edition, d.IssuedAt, d.ExpiresOn, d.InstallationCode, d.MaxUsers, d.GraceDays,
                     activation = d.Activation is null ? null : new { d.Activation.Url, d.Activation.CheckInDays, d.Activation.OfflineGraceDays } },
                 installedAt = state.LicenceInstalledAt, installedBy = state.LicenceInstalledBy,

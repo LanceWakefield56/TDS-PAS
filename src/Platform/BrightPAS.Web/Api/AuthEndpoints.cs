@@ -86,6 +86,7 @@ public static class AuthEndpoints
                 health = licence.Status.Health.ToString(),
                 edition = licence.Status.Licence?.Edition,
                 developmentKey = licence.Status.SignedWithDevelopmentKey,
+                testBuild = licence.Status.Licence is null && licence.Status.Health == BrightPAS.Licensing.LicenceHealth.Valid,
                 message = licence.Status.Health is BrightPAS.Licensing.LicenceHealth.Valid ? null : licence.Status.Messages.LastOrDefault()
             }
         })).RequireAuthorization();

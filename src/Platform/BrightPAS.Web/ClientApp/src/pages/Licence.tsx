@@ -70,6 +70,7 @@ export default function Licence() {
   return (
     <div className="stack-lg">
       <div className="page-head"><h1>Licence &amp; modules</h1><p className="muted">Load the licence, then set up each module. Everything is already installed – the licence decides what can be used.</p></div>
+      {(info as any)?.testBuild && <p className="notice"><strong>Test build:</strong> licence keys are switched off, so every module is available without a licence file or activation. Just set up each module below. Licence checking will be switched back on for production (setting Licensing:Enforce).</p>}
 
       <section className="card action stack">
         <div className="row-between">

@@ -73,6 +73,7 @@ public sealed class PasWebFactory : WebApplicationFactory<Program>, IAsyncLifeti
         builder.UseEnvironment("Production");
         builder.UseSetting("ConnectionStrings:Pas", ConnectionString);
         builder.UseSetting("Licensing:MachineId", "test-machine");
+        builder.UseSetting("Licensing:Enforce", "true"); // licence enforcement is tested; test builds run with it off
     }
 
     public HttpClient NewClient()

@@ -42,11 +42,27 @@ public sealed class LicensingService(PasDbContext db, LicenceCache cache, TimePr
             s.LastKnownModules?.Split(',', StringSplitOptions.RemoveEmptyEntries)), Keys);
 
     /// <summary>Re-checks the licence and updates the shared status. With <paramref name="heartbeat"/>, also records "last seen" for clock checks.</summary>
+    /// <summary>
+    /// Test builds: licence keys are not enforced (Licensing:Enforce = false, the default until BrightPAS is near production) –
+    /// every built module is available with no licence file or activation, and a banner says so. Set Licensing:Enforce = true to check licences again.
+    /// </summary>
+    public bool Enforced => config.GetValue("Licensing:Enforce", false);
+
+    public static LicenceStatus TestBuildStatus() => new(LicenceHealth.Valid, null,
+        ProductModules.All.Where(m => m.Available).ToDictionary(m => m.Id, _ => ModuleAccess.Full, StringComparer.OrdinalIgnoreCase),
+        ["Test build: licence keys are switched off and every module is available. Not for real patient data."], false);
+
     public async Task<LicenceStatus> RefreshAsync(bool heartbeat = false, CancellationToken ct = default)
     {
         var s = await StateAsync(ct);
         var now = clock.GetUtcNow();
         var code = InstallationCode(s);
+        if (!Enforced)
+        {
+            var open = TestBuildStatus();
+            cache.Set(open, code, now);
+            return open;
+        }
         var status = Evaluate(s, code, now);
         if (status.Licence is not null && status.Health is not (LicenceHealth.Invalid or LicenceHealth.WrongInstallation or LicenceHealth.ClockProblem))
             s.LastKnownModules = string.Join(',', status.Licence.Modules);

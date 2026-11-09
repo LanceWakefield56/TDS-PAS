@@ -24,7 +24,7 @@ export interface Me {
   userName: string; displayName: string; roles: string[]; permissions: string[];
   modules: Record<string, Access>;
   moduleSetup: Record<string, boolean>;
-  licence: { health: string; edition: string | null; developmentKey: boolean; message: string | null };
+  licence: { health: string; edition: string | null; developmentKey: boolean; testBuild?: boolean; message: string | null };
 }
 export interface PatientSummary {
   id: string; mrn: string; nhi: string | null; familyName: string; givenNames: string; preferredName: string | null;

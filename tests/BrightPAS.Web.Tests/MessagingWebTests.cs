@@ -198,3 +198,16 @@ public class MessagingWebTests(PasWebFactory factory) : IClassFixture<PasWebFact
         Assert.Equal("DICOM ES", m.MessageType);
     }
 }
+
+public class TestBuildLicensingTests
+{
+    [Fact]
+    public void Test_build_makes_every_built_module_available_without_a_licence()
+    {
+        var s = BrightPAS.Web.Licensing.LicensingService.TestBuildStatus();
+        Assert.Equal(BrightPAS.Licensing.LicenceHealth.Valid, s.Health);
+        Assert.Null(s.Licence);
+        foreach (var m in BrightPAS.Licensing.ProductModules.All.Where(m => m.Available)) Assert.Equal(BrightPAS.Licensing.ModuleAccess.Full, s.AccessTo(m.Id));
+        Assert.Equal(BrightPAS.Licensing.ModuleAccess.None, s.AccessTo("endoscopy")); // not built yet
+    }
+}

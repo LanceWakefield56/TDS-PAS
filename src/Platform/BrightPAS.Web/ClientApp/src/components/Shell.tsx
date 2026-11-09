@@ -13,7 +13,7 @@ export default function Shell() {
   const lic = me?.licence;
   // Licensed modules that still need their guided set-up (administrators only).
   const setupCount = me && can(Perm.ModulesManage) ? Object.entries(me.modules).filter(([id, a]) => a === 'Full' && !me.moduleSetup?.[id] && SETUP_MODULES.includes(id)).length : 0;
-  const showLicence = lic && (lic.health !== 'Valid' || lic.developmentKey);
+  const showLicence = lic && (lic.health !== 'Valid' || lic.developmentKey || lic.testBuild);
 
   return (
     <div className="shell">
@@ -32,6 +32,7 @@ export default function Shell() {
       </header>
       {showLicence && (
         <div className={`licence-bar ${lic.health === 'Valid' || lic.health === 'ExpiringSoon' ? '' : 'warn'}`} role="status">
+          {lic.testBuild && <strong>Test build – licence keys switched off, all modules available. Not for real patient data. </strong>}
           {lic.developmentKey && <strong>Sandbox licence – not for real patient data. </strong>}
           {lic.message}
           {can(Perm.ModulesManage) && <> <Link to="/admin/licence">Licence details</Link></>}
