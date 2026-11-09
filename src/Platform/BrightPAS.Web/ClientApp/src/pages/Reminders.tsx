@@ -6,7 +6,7 @@ import { useSession } from '../App';
 export const msgStatusClass = (s: string) =>
   s === 'Sent' || s === 'Delivered' ? 'green' : s === 'Failed' ? 'red' : s === 'Suppressed' ? 'amber' : s === 'Queued' || s === 'Sending' ? 'blue' : '';
 const kindLabel: Record<string, string> = {
-  BookingConfirmation: 'Booking confirmation', DayBeforeReminder: 'Day-before reminder', FormLink: 'Questionnaire link',
+  BookingConfirmation: 'Booking confirmation', DayBeforeReminder: 'Day-before reminder', FormLink: 'Questionnaire link', PortalLink: 'Patient portal link',
   ReplyConfirmed: 'Reply: confirmed', ReplyCancelRequested: 'Reply: cannot come', OptOutConfirmed: 'Opt-out confirmation', Test: 'Test',
 };
 export const kindName = (k: string) => kindLabel[k] ?? k;

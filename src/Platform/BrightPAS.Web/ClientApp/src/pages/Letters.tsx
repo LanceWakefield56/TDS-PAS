@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { api, errText, formatDate, nzDateTime, PatientSummary, Perm } from '../api';
 import { useSession } from '../App';
 import PatientPicker from '../components/PatientPicker';
+import ExportButton from '../components/ExportButton';
 
 export interface LetterRow {
   id: string; number: string; patientId: string; patientName: string; nhi: string | null; mrn: string; kind: string; recipient: string; recipientName: string;
@@ -154,6 +155,7 @@ export function LetterView() {
         <div className="row">
           {canWrite && l.status === 'Draft' && <><button className="btn btn-light" onClick={saveDraft}>Save draft</button><button className="btn btn-primary" onClick={finalise}>Finalise</button></>}
           {l.status !== 'Draft' && l.status !== 'Void' && <button className={`btn ${l.status === 'Final' && !canSend ? 'btn-primary' : 'btn-light'}`} onClick={print}>Print</button>}
+          {l.status !== 'Void' && <ExportButton label="Download PDF" formats={['pdf']} path={`/api/letters/${id}/pdf`} body={{}} />}
           {canSend && <button className="btn btn-primary" onClick={() => act(() => api(`/api/letters/${id}/send`, { body: {} }))}>Send to {l.practice!.name} via HealthLink</button>}
           {canWrite && (l.status === 'Draft' || l.status === 'Final' || l.status === 'Failed') && <button className="btn btn-link danger" onClick={() => setVoiding(true)}>Void</button>}
         </div>

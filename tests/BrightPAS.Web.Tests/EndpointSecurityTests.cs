@@ -44,6 +44,8 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         ("/api/my/{token}/open", "Patient portal: secret link + date of birth, lockout after 5 attempts.", true),
         ("/api/my/{token}/requests", "Patient portal: secret link + date of birth on every call.", true),
         ("/api/my/{token}/documents", "Patient portal upload: link + date of birth, 5 files a day, 10 MB, PDF/images only.", true),
+        ("/api/my/{token}/questionnaire", "Patient portal: link + date of birth; issues a pre-admission form link for the next booking.", true),
+        ("/api/my/{token}/estimates/{id:guid}/accept", "Patient portal: link + date of birth; accepts only that patient's issued estimate.", true),
         ("/api/{**rest}", "Unknown API routes answer 404.", false),
         ("/{*path:nonfile}", "The browser app shell (index.html); holds no data.", false),
     ];

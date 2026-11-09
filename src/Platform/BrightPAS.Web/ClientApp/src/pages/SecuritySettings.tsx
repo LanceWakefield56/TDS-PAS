@@ -12,6 +12,8 @@ export default function SecuritySettings() {
       <div className="page-head"><h1>Security, exports &amp; printers</h1><p className="muted">These settings change straight away and every change is recorded in the audit log.</p></div>
       {can(Perm.UsersManage) && <Exports />}
       {can(Perm.OrganisationManage) && <Printers />}
+      {can(Perm.UsersManage) && mod('portal') && <PortalSettings />}
+      {can(Perm.UsersManage) && <DocumentText />}
       {can(Perm.UsersManage) && mod('portal') && <Delegates />}
     </div>
   );
@@ -78,6 +80,52 @@ function Printers() {
         <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setE(null)}>Cancel</button></div></div>}
       <p className="hint">Zebra: BrightPAS prints straight to the printer over the network (port 9100); wristbands e.g. Zebra HC100 / ZD510-HC. DYMO: install the DYMO driver on each workstation; labels open in the browser sized to the stock – choose the DYMO printer, margins None, scale 100 %. DYMO LabelWriters cannot print wristbands.</p>
       {error && <p className="error">{error}</p>}
+    </section>
+  );
+}
+
+function PortalSettings() {
+  const [s, setS] = useState<any>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { api('/api/portal/settings').then(setS).catch((e) => setError(errText(e))); }, []);
+  const toggle = async (on: boolean) => {
+    setError(null); setMsg(null); setS({ ...s, autoSendOnBooking: on });
+    try { await api('/api/portal/settings', { method: 'PUT', body: { autoSendOnBooking: on } }); setMsg('Saved.'); } catch (x: any) { setS({ ...s, autoSendOnBooking: !on }); setError(x?.body?.errors?.join(' ') ?? errText(x)); }
+  };
+  return (
+    <section className="card stack">
+      <h2>Patient portal links</h2>
+      {!s ? (error ? <p className="error">{error}</p> : <p>Loading…</p>) : <>
+        <label className="check"><input type="checkbox" checked={s.autoSendOnBooking} disabled={!s.remindersLicensed} onChange={(e) => toggle(e.target.checked)} /> Send a portal link by SMS automatically when a procedure is booked</label>
+        <p className="hint">{s.remindersLicensed ? 'Sent only if the patient has a mobile number and no active link. The portal shows their procedure, the pre-admission questionnaire and any issued estimate to accept. Quiet hours apply.' : 'Needs the Reminders module (SMS gateway).'}</p>
+      </>}
+      {msg && <p className="ok-text">{msg}</p>}
+      {error && s && <p className="error" role="alert">{error}</p>}
+    </section>
+  );
+}
+
+const textNames: Record<string, string> = { Pending: 'Waiting to be read', Done: 'Searchable', NoText: 'No text found', Failed: 'Could not be read' };
+function DocumentText() {
+  const [s, setS] = useState<any>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = () => api('/api/admin/document-text').then(setS).catch((e) => setError(errText(e)));
+  useEffect(() => { load(); }, []);
+  const retry = async () => { setError(null); setMsg(null); try { const r = await api('/api/admin/document-text/retry', { body: {} }); setMsg(`${r?.queued ?? 0} document(s) queued again.`); load(); } catch (x) { setError(errText(x)); } };
+  const counts: Record<string, number> = s?.summary?.counts ?? {};
+  return (
+    <section className="card stack">
+      <h2>Text recognition (OCR) on documents</h2>
+      <p className="hint">Scanned and uploaded documents are read in the background so staff can search inside them on the patient record. The text is stored encrypted and searched one patient at a time.</p>
+      {!s ? (error ? <p className="error">{error}</p> : <p>Loading…</p>) : <>
+        {s.engineProblem && <p className="error" role="alert">{s.engineProblem}</p>}
+        <p>{Object.keys(textNames).map((k) => `${textNames[k]}: ${counts[k] ?? 0}`).join(' · ')}</p>
+        {s.summary?.lastProblem && <p className="small muted">Last problem: {s.summary.lastProblem}</p>}
+        {(counts.Failed ?? 0) > 0 && <div><button className="btn btn-light" onClick={retry}>Try failed documents again</button></div>}
+      </>}
+      {msg && <p className="ok-text">{msg}</p>}
     </section>
   );
 }

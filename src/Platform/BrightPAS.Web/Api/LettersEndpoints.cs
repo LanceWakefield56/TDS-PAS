@@ -14,6 +14,7 @@ public static class LettersEndpoints
     private static IResult Errors(IReadOnlyList<string> e) => e.Count == 0 ? Results.Ok() : Results.BadRequest(new { errors = e });
 
     public sealed record ReasonRequest(string Reason);
+    public sealed record PdfRequest(BrightPAS.Web.Security.ExportOptions? Export);
 
     public static void MapLettersEndpoints(this IEndpointRouteBuilder app)
     {
@@ -50,6 +51,20 @@ public static class LettersEndpoints
             var (ok, message) = await hl.SendAsync(id, Me(u));
             return ok ? Results.Ok(new { message }) : Results.BadRequest(new { errors = new[] { message } });
         }).RequireAuthorization(Permissions.LettersWrite);
+        // Letter as a PDF (AES-256 password-protected unless the export policy allows otherwise).
+        g.MapPost("/{id:guid}/pdf", async (Guid id, PdfRequest r, ClaimsPrincipal u, HttpContext http, LetterService svc, BrightPAS.Core.Organisation.OrganisationService org,
+            BrightPAS.Web.Security.SecureExportService export) =>
+        {
+            var l = await svc.GetAsync(id, Me(u), AuthEndpoints.Workstation(http));
+            if (l is null) return Results.NotFound();
+            var site = await org.MainSiteAsync();
+            var lh = new BrightPAS.Web.Pdf.LetterheadData(site?.Org.Name ?? "Tasman Day Surgery",
+                site is { } x ? string.Join(", ", new[] { x.Site.AddressLine1, x.Site.AddressLine2, x.Site.Suburb, x.Site.City, x.Site.Postcode }.Where(v => !string.IsNullOrWhiteSpace(v))) : null,
+                site?.Site.Phone, site?.Site.Email);
+            var data = new BrightPAS.Web.Pdf.LetterData(l.Number, l.RecipientName, l.RecipientAddress, l.Subject, l.Body, l.FinalisedAt ?? l.CreatedAt, l.Status == LetterStatus.Draft, l.Author);
+            return await export.ExportPdfAsync((r.Export ?? new(true, null)) with { Format = "pdf" }, $"BrightPAS-letter-{l.Number}",
+                pw => BrightPAS.Web.Pdf.PdfReports.Letter(lh, data, pw), Me(u), "LetterPdf", l.PatientId.ToString());
+        }).RequireAuthorization(Permissions.LettersView);
         g.MapPost("/{id:guid}/void", async (Guid id, ReasonRequest r, ClaimsPrincipal u, LetterService svc) => Done(await svc.VoidAsync(id, r.Reason, Me(u))))
             .RequireAuthorization(Permissions.LettersWrite);
         // Clinic details for the printed letterhead.

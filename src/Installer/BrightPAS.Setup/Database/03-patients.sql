@@ -490,3 +490,51 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109074653_DocumentText'
+)
+BEGIN
+    CREATE TABLE [patients].[DocumentTexts] (
+        [DocumentId] uniqueidentifier NOT NULL,
+        [Status] nvarchar(10) NOT NULL,
+        [Method] nvarchar(10) NULL,
+        [Content] varbinary(max) NULL,
+        [CharCount] int NOT NULL,
+        [Attempts] int NOT NULL,
+        [Message] nvarchar(300) NULL,
+        [ProcessedAt] datetimeoffset NULL,
+        CONSTRAINT [PK_DocumentTexts] PRIMARY KEY ([DocumentId]),
+        CONSTRAINT [FK_DocumentTexts_Documents_DocumentId] FOREIGN KEY ([DocumentId]) REFERENCES [patients].[Documents] ([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109074653_DocumentText'
+)
+BEGIN
+    CREATE INDEX [IX_DocumentTexts_Status] ON [patients].[DocumentTexts] ([Status]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109074653_DocumentText'
+)
+BEGIN
+    EXEC(N'INSERT INTO [patients].[DocumentTexts] ([DocumentId], [Status], [Attempts], [CharCount]) SELECT d.[Id], N''Pending'', 0, 0 FROM [patients].[Documents] d WHERE d.[IsDeleted] = 0 AND NOT EXISTS (SELECT 1 FROM [patients].[DocumentTexts] t WHERE t.[DocumentId] = d.[Id]);');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [patients].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261109074653_DocumentText'
+)
+BEGIN
+    INSERT INTO [patients].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261109074653_DocumentText', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

@@ -16,6 +16,7 @@ public sealed class PatientsDbContext(DbContextOptions<PatientsDbContext> option
     public DbSet<PatientMerge> Merges => Set<PatientMerge>();
     public DbSet<LabelPrinter> Printers => Set<LabelPrinter>();
     public DbSet<TransferRecord> Transfers => Set<TransferRecord>();
+    public DbSet<DocumentText> DocumentTexts => Set<DocumentText>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -90,6 +91,16 @@ public sealed class PatientsDbContext(DbContextOptions<PatientsDbContext> option
             e.Property(x => x.DeletedBy).HasMaxLength(100);
             e.HasIndex(x => new { x.PatientId, x.IsDeleted });
             e.HasIndex(x => x.BookingId);
+        });
+        b.Entity<DocumentText>(e =>
+        {
+            e.ToTable("DocumentTexts");
+            e.HasKey(x => x.DocumentId);
+            e.HasOne<PatientDocument>().WithOne().HasForeignKey<DocumentText>(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(10);
+            e.Property(x => x.Method).HasMaxLength(10);
+            e.Property(x => x.Message).HasMaxLength(300);
+            e.HasIndex(x => x.Status);
         });
         b.Entity<IdentityCorrection>(e =>
         {

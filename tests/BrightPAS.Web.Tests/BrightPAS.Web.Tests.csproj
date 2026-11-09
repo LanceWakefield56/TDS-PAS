@@ -23,4 +23,7 @@
     <ProjectReference Include="..\..\src\Platform\BrightPAS.Web\BrightPAS.Web.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Resources\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

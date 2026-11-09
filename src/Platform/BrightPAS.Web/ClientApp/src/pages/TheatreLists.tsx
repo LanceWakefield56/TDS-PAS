@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { addDays, api, errText, formatDate, PatientSummary, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import PatientPicker from '../components/PatientPicker';
+import ExportButton from '../components/ExportButton';
 import { findProcedure, RefLists, useRefData, ClinicianSelect } from '../components/RefData';
 
 interface Booking {
@@ -75,6 +76,7 @@ export default function TheatreLists() {
           <button className="btn btn-light btn-small" onClick={() => go(addDays(date, 1))}>Next day →</button>
           <input type="date" value={date} onChange={(e) => e.target.value && go(e.target.value)} aria-label="Choose date" />
           <Link className="btn btn-light btn-small" to={`/calendar?date=${date}`}>Calendar</Link>
+          <ExportButton label="Day list PDF" className="btn btn-light btn-small" formats={['pdf']} path="/api/theatre/lists/pdf" body={{ date }} />
           <Link className="btn btn-light btn-small" to="/theatre/templates">Regular lists</Link>
         </div>
       </div>

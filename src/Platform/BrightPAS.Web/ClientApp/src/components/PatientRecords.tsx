@@ -25,6 +25,8 @@ export default function PatientRecords({ patient, onChanged }: { patient: Patien
   );
 }
 
+const textLabel: Record<string, string> = { Pending: 'Reading text…', Done: 'Searchable', NoText: 'No text found', Failed: 'Text not read' };
+
 function Documents({ patientId }: { patientId: string }) {
   const { can } = useSession();
   const [docs, setDocs] = useState<any[] | null>(null);
@@ -33,6 +35,13 @@ function Documents({ patientId }: { patientId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [del, setDel] = useState<{ id: string; reason: string } | null>(null);
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<any[] | null>(null);
+  const search = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(null);
+    if (q.trim().length < 2) { setHits(null); return; }
+    try { setHits(await api<any[]>(`/api/patients/${patientId}/documents/search?q=${encodeURIComponent(q.trim())}`)); } catch (x) { setError(errsOf(x)); }
+  };
   const load = () => api<any[]>(`/api/patients/${patientId}/documents`).then(setDocs).catch(() => setDocs([]));
   useEffect(() => { load(); }, [patientId]); // eslint-disable-line react-hooks/exhaustive-deps
   const upload = async (f: File | undefined, source: 'Upload' | 'Scan') => {
@@ -51,9 +60,16 @@ function Documents({ patientId }: { patientId: string }) {
   return (
     <section className="card stack">
       <h2>Documents &amp; scans</h2>
+      {docs && docs.length > 0 && <form className="row" onSubmit={search} role="search">
+        <label>Search inside documents<input value={q} onChange={(e) => { setQ(e.target.value); if (!e.target.value) setHits(null); }} placeholder="e.g. penicillin, consent, ECG" /></label>
+        <button className="btn btn-light">Search</button>{hits && <button type="button" className="btn btn-link" onClick={() => { setQ(''); setHits(null); }}>Clear</button>}
+      </form>}
+      {hits && (hits.length === 0 ? <p className="muted">No documents contain “{q}”. Scans still being read are not searched yet.</p> : (
+        <table className="results compact"><tbody>{hits.map((h) => (
+          <tr key={h.id}><td><a href={`/api/patients/documents/${h.id}`} target="_blank" rel="noopener noreferrer">{h.title}</a><div className="small muted">{h.category} · {h.matches} match{h.matches === 1 ? '' : 'es'}</div><div className="small">…{h.snippet}…</div></td></tr>))}</tbody></table>))}
       {docs === null ? <p>Loading…</p> : docs.length === 0 ? <p className="muted">No documents attached.</p> : (
         <table className="results compact"><tbody>{docs.map((d) => (
-          <tr key={d.id}><td><a href={`/api/patients/documents/${d.id}`} target="_blank" rel="noopener noreferrer">{d.title}</a><div className="small muted">{d.category} · {d.source} · {Math.round(d.sizeBytes / 1024)} KB</div></td>
+          <tr key={d.id}><td><a href={`/api/patients/documents/${d.id}`} target="_blank" rel="noopener noreferrer">{d.title}</a><div className="small muted">{d.category} · {d.source} · {Math.round(d.sizeBytes / 1024)} KB · <span className={`badge ${d.textStatus === 'Done' ? 'ok' : d.textStatus === 'Failed' ? 'warn' : ''}`}>{textLabel[d.textStatus] ?? d.textStatus}</span></div></td>
             <td className="small">{nzDateTime(d.uploadedAt)}<div className="muted">{d.uploadedBy}</div></td>
             <td>{can(Perm.PatientEdit) && <button className="btn btn-link" onClick={() => setDel({ id: d.id, reason: '' })}>Remove</button>}</td></tr>))}</tbody></table>
       )}
@@ -110,12 +126,18 @@ function Labels({ patientId }: { patientId: string }) {
 function PortalLink({ patientId }: { patientId: string }) {
   const [status, setStatus] = useState<any>(undefined);
   const [link, setLink] = useState<string | null>(null);
+  const [sms, setSms] = useState(true);
+  const [email, setEmail] = useState(false);
+  const [sent, setSent] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = () => api(`/api/portal/patients/${patientId}/link`).then(setStatus).catch(() => setStatus(null));
   useEffect(() => { load(); }, [patientId]); // eslint-disable-line react-hooks/exhaustive-deps
   const create = async () => {
     setError(null);
-    try { const r = await api(`/api/portal/patients/${patientId}/link`, { body: {} }); setLink(window.location.origin + r.path); await load(); } catch (x) { setError(errsOf(x)); }
+    try {
+      const r = await api(`/api/portal/patients/${patientId}/link`, { body: { sendSms: sms, sendEmail: email } });
+      setSent(r.sent ?? null); setLink(r.sent?.length ? null : window.location.origin + r.path); await load();
+    } catch (x) { setError(errsOf(x)); }
   };
   const revoke = async () => { setError(null); try { await api(`/api/portal/patients/${patientId}/revoke`, { body: {} }); setLink(null); await load(); } catch (x) { setError(errsOf(x)); } };
   return (
@@ -124,7 +146,10 @@ function PortalLink({ patientId }: { patientId: string }) {
       {status === undefined ? <p>Loading…</p> : status?.active
         ? <p>Link active until {nzDateTime(status.expiresAt)}{status.lastUsedAt ? `, last used ${nzDateTime(status.lastUsedAt)}` : ', not used yet'}.{status.locked && <strong> Locked after wrong dates of birth.</strong>}</p>
         : <p className="muted">No active link. The patient opens the link and confirms their date of birth to see appointments, send requests and upload documents.</p>}
+      {sent && sent.length > 0 && <p className="ok-text">New link queued to the patient: {sent.map((m: any) => `${m.channel} (${m.status}${m.lastError ? ` – ${m.lastError}` : ''})`).join(', ')}. Delivery shows under Reminders.</p>}
       {link && <div className="copy-box"><p><strong>Copy this link to the patient now</strong> (by SMS or email) – it is shown only once:</p><code className="mono-box">{link}</code></div>}
+      <div className="row"><label className="check"><input type="checkbox" checked={sms} onChange={(e) => setSms(e.target.checked)} /> Send by SMS</label><label className="check"><input type="checkbox" checked={email} onChange={(e) => setEmail(e.target.checked)} /> Send by email</label></div>
+      <p className="hint">Tick neither to show the link here once so you can copy it. Sending needs the Reminders module and a mobile number or email on the patient.</p>
       <div className="row"><button className="btn btn-light" onClick={create}>{status?.active ? 'Send a new link' : 'Create link'}</button>{status?.active && <button className="btn btn-link" onClick={revoke}>Switch off link</button>}</div>
       {error && <p className="error" role="alert">{error}</p>}
     </section>

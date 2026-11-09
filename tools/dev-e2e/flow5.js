@@ -43,7 +43,7 @@ const rp=await rec.newPage();watch(rp,'rec');await rp.goto(BASE+'/patients/'+p1)
 fs.writeFileSync('/tmp/consent.pdf','%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
 await rp.locator('select').filter({hasText:'Referral'}).first().selectOption('Consent');
 await rp.setInputFiles('input[type=file] >> nth=0','/tmp/consent.pdf');await rp.waitForSelector('a:has-text("consent")');
-await rp.click('button:has-text("Create link")');await rp.waitForSelector('.copy-box');const link=(await rp.locator('.copy-box code').textContent()).trim();
+await rp.uncheck('label:has-text("Send by SMS") input');await rp.click('button:has-text("Create link")');await rp.waitForSelector('.copy-box');const link=(await rp.locator('.copy-box code').textContent()).trim();
 await rp.click('button:has-text("Correct name, date of birth or NHI")');await rp.locator('label:has-text("Given names") input').fill('Sarah Jane');
 await rp.locator('label:has-text("Reason") input').fill('Middle name missed at registration');await rp.locator('label:has-text("Evidence seen") input').fill('Driver licence');
 await shot(rp,'01-patient-panels');await rp.click('button:has-text("Send for approval")');await rp.waitForSelector('.ok-text');
@@ -117,4 +117,37 @@ ok(await post(admin.request,'/api/admin/organisation/clinicians',{id:kate.id,nam
 await tp.reload();await tp.waitForSelector('text=Dr Kate Ford-Smith');await shot(tp,'17-renamed-clinician-on-list');
 const wl=(await get(rec,'/api/waitlist?view=waiting&specialist='+hall.id)).json;console.log('waitlist by specialist id',wl.length,wl[0]?.specialist);
 const sess=(await get(rec,`/api/theatre/sessions?from=${d30}&to=${d30}`)).json;console.log('session anaesthetist now',sess[0]?.anaesthetist);
+
+// ---------- 0.11.0: PDF exports, OCR search, portal auto-SMS, questionnaire + estimate in portal
+for(const m of ['reminders','billing']){const r=await post(admin.request,`/api/admin/modules/${m}/setup/complete`,{});console.log('setup',m,r.status);}
+await ap.goto(BASE+'/admin/security');await ap.waitForSelector('h2:has-text("Patient portal links")');
+await ap.check('label:has-text("Send a portal link by SMS automatically") input');await ap.waitForSelector('.ok-text');
+await ap.waitForSelector('h2:has-text("Text recognition")');await shot(ap,'18-portal-autosend-ocr');
+const p4=await mk('Tamihana','Rawiri',null,'1969-06-06');
+ok(await post(rec.request,'/api/theatre/bookings',{sessionId:s.id,patientId:p4,procedure:'Inguinal hernia repair',laterality:'Left',durationMinutes:60,anaesthetic:'General',notes:null,acceptWarnings:true}),'book p4');
+const msgs4=(await get(rec,'/api/reminders/messages?patientId='+p4)).json;console.log('auto portal SMS',JSON.stringify((msgs4||[]).filter(m=>m.kind==='PortalLink').map(m=>[m.channel,m.status])));
+// day list PDF (protected)
+await tp.goto(BASE+'/theatre?date='+d30);await tp.waitForSelector('h1');await tp.click('button:has-text("Day list PDF")');
+await tp.locator('.export-box input[type=password] >> nth=0').fill('Theatre-List-2026');await tp.locator('.export-box input[type=password] >> nth=1').fill('Theatre-List-2026');
+const [dl3]=await Promise.all([tp.waitForEvent('download'),tp.click('.export-box button:has-text("Download")')]);await dl3.saveAs('/tmp/e5-daylist.pdf');
+const dlb=fs.readFileSync('/tmp/e5-daylist.pdf');console.log('day list pdf',dl3.suggestedFilename(),dlb.slice(0,5).toString(),dlb.includes('/AESV3')?'AES-256':'NOT ENCRYPTED');await shot(tp,'19-daylist-pdf');
+// transfer pack as PDF
+await rp.goto(BASE+'/patients/'+p1+'/transfer');await rp.waitForSelector('h2:has-text("Handover")');await rp.click('button:has-text("Export pack (protected)")');
+await rp.check('.export-box label:has-text("PDF") input');await rp.locator('.export-box input[type=password] >> nth=0').fill('Tasman-Transfer-26');await rp.locator('.export-box input[type=password] >> nth=1').fill('Tasman-Transfer-26');
+const [dl4]=await Promise.all([rp.waitForEvent('download'),rp.click('.export-box button:has-text("Download")')]);await dl4.saveAs('/tmp/e5-transfer.pdf');console.log('transfer pdf',dl4.suggestedFilename(),fs.readFileSync('/tmp/e5-transfer.pdf').includes('/AESV3'));
+// OCR: upload a scanned image, wait for the background reader, search inside it
+await rp.goto(BASE+'/patients/'+p1);await rp.waitForSelector('h2:has-text("Documents")');
+await rp.setInputFiles('input[type=file] >> nth=0','/home/claude/repo/TDS-PAS/tests/BrightPAS.Web.Tests/Resources/ocr-sample.png');await rp.waitForSelector('a:has-text("ocr-sample")');
+for(let i=0;i<20;i++){await rp.waitForTimeout(4000);await rp.reload();await rp.waitForSelector('h2:has-text("Documents")');if(await rp.locator('.badge:has-text("Searchable")').count()>=1)break;}
+await rp.locator('label:has-text("Search inside documents") input').fill('penicillin');await rp.click('button:has-text("Search")');await rp.waitForTimeout(800);
+console.log('ocr hits',await rp.locator('text=match').count());await shot(rp,'20-document-search');
+// estimate + questionnaire in the patient portal
+const est=ok(await post(rec.request,'/api/billing/estimates',{patientId:p1,payer:'SelfFunded',payerName:null,payerReference:null,surgeon:null,anaesthetist:null,notes:null,lines:[{code:null,description:'Facility fee – laparoscopic cholecystectomy',quantity:1,unitPrice:4800},{code:null,description:'Anaesthetist fee',quantity:1,unitPrice:950}],bookingId:bk.id}),'estimate').json;
+ok(await post(rec.request,`/api/billing/documents/${est.id}/status`,{status:'Issued',reason:null}),'issue');
+const l2=ok(await post(rec.request,`/api/portal/patients/${p1}/link`,{sendSms:true,sendEmail:false}),'link2').json;console.log('manual link sent',JSON.stringify(l2.sent));
+await mp.goto(BASE+l2.path);await mp.waitForSelector('input[type=date]');await mp.fill('input[type=date]','1975-03-01');await mp.click('button:has-text("Continue")');await mp.waitForSelector('h1:has-text("Kia ora")');
+await mp.waitForSelector('h2:has-text("Your estimate")');await shot(mp,'21-portal-estimate-questionnaire');
+await mp.click('button:has-text("I accept this estimate")');await mp.waitForSelector('text=You accepted this estimate');
+await mp.click('button:has-text("Start questionnaire")');await mp.waitForURL(/\/q\//);await mp.waitForSelector('input[type=date]');await shot(mp,'22-portal-questionnaire');
+console.log('estimate status',(await get(rec,'/api/billing/documents/'+est.id)).json?.status);
 console.log('ERRORS',JSON.stringify(errs));await b.close();})().catch(e=>{console.error(e.message.split('\n')[0]);console.log('ERRORS',JSON.stringify(ERR));process.exit(1)});

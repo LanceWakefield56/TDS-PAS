@@ -71,16 +71,26 @@ public static class ReferralsEndpoints
         w.MapPost("/{id:guid}/remove", async (Guid id, ReasonRequest r, ClaimsPrincipal u, ReferralService svc) => Done(await svc.RemoveAsync(id, r.Reason, Me(u))))
             .RequireAuthorization(Permissions.ReferralsManage);
         // Booking needs both waitlist and theatre rights, and the Theatre module licensed for writing.
-        w.MapPost("/{id:guid}/book", async (Guid id, BookRequest r, ClaimsPrincipal u, ReferralService svc, LicenceCache licence) =>
+        w.MapPost("/{id:guid}/book", async (Guid id, BookRequest r, ClaimsPrincipal u, ReferralService svc, LicenceCache licence, HttpContext http) =>
         {
             if (!u.HasClaim(Permissions.ClaimType, Permissions.TheatreBook)) return Results.Json(new { errors = new[] { "You need theatre booking rights to book from the waitlist." } }, statusCode: 403);
             if (licence.Status.AccessTo(TheatreModule.Id) != BrightPAS.Licensing.ModuleAccess.Full)
                 return Results.Json(new { error = "module_not_licensed", module = TheatreModule.Id, errors = new[] { "The Theatre bookings module must be licensed to book from the waitlist." } }, statusCode: 403);
             var res = await svc.BookAsync(id, r.SessionId, r.AcceptWarnings, Me(u));
+            if (res.Booking is not null) await PortalEndpoints.AutoSendAfterBookingAsync(http.RequestServices, http, res.Booking.PatientId, Me(u));
             return res.Booking is not null ? Results.Ok(new { bookingId = res.Booking.Id, res.Warnings }) : Results.BadRequest(new { errors = res.Errors, warnings = res.Warnings });
         }).RequireAuthorization(Permissions.ReferralsManage);
         w.MapPost("/export", async (ExportRequest r, ClaimsPrincipal u, ReferralService svc, BrightPAS.Web.Security.SecureExportService export) =>
         {
+            if (r.Export?.WantsPdf == true)
+            {
+                var rows = await svc.WaitlistAsync(r.View ?? "all-open", null, null, null);
+                (string, double)[] cols = [("Patient", 4.2), ("NHI / MRN", 2.6), ("Procedure", 4.6), ("Specialist", 3.2), ("Priority", 1.9), ("Funder", 1.9), ("Added", 2.0), ("Target", 2.0), ("Days", 1.1), ("Status", 2.2)];
+                var data = rows.Select(w => new[] { w.PatientName, $"{w.Nhi ?? "—"} {w.Mrn}", w.Procedure + (w.Laterality == "NotApplicable" ? "" : $" ({w.Laterality})"), w.Specialist, w.Priority, w.Funder,
+                    w.AddedOn.ToString("dd/MM/yy"), w.TargetDate.ToString("dd/MM/yy") + (w.Overdue ? " OVERDUE" : ""), w.DaysWaiting.ToString(), w.Status }).ToList();
+                return await export.ExportPdfAsync(r.Export, "BrightPAS-waitlist", pw => BrightPAS.Web.Pdf.PdfReports.Table("Waitlist", $"{rows.Count} entries · {r.View ?? "all-open"} · {DateTime.Now:d MMMM yyyy}", cols, data, pw),
+                    Me(u), "WaitlistPdf");
+            }
             var csv = await svc.ExportCsvAsync(r.View ?? "all-open", Me(u));
             return await export.ExportAsync(r.Export, "BrightPAS-waitlist", [new("waitlist.csv", BrightPAS.Web.Security.SecureExportService.Utf8Bom(csv))], Me(u), "Waitlist");
         }).RequireAuthorization(Permissions.ReferralsManage);

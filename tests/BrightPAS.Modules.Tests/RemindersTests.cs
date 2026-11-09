@@ -110,7 +110,7 @@ public class RemindersTests
     /// <summary>Monday 9 November 2026, 09:00 New Zealand time.</summary>
     private static readonly DateTimeOffset MondayNineAm = new(2026, 11, 8, 20, 0, 0, TimeSpan.Zero);
 
-    private static async Task<(ModulesHost H, Patient P, Guid Booking)> Setup(string? mobile = "021 123 4567", string? email = "aroha@example.nz", DateOnly? date = null)
+    internal static async Task<(ModulesHost H, Patient P, Guid Booking)> Setup(string? mobile = "021 123 4567", string? email = "aroha@example.nz", DateOnly? date = null)
     {
         var h = new ModulesHost();
         h.Clock.SetUtcNow(MondayNineAm);

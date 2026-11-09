@@ -30,7 +30,7 @@ export default function TransferPack() {
         {error && <p className="error" role="alert">{error}</p>}
         {saved && <p className="ok-text">{saved}</p>}
         <div className="row"><button className="btn btn-primary" onClick={save}>Record transfer</button><button className="btn btn-light" onClick={() => window.print()}>Print pack</button>
-          <ExportButton label="Export pack (protected)" path={`/api/patients/${id}/transfer-pack/export`} body={{ transfer: body }} /></div>
+          <ExportButton label="Export pack (protected)" formats={["pdf", "zip"]} path={`/api/patients/${id}/transfer-pack/export`} body={{ transfer: body }} /></div>
       </section>
       <section className="card stack print-sheet">
         <h2>{pack.from?.organisation} – emergency transfer</h2>

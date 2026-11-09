@@ -44,9 +44,33 @@ public interface IDocumentCipher
     byte[] Unprotect(byte[] cipher);
 }
 
+public enum TextStatus { Pending = 1, Done = 2, NoText = 3, Failed = 4 }
+
+/// <summary>Searchable text of a document (text layer or OCR), encrypted like the document itself.</summary>
+public sealed class DocumentText
+{
+    public Guid DocumentId { get; set; }
+    public TextStatus Status { get; set; } = TextStatus.Pending;
+    /// <summary>"text" (PDF text layer) or "ocr" (Tesseract).</summary>
+    public string? Method { get; set; }
+    public byte[]? Content { get; set; }
+    public int CharCount { get; set; }
+    public int Attempts { get; set; }
+    public string? Message { get; set; }
+    public DateTimeOffset? ProcessedAt { get; set; }
+}
+
+/// <summary>Reads text from a document: PDF text layer first, OCR for scans and photos. Implemented in the web host.</summary>
+public interface IDocumentTextExtractor
+{
+    Task<(string? Text, string Method, string? Problem)> ExtractAsync(string contentType, byte[] content, CancellationToken ct);
+}
+
+public sealed record DocumentHit(Guid Id, string Title, string Category, DateTimeOffset UploadedAt, string Snippet, int Matches);
+
 public sealed record NewPatientDocument(Guid PatientId, Guid? BookingId, DocumentCategory Category, string? Title, string FileName, string ContentBase64, DocumentSource Source);
 public sealed record DocumentRow(Guid Id, Guid PatientId, Guid? BookingId, string Category, string Title, string FileName, string ContentType, long SizeBytes, string Source,
-    DateTimeOffset UploadedAt, string UploadedBy);
+    DateTimeOffset UploadedAt, string UploadedBy, string TextStatus = "Pending");
 
 public sealed class DocumentService(PatientsDbContext db, IDocumentCipher cipher, AuditWriter audit, TimeProvider clock)
 {
@@ -92,16 +116,89 @@ public sealed class DocumentService(PatientsDbContext db, IDocumentCipher cipher
             Source = d.Source, UploadedAt = clock.GetUtcNow(), UploadedBy = user,
         };
         db.Documents.Add(row);
+        db.DocumentTexts.Add(new DocumentText { DocumentId = row.Id });
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Upload", "PatientDocument", row.Id.ToString(), d.PatientId.ToString(), reason: $"{row.Category}: {row.Title} ({row.ContentType}, {row.SizeBytes / 1024} KB, {row.Source})", ct: ct);
         return (row, errors);
     }
 
-    public async Task<IReadOnlyList<DocumentRow>> ListAsync(Guid patientId, Guid? bookingId = null, CancellationToken ct = default) =>
-        (await db.Documents.AsNoTracking().Where(x => x.PatientId == patientId && !x.IsDeleted && (bookingId == null || x.BookingId == bookingId))
-            .Select(x => new { x.Id, x.PatientId, x.BookingId, x.Category, x.Title, x.FileName, x.ContentType, x.SizeBytes, x.Source, x.UploadedAt, x.UploadedBy }).ToListAsync(ct))
-        .OrderByDescending(x => x.UploadedAt)
-        .Select(x => new DocumentRow(x.Id, x.PatientId, x.BookingId, x.Category.ToString(), x.Title, x.FileName, x.ContentType, x.SizeBytes, x.Source.ToString(), x.UploadedAt, x.UploadedBy)).ToList();
+    // ---------------------------------------------------------------- searchable text (0.11.0)
+
+    public async Task<IReadOnlyList<Guid>> PendingTextAsync(int take, CancellationToken ct = default) =>
+        await db.DocumentTexts.AsNoTracking().Where(t => t.Status == TextStatus.Pending && t.Attempts < 3).OrderBy(t => t.Attempts).Take(take).Select(t => t.DocumentId).ToListAsync(ct);
+
+    /// <summary>Extracts and stores the text of one document (called by the background worker).</summary>
+    public async Task<TextStatus> ProcessTextAsync(Guid documentId, IDocumentTextExtractor extractor, CancellationToken ct = default)
+    {
+        var t = await db.DocumentTexts.SingleOrDefaultAsync(x => x.DocumentId == documentId, ct);
+        var d = await db.Documents.AsNoTracking().SingleOrDefaultAsync(x => x.Id == documentId, ct);
+        if (t is null || d is null) return TextStatus.Failed;
+        t.Attempts++;
+        try
+        {
+            var bytes = cipher.Unprotect(d.Content);
+            var (text, method, problem) = await extractor.ExtractAsync(d.ContentType, bytes, ct);
+            text = text?.Trim();
+            t.Method = method; t.ProcessedAt = clock.GetUtcNow(); t.Message = problem is null ? null : Trunc(problem, 300);
+            if (!string.IsNullOrEmpty(text)) { t.Status = TextStatus.Done; t.Content = cipher.Protect(System.Text.Encoding.UTF8.GetBytes(text)); t.CharCount = text.Length; }
+            else t.Status = problem is null ? TextStatus.NoText : (t.Attempts >= 3 ? TextStatus.Failed : TextStatus.Pending);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            t.Message = Trunc(ex.Message, 300); t.ProcessedAt = clock.GetUtcNow();
+            t.Status = t.Attempts >= 3 ? TextStatus.Failed : TextStatus.Pending;
+        }
+        await db.SaveChangesAsync(ct);
+        return t.Status;
+    }
+
+    public async Task<int> RetryFailedTextAsync(CancellationToken ct = default) =>
+        await db.DocumentTexts.Where(t => t.Status == TextStatus.Failed).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, TextStatus.Pending).SetProperty(x => x.Attempts, 0), ct);
+
+    public async Task<object> TextSummaryAsync(CancellationToken ct = default)
+    {
+        var rows = await db.DocumentTexts.AsNoTracking().GroupBy(t => t.Status).Select(g => new { g.Key, n = g.Count() }).ToListAsync(ct);
+        var lastProblem = await db.DocumentTexts.AsNoTracking().Where(t => t.Message != null).OrderByDescending(t => t.ProcessedAt).Select(t => t.Message).FirstOrDefaultAsync(ct);
+        return new { counts = rows.ToDictionary(r => r.Key.ToString(), r => r.n), lastProblem };
+    }
+
+    /// <summary>Searches the text of one patient's documents (decrypted in memory only). Audited.</summary>
+    public async Task<IReadOnlyList<DocumentHit>> SearchAsync(Guid patientId, string query, string user, CancellationToken ct = default)
+    {
+        query = (query ?? "").Trim();
+        if (query.Length < 2) return [];
+        var docs = await db.Documents.AsNoTracking().Where(d => d.PatientId == patientId && !d.IsDeleted)
+            .Select(d => new { d.Id, d.Title, d.Category, d.UploadedAt }).ToListAsync(ct);
+        var ids = docs.Select(d => d.Id).ToList();
+        var texts = await db.DocumentTexts.AsNoTracking().Where(t => ids.Contains(t.DocumentId) && t.Status == TextStatus.Done && t.Content != null).ToListAsync(ct);
+        var hits = new List<DocumentHit>();
+        foreach (var t in texts)
+        {
+            string text;
+            try { text = System.Text.Encoding.UTF8.GetString(cipher.Unprotect(t.Content!)); } catch (CryptographicException) { continue; }
+            var titleHit = docs.First(d => d.Id == t.DocumentId).Title.Contains(query, StringComparison.OrdinalIgnoreCase);
+            var count = 0; var first = -1;
+            for (var i = text.IndexOf(query, StringComparison.OrdinalIgnoreCase); i >= 0; i = text.IndexOf(query, i + query.Length, StringComparison.OrdinalIgnoreCase)) { if (first < 0) first = i; count++; }
+            if (count == 0 && !titleHit) continue;
+            var d = docs.First(x => x.Id == t.DocumentId);
+            var snippet = first < 0 ? "" : System.Text.RegularExpressions.Regex.Replace(text.Substring(Math.Max(0, first - 60), Math.Min(text.Length - Math.Max(0, first - 60), query.Length + 120)), @"\s+", " ");
+            hits.Add(new DocumentHit(d.Id, d.Title, d.Category.ToString(), d.UploadedAt, snippet, count));
+        }
+        foreach (var d in docs.Where(d => texts.All(t => t.DocumentId != d.Id) && d.Title.Contains(query, StringComparison.OrdinalIgnoreCase)))
+            hits.Add(new DocumentHit(d.Id, d.Title, d.Category.ToString(), d.UploadedAt, "", 0));
+        await audit.WriteAsync(user, "Search", "PatientDocument", patientId.ToString(), patientId.ToString(), reason: $"{hits.Count} document(s) matched", ct: ct);
+        return hits.OrderByDescending(h => h.Matches).ThenByDescending(h => h.UploadedAt).ToList();
+    }
+
+    public async Task<IReadOnlyList<DocumentRow>> ListAsync(Guid patientId, Guid? bookingId = null, CancellationToken ct = default)
+    {
+        var rows = await db.Documents.AsNoTracking().Where(x => x.PatientId == patientId && !x.IsDeleted && (bookingId == null || x.BookingId == bookingId))
+            .Select(x => new { x.Id, x.PatientId, x.BookingId, x.Category, x.Title, x.FileName, x.ContentType, x.SizeBytes, x.Source, x.UploadedAt, x.UploadedBy }).ToListAsync(ct);
+        var ids = rows.Select(r => r.Id).ToList();
+        var status = await db.DocumentTexts.AsNoTracking().Where(t => ids.Contains(t.DocumentId)).ToDictionaryAsync(t => t.DocumentId, t => t.Status, ct);
+        return rows.OrderByDescending(x => x.UploadedAt).Select(x => new DocumentRow(x.Id, x.PatientId, x.BookingId, x.Category.ToString(), x.Title, x.FileName, x.ContentType, x.SizeBytes,
+            x.Source.ToString(), x.UploadedAt, x.UploadedBy, status.TryGetValue(x.Id, out var st) ? st.ToString() : "NoText")).ToList();
+    }
 
     /// <summary>Decrypts a document for viewing or download and records who opened it. Returns null when not found or tampered with.</summary>
     public async Task<(PatientDocument Meta, byte[] Bytes)?> OpenAsync(Guid id, string user, string? workstation, CancellationToken ct = default)

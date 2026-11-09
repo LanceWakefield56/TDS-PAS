@@ -25,6 +25,7 @@ public static class ModuleEndpoints
     public sealed record CreateFormRequest(Guid PatientId, Guid? BookingId, bool SendSms = false, bool SendEmail = false);
     public sealed record TriageRequest(TriageCategory Category, string Outcome, string? Notes, bool AddAllergyAlert);
     public sealed record DobRequest(DateOnly DateOfBirth);
+    public sealed record DayListPdfRequest(DateOnly Date, BrightPAS.Web.Security.ExportOptions? Export);
     public sealed record AnswersRequest(DateOnly DateOfBirth, Dictionary<string, string> Answers);
     public sealed record DocStatusRequest(DocumentStatus Status, string? Reason);
     public sealed record SettingsRequest(decimal SurgeonPercent, decimal AnaesthetistPercent, decimal GstPercent, int EstimateValidDays, int PaymentTermsDays, string? GstNumber, string? BankAccount);
@@ -85,7 +86,18 @@ public static class ModuleEndpoints
             .RequireAuthorization(Permissions.TheatreManage);
         g.MapPost("/sessions/{id:guid}/order", async (Guid id, ReorderRequest req, ClaimsPrincipal u, TheatreService svc) => Done(await svc.ReorderAsync(id, req.BookingIds, Me(u))))
             .RequireAuthorization(Permissions.TheatreBook);
-        g.MapPost("/bookings", async (NewBooking req, ClaimsPrincipal u, TheatreService svc, IServiceProvider sp, BrightPAS.Core.Audit.AuditWriter audit) =>
+        // The day's theatre lists as a PDF (protected by the export policy).
+        g.MapPost("/lists/pdf", async (DayListPdfRequest r, ClaimsPrincipal u, TheatreService svc, BrightPAS.Web.Security.SecureExportService export) =>
+        {
+            var sessions = await svc.SessionsAsync(r.Date, r.Date);
+            (string, double)[] cols = [("#", 0.8), ("Time", 2.0), ("Patient", 4.5), ("NHI / MRN", 2.8), ("DOB", 2.0), ("Procedure", 6.0), ("Anaesthetic", 2.2), ("Status", 2.2), ("Notes", 3.5)];
+            var groups = sessions.Select(s => ($"{s.LocationName} · {s.StartTime:HH\\:mm}–{s.EndTime:HH\\:mm} · {s.Surgeon}{(s.Anaesthetist is null ? "" : " / " + s.Anaesthetist)} · {s.Type}",
+                s.Bookings.Where(b => b.Status is not ("Cancelled" or "DidNotAttend")).Select(b => new[] { b.Order.ToString(), $"{b.PlannedStart:HH\\:mm}–{b.PlannedEnd:HH\\:mm}", b.PatientName,
+                    $"{b.Nhi ?? "—"} {b.Mrn}", b.DateOfBirth.ToString("dd/MM/yyyy"), b.Procedure + (b.Laterality == "NotApplicable" ? "" : $" ({b.Laterality})"), b.Anaesthetic, b.Status, b.Notes }).AsEnumerable())).ToList();
+            return await export.ExportPdfAsync(r.Export, $"BrightPAS-theatre-lists-{r.Date:yyyyMMdd}",
+                pw => BrightPAS.Web.Pdf.PdfReports.Table($"Theatre lists {r.Date:dddd d MMMM yyyy}", $"{sessions.Count} list(s)", cols, [], pw, groups: groups), Me(u), "TheatreListPdf");
+        }).RequireAuthorization(Permissions.TheatreView);
+        g.MapPost("/bookings", async (NewBooking req, ClaimsPrincipal u, HttpContext http, TheatreService svc, IServiceProvider sp, BrightPAS.Core.Audit.AuditWriter audit) =>
         {
             // Credentialing (when licensed): expired credentials or a procedure outside scope are warnings the booker must accept.
             var cred = await PortalEndpoints.BookingCredentialWarningsAsync(sp, req.SessionId, req.Procedure ?? "");
@@ -97,6 +109,7 @@ public static class ModuleEndpoints
             var r = await svc.BookAsync(req, Me(u));
             if (r.Booking is not null && cred.Count > 0)
                 await audit.WriteAsync(Me(u), "CredentialWarningAccepted", "TheatreBooking", r.Booking.Id.ToString(), req.PatientId.ToString(), reason: string.Join(" ", cred));
+            if (r.Booking is not null) await PortalEndpoints.AutoSendAfterBookingAsync(sp, http, req.PatientId, Me(u));
             return r.Booking is not null ? Results.Ok(new { r.Booking.Id, r.Warnings })
                 : Results.BadRequest(new { errors = r.Errors, warnings = r.Warnings });
         }).RequireAuthorization(Permissions.TheatreBook);

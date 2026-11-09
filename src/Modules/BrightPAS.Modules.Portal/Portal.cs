@@ -41,7 +41,7 @@ public sealed class PortalAccess
     public DateOnly? UploadDay { get; set; }
 }
 
-public enum PortalRequestKind { ChangeAppointment = 1, Cancel = 2, UpdateDetails = 3, Question = 4 }
+public enum PortalRequestKind { ChangeAppointment = 1, Cancel = 2, UpdateDetails = 3, Question = 4, EstimateAccepted = 5 }
 public enum PortalRequestStatus { Open = 1, Done = 2, Declined = 3 }
 
 public sealed class PortalRequest
@@ -162,6 +162,12 @@ public sealed class PortalService(PortalDbContext db, PatientsDbContext patients
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "PortalLinkRevoked", "PortalAccess", patientId.ToString(), patientId.ToString(), ct: ct);
         return null;
+    }
+
+    public async Task<bool> HasActiveLinkAsync(Guid patientId, CancellationToken ct = default)
+    {
+        var now = clock.GetUtcNow();
+        return await db.Access.AnyAsync(a => a.PatientId == patientId && a.RevokedAt == null && a.ExpiresAt > now, ct);
     }
 
     public async Task<object?> LinkStatusAsync(Guid patientId, CancellationToken ct = default)

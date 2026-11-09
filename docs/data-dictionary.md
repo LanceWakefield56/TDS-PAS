@@ -278,6 +278,17 @@ StaffId, From, To, Type (Annual/Sick/Training/Parental/Other), Status (Requested
 | Content | varbinary(max) | No | Encrypted contents (Data Protection) | R |
 | UploadedAt/By, IsDeleted, DeletedReason/By/At | | | Audit fields; removal is a soft delete | I |
 
+### patients.DocumentTexts (0.11.0)
+| Column | Type | Null | Description | Sensitivity |
+|---|---|---|---|---|
+| DocumentId | uniqueidentifier | No | PK and FK → patients.Documents (cascade) | R |
+| Status | nvarchar(10) | No | Pending, Done, NoText, Failed (indexed) | I |
+| Method | nvarchar(10) | Yes | text (PDF text layer) or ocr | I |
+| Content | varbinary(max) | Yes | Extracted text, **encrypted** (Data Protection) | R |
+| CharCount, Attempts | int | No | Size of text; tries so far (max 3) | I |
+| Message | nvarchar(300) | Yes | Last problem | I |
+| ProcessedAt | datetimeoffset | Yes | When last read | I |
+
 ### patients.Corrections
 Requested identity change: PatientId, New* fields, ClearNhi, Before (summary), Reason, Evidence, Status (Pending/Approved/Rejected/Cancelled), RequestedAt/By, DecidedAt/By, DecisionNote. **R**
 

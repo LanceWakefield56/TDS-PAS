@@ -11,7 +11,11 @@ namespace BrightPAS.Web.Security;
 /// <summary>
 /// How a staff member asked for an export to be protected. Password is sent in the POST body (never in a URL) and is never stored or logged.
 /// </summary>
-public sealed record ExportOptions(bool Protect, string? Password);
+public sealed record ExportOptions(bool Protect, string? Password, string? Format = null)
+{
+    /// <summary>"pdf" = password-protected PDF (opens in any PDF reader); anything else = encrypted ZIP.</summary>
+    public bool WantsPdf => string.Equals(Format, "pdf", StringComparison.OrdinalIgnoreCase);
+}
 
 /// <summary>
 /// Every file that leaves BrightPAS (CSV, transfer pack, reports, letters as files) goes through here: by default it is wrapped in an
@@ -43,6 +47,29 @@ public sealed class SecureExportService(SettingsService settings, AuditWriter au
         if (problem is not null) return Results.BadRequest(new { errors = new[] { problem }, passwordRequired = true, minLength = policy.MinExportPasswordLength });
         await audit.WriteAsync(user, "Export", what, baseName, patientId, reason: $"{files.Count} file(s), AES-256 encrypted ZIP", ct: ct);
         return Results.File(Zip(files, options.Password), "application/zip", $"{baseName}-{stamp}-protected.zip");
+    }
+
+    /// <summary>
+    /// PDF export: with protection the PDF itself is AES-256 encrypted and opens with the password in any PDF reader (no 7-Zip needed).
+    /// <paramref name="build"/> receives the password (null = unprotected, only when the policy allows).
+    /// </summary>
+    public async Task<IResult> ExportPdfAsync(ExportOptions? options, string baseName, Func<string?, byte[]> build, string user, string what, string? patientId = null, CancellationToken ct = default)
+    {
+        var policy = await settings.SecurityAsync(ct);
+        options ??= new ExportOptions(true, null, "pdf");
+        var protect = options.Protect || policy.ExportProtection == ExportProtection.Required;
+        var stamp = clock.GetLocalNow().ToString("yyyyMMdd-HHmm");
+        if (!protect)
+        {
+            var plain = build(null);
+            await audit.WriteAsync(user, "Export", what, baseName + ".pdf", patientId, reason: "PDF, NOT password-protected (allowed by policy)", ct: ct);
+            return Results.File(plain, "application/pdf", $"{baseName}-{stamp}.pdf");
+        }
+        var problem = PasswordProblem(options.Password, policy.MinExportPasswordLength);
+        if (problem is not null) return Results.BadRequest(new { errors = new[] { problem }, passwordRequired = true, minLength = policy.MinExportPasswordLength });
+        var bytes = build(options.Password);
+        await audit.WriteAsync(user, "Export", what, baseName + ".pdf", patientId, reason: "PDF, AES-256 password-protected", ct: ct);
+        return Results.File(bytes, "application/pdf", $"{baseName}-{stamp}-protected.pdf");
     }
 
     public static string? PasswordProblem(string? password, int minLength)

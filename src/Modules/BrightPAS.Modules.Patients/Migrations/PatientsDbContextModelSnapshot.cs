@@ -23,6 +23,43 @@ namespace BrightPAS.Modules.Patients.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("BrightPAS.Modules.Patients.DocumentText", b =>
+                {
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CharCount")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("Content")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Method")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.HasKey("DocumentId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("DocumentTexts", "patients");
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Patients.IdentityCorrection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -571,6 +608,15 @@ namespace BrightPAS.Modules.Patients.Migrations
                     b.HasIndex("PatientId");
 
                     b.ToTable("Transfers", "patients");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Patients.DocumentText", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Patients.PatientDocument", null)
+                        .WithOne()
+                        .HasForeignKey("BrightPAS.Modules.Patients.DocumentText", "DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Patients.IdentityCorrection", b =>

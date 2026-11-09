@@ -49,6 +49,9 @@ builder.Services.AddScoped<BrightPAS.Core.Setup.SettingsService>();
 builder.Services.AddScoped<BrightPAS.Web.Security.SecureExportService>();
 builder.Services.AddSingleton<BrightPAS.Modules.Patients.IDocumentCipher, BrightPAS.Web.Security.DataProtectionDocumentCipher>();
 builder.Services.AddScoped<BrightPAS.Web.Integration.OffboardingService>();
+builder.Services.AddSingleton<BrightPAS.Web.Integration.IOcrEngine, BrightPAS.Web.Integration.TesseractOcrEngine>();
+builder.Services.AddScoped<BrightPAS.Modules.Patients.IDocumentTextExtractor, BrightPAS.Web.Integration.DocumentTextExtractor>();
+if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.DocumentTextWorker>();
 foreach (var t in new[] { typeof(BrightPAS.Web.Integration.TheatreMerge), typeof(BrightPAS.Web.Integration.FormsMerge), typeof(BrightPAS.Web.Integration.BillingMerge),
     typeof(BrightPAS.Web.Integration.LabsMerge), typeof(BrightPAS.Web.Integration.ReferralsMerge), typeof(BrightPAS.Web.Integration.LettersMerge),
     typeof(BrightPAS.Web.Integration.RemindersMerge), typeof(BrightPAS.Web.Integration.PortalMerge) })

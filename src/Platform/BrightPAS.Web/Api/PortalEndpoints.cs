@@ -25,6 +25,38 @@ public static class PortalEndpoints
     public sealed record PortalDob(DateOnly DateOfBirth);
     public sealed record PortalRequestBody(DateOnly DateOfBirth, PortalRequestKind Kind, Guid? BookingId, string Message);
     public sealed record PortalUpload(DateOnly DateOfBirth, string FileName, string ContentBase64, string? Title);
+    public sealed record LinkRequest(bool SendSms = false, bool SendEmail = false);
+    public sealed record PortalSettings(bool AutoSendOnBooking);
+    public const string AutoSendKey = "portal.autoSendOnBooking";
+
+    /// <summary>Creates a portal link and queues it by SMS/email through the Reminders module. Returns the URL and what was queued.</summary>
+    public static async Task<(string? Url, DateTimeOffset ExpiresAt, object? Sent, string? Error)> CreateAndSendAsync(IServiceProvider sp, HttpContext http, Guid patientId, bool sms, bool email, string user)
+    {
+        var svc = sp.GetRequiredService<PortalService>();
+        var (token, expires, error) = await svc.CreateLinkAsync(patientId, user, (await sp.GetRequiredService<SettingsService>().SecurityAsync()).PortalLinkDays);
+        if (token is null) return (null, default, null, error);
+        var url = $"{http.Request.Scheme}://{http.Request.Host}/my/{token}";
+        object? sent = null;
+        if ((sms || email) && RemindersEndpoints.Licensed(sp.GetRequiredService<LicenceCache>()))
+        {
+            var reminders = sp.GetRequiredService<BrightPAS.Modules.Reminders.ReminderService>();
+            var msgs = await reminders.QueuePortalLinkAsync(patientId, url, sms, email, user);
+            await reminders.SendDueAsync();
+            sent = (await reminders.MessagesAsync(null, patientId)).Where(m => msgs.Any(x => x.Id == m.Id)).Select(m => new { m.Channel, m.Status, m.LastError }).ToList();
+        }
+        return (url, expires, sent, null);
+    }
+
+    /// <summary>After a theatre booking: if the administrator switched it on, send the patient a portal link by SMS (once – not when a link is already active).</summary>
+    public static async Task AutoSendAfterBookingAsync(IServiceProvider sp, HttpContext http, Guid patientId, string user)
+    {
+        var licence = sp.GetRequiredService<LicenceCache>().Status;
+        if (licence.AccessTo(PortalModule.Id) != BrightPAS.Licensing.ModuleAccess.Full || !RemindersEndpoints.Licensed(sp.GetRequiredService<LicenceCache>())) return;
+        if (await sp.GetRequiredService<SettingsService>().GetAsync(AutoSendKey) != "true") return;
+        if (await sp.GetRequiredService<PortalService>().HasActiveLinkAsync(patientId)) return;
+        try { await CreateAndSendAsync(sp, http, patientId, sms: true, email: false, user); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { sp.GetRequiredService<ILoggerFactory>().CreateLogger("Portal").LogWarning(ex, "Automatic portal link failed"); }
+    }
 
     public static void MapPortalEndpoints(this IEndpointRouteBuilder app)
     {
@@ -141,11 +173,15 @@ public static class PortalEndpoints
 
         // Staff side of the patient portal.
         g.MapGet("/patients/{id:guid}/link", async (Guid id, PortalService svc) => Results.Ok(await svc.LinkStatusAsync(id))).RequireAuthorization(Permissions.PortalManage);
-        g.MapPost("/patients/{id:guid}/link", async (Guid id, ClaimsPrincipal u, PortalService svc, SettingsService settings) =>
+        g.MapPost("/patients/{id:guid}/link", async (Guid id, LinkRequest? r, ClaimsPrincipal u, HttpContext http, IServiceProvider sp) =>
         {
-            var (token, expires, error) = await svc.CreateLinkAsync(id, Me(u), (await settings.SecurityAsync()).PortalLinkDays);
-            return token is null ? Results.BadRequest(new { errors = new[] { error } }) : Results.Ok(new { path = $"/my/{token}", expiresAt = expires });
+            var (url, expires, sent, error) = await CreateAndSendAsync(sp, http, id, r?.SendSms == true, r?.SendEmail == true, Me(u));
+            return url is null ? Results.BadRequest(new { errors = new[] { error } }) : Results.Ok(new { path = new Uri(url).PathAndQuery, expiresAt = expires, sent });
         }).RequireAuthorization(Permissions.PortalManage);
+        g.MapGet("/settings", async (SettingsService s, LicenceCache licence) =>
+            Results.Ok(new { autoSendOnBooking = await s.GetAsync(AutoSendKey) == "true", remindersLicensed = RemindersEndpoints.Licensed(licence) })).RequireAuthorization(Permissions.UsersManage);
+        g.MapPut("/settings", async (PortalSettings r, ClaimsPrincipal u, SettingsService s) => { await s.SetAsync(AutoSendKey, r.AutoSendOnBooking ? "true" : "false", Me(u)); return Results.Ok(); })
+            .RequireAuthorization(Permissions.UsersManage);
         g.MapPost("/patients/{id:guid}/revoke", async (Guid id, ClaimsPrincipal u, PortalService svc) => Done(await svc.RevokeAsync(id, Me(u)))).RequireAuthorization(Permissions.PortalManage);
         g.MapGet("/requests", async (bool? all, PortalService svc) => Results.Ok(await svc.RequestsAsync(all != true))).RequireAuthorization(Permissions.PortalManage);
         g.MapPost("/requests/{id:guid}/handle", async (Guid id, HandleRequest r, ClaimsPrincipal u, PortalService svc) => Done(await svc.HandleRequestAsync(id, r.Status, r.Response, Me(u))))
@@ -176,7 +212,7 @@ public static class PortalEndpoints
     private static void MapPatientPortal(IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/my/{token}").RequireModule(PortalModule.Id).RequireRateLimiting("patient-portal").AllowAnonymous();
-        g.MapPost("/open", async (string token, PortalDob r, HttpContext http, PortalService svc, TheatreDbContext theatre, BrightPAS.Core.Organisation.OrganisationService org, TimeProvider clock) =>
+        g.MapPost("/open", async (string token, PortalDob r, HttpContext http, PortalService svc, TheatreDbContext theatre, BrightPAS.Core.Organisation.OrganisationService org, TimeProvider clock, IServiceProvider sp) =>
         {
             var (access, p, error) = await svc.OpenAsync(token, r.DateOfBirth, AuthEndpoints.Workstation(http));
             if (access is null || p is null) return OpenError(error);
@@ -193,7 +229,35 @@ public static class PortalEndpoints
                 appointments = appts.OrderBy(a => a.Date).ThenBy(a => a.StartTime).Select(a => new { a.Id, a.Date, a.StartTime, kind = a.Kind.ToString(), clinician = people.GetValueOrDefault(a.ClinicianId, "") }),
                 requests = (await svc.PatientRequestsAsync(p.Id)).Select(x => new { x.Id, kind = x.Kind.ToString(), x.Message, status = x.Status.ToString(), x.CreatedAt, x.Response }),
                 contact = new { mobile = Mask(p.MobilePhone), email = Mask(p.Email) },
+                questionnaire = await QuestionnaireStateAsync(sp, p.Id, cases.Count > 0),
+                estimate = await EstimateAsync(sp, p.Id),
             });
+        });
+        // Health questionnaire from the portal: a fresh questionnaire link for the next procedure (the Forms module must be licensed).
+        g.MapPost("/questionnaire", async (string token, PortalDob r, HttpContext http, PortalService svc, TheatreDbContext theatre, TimeProvider clock, IServiceProvider sp) =>
+        {
+            var (access, p, error) = await svc.OpenAsync(token, r.DateOfBirth, AuthEndpoints.Workstation(http));
+            if (access is null || p is null) return OpenError(error);
+            if (sp.GetRequiredService<LicenceCache>().Status.AccessTo(BrightPAS.Modules.Forms.FormsModule.Id) != BrightPAS.Licensing.ModuleAccess.Full)
+                return Results.BadRequest(new { errors = new[] { "The online questionnaire is not available – please phone us." } });
+            var today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+            var next = await theatre.Bookings.AsNoTracking().Where(b => b.PatientId == p.Id && b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.DidNotAttend)
+                .Join(theatre.Sessions, b => b.SessionId, s => s.Id, (b, s) => new { b.Id, s.Date }).Where(x => x.Date >= today).OrderBy(x => x.Date).FirstOrDefaultAsync();
+            if (await QuestionnaireStateAsync(sp, p.Id, next is not null) is "submitted") return Results.BadRequest(new { errors = new[] { "We already have your questionnaire – thank you." } });
+            var (form, formToken, ferror) = await sp.GetRequiredService<BrightPAS.Modules.Forms.FormService>().CreateAsync(p.Id, next?.Id, "patient-portal");
+            return form is null ? Results.BadRequest(new { errors = new[] { ferror } }) : Results.Ok(new { path = $"/q/{formToken}" });
+        });
+        g.MapPost("/estimates/{id:guid}/accept", async (string token, Guid id, PortalDob r, HttpContext http, PortalService svc, IServiceProvider sp) =>
+        {
+            var (access, p, error) = await svc.OpenAsync(token, r.DateOfBirth, AuthEndpoints.Workstation(http));
+            if (access is null || p is null) return OpenError(error);
+            var billing = sp.GetRequiredService<BrightPAS.Modules.Billing.BillingDbContext>();
+            var est = await billing.Documents.AsNoTracking().SingleOrDefaultAsync(d => d.Id == id && d.PatientId == p.Id && d.Kind == BrightPAS.Modules.Billing.DocumentKind.Estimate);
+            if (est is null || est.Status != BrightPAS.Modules.Billing.DocumentStatus.Issued) return Results.BadRequest(new { errors = new[] { "This estimate can no longer be accepted online – please phone us." } });
+            var e = await sp.GetRequiredService<BrightPAS.Modules.Billing.BillingService>().SetStatusAsync(id, BrightPAS.Modules.Billing.DocumentStatus.Accepted, "Accepted by the patient in the portal", "patient-portal");
+            if (e is not null) return Results.BadRequest(new { errors = new[] { e } });
+            await svc.AddRequestAsync(access, p.Id, new PortalRequestCreate(PortalRequestKind.EstimateAccepted, est.BookingId, $"Estimate {est.Number} accepted in the portal."));
+            return Results.Ok();
         });
         g.MapPost("/requests", async (string token, PortalRequestBody r, HttpContext http, PortalService svc) =>
         {
@@ -211,6 +275,42 @@ public static class PortalEndpoints
                 r.FileName, r.ContentBase64, DocumentSource.Portal), "patient-portal", maxMegabytes: 10);
             return row is null ? Results.BadRequest(new { errors }) : Results.Ok();
         });
+    }
+
+    /// <summary>"none" (no procedure or Forms not licensed), "needed", "started" or "submitted".</summary>
+    private static async Task<string> QuestionnaireStateAsync(IServiceProvider sp, Guid patientId, bool hasProcedure)
+    {
+        if (!hasProcedure || sp.GetRequiredService<LicenceCache>().Status.AccessTo(BrightPAS.Modules.Forms.FormsModule.Id) == BrightPAS.Licensing.ModuleAccess.None) return "none";
+        var forms = sp.GetRequiredService<BrightPAS.Modules.Forms.FormsDbContext>();
+        var since = sp.GetRequiredService<TimeProvider>().GetUtcNow().AddDays(-90);
+        var latest = (await forms.Requests.AsNoTracking().IgnoreAutoIncludes().Where(f => f.PatientId == patientId && f.CreatedAt > since).Select(f => new { f.Status, f.CreatedAt }).ToListAsync())
+            .OrderByDescending(f => f.CreatedAt).FirstOrDefault();
+        return latest?.Status switch
+        {
+            BrightPAS.Modules.Forms.FormStatus.Submitted or BrightPAS.Modules.Forms.FormStatus.Triaged => "submitted",
+            BrightPAS.Modules.Forms.FormStatus.Opened => "started",
+            _ => "needed",
+        };
+    }
+
+    /// <summary>The patient's current estimate (issued or accepted, not expired), when the billing module is licensed.</summary>
+    private static async Task<object?> EstimateAsync(IServiceProvider sp, Guid patientId)
+    {
+        if (sp.GetRequiredService<LicenceCache>().Status.AccessTo(BrightPAS.Modules.Billing.BillingModule.Id) == BrightPAS.Licensing.ModuleAccess.None) return null;
+        var billing = sp.GetRequiredService<BrightPAS.Modules.Billing.BillingDbContext>();
+        var today = DateOnly.FromDateTime(sp.GetRequiredService<TimeProvider>().GetLocalNow().DateTime);
+        var d = (await billing.Documents.AsNoTracking().Include(x => x.Lines).Include(x => x.Payments)
+                .Where(x => x.PatientId == patientId && x.Kind == BrightPAS.Modules.Billing.DocumentKind.Estimate
+                    && (x.Status == BrightPAS.Modules.Billing.DocumentStatus.Issued || x.Status == BrightPAS.Modules.Billing.DocumentStatus.Accepted)).ToListAsync())
+            .Where(x => x.DueOn is null || x.DueOn >= today).OrderByDescending(x => x.IssuedOn).FirstOrDefault();
+        if (d is null) return null;
+        var t = BrightPAS.Modules.Billing.BillingService.Calculate(d);
+        return new
+        {
+            d.Id, d.Number, d.IssuedOn, validUntil = d.DueOn, status = d.Status.ToString(), payer = d.Payer.ToString(), d.PayerName,
+            lines = d.Lines.OrderBy(l => l.Sequence).Select(l => new { l.Description, amount = BrightPAS.Modules.Billing.BillingService.Money(l.Quantity * l.UnitPrice) }),
+            t.Subtotal, t.Gst, t.Total,
+        };
     }
 
     /// <summary>Shows just enough for the patient to recognise their details (e.g. 021•••••67).</summary>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { fileToBase64, formatDate } from '../api';
 
 async function post(path: string, body: unknown) {
@@ -18,6 +18,13 @@ export default function MyPortal() {
   const [msg, setMsg] = useState<string | null>(null);
   const [req, setReq] = useState({ kind: 'Question', bookingId: '', message: '' });
   const [busy, setBusy] = useState(false);
+  const nav = useNavigate();
+  const money = (n: number) => n.toLocaleString('en-NZ', { style: 'currency', currency: 'NZD' });
+  const questionnaire = async () => { setError(null); try { const r = await post(`${base}/questionnaire`, { dateOfBirth: dob }); nav(r.path); } catch (x: any) { setError(x.message); } };
+  const accept = async (id: string) => {
+    setError(null); setMsg(null);
+    try { await post(`${base}/estimates/${id}/accept`, { dateOfBirth: dob }); setMsg('Thank you – we have your acceptance of the estimate.'); await open(); } catch (x: any) { setError(x.message); }
+  };
   const base = `/api/my/${encodeURIComponent(token ?? '')}`;
   const open = async (e?: React.FormEvent) => { e?.preventDefault(); setError(null); try { setD(await post(`${base}/open`, { dateOfBirth: dob })); } catch (x: any) { setError(x.message); } };
   const send = async (e: React.FormEvent) => {
@@ -46,6 +53,17 @@ export default function MyPortal() {
         <section className="card stack"><h2>Your procedure</h2>
           {d.procedures.length === 0 ? <p className="muted">No procedure booked.</p> : d.procedures.map((p: any) => <div key={p.id}><strong>{formatDate(p.date)}</strong> – {p.procedure} with {p.surgeon} ({p.location}){!p.confirmed && ' – to be confirmed'}<div className="small muted">We will tell you your arrival time and fasting instructions before the day.</div></div>)}
         </section>
+        {d.questionnaire && d.questionnaire !== 'none' && <section className="card stack"><h2>Pre-admission health questionnaire</h2>
+          {d.questionnaire === 'submitted' ? <p>We have your questionnaire – thank you. If anything about your health changes before the day, please phone us.</p> : <>
+            <p>{d.questionnaire === 'started' ? 'You have started your questionnaire. Please finish and send it.' : 'Please fill in your health questionnaire before your procedure. It takes about 10 minutes.'}</p>
+            <div><button className="btn btn-primary" onClick={questionnaire}>{d.questionnaire === 'started' ? 'Continue questionnaire' : 'Start questionnaire'}</button></div></>}
+        </section>}
+        {d.estimate && <section className="card stack"><h2>Your estimate {d.estimate.number}</h2>
+          <dl className="estimate-lines">{d.estimate.lines.map((l: any, i: number) => <div key={i}><dt>{l.description}</dt><dd>{money(l.amount)}</dd></div>)}
+            <div><dt>GST</dt><dd>{money(d.estimate.gst)}</dd></div><div className="total"><dt>Total (incl. GST)</dt><dd>{money(d.estimate.total)}</dd></div></dl>
+          <p className="small muted">{d.estimate.payerName ? `To be paid by ${d.estimate.payerName}. ` : ''}{d.estimate.validUntil ? `Valid until ${formatDate(d.estimate.validUntil)}. ` : ''}This is an estimate; the final account may differ if your care changes.</p>
+          {d.estimate.status === 'Accepted' ? <p className="ok-text">You accepted this estimate.</p> : <div><button className="btn btn-primary" onClick={() => accept(d.estimate.id)}>I accept this estimate</button></div>}
+        </section>}
         <section className="card stack"><h2>Clinic appointments</h2>
           {d.appointments.length === 0 ? <p className="muted">None booked.</p> : d.appointments.map((a: any) => <div key={a.id}>{formatDate(a.date)} {a.startTime.slice(0, 5)} – {a.kind === 'PhoneCall' ? 'phone call' : a.kind.toLowerCase()} with {a.clinician}</div>)}
         </section>

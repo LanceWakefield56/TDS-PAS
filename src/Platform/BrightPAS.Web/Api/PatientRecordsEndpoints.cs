@@ -50,6 +50,8 @@ public static class PatientRecordsEndpoints
             http.Response.Headers["Cache-Control"] = "no-store";
             return Results.File(doc.Bytes, doc.Meta.ContentType, download == true ? doc.Meta.FileName : null);
         }).RequireAuthorization(Permissions.PatientView);
+        g.MapGet("/{id:guid}/documents/search", async (Guid id, string? q, ClaimsPrincipal u, DocumentService svc) => Results.Ok(await svc.SearchAsync(id, q ?? "", Me(u))))
+            .RequireAuthorization(Permissions.PatientView);
         g.MapPost("/documents/{docId:guid}/delete", async (Guid docId, DeleteRequest r, ClaimsPrincipal u, DocumentService svc) => Done(await svc.DeleteAsync(docId, r.Reason, Me(u))))
             .RequireAuthorization(Permissions.PatientEdit);
 
@@ -121,6 +123,8 @@ public static class PatientRecordsEndpoints
         {
             var pack = await TransferPackAsync(id, sp, Me(u), AuthEndpoints.Workstation(http));
             if (pack is null) return Results.NotFound();
+            if (r.Export?.WantsPdf == true)
+                return await export.ExportPdfAsync(r.Export, "BrightPAS-transfer-pack", pw => BrightPAS.Web.Pdf.PdfReports.TransferPack(pack, r.Transfer, pw), Me(u), "TransferPack", id.ToString());
             var html = TransferHtml(pack, r.Transfer);
             return await export.ExportAsync(r.Export, "BrightPAS-transfer-pack", [new("transfer-pack.html", Encoding.UTF8.GetBytes(html))], Me(u), "TransferPack", id.ToString());
         }).RequireAuthorization(Permissions.PatientView);
@@ -130,6 +134,15 @@ public static class PatientRecordsEndpoints
         admin.MapGet("/printers", async (LabelService svc) => Results.Ok(new { printers = await svc.PrintersAsync(false), dymoMedia = LabelService.DymoMediaList }))
             .RequireAuthorization(Permissions.OrganisationManage);
         admin.MapPost("/printers", async (PrinterEdit e, ClaimsPrincipal u, LabelService svc) => Errors(await svc.SavePrinterAsync(e, Me(u)))).RequireAuthorization(Permissions.OrganisationManage);
+        // Document text recognition (OCR) status and retry.
+        admin.MapGet("/document-text", async (DocumentService svc, IOcrEngine ocr) => Results.Ok(new { summary = await svc.TextSummaryAsync(), engineProblem = ocr.Problem }))
+            .RequireAuthorization(Permissions.UsersManage);
+        admin.MapPost("/document-text/retry", async (ClaimsPrincipal u, DocumentService svc, AuditWriter audit) =>
+        {
+            var n = await svc.RetryFailedTextAsync();
+            await audit.WriteAsync(Me(u), "Retry", "DocumentText", "failed", reason: $"{n} document(s) queued again");
+            return Results.Ok(new { queued = n });
+        }).RequireAuthorization(Permissions.UsersManage);
         admin.MapGet("/security-settings", async (SettingsService s) => Results.Ok(await s.SecurityAsync())).RequireAuthorization(Permissions.UsersManage);
         admin.MapPut("/security-settings", async (SecuritySettings e, ClaimsPrincipal u, SettingsService s) => Errors(await s.UpdateSecurityAsync(e, Me(u))))
             .RequireAuthorization(Permissions.UsersManage);

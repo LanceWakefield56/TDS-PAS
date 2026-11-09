@@ -53,7 +53,7 @@ export default function Waitlist() {
         <div className="page-head"><h1>Waitlist</h1><p className="muted">Patients accepted for a procedure, oldest target first. Book them onto a theatre list from here.</p></div>
         <div className="row">
           <Link className="btn btn-light" to="/referrals">Referrals{summary?.toTriage ? <span className="count">{summary.toTriage}</span> : null}</Link>
-          {can(Perm.ReferralsManage) && <ExportButton label="Export (CSV)" path="/api/waitlist/export" body={{ view: view === 'waiting' ? 'all-open' : view }} />}
+          {can(Perm.ReferralsManage) && <ExportButton label="Export" formats={["pdf", "zip"]} path="/api/waitlist/export" body={{ view: view === 'waiting' ? 'all-open' : view }} />}
           {can(Perm.ReferralsManage) && <Link className="btn btn-light" to="/waitlist/nbrs">NBRS extract</Link>}
           {can(Perm.ReferralsManage) && canWrite && !adding && <button className="btn btn-primary" onClick={() => setAdding(true)}>Add to waitlist</button>}
         </div>

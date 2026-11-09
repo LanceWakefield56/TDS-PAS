@@ -50,9 +50,15 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Roster swaps + Xero payroll export; NBRS extract; staff offboarding
 - ☑ Credentialing module; Specialist/PA & patient portals module
 
+## Increment 0.10.1–0.10.2 (done)
+- ☑ No heaps, indexes, cross-module FKs, reporting views/procedures (ADR 0019); DYMO labels; 7-Zip link; clinicians/rooms by id
+
+## Increment 0.11.0 (done)
+- ☑ Password-protected PDF letters/reports (AES-256) alongside encrypted ZIP; OCR + per-patient document search (ADR 0020)
+- ☑ Portal link by SMS (manual + automatic on booking); questionnaire and estimate acceptance in the patient portal
+
 ## Next
-- ☐ Password-protected PDF letters/reports (in addition to encrypted ZIP); OCR of scanned documents
-- ☐ Patient portal: SMS the link automatically (Reminders), portal for pre-admission form and estimates
+- ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends
 - ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)
 - ☐ HealthLink: confirm message profile + EDI accounts with HealthLink; live test via the messaging client
 - ☐ Sandbox: verify reminders UI end-to-end on Windows; live Modica test (needs Modica account + DMZ callback path)
