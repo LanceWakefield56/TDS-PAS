@@ -80,7 +80,7 @@ public static class ProductModules
         new("assets", "Assets & CSSD", "Asset register and sterile instrument traceability.", false),
         new("quality", "Quality management", "Incidents, surveys, SSI, falls and quality reporting.", false),
         new("endoscopy", "Endoscopy", "Endoscopy reporting and scope tracking (replaces Endobase).", false),
-        new("messaging", "Messaging & workflow engine", "HL7/FHIR/DICOM interfaces and workflows.", false),
+        new("messaging", "Messaging & integration engine", "TDS's own integration engine: HL7, FHIR, DICOM, CDA/XML, X12 and REST interfaces; visual message flows, mappings and translation tables with a test harness; message store, retries, monitoring and alerts.", true),
         new("reminders", "SMS & email reminders", "Booking confirmations, reminders, questionnaire links and two-way SMS replies.", true),
         new("portal", "Specialist, PA & patient portals", "Read-only portal for specialists and their practice assistants; secure patient portal (appointments, requests, document upload).", true),
         new("credentialing", "Credentialing", "Clinician credentials and scope of practice, expiry alerts, and checks when booking theatre.", true),

@@ -74,6 +74,7 @@ public static class Standards
         (["letter", "healthlink"], "Letters & documents"),
         (["roster", "shift", "leave", "payroll", "swap"], "Rostering"),
         (["credential"], "Credentialing"),
+        (["messaging", "interface", "dicom", "mapping", "flow"], "Messaging & integration engine"),
         (["portal"], "Portals"),
         (["theatre"], "Theatre bookings"),
         (["billing", "invoice", "estimate"], "Estimates & invoices"),
@@ -126,5 +127,8 @@ public static class ModuleSuites
             [("POST", "api/credentialing/credentials", "{}"), ("POST", "api/credentialing/privileges", "{}"), ("PUT", "api/credentialing/settings", "{}")]),
         new("portal", "Specialist, PA & patient portals", ["api/portal/specialist", $"api/portal/specialist/patients/{Guid.Empty}", "api/portal/requests", "api/portal/delegates"],
             [("POST", $"api/portal/patients/{Guid.Empty}/link", "{}"), ("POST", "api/portal/delegates", "{}"), ("POST", $"api/portal/requests/{Guid.Empty}/handle", "{}")]),
+        new("messaging", "Messaging & integration engine", ["api/messaging/dashboard", "api/messaging/interfaces", "api/messaging/messages", "api/messaging/flows", "api/messaging/mappings", "api/messaging/tables", "api/messaging/settings"],
+            [("POST", "api/messaging/interfaces", "{}"), ("POST", "api/messaging/flows", "{}"), ("POST", "api/messaging/mappings", "{}"), ("POST", "api/messaging/tables", "{}"),
+             ("POST", $"api/messaging/messages/{Guid.Empty}/replay", "{}"), ("POST", $"api/messaging/versions/{Guid.Empty}/approve", "{}"), ("PUT", "api/messaging/settings", "{}")]),
     ];
 }

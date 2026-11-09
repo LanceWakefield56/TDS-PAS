@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Rostering\BrightPAS.Modules.Rostering.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Credentialing\BrightPAS.Modules.Credentialing.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Portal\BrightPAS.Modules.Portal.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Messaging\BrightPAS.Modules.Messaging.csproj" />
   </ItemGroup>
 
   <ItemGroup>

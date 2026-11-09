@@ -20,6 +20,12 @@ public sealed class MllpListener(IServiceScopeFactory scopes, IConfiguration con
     {
         var port = config.GetValue("Labs:Mllp:Port", 0);
         if (port <= 0) return;
+        // 0.12.0: with the Messaging module licensed, the engine runs this port as the labs-in interface (MessagingHost) instead.
+        if (licence.Status.AccessTo(BrightPAS.Modules.Messaging.MessagingModule.Id) == ModuleAccess.Full)
+        {
+            log.LogInformation("Labs:Mllp:Port {Port} is handled by the messaging engine (interface labs-in).", port);
+            return;
+        }
         var allowed = (config["Labs:Mllp:AllowedClients"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(IPAddress.Parse).ToHashSet();
         var listener = new TcpListener(IPAddress.Any, port);

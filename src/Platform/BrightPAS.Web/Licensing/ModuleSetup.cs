@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -63,6 +63,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "rostering" => await RosterChecksAsync(ct),
         "credentialing" => await CredentialingChecksAsync(ct),
         "portal" => await PortalChecksAsync(ct),
+        "messaging" => await MessagingChecksAsync(ct),
         _ => []
     };
 
@@ -226,6 +227,33 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 linked > 0, $"{linked} clinician(s) linked to a user account.", true, "Open organisation set-up", "/admin/organisation", Permissions.OrganisationManage),
             new("pas", "Practice assistants", "Link each PA to the specialist(s) they work for (User accounts › PA links).",
                 delegates > 0, $"{delegates} PA link(s).", true, "Open user accounts", "/admin/users", Permissions.UsersManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> MessagingChecksAsync(CancellationToken ct)
+    {
+        var db = Svc<BrightPAS.Modules.Messaging.MsgDbContext>();
+        var admins = await UsersWithAsync(Permissions.IntegrationManage, ct);
+        var viewers = await UsersWithAsync(Permissions.MessagingView, ct);
+        var ifaces = await db.Interfaces.AsNoTracking().CountAsync(i => i.IsActive && i.Transport != BrightPAS.Modules.Messaging.Transport.Monitored, ct);
+        var flows = await db.Flows.AsNoTracking().CountAsync(f => f.IsActive, ct);
+        var settings = await db.Settings.AsNoTracking().SingleOrDefaultAsync(ct);
+        var listeners = await db.Interfaces.AsNoTracking().Where(i => i.IsActive && (i.Transport == BrightPAS.Modules.Messaging.Transport.MllpListen)).Select(i => i.Id).ToListAsync(ct);
+        var open = listeners.Count == 0 ? 0 : await db.Interfaces.AsNoTracking().CountAsync(i => listeners.Contains(i.Id) && !db.AllowedClients.Any(c => c.InterfaceId == i.Id), ct);
+        return
+        [
+            new("admins", "Integration administrators", "Give the people who set up interfaces the 'Integration Administrator' role. A second person approves mapping changes before they go live.",
+                admins >= 2, $"{admins} user(s) can change interfaces{(admins == 1 ? " – add a second so changes can be approved" : "")}.", false, "Open user accounts", "/admin/users", Permissions.UsersManage),
+            new("viewers", "Who watches the dashboard", "Interface problems show on the messaging dashboard. Viewing a message's content is audited.",
+                viewers > 0, $"{viewers} user(s) can see the dashboard.", true, "Open user accounts", "/admin/users", Permissions.UsersManage),
+            new("interfaces", "Connections", "Add each connection: lab results (MLLP), devices (DICOM), partner APIs (REST), folders, or outbound systems.",
+                ifaces > 0, $"{ifaces} active interface(s).", false, "Open interfaces", "/messaging/interfaces", Permissions.IntegrationManage),
+            new("allowed", "Only known systems can connect", "Every MLLP listener should list the IP addresses allowed to connect; DICOM devices must be registered by IP and AE title.",
+                open == 0, open == 0 ? "All listeners are restricted." : $"{open} MLLP listener(s) accept any computer.", true, "Open interfaces", "/messaging/interfaces", Permissions.IntegrationManage),
+            new("flows", "Message flows", "Draw a flow for each message path (input → filters → mapper → outputs) and test it with a sample message before switching it on.",
+                flows > 0, $"{flows} active flow(s).", true, "Open flows", "/messaging/flows", Permissions.IntegrationManage),
+            new("alerts", "Alert email", "Who is emailed when an interface stops or messages fail (needs the reminders email sender).",
+                !string.IsNullOrWhiteSpace(settings?.AlertEmail), settings?.AlertEmail is { } a ? $"Alerts go to {a}." : "No alert email set.", true, "Open messaging settings", "/messaging/settings", Permissions.IntegrationManage),
         ];
     }
 

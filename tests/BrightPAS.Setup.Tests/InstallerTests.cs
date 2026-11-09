@@ -35,7 +35,7 @@ public class InstallerTests
     public void Schema_scripts_are_embedded_in_order()
     {
         var names = SqlScripts.Embedded().Select(s => s.Name).ToList();
-        Assert.Equal(["01-core.sql", "02-identity.sql", "03-patients.sql", "04-labs.sql", "05-theatre.sql", "06-forms.sql", "07-billing.sql", "08-reminders.sql", "09-referrals.sql", "10-letters.sql", "11-roster.sql", "12-credentialing.sql", "13-portal.sql", "14-reporting.sql"], names);
+        Assert.Equal(["01-core.sql", "02-identity.sql", "03-patients.sql", "04-labs.sql", "05-theatre.sql", "06-forms.sql", "07-billing.sql", "08-reminders.sql", "09-referrals.sql", "10-letters.sql", "11-roster.sql", "12-credentialing.sql", "13-portal.sql", "14-messaging.sql", "90-reporting.sql"], names);
     }
 
     [Fact]

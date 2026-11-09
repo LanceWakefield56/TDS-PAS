@@ -58,6 +58,8 @@ public static class Permissions
     // Portals module
     public const string PortalSpecialist = "portal.specialist";
     public const string PortalManage = "portal.manage";
+    // Messaging engine (changes use IntegrationManage)
+    public const string MessagingView = "messaging.view";
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -65,7 +67,7 @@ public static class Permissions
         AuditView, UsersManage, OrganisationManage, ModulesManage, IntegrationManage,
         LabsView, LabsAcknowledge, LabsMatch, TheatreView, TheatreBook, TheatreManage, FormsSend, FormsTriage,
         BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage,
-        CredentialingView, CredentialingManage, PortalSpecialist, PortalManage
+        CredentialingView, CredentialingManage, PortalSpecialist, PortalManage, MessagingView
     ];
 }
 
@@ -113,8 +115,8 @@ public static class DefaultRoles
             [PracticeAssistant] = ("Specialist's practice assistant: bookings for their specialist's patients.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.TheatreView, Permissions.TheatreBook, Permissions.FormsSend, Permissions.LabsView,
                  Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist]),
-            [IntegrationAdministrator] = ("Manages interfaces, message profiles and translation tables.",
-                [Permissions.IntegrationManage, Permissions.LettersView]),
+            [IntegrationAdministrator] = ("Manages interfaces, message flows, mappings and translation tables; sees message content (audited).",
+                [Permissions.IntegrationManage, Permissions.MessagingView, Permissions.LettersView]),
             [RosterManager] = ("Writes the staff roster and approves leave (no patient access).",
                 [Permissions.RosterView, Permissions.RosterManage]),
             [SpecialistPortal] = ("Visiting specialist or PA: sees only their own TDS patients' lists, appointments, waitlist and documents (read-only).",

@@ -1,3 +1,4 @@
+using BrightPAS.Core.Integration;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +22,7 @@ public sealed record PreferenceView(Guid PatientId, bool AllowSms, bool AllowEma
 public sealed class ReminderService(
     RemindersDbContext db, PatientsDbContext patients, TheatreDbContext theatre, TheatreService theatreService,
     IEnumerable<ISmsGateway> smsGateways, IEnumerable<IEmailGateway> emailGateways, ISecretProtector secrets,
-    ReminderDefaults defaults, AuditWriter audit, TimeProvider clock)
+    ReminderDefaults defaults, AuditWriter audit, TimeProvider clock, IEnumerable<BrightPAS.Core.Integration.IMessageTap> taps)
 {
     public const int MaxAttempts = 5;
     private static readonly int[] BackoffMinutes = [1, 5, 15, 60, 240];
@@ -438,6 +439,10 @@ public sealed class ReminderService(
                 r = await g.SendAsync(s, m.Address, m.Subject ?? s.ClinicName, text, ct);
             }
             m.Attempts++;
+            // Copy to the messaging engine's store (the body holds a placeholder, never the secret link).
+            if (r.Ok || r.Permanent || m.Attempts >= MaxAttempts)
+                await taps.RecordAllAsync(new BrightPAS.Core.Integration.TappedMessage(m.Channel == Channel.Sms ? "sms" : "email", false, m.Kind.ToString(), r.ProviderMessageId ?? m.Id.ToString("N"),
+                    m.PatientId, (m.Channel == Channel.Email ? $"To: {m.Address}\nSubject: {m.Subject}\n\n" : $"To: {m.Address}\n\n") + m.Body, r.Ok, r.Ok ? $"Sent via {provider}" : r.Error), ct);
             if (r.Ok)
             {
                 m.Status = MessageStatus.Sent; m.SentAt = clock.GetUtcNow(); m.ProviderMessageId = r.ProviderMessageId; m.LastError = null; m.SecretLink = null;

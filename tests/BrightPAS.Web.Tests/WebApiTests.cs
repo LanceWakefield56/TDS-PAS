@@ -64,6 +64,8 @@ public sealed class PasWebFactory : WebApplicationFactory<Program>, IAsyncLifeti
             await x.Database.MigrateAsync();
         await using (var x = new BrightPAS.Modules.Portal.PortalDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Portal.PortalDbContext>().Also(o => Sql(o, "portal")).Options))
             await x.Database.MigrateAsync();
+        await using (var x = new BrightPAS.Modules.Messaging.MsgDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Messaging.MsgDbContext>().Also(o => Sql(o, "msg")).Options))
+            await x.Database.MigrateAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

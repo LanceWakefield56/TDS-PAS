@@ -32,6 +32,12 @@ public sealed class LabsMerge(BrightPAS.Modules.Labs.LabsDbContext db) : IPatien
     public Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) => db.Reports.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
 }
 
+public sealed class MessagingMerge(BrightPAS.Modules.Messaging.MsgDbContext db) : IPatientMergeParticipant
+{
+    public string Name => "Interface messages";
+    public Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) => db.Messages.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
+}
+
 public sealed class ReferralsMerge(BrightPAS.Modules.Referrals.ReferralsDbContext db) : IPatientMergeParticipant
 {
     public string Name => "Referrals & waitlist";

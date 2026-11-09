@@ -42,7 +42,8 @@ builder.Services.AddPasIdentity(o => UseSql(o, PasIdentityDbContext.Schema));
 builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs.LabsModule(), new BrightPAS.Modules.Theatre.TheatreModule(),
     new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule(),
     new BrightPAS.Modules.Referrals.ReferralsModule(), new BrightPAS.Modules.Letters.LettersModule(),
-    new BrightPAS.Modules.Rostering.RosteringModule(), new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule()]);
+    new BrightPAS.Modules.Rostering.RosteringModule(), new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(),
+    new BrightPAS.Modules.Messaging.MessagingModule()]);
 builder.Services.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
 builder.Services.AddScoped<RoleAdminService>();
 builder.Services.AddScoped<BrightPAS.Core.Setup.SettingsService>();
@@ -54,7 +55,7 @@ builder.Services.AddScoped<BrightPAS.Modules.Patients.IDocumentTextExtractor, Br
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.DocumentTextWorker>();
 foreach (var t in new[] { typeof(BrightPAS.Web.Integration.TheatreMerge), typeof(BrightPAS.Web.Integration.FormsMerge), typeof(BrightPAS.Web.Integration.BillingMerge),
     typeof(BrightPAS.Web.Integration.LabsMerge), typeof(BrightPAS.Web.Integration.ReferralsMerge), typeof(BrightPAS.Web.Integration.LettersMerge),
-    typeof(BrightPAS.Web.Integration.RemindersMerge), typeof(BrightPAS.Web.Integration.PortalMerge) })
+    typeof(BrightPAS.Web.Integration.RemindersMerge), typeof(BrightPAS.Web.Integration.PortalMerge), typeof(BrightPAS.Web.Integration.MessagingMerge) })
     builder.Services.AddScoped(typeof(BrightPAS.Modules.Patients.IPatientMergeParticipant), t);
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.HealthLinkWorker>();
 builder.Services.AddScoped<BrightPAS.Web.Licensing.ModuleSetupService>();
@@ -65,6 +66,12 @@ builder.Services.AddSingleton(new BrightPAS.Modules.Reminders.ReminderDefaults(
     builder.Configuration.GetValue("Reminders:EmailProvider", BrightPAS.Modules.Reminders.EmailProvider.Smtp)));
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.ReminderWorker>();
 builder.Services.AddHostedService<BrightPAS.Web.Integration.MllpListener>();
+// Messaging engine (ADR 0021): fo-dicom networking, live listener state, inbound pipeline and the engine host.
+FellowOakDicom.IServiceCollectionExtension.AddFellowOakDicom(builder.Services);
+builder.Services.AddSingleton<BrightPAS.Web.Integration.MessagingRuntime>();
+builder.Services.AddScoped<BrightPAS.Web.Integration.MessagingPipeline>();
+builder.Services.AddHttpClient("messaging", c => c.Timeout = TimeSpan.FromSeconds(30));
+if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.MessagingHost>();
 builder.Services.AddPasAuthentication(builder.Environment);
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
@@ -83,9 +90,13 @@ builder.Services.AddRateLimiter(o =>
     // SMS vendor callbacks (replies and delivery receipts): per client IP, sized for vendor bursts.
     o.AddPolicy("vendor-callbacks", ctx => RateLimitPartition.GetFixedWindowLimiter("hooks:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // Inbound REST interfaces (other systems posting messages): per client IP, sized for interface volumes.
+    o.AddPolicy("integration-in", ctx => RateLimitPartition.GetFixedWindowLimiter("in:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 600, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
 var app = builder.Build();
+FellowOakDicom.DicomSetupBuilder.UseServiceProvider(app.Services);
 
 // Idempotent start-up seeding: default roles and, on a brand-new installation, the TDS organisation structure.
 using (var scope = app.Services.CreateScope())
@@ -158,6 +169,7 @@ app.MapLettersEndpoints();
 app.MapRosterEndpoints();
 app.MapPatientRecordsEndpoints();
 app.MapPortalEndpoints();
+app.MapMessagingEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.
 app.MapFallback("/api/{**rest}", () => Results.NotFound()).AllowAnonymous();

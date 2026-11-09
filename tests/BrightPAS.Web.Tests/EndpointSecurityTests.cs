@@ -46,6 +46,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         ("/api/my/{token}/documents", "Patient portal upload: link + date of birth, 5 files a day, 10 MB, PDF/images only.", true),
         ("/api/my/{token}/questionnaire", "Patient portal: link + date of birth; issues a pre-admission form link for the next booking.", true),
         ("/api/my/{token}/estimates/{id:guid}/accept", "Patient portal: link + date of birth; accepts only that patient's issued estimate.", true),
+        ("/api/integration/in/{code}", "Inbound REST interface: per-interface key in X-BrightPAS-Key (constant-time check), 5 MB limit, licence-gated.", true),
         ("/api/{**rest}", "Unknown API routes answer 404.", false),
         ("/{*path:nonfile}", "The browser app shell (index.html); holds no data.", false),
     ];
@@ -57,7 +58,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
     private static readonly (string Prefix, string? Module)[] Areas =
     [
         ("/api/labs", "labs"), ("/api/theatre", "theatre"), ("/api/forms", "forms"), ("/api/q/", "forms"), ("/api/billing", "billing"),
-        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/export-policy", null),
+        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/export-policy", null),
         ("/api/patients", null), ("/api/admin", null), ("/api/audit", null), ("/api/auth", null), ("/api/setup", null), ("/api/me", null),
         ("/api/organisation", null), ("/api/{**rest}", null), ("/health", null), ("/{*path", null),
     ];

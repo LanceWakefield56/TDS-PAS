@@ -40,6 +40,7 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_billing_Documents_Patient', N'[bi
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_labs_Reports_Patient', N'[labs].[Reports]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_referrals_Referrals_Patient', N'[referrals].[Referrals]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_referrals_Waitlist_Patient', N'[referrals].[Waitlist]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_msg_Messages_Patient', N'[msg].[Messages]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_letters_Letters_Patient', N'[letters].[Letters]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_reminders_Messages_Patient', N'[reminders].[Messages]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_reminders_Replies_Patient', N'[reminders].[Replies]', N'PatientId', N'[patients].[Patients]';

@@ -1,3 +1,4 @@
+using BrightPAS.Core.Integration;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using BrightPAS.Core.Audit;
@@ -14,7 +15,8 @@ public sealed record HealthLinkSettingsEdit(HealthLinkMode Mode, string? SenderE
 /// HealthLink messaging client sends, and reads ACK files back from the inbox folder. TestOutbox mode records the message without sending it.
 /// The exact HealthLink profile (segments, EDI addressing) must be confirmed with HealthLink before live use.
 /// </summary>
-public sealed class HealthLinkService(LettersDbContext db, PatientsDbContext patients, OrganisationService org, AuditWriter audit, TimeProvider clock)
+public sealed class HealthLinkService(LettersDbContext db, PatientsDbContext patients, OrganisationService org, AuditWriter audit, TimeProvider clock,
+    IEnumerable<BrightPAS.Core.Integration.IMessageTap> taps)
 {
     public async Task<IReadOnlyList<string>> UpdateSettingsAsync(HealthLinkSettingsEdit e, string user, CancellationToken ct = default)
     {
@@ -63,6 +65,7 @@ public sealed class HealthLinkService(LettersDbContext db, PatientsDbContext pat
             {
                 l.Status = LetterStatus.Failed; l.AckText = $"Could not write to the HealthLink outbox: {ex.Message}";
                 await db.SaveChangesAsync(ct);
+                await taps.RecordAllAsync(new(  "healthlink", false, "REF^I12", control, l.PatientId, message, false, l.AckText, l.Number, "Hl7v2"), ct);
                 await audit.WriteAsync(user, "SendFailed", "Letter", l.Id.ToString(), l.PatientId.ToString(), reason: $"{l.Number}: {ex.Message}", ct: ct);
                 return (false, l.AckText);
             }
@@ -71,6 +74,7 @@ public sealed class HealthLinkService(LettersDbContext db, PatientsDbContext pat
         l.AckCode = null; l.AckText = s.Mode == HealthLinkMode.TestOutbox ? "TEST MODE – recorded, not sent." : "Waiting for HealthLink acknowledgement.";
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Send", "Letter", l.Id.ToString(), l.PatientId.ToString(), reason: $"{l.Number} via HealthLink to {practice.HealthLinkEdi} ({control}, {s.Mode})", ct: ct);
+        await taps.RecordAllAsync(new("healthlink", false, "REF^I12", control, l.PatientId, message, true, s.Mode == HealthLinkMode.TestOutbox ? "Test mode – recorded, not sent." : $"Written to the HealthLink outbox for {practice.HealthLinkEdi}.", l.Number, "Hl7v2"), ct);
         return (true, s.Mode == HealthLinkMode.TestOutbox ? $"Recorded in test mode as {control} (not sent)." : $"Sent to HealthLink as {control}.");
     }
 
@@ -91,6 +95,7 @@ public sealed class HealthLinkService(LettersDbContext db, PatientsDbContext pat
                 letter.Status = ack.Code is "AA" or "CA" ? LetterStatus.Acknowledged : LetterStatus.Failed;
                 await db.SaveChangesAsync(ct);
                 await audit.WriteAsync("healthlink", "Acknowledge", "Letter", letter.Id.ToString(), letter.PatientId.ToString(), reason: $"{letter.Number}: {ack.Code} {ack.Text}", ct: ct);
+                await taps.RecordAllAsync(new("healthlink", true, "ACK", ack.ControlId, letter.PatientId, text, ack.Code is "AA" or "CA", $"{ack.Code} {ack.Text}".Trim(), letter.Number, "Hl7v2"), ct);
                 count++;
             }
             File.Move(file, Path.Combine(done, Path.GetFileName(file)), overwrite: true);

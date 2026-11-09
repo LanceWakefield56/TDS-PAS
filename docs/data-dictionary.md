@@ -320,7 +320,7 @@ Access: PatientId, TokenHash (SHA-256; token never stored), CreatedAt/By, Expire
 - **forms.Flags** (RequestId, Sequence) PK; Level, Text – replaces Requests.FlagsJson (flags as shown to the triage nurse). R
 - **cred.RequiredTypes** (Type) PK – replaces Settings.RequiredTypes (comma-separated). P
 - **patients.Printers**: + Language (Zpl/Dymo), MediaCode (DYMO stock). P
-- **reporting.*** views/procedures and **maintenance.*** procedures: see 14-reporting.sql; role brightpas_reporting.
+- **reporting.*** views/procedures and **maintenance.*** procedures: see 90-reporting.sql (was 14-reporting.sql); role brightpas_reporting.
 
 ### Normal-form review
 All tables have a single-purpose primary key; repeating groups removed (1NF); no partial dependencies on composite keys (2NF). Intentional point-in-time copies (not 3NF violations in meaning, as they record what was true then): billing.Documents.Surgeon/Anaesthetist and Lines.Description, patients.Corrections.Before, patients.Merges.DuplicateSummary, letters.Letters.Author/RecipientName/RecipientAddress. Closed in 0.10.2: clinicians and rooms are referenced by id only – see below.
