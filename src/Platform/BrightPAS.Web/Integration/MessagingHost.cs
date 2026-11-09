@@ -2,7 +2,9 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json.Nodes;
 using FellowOakDicom;
+using Microsoft.Data.SqlClient;
 using FellowOakDicom.Network;
 using BrightPAS.Licensing;
 using BrightPAS.Messaging.Hl7;
@@ -101,6 +103,7 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
 {
     private readonly Dictionary<Guid, (CancellationTokenSource Cts, string Signature)> _mllp = [];
     private readonly Dictionary<Guid, (IDicomServer Server, string Signature)> _dicom = [];
+    private readonly Dictionary<Guid, DateTimeOffset> _nextPoll = [];
     private DateTimeOffset _nextReconcile, _nextFolders, _nextAlerts;
     private bool _seeded;
 
@@ -129,6 +132,7 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
         if (!_seeded) { await SeedFromConfigAsync(svc, ct); await svc.RequeueStuckAsync(ct); _seeded = true; }
         if (now >= _nextReconcile) { await ReconcileAsync(svc, ct); _nextReconcile = now.AddSeconds(15); }
         if (now >= _nextFolders) { await WatchFoldersAsync(svc, ct); _nextFolders = now.AddSeconds(15); }
+        await PollSqlAsync(scope.ServiceProvider, svc, now, ct);
         await SendDueAsync(svc, ct);
         if (now >= _nextAlerts) { await AlertsAsync(scope.ServiceProvider, svc, ct); _nextAlerts = now.AddSeconds(60); }
     }
@@ -303,6 +307,35 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
         File.Move(file, dest, overwrite: true);
     }
 
+    // ------------------------------------------------------------------ SQL connector
+    private async Task PollSqlAsync(IServiceProvider sp, MessagingService svc, DateTimeOffset now, CancellationToken ct)
+    {
+        foreach (var i in await svc.ActiveAsync(Transport.SqlQuery))
+        {
+            if (_nextPoll.TryGetValue(i.Id, out var next) && next > now) continue;
+            _nextPoll[i.Id] = now.AddSeconds(i.PollSeconds ?? 300);
+            var state = await svc.StateAsync(i.Id, ct);
+            var watermark = state?.Watermark;
+            var rows = 0;
+            try
+            {
+                var pipeline = sp.GetRequiredService<MessagingPipeline>();
+                (rows, watermark) = await SqlConnector.ReadAsync(svc.SecretOf(i)!, i.SqlText!, watermark, i.WatermarkColumn, 500,
+                    row => pipeline.ReceiveAsync(i, row, $"sql:{i.Code}", null, ct), ct);
+                await svc.SaveStateAsync(i.Id, watermark, rows, null, ct);
+                runtime.Set(new(i.Id, "SQL", 0, true, null, DateTimeOffset.UtcNow, 0, rows > 0 ? DateTimeOffset.UtcNow : runtime.States.GetValueOrDefault(i.Id)?.LastActivity));
+            }
+            catch (Exception ex) when (ex is SqlException or InvalidOperationException or ArgumentException)
+            {
+                await svc.SaveStateAsync(i.Id, watermark, rows, ex.Message, ct);
+                runtime.Set(new(i.Id, "SQL", 0, false, $"Database query failed: {ex.Message}", DateTimeOffset.UtcNow, 0, null));
+                log.LogWarning("SQL interface {Code} failed: {Error}", i.Code, ex.Message);
+            }
+        }
+    }
+
+    private static readonly int[] PermanentSqlErrors = [102, 207, 208, 229, 245, 547, 2601, 2627, 8152, 515];
+
     // ------------------------------------------------------------------ sending
     private async Task SendDueAsync(MessagingService svc, CancellationToken ct)
     {
@@ -340,6 +373,13 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
                         var code = (int)res.StatusCode;
                         if (res.IsSuccessStatusCode) await svc.SentAsync(m.Id, null, $"HTTP {code}", ct);
                         else await svc.FailedAsync(m.Id, $"HTTP {code} {res.ReasonPhrase}", code is >= 400 and < 500 and not 408 and not 429, ct);
+                        break;
+                    }
+                    case Transport.SqlWrite:
+                    {
+                        try { await svc.SentAsync(m.Id, null, $"{await SqlConnector.WriteAsync(svc.SecretOf(i)!, i.SqlText!, content, ct)} row(s) written", ct); }
+                        catch (SqlException ex) { await svc.FailedAsync(m.Id, $"Database: {ex.Message}", PermanentSqlErrors.Contains(ex.Number), ct); }
+                        catch (System.Text.Json.JsonException ex) { await svc.FailedAsync(m.Id, $"Not valid JSON: {ex.Message}", true, ct); }
                         break;
                     }
                     default:
@@ -393,6 +433,66 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
             }
         }
         await svc.MarkNotifiedAsync(fresh.Select(a => a.Id), ct);
+    }
+}
+
+/// <summary>The SQL connector: read rows as JSON (with a watermark) and write a JSON message with parameters only.</summary>
+public static class SqlConnector
+{
+    public static async Task<(int Rows, string? Watermark)> ReadAsync(string connectionString, string sql, string? watermark, string? watermarkColumn, int max,
+        Func<string, Task> onRow, CancellationToken ct)
+    {
+        var rows = 0;
+        await using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(ct);
+        await using var cmd = new SqlCommand(sql, conn) { CommandTimeout = 60 };
+        if (SqlSafety.Parameters(sql).Contains("watermark", StringComparer.OrdinalIgnoreCase)) cmd.Parameters.AddWithValue("@watermark", (object?)watermark ?? DBNull.Value);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (rows < max && await reader.ReadAsync(ct))
+        {
+            var row = new JsonObject();
+            for (var f = 0; f < reader.FieldCount; f++)
+            {
+                var v = reader.IsDBNull(f) ? null : reader.GetValue(f);
+                var name = reader.GetName(f);
+                row[name] = v switch
+                {
+                    null => null, DateTime d => JsonValue.Create(d.ToString("o")), DateTimeOffset o => JsonValue.Create(o.ToString("o")), byte[] => null,
+                    bool b => JsonValue.Create(b), int n => JsonValue.Create(n), long n => JsonValue.Create(n), decimal n => JsonValue.Create(n), double n => JsonValue.Create(n),
+                    _ => JsonValue.Create(Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture)),
+                };
+                if (watermarkColumn is { } wc && string.Equals(name, wc, StringComparison.OrdinalIgnoreCase) && v is not null)
+                    watermark = v is DateTime dt ? dt.ToString("yyyy-MM-ddTHH:mm:ss.fffffff") : Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture);
+            }
+            await onRow(row.ToJsonString());
+            rows++;
+        }
+        return (rows, watermark);
+    }
+
+    public static async Task<int> WriteAsync(string connectionString, string sql, string content, CancellationToken ct)
+    {
+        var json = JsonNode.Parse(content) as JsonObject ?? throw new MappingException("A database write needs a JSON object (one row) – add a mapper that produces one.");
+        await using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(ct);
+        await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
+        await using var cmd = new SqlCommand(sql, conn, tx) { CommandTimeout = 60 };
+        foreach (var p in SqlSafety.Parameters(sql))
+        {
+            var node = json.FirstOrDefault(kv => string.Equals(kv.Key, p, StringComparison.OrdinalIgnoreCase)).Value;
+            object value = node switch
+            {
+                null => DBNull.Value,
+                JsonValue v when v.TryGetValue<bool>(out var b) => b,
+                JsonValue v when v.TryGetValue<decimal>(out var d) => d,
+                JsonValue v when v.TryGetValue<string>(out var s) => s,
+                _ => node.ToJsonString(),
+            };
+            cmd.Parameters.AddWithValue("@" + p, value);
+        }
+        var n = await cmd.ExecuteNonQueryAsync(ct);
+        await tx.CommitAsync(ct);
+        return n;
     }
 }
 

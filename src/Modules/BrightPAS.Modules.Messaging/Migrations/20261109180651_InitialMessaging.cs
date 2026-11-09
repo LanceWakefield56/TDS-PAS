@@ -48,6 +48,9 @@ namespace BrightPAS.Modules.Messaging.Migrations
                     FolderPath = table.Column<string>(type: "nvarchar(260)", maxLength: 260, nullable: true),
                     Url = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     AeTitle = table.Column<string>(type: "nvarchar(16)", maxLength: 16, nullable: true),
+                    SqlText = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    PollSeconds = table.Column<int>(type: "int", nullable: true),
+                    WatermarkColumn = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
                     Secret = table.Column<byte[]>(type: "varbinary(max)", nullable: true),
                     SystemKey = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
@@ -83,6 +86,25 @@ namespace BrightPAS.Modules.Messaging.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "McpClients",
+                schema: "msg",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    TokenHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    CreatedBy = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    ExpiresAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    LastUsedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_McpClients", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Settings",
                 schema: "msg",
                 columns: table => new
@@ -90,7 +112,14 @@ namespace BrightPAS.Modules.Messaging.Migrations
                     Id = table.Column<int>(type: "int", nullable: false),
                     MaxAttempts = table.Column<int>(type: "int", nullable: false),
                     AlertEmail = table.Column<string>(type: "nvarchar(254)", maxLength: 254, nullable: true),
-                    RequireSecondApprover = table.Column<bool>(type: "bit", nullable: false)
+                    RequireSecondApprover = table.Column<bool>(type: "bit", nullable: false),
+                    AiEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    AiEndpoint = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
+                    AiModel = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    AiKey = table.Column<byte[]>(type: "varbinary(max)", nullable: true),
+                    AiPrivacyReference = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
+                    AiApprovedBy = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    AiApprovedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -214,6 +243,29 @@ namespace BrightPAS.Modules.Messaging.Migrations
                         principalSchema: "msg",
                         principalTable: "Messages",
                         principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "States",
+                schema: "msg",
+                columns: table => new
+                {
+                    InterfaceId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Watermark = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    LastPolledAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    LastRows = table.Column<int>(type: "int", nullable: false),
+                    LastError = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_States", x => x.InterfaceId);
+                    table.ForeignKey(
+                        name: "FK_States_Interfaces_InterfaceId",
+                        column: x => x.InterfaceId,
+                        principalSchema: "msg",
+                        principalTable: "Interfaces",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -537,6 +589,13 @@ namespace BrightPAS.Modules.Messaging.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_McpClients_TokenHash",
+                schema: "msg",
+                table: "McpClients",
+                column: "TokenHash",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Messages_ControlId",
                 schema: "msg",
                 table: "Messages",
@@ -667,11 +726,19 @@ namespace BrightPAS.Modules.Messaging.Migrations
                 schema: "msg");
 
             migrationBuilder.DropTable(
+                name: "McpClients",
+                schema: "msg");
+
+            migrationBuilder.DropTable(
                 name: "Rules",
                 schema: "msg");
 
             migrationBuilder.DropTable(
                 name: "Settings",
+                schema: "msg");
+
+            migrationBuilder.DropTable(
+                name: "States",
                 schema: "msg");
 
             migrationBuilder.DropTable(

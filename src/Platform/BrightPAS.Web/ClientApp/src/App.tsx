@@ -42,6 +42,9 @@ import MyPortal from './pages/MyPortal';
 import SecuritySettings from './pages/SecuritySettings';
 import Nbrs from './pages/Nbrs';
 import DymoLabels from './pages/DymoLabels';
+import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
+import { FlowEditor, MessagingFlows } from './pages/FlowDesigner';
+import { MappingEditor, MessagingMappings } from './pages/MappingDesigner';
 
 interface Session { me: Me | null; refresh: () => Promise<void>; signOut: () => Promise<void>; can: (perm: string) => boolean; mod: (id: string) => boolean; writable: (id: string) => boolean }
 const SessionContext = createContext<Session>(null!);
@@ -120,6 +123,16 @@ export default function App() {
           <Route path="/admin/letters" element={<LetterAdmin />} />
           <Route path="/waitlist" element={<Waitlist />} />
           <Route path="/admin/interfaces" element={<Interfaces />} />
+          <Route path="/messaging" element={<MessagingDashboard />} />
+          <Route path="/messaging/interfaces" element={<MessagingInterfaces />} />
+          <Route path="/messaging/messages" element={<MessagingMessages />} />
+          <Route path="/messaging/messages/:id" element={<MessagingMessage />} />
+          <Route path="/messaging/flows" element={<MessagingFlows />} />
+          <Route path="/messaging/flows/:id" element={<FlowEditor />} />
+          <Route path="/messaging/mappings" element={<MessagingMappings />} />
+          <Route path="/messaging/mappings/:id" element={<MappingEditor />} />
+          <Route path="/messaging/tables" element={<MessagingTables />} />
+          <Route path="/messaging/settings" element={<MessagingSettings />} />
           <Route path="/labs" element={<LabsInbox />} />
           <Route path="/labs/:id" element={<LabReport />} />
           <Route path="/theatre" element={<TheatreLists />} />

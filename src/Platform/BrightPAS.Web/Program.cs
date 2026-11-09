@@ -71,6 +71,7 @@ FellowOakDicom.IServiceCollectionExtension.AddFellowOakDicom(builder.Services);
 builder.Services.AddSingleton<BrightPAS.Web.Integration.MessagingRuntime>();
 builder.Services.AddScoped<BrightPAS.Web.Integration.MessagingPipeline>();
 builder.Services.AddHttpClient("messaging", c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient("ai", c => c.Timeout = TimeSpan.FromSeconds(60));
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.MessagingHost>();
 builder.Services.AddPasAuthentication(builder.Environment);
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -91,6 +92,9 @@ builder.Services.AddRateLimiter(o =>
     o.AddPolicy("vendor-callbacks", ctx => RateLimitPartition.GetFixedWindowLimiter("hooks:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     // Inbound REST interfaces (other systems posting messages): per client IP, sized for interface volumes.
+    // MCP server for AI tools: per client IP.
+    o.AddPolicy("mcp", ctx => RateLimitPartition.GetFixedWindowLimiter("mcp:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     o.AddPolicy("integration-in", ctx => RateLimitPartition.GetFixedWindowLimiter("in:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 600, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
@@ -170,6 +174,7 @@ app.MapRosterEndpoints();
 app.MapPatientRecordsEndpoints();
 app.MapPortalEndpoints();
 app.MapMessagingEndpoints();
+app.MapMcpAndAiEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.
 app.MapFallback("/api/{**rest}", () => Results.NotFound()).AllowAnonymous();

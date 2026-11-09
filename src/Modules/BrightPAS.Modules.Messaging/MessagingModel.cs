@@ -23,6 +23,8 @@ public sealed class MessagingModule : IPasModule
         services.AddScoped<MessagingService>();
         services.AddScoped<MappingService>();
         services.AddScoped<FlowService>();
+        services.AddScoped<McpService>();
+        services.AddScoped<AiAssistService>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IMessageTap, MessageStoreTap>());
     }
 }
@@ -32,7 +34,8 @@ public enum InterfaceDirection { Inbound = 1, Outbound = 2 }
 /// <summary>How messages arrive or leave. Monitored = traffic another BrightPAS module sends itself (HealthLink, SMS, email), recorded here for one view.</summary>
 /// <summary>DicomListen = BrightPAS is a DICOM node (C-STORE and C-ECHO SCP) for devices.</summary>
 /// <summary>HttpReceive = a REST endpoint on BrightPAS that other systems POST to (with a secret key).</summary>
-public enum Transport { MllpListen = 1, MllpSend = 2, FolderWatch = 3, FolderWrite = 4, HttpPost = 5, Monitored = 6, DicomListen = 7, HttpReceive = 8 }
+/// <summary>SqlQuery = poll another database with a SELECT (rows become JSON messages); SqlWrite = run a parameterised INSERT/UPDATE/EXEC per message.</summary>
+public enum Transport { MllpListen = 1, MllpSend = 2, FolderWatch = 3, FolderWrite = 4, HttpPost = 5, Monitored = 6, DicomListen = 7, HttpReceive = 8, SqlQuery = 9, SqlWrite = 10 }
 
 /// <summary>Dicom messages are stored as the DICOM JSON model (PS3.18 Annex F) without pixel data.</summary>
 public enum MessageFormat { Hl7v2 = 1, Json = 2, Fhir = 3, Text = 4, Dicom = 5, Xml = 6, X12 = 7 }
@@ -57,6 +60,12 @@ public sealed class Interface
     public string? Url { get; set; }
     /// <summary>DICOM: BrightPAS's own AE title on this listener (called AE).</summary>
     public string? AeTitle { get; set; }
+    /// <summary>SQL: the SELECT (inbound) or INSERT/UPDATE/EXEC (outbound) statement. Values only ever go in as @parameters. The connection string is the encrypted Secret.</summary>
+    public string? SqlText { get; set; }
+    /// <summary>SQL inbound: how often to run the query.</summary>
+    public int? PollSeconds { get; set; }
+    /// <summary>SQL inbound: column whose highest value is remembered and passed back as @watermark, so each row is read once.</summary>
+    public string? WatermarkColumn { get; set; }
     /// <summary>HttpPost: Authorization header value sent. HttpReceive: the key callers must send (X-BrightPAS-Key). Encrypted.</summary>
     public byte[]? Secret { get; set; }
     /// <summary>For Monitored interfaces: which module records here ("healthlink", "sms", "email").</summary>
@@ -134,6 +143,29 @@ public sealed class FlowEdge
     public Guid FromNodeId { get; set; }
     public Guid ToNodeId { get; set; }
     public EdgeBranch Branch { get; set; } = EdgeBranch.Next;
+}
+
+/// <summary>Where a polling interface is up to (SQL watermark).</summary>
+public sealed class InterfaceState
+{
+    public Guid InterfaceId { get; set; }
+    public string? Watermark { get; set; }
+    public DateTimeOffset? LastPolledAt { get; set; }
+    public int LastRows { get; set; }
+    public string? LastError { get; set; }
+}
+
+/// <summary>An AI tool or agent allowed to query the engine over MCP (read-only; never message content). Only the token's SHA-256 is stored.</summary>
+public sealed class McpClient
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = "";
+    public string TokenHash { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public string CreatedBy { get; set; } = "";
+    public DateTimeOffset? ExpiresAt { get; set; }
+    public DateTimeOffset? LastUsedAt { get; set; }
 }
 
 public enum MessageStatus
@@ -294,6 +326,14 @@ public sealed class MsgSettings
     public string? AlertEmail { get; set; }
     /// <summary>A second person must approve a mapping version before it goes live.</summary>
     public bool RequireSecondApprover { get; set; } = true;
+    /// <summary>AI troubleshooting assistant (off by default). Only de-identified summaries are sent; switching it on records who approved it and the privacy reference.</summary>
+    public bool AiEnabled { get; set; }
+    public string? AiEndpoint { get; set; }
+    public string? AiModel { get; set; }
+    public byte[]? AiKey { get; set; }
+    public string? AiPrivacyReference { get; set; }
+    public string? AiApprovedBy { get; set; }
+    public DateTimeOffset? AiApprovedAt { get; set; }
 }
 
 public sealed class MsgDbContext(DbContextOptions<MsgDbContext> options) : DbContext(options)
@@ -315,6 +355,8 @@ public sealed class MsgDbContext(DbContextOptions<MsgDbContext> options) : DbCon
     public DbSet<FilterRule> Filters => Set<FilterRule>();
     public DbSet<Alert> Alerts => Set<Alert>();
     public DbSet<MsgSettings> Settings => Set<MsgSettings>();
+    public DbSet<InterfaceState> States => Set<InterfaceState>();
+    public DbSet<McpClient> McpClients => Set<McpClient>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
@@ -338,6 +380,8 @@ public sealed class MsgDbContext(DbContextOptions<MsgDbContext> options) : DbCon
             e.Property(x => x.FolderPath).HasMaxLength(260);
             e.Property(x => x.Url).HasMaxLength(500);
             e.Property(x => x.AeTitle).HasMaxLength(16);
+            e.Property(x => x.SqlText).HasMaxLength(4000);
+            e.Property(x => x.WatermarkColumn).HasMaxLength(128);
             e.Property(x => x.SystemKey).HasMaxLength(20);
             e.HasIndex(x => x.SystemKey).IsUnique().HasFilter("[SystemKey] IS NOT NULL");
             e.Property(x => x.Notes).HasMaxLength(500);
@@ -493,6 +537,24 @@ public sealed class MsgDbContext(DbContextOptions<MsgDbContext> options) : DbCon
         {
             e.Property(x => x.Id).ValueGeneratedNever();
             e.Property(x => x.AlertEmail).HasMaxLength(254);
+            e.Property(x => x.AiEndpoint).HasMaxLength(300);
+            e.Property(x => x.AiModel).HasMaxLength(100);
+            e.Property(x => x.AiPrivacyReference).HasMaxLength(300);
+            e.Property(x => x.AiApprovedBy).HasMaxLength(100);
+        });
+        b.Entity<InterfaceState>(e =>
+        {
+            e.HasKey(x => x.InterfaceId);
+            e.Property(x => x.Watermark).HasMaxLength(200);
+            e.Property(x => x.LastError).HasMaxLength(500);
+            e.HasOne<Interface>().WithOne().HasForeignKey<InterfaceState>(x => x.InterfaceId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<McpClient>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.TokenHash).HasMaxLength(64);
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.Property(x => x.CreatedBy).HasMaxLength(100);
         });
     }
 }

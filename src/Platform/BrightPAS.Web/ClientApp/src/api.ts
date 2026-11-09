@@ -50,6 +50,7 @@ export const Perm = {
   LettersView: 'letters.view', LettersWrite: 'letters.write', LettersTemplates: 'letters.templates', OrganisationManage: 'admin.organisation.manage',
   RosterView: 'roster.view', RosterManage: 'roster.manage', PatientMerge: 'patient.merge',
   CredentialingView: 'credentialing.view', CredentialingManage: 'credentialing.manage', PortalSpecialist: 'portal.specialist', PortalManage: 'portal.manage',
+  MessagingView: 'messaging.view',
 } as const;
 
 /** POSTs and saves the returned file (exports). Throws ApiError with the JSON body on refusal (e.g. password needed). */

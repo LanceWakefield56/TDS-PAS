@@ -13,11 +13,11 @@ public sealed record ClientEdit(string Address, string? AeTitle, string? Descrip
 
 public sealed record InterfaceEdit(Guid? Id, string Code, string Name, InterfaceDirection Direction, Transport Transport, MessageFormat Format, InboundHandler Handler,
     string? Host, int? Port, string? FolderPath, string? Url, string? Secret, string? AeTitle, IReadOnlyList<ClientEdit>? AllowedClients, bool IsActive, int AlertAfterFailures,
-    int? SilentAlertHours, string? Notes);
+    int? SilentAlertHours, string? Notes, string? SqlText = null, int? PollSeconds = null, string? WatermarkColumn = null);
 
 public sealed record InterfaceRow(Guid Id, string Code, string Name, string Direction, string Transport, string Format, string Handler, string? Host, int? Port,
     string? FolderPath, string? Url, bool HasSecret, string? AeTitle, IReadOnlyList<ClientEdit> AllowedClients, bool IsActive, int AlertAfterFailures, int? SilentAlertHours,
-    string? Notes, string? SystemKey, DateTimeOffset? LastIn, DateTimeOffset? LastOut, int Queued, int Failed24h, int DeadLetters, int Total24h, int OpenAlerts);
+    string? Notes, string? SystemKey, string? SqlText, int? PollSeconds, string? WatermarkColumn, DateTimeOffset? LastIn, DateTimeOffset? LastOut, int Queued, int Failed24h, int DeadLetters, int Total24h, int OpenAlerts);
 
 
 public sealed record MessageQuery(Guid? InterfaceId = null, string? Status = null, Guid? PatientId = null, string? Nhi = null, string? Text = null,
@@ -89,7 +89,7 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
         {
             var s = stats.GetValueOrDefault(i.Id);
             return new InterfaceRow(i.Id, i.Code, i.Name, i.Direction.ToString(), i.Transport.ToString(), i.Format.ToString(), i.Handler.ToString(), i.Host, i.Port,
-                i.FolderPath, i.Url, i.Secret is { Length: > 0 }, i.AeTitle, clients[i.Id].ToList(), i.IsActive, i.AlertAfterFailures, i.SilentAlertHours, i.Notes, i.SystemKey,
+                i.FolderPath, i.Url, i.Secret is { Length: > 0 }, i.AeTitle, clients[i.Id].ToList(), i.IsActive, i.AlertAfterFailures, i.SilentAlertHours, i.Notes, i.SystemKey, i.SqlText, i.PollSeconds, i.WatermarkColumn,
                 s?.LastIn, s?.LastOut, s?.Queued ?? 0, s?.Failed ?? 0, s?.Dead ?? 0, s?.Total ?? 0, alerts.GetValueOrDefault(i.Id));
         }).ToList();
     }
@@ -104,6 +104,15 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
     public async Task<IReadOnlyList<Interface>> ActiveAsync(params Transport[] transports) =>
         await db.Interfaces.AsNoTracking().Where(i => i.IsActive && transports.Contains(i.Transport)).ToListAsync();
 
+    public Task<InterfaceState?> StateAsync(Guid interfaceId, CancellationToken ct = default) => db.States.AsNoTracking().SingleOrDefaultAsync(s => s.InterfaceId == interfaceId, ct);
+
+    public async Task SaveStateAsync(Guid interfaceId, string? watermark, int rows, string? error, CancellationToken ct = default)
+    {
+        var s = await db.States.SingleOrDefaultAsync(x => x.InterfaceId == interfaceId, ct) ?? db.States.Add(new InterfaceState { InterfaceId = interfaceId }).Entity;
+        s.Watermark = watermark is null ? s.Watermark : Trunc(watermark, 200); s.LastRows = rows; s.LastPolledAt = clock.GetUtcNow(); s.LastError = error is null ? null : Trunc(error, 500);
+        await db.SaveChangesAsync(ct);
+    }
+
     public string? SecretOf(Interface i) => i.Secret is { Length: > 0 } s ? Encoding.UTF8.GetString(cipher.Unprotect(s)) : null;
 
     public async Task<(Interface? Interface, IReadOnlyList<string> Errors)> SaveInterfaceAsync(InterfaceEdit e, string user, CancellationToken ct = default)
@@ -117,7 +126,7 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
         if (existing?.Transport == Transport.Monitored) return (null, ["This interface is recorded automatically by another module and cannot be edited here."]);
         if (e.Transport == Transport.Monitored) errors.Add("Choose how messages arrive or leave.");
         if (await db.Interfaces.AnyAsync(i => i.Code == code && i.Id != (e.Id ?? Guid.Empty), ct)) errors.Add($"Another interface already uses the code {code}.");
-        var inbound = e.Transport is Transport.MllpListen or Transport.FolderWatch or Transport.DicomListen or Transport.HttpReceive;
+        var inbound = e.Transport is Transport.MllpListen or Transport.FolderWatch or Transport.DicomListen or Transport.HttpReceive or Transport.SqlQuery;
         if (inbound != (e.Direction == InterfaceDirection.Inbound)) errors.Add(inbound ? "Listening (MLLP, DICOM, web API) or watching a folder is an inbound interface." : "Sending by MLLP, writing to a folder or posting to a web address is an outbound interface.");
         if (e.Transport is Transport.MllpListen or Transport.MllpSend && e.Format != MessageFormat.Hl7v2) errors.Add("MLLP carries HL7 v2 messages – choose the HL7 v2 format.");
         if (e.Transport == Transport.DicomListen && e.Format != MessageFormat.Dicom) errors.Add("A DICOM listener receives DICOM – choose the DICOM format.");
@@ -144,6 +153,14 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
                     if (clients.Count == 0) errors.Add("Register each device that may send (IP address and AE title). Unregistered devices are refused.");
                     if (clients.Any(c => c.AeTitle is null)) errors.Add("Give every DICOM device its AE title as well as its IP address.");
                 }
+                break;
+            case Transport.SqlQuery:
+            case Transport.SqlWrite:
+                if (e.Format != MessageFormat.Json) errors.Add("Database rows are handled as JSON – choose the JSON format.");
+                if (e.Id is null && string.IsNullOrWhiteSpace(e.Secret)) errors.Add("Enter the connection string for the other database (stored encrypted).");
+                if (!string.IsNullOrWhiteSpace(e.Secret)) errors.AddRange(SqlSafety.ConnectionProblems(e.Secret));
+                errors.AddRange(SqlSafety.StatementProblems(e.SqlText, e.Transport == Transport.SqlQuery, Blank(e.WatermarkColumn)));
+                if (e.Transport == Transport.SqlQuery && e.PollSeconds is not (>= 30 and <= 86400)) errors.Add("Run the query every 30 seconds to 24 hours (86400 seconds).");
                 break;
             case Transport.HttpReceive:
                 if (e.Id is null && string.IsNullOrWhiteSpace(e.Secret)) errors.Add("Set the key other systems must send (use Generate key).");
@@ -174,8 +191,12 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
         i2.FolderPath = e.Transport is Transport.FolderWatch or Transport.FolderWrite ? e.FolderPath!.Trim() : null;
         i2.Url = e.Transport == Transport.HttpPost ? e.Url!.Trim() : null;
         i2.AeTitle = e.Transport == Transport.DicomListen ? ae : null;
-        if (e.Transport is not (Transport.HttpPost or Transport.HttpReceive)) i2.Secret = null;
-        else if (e.Secret is not null) i2.Secret = e.Secret.Length == 0 ? null : cipher.Protect(Encoding.UTF8.GetBytes(e.Secret));
+        var sql = e.Transport is Transport.SqlQuery or Transport.SqlWrite;
+        i2.SqlText = sql ? e.SqlText!.Trim() : null;
+        i2.PollSeconds = e.Transport == Transport.SqlQuery ? e.PollSeconds : null;
+        i2.WatermarkColumn = e.Transport == Transport.SqlQuery ? Blank(e.WatermarkColumn) : null;
+        if (e.Transport is not (Transport.HttpPost or Transport.HttpReceive or Transport.SqlQuery or Transport.SqlWrite)) i2.Secret = null;
+        else if (e.Secret is not null) i2.Secret = e.Secret.Length == 0 && !sql ? null : e.Secret.Length == 0 ? i2.Secret : cipher.Protect(Encoding.UTF8.GetBytes(e.Secret));
         i2.IsActive = e.IsActive; i2.AlertAfterFailures = e.AlertAfterFailures; i2.SilentAlertHours = e.SilentAlertHours; i2.Notes = Blank(e.Notes);
         i2.UpdatedAt = now; i2.UpdatedBy = user;
         await db.SaveChangesAsync(ct);
@@ -190,6 +211,7 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
 
     private static string Describe(Interface i) => i.Transport switch
     {
+        Transport.SqlQuery => $"SELECT every {i.PollSeconds}s", Transport.SqlWrite => "database write",
         Transport.MllpListen => $"port {i.Port}", Transport.DicomListen => $"{i.AeTitle} on port {i.Port}", Transport.HttpReceive => $"/api/integration/in/{i.Code}", Transport.MllpSend => $"{i.Host}:{i.Port}",
         Transport.FolderWatch or Transport.FolderWrite => i.FolderPath ?? "", Transport.HttpPost => i.Url ?? "", _ => i.SystemKey ?? "",
     };
@@ -470,6 +492,12 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
         var names = await db.Interfaces.AsNoTracking().Where(i => ids.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => i.Name, ct);
         return rows.Select(m => new MessageRow(m.Id, m.InterfaceId, names.GetValueOrDefault(m.InterfaceId, "?"), m.Direction.ToString(), m.Status.ToString(), m.MessageType, m.ControlId,
             m.Reference, m.PatientId, m.Nhi, m.SizeBytes, m.Attempts, m.LastError, m.AckCode, m.AckText, m.CreatedAt, m.CompletedAt, m.NextAttemptAt, m.ParentId, m.CreatedBy)).ToList();
+    }
+
+    public async Task<MessageRow?> RowAsync(Guid id, CancellationToken ct = default)
+    {
+        var m = await db.Messages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+        return m is null ? null : (await RowsAsync([m], ct))[0];
     }
 
     /// <summary>Full message with its content and history. Viewing content is audited.</summary>

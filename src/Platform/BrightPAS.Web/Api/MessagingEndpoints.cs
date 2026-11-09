@@ -56,7 +56,7 @@ public static class MessagingEndpoints
         {
             var i = await svc.InterfaceAsync(id);
             if (i is null) return Results.NotFound();
-            return Results.Ok(new { result = await TestAsync(i, runtime, http, ctx) });
+            return Results.Ok(new { result = await TestAsync(i, svc, runtime, http, ctx) });
         }).RequireAuthorization(Manage);
         g.MapPost("/interfaces/{id:guid}/inject", async (Guid id, ContentRequest r, ClaimsPrincipal u, MessagingService svc, MessagingPipeline pipeline, BrightPAS.Core.Audit.AuditWriter audit) =>
         {
@@ -203,7 +203,7 @@ public static class MessagingEndpoints
         }).AllowAnonymous().RequireRateLimiting("integration-in").RequireModule(MessagingModule.Id);
     }
 
-    private static async Task<string> TestAsync(Interface i, MessagingRuntime runtime, IHttpClientFactory http, HttpContext ctx)
+    private static async Task<string> TestAsync(Interface i, MessagingService svc, MessagingRuntime runtime, IHttpClientFactory http, HttpContext ctx)
     {
         switch (i.Transport)
         {
@@ -241,6 +241,18 @@ public static class MessagingEndpoints
                     return $"{i.Url} answered HTTP {(int)res.StatusCode}. (No message was sent.)";
                 }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { return $"Could not reach {i.Url}: {ex.Message}"; }
+            case Transport.SqlQuery:
+            case Transport.SqlWrite:
+                try
+                {
+                    await using var conn = new Microsoft.Data.SqlClient.SqlConnection(svc.SecretOf(i));
+                    await conn.OpenAsync();
+                    await using var cmd = new Microsoft.Data.SqlClient.SqlCommand("SELECT DB_NAME()", conn);
+                    var state = i.Transport == Transport.SqlQuery ? await svc.StateAsync(i.Id) : null;
+                    return $"Connected to database {await cmd.ExecuteScalarAsync()} on {conn.DataSource}. (The interface's own statement was not run.)" +
+                           (state is null ? "" : $" Last run {state.LastPolledAt:dd MMM HH:mm} UTC: {state.LastRows} row(s){(state.LastError is null ? "" : $", error: {state.LastError}")}{(state.Watermark is null ? "" : $", up to {state.Watermark}")}.");
+                }
+                catch (Exception ex) when (ex is Microsoft.Data.SqlClient.SqlException or InvalidOperationException or ArgumentException) { return $"Could not connect to the database: {ex.Message}"; }
             case Transport.HttpReceive:
                 return $"Other systems POST messages to https://{ctx.Request.Host}/api/integration/in/{i.Code} with the header X-BrightPAS-Key.";
             default:

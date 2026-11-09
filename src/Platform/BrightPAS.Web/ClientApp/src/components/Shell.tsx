@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -64,7 +64,8 @@ export default function Shell() {
           {(can(Perm.UsersManage) || can(Perm.OrganisationManage)) && <NavLink to="/admin/security">Security &amp; printers</NavLink>}
           {mod('letters') && can(Perm.LettersTemplates) && <NavLink to="/admin/letters">Letter templates</NavLink>}
           {can(Perm.ModulesManage) && <NavLink to="/admin/licence">Licence &amp; modules{setupCount > 0 && <span className="count">{setupCount}</span>}</NavLink>}
-          {can(Perm.Integration) && <NavLink to="/admin/interfaces">Interfaces</NavLink>}
+          {mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)) && <NavLink to="/messaging">Messaging &amp; integration</NavLink>}
+          {can(Perm.Integration) && <NavLink to="/admin/interfaces">Lab test import</NavLink>}
           {can(Perm.AuditView) && <NavLink to="/audit">Audit log</NavLink>}
         </nav>
         <main className="content" id="main"><Outlet /></main>

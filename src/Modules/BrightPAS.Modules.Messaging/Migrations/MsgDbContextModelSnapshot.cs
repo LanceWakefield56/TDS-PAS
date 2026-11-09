@@ -331,6 +331,9 @@ namespace BrightPAS.Modules.Messaging.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<int?>("PollSeconds")
+                        .HasColumnType("int");
+
                     b.Property<int?>("Port")
                         .HasColumnType("int");
 
@@ -339,6 +342,10 @@ namespace BrightPAS.Modules.Messaging.Migrations
 
                     b.Property<int?>("SilentAlertHours")
                         .HasColumnType("int");
+
+                    b.Property<string>("SqlText")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<string>("SystemKey")
                         .HasMaxLength(20)
@@ -361,6 +368,10 @@ namespace BrightPAS.Modules.Messaging.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("WatermarkColumn")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
@@ -371,6 +382,30 @@ namespace BrightPAS.Modules.Messaging.Migrations
                         .HasFilter("[SystemKey] IS NOT NULL");
 
                     b.ToTable("Interfaces", "msg");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Messaging.InterfaceState", b =>
+                {
+                    b.Property<Guid>("InterfaceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset?>("LastPolledAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("LastRows")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Watermark")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("InterfaceId");
+
+                    b.ToTable("States", "msg");
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Messaging.Mapping", b =>
@@ -532,6 +567,47 @@ namespace BrightPAS.Modules.Messaging.Migrations
                     b.ToTable("Versions", "msg");
                 });
 
+            modelBuilder.Entity("BrightPAS.Modules.Messaging.McpClient", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("LastUsedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("McpClients", "msg");
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Messaging.Message", b =>
                 {
                     b.Property<Guid>("Id")
@@ -670,6 +746,31 @@ namespace BrightPAS.Modules.Messaging.Migrations
                 {
                     b.Property<int>("Id")
                         .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("AiApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("AiApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("AiEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("AiEndpoint")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<byte[]>("AiKey")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("AiModel")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("AiPrivacyReference")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
 
                     b.Property<string>("AlertEmail")
                         .HasMaxLength(254)
@@ -831,6 +932,15 @@ namespace BrightPAS.Modules.Messaging.Migrations
                         .WithMany()
                         .HasForeignKey("MappingId")
                         .OnDelete(DeleteBehavior.NoAction);
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Messaging.InterfaceState", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Messaging.Interface", null)
+                        .WithOne()
+                        .HasForeignKey("BrightPAS.Modules.Messaging.InterfaceState", "InterfaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Messaging.MappingRule", b =>

@@ -13,7 +13,7 @@ export default function Home() {
   const [formCount, setFormCount] = useState<number | null>(null);
   const [version, setVersion] = useState('');
   const [wait, setWait] = useState<{ toTriage: number; overdue: number; dueIn14Days: number } | null>(null);
-  const SETUP = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal'];
+  const SETUP = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging'];
   const setupNeeded = me && can(Perm.ModulesManage) ? SETUP.filter((id) => me.modules[id] === 'Full' && !me.moduleSetup?.[id]).length : 0;
   const theatreOn = mod('theatre') && can(Perm.TheatreView);
   useEffect(() => {

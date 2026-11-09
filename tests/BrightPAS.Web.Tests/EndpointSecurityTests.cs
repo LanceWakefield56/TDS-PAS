@@ -47,6 +47,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         ("/api/my/{token}/questionnaire", "Patient portal: link + date of birth; issues a pre-admission form link for the next booking.", true),
         ("/api/my/{token}/estimates/{id:guid}/accept", "Patient portal: link + date of birth; accepts only that patient's issued estimate.", true),
         ("/api/integration/in/{code}", "Inbound REST interface: per-interface key in X-BrightPAS-Key (constant-time check), 5 MB limit, licence-gated.", true),
+        ("/api/mcp", "MCP server for AI tools: bearer token (SHA-256 stored, expiring, revocable), read-only, never message content; audited.", true),
         ("/api/{**rest}", "Unknown API routes answer 404.", false),
         ("/{*path:nonfile}", "The browser app shell (index.html); holds no data.", false),
     ];
@@ -58,7 +59,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
     private static readonly (string Prefix, string? Module)[] Areas =
     [
         ("/api/labs", "labs"), ("/api/theatre", "theatre"), ("/api/forms", "forms"), ("/api/q/", "forms"), ("/api/billing", "billing"),
-        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/export-policy", null),
+        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/mcp", "messaging"), ("/api/export-policy", null),
         ("/api/patients", null), ("/api/admin", null), ("/api/audit", null), ("/api/auth", null), ("/api/setup", null), ("/api/me", null),
         ("/api/organisation", null), ("/api/{**rest}", null), ("/health", null), ("/{*path", null),
     ];
@@ -125,7 +126,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
             if (url.StartsWith("/api/auth/") || url.StartsWith("/api/setup/")) continue; // covered by the sign-in tests
             using var req = new HttpRequestMessage(new HttpMethod(method), url) { Content = method == "GET" ? null : new StringContent("{}", Encoding.UTF8, "application/json") };
             var res = await c.SendAsync(req);
-            var ok = IsPublic(e) ? res.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest or HttpStatusCode.TooManyRequests or HttpStatusCode.UnsupportedMediaType
+            var ok = IsPublic(e) ? res.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest or HttpStatusCode.TooManyRequests or HttpStatusCode.UnsupportedMediaType or HttpStatusCode.Unauthorized
                                  : res.StatusCode == HttpStatusCode.Unauthorized;
             if (!ok) problems.Add($"{method} {url} -> {(int)res.StatusCode}");
         }
@@ -139,7 +140,8 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         using var c = await SignInAsync("csrf.sec", DefaultRoles.SystemAdministrator);
         c.DefaultRequestHeaders.Remove("X-BrightPAS-Request");
         var problems = new List<string>();
-        foreach (var (method, url, _) in Probeable().Where(p => p.Method != "GET" && !p.Url.StartsWith("/api/hooks/")))
+        // Machine-to-machine endpoints ignore cookies and authenticate with their own keys, so CSRF does not apply to them.
+        foreach (var (method, url, _) in Probeable().Where(p => p.Method != "GET" && !p.Url.StartsWith("/api/hooks/") && !p.Url.StartsWith("/api/integration/in/") && p.Url != "/api/mcp"))
         {
             var res = await c.SendAsync(new HttpRequestMessage(new HttpMethod(method), url) { Content = new StringContent("{}", Encoding.UTF8, "application/json") });
             if (res.StatusCode != HttpStatusCode.BadRequest) problems.Add($"{method} {url} -> {(int)res.StatusCode}");

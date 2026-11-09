@@ -312,3 +312,97 @@ public class MessagingTests
         Assert.Contains("resent from that module", error);
     }
 }
+
+/// <summary>0.12.0: SQL connector rules, AI de-identification, built-in explanations, MCP tokens.</summary>
+public class MessagingAssistTests
+{
+    [Fact]
+    public void Sql_connector_only_allows_single_parameterised_statements()
+    {
+        Assert.Empty(SqlSafety.StatementProblems("SELECT Nhi, Result, UpdatedAt FROM dbo.Results WHERE (@watermark IS NULL OR UpdatedAt > @watermark) ORDER BY UpdatedAt", true, "UpdatedAt"));
+        Assert.NotEmpty(SqlSafety.StatementProblems("SELECT * FROM x; DROP TABLE y", true, null));
+        Assert.NotEmpty(SqlSafety.StatementProblems("SELECT * INTO copy FROM x", true, null));
+        Assert.NotEmpty(SqlSafety.StatementProblems("SELECT * FROM x WHERE a = 1 -- comment", true, null));
+        Assert.NotEmpty(SqlSafety.StatementProblems("EXEC xp_cmdshell 'dir'", false, null));
+        Assert.NotEmpty(SqlSafety.StatementProblems("SELECT * FROM x", true, "UpdatedAt"));          // watermark needs @watermark
+        Assert.Empty(SqlSafety.StatementProblems("INSERT INTO dbo.B (Nhi, Proc) VALUES (@nhi, @procedure)", false, null));
+        Assert.NotEmpty(SqlSafety.StatementProblems("INSERT INTO dbo.B (Nhi) VALUES ('ABC')", false, null)); // no parameters
+        Assert.NotEmpty(SqlSafety.StatementProblems("DELETE FROM dbo.B WHERE Nhi = @nhi", false, null));
+        Assert.Equal(["nhi", "procedure"], SqlSafety.Parameters("INSERT INTO b VALUES (@nhi, @procedure, @nhi)"));
+        Assert.NotEmpty(SqlSafety.ConnectionProblems("Server=db;Database=x;Encrypt=False"));
+        Assert.Empty(SqlSafety.ConnectionProblems("Server=db;Database=x;User ID=u;Password=p;Encrypt=True"));
+    }
+
+    [Fact]
+    public void Redaction_removes_patient_values_but_keeps_message_structure()
+    {
+        Assert.Equal("\"[value]\" is not in the translation table Sex", Redactor.Text("\"X\" is not in the translation table Sex"));
+        Assert.Equal("NHI [NHI] matched", Redactor.Text("NHI ZZZ0016 matched"));
+        Assert.Equal("[email] [number]", Redactor.Text("aroha@example.nz 0211234567"));
+        Assert.Equal("ZZZ••16", Redactor.Mask("ZZZ0016"));
+        Assert.Equal("A(4)", Redactor.Shape("TEST"));
+        Assert.Equal("9(8)", Redactor.Shape("19800517"));
+        const string oru = "MSH|^~\\&|LAB|AWANUI|BrightPAS|TDS|202611101030||ORU^R01|MSG0001|P|2.4\rPID|1||ZZZ0016^^^NHI^NHI||TEST^Aroha||19800517|F\rOBX|1|NM|HB^Haemoglobin^L||132|g/L|115-155|N|||F\r";
+        var sk = string.Join("\n", Redactor.Skeleton(MessageFormat.Hl7v2, oru));
+        Assert.Contains("ORU", sk);                // message type kept
+        Assert.Contains("HB", sk);                 // test code kept
+        Assert.DoesNotContain("ZZZ0016", sk);
+        Assert.DoesNotContain("TEST", sk);
+        Assert.DoesNotContain("Aroha", sk);
+        Assert.DoesNotContain("19800517", sk);
+        Assert.DoesNotContain("132", sk);          // result value removed
+        Assert.DoesNotContain("202611101030", sk); // MSH-7 time removed
+    }
+
+    [Fact]
+    public async Task Ai_payload_is_de_identified_and_assistant_needs_privacy_approval()
+    {
+        await using var h = new ModulesHost();
+        await using var s = h.Scope();
+        var sp = s.ServiceProvider;
+        var svc = sp.GetRequiredService<MessagingService>();
+        var ai = sp.GetRequiredService<AiAssistService>();
+        var (i, _) = await svc.SaveInterfaceAsync(new InterfaceEdit(null, "in-1", "In", InterfaceDirection.Inbound, Transport.HttpReceive, MessageFormat.Hl7v2, InboundHandler.None,
+            null, null, null, null, new string('k', 30), null, null, true, 3, null, null), "ia");
+        var m = await svc.ReceiveAsync(i!, "MSH|^~\\&|LAB|AWANUI|||202611101030||ORU^R01|C1|P|2.4\rPID|1||ZZZ0016^^^NHI||NGATAI^Aroha||19800517|F\r", "test");
+        await svc.CompleteInboundAsync(m.Id, MessageStatus.Failed, null, null, "\"F\" is not in the translation table Sex for patient ZZZ0016");
+        var payload = (await ai.PayloadAsync(m.Id))!;
+        Assert.Contains("ORU", payload);
+        Assert.Contains("translation table Sex", payload);
+        foreach (var secret in new[] { "ZZZ0016", "NGATAI", "Aroha", "19800517" }) Assert.DoesNotContain(secret, payload);
+
+        Assert.Null(await ai.ConnectionAsync());
+        var errors = await ai.SaveAsync(new AiSettingsEdit(true, null, null, "sk-test", null, false), "ia");
+        Assert.Contains(errors, e => e.Contains("privacy impact assessment"));
+        Assert.Contains(errors, e => e.Contains("reference"));
+        Assert.Empty(await ai.SaveAsync(new AiSettingsEdit(true, null, null, "sk-test", "PIA-2026-07", true), "privacy.officer"));
+        var conn = await ai.ConnectionAsync();
+        Assert.Equal("sk-test", conn!.Value.Key);
+        Assert.Equal("privacy.officer", (await ai.SettingsAsync()).ApprovedBy);
+        Assert.NotNull(await sp.GetRequiredService<MsgDbContext>().Settings.AsNoTracking().Select(x => x.AiKey).SingleAsync());
+        Assert.NotEqual("sk-test", System.Text.Encoding.UTF8.GetString((await sp.GetRequiredService<MsgDbContext>().Settings.AsNoTracking().SingleAsync()).AiKey!)); // encrypted
+
+        var findings = Explainer.Explain((await svc.RowAsync(m.Id))!, i!, (await svc.GetAsync(m.Id, "ia"))!.Events);
+        Assert.Contains(findings, f => f.Title.Contains("translation table"));
+    }
+
+    [Fact]
+    public async Task Mcp_tokens_are_hashed_expire_and_can_be_revoked()
+    {
+        await using var h = new ModulesHost();
+        await using var s = h.Scope();
+        var mcp = s.ServiceProvider.GetRequiredService<McpService>();
+        Assert.NotNull((await mcp.CreateAsync("x", 0, "ia")).Error);
+        var (token, _) = await mcp.CreateAsync("Claude – IT", 30, "ia");
+        Assert.StartsWith("bpmcp_", token);
+        var stored = await s.ServiceProvider.GetRequiredService<MsgDbContext>().McpClients.AsNoTracking().SingleAsync();
+        Assert.NotEqual(token, stored.TokenHash);
+        Assert.NotNull(await mcp.AuthenticateAsync(token));
+        Assert.Null(await mcp.AuthenticateAsync("bpmcp_wrong"));
+        h.Clock.Advance(TimeSpan.FromDays(31));
+        Assert.Null(await mcp.AuthenticateAsync(token));
+        var (t2, _) = await mcp.CreateAsync("Other", 30, "ia");
+        Assert.Null(await mcp.RevokeAsync((await mcp.ClientsAsync()).Single(c => c.Name == "Other").Id, "ia"));
+        Assert.Null(await mcp.AuthenticateAsync(t2));
+    }
+}
