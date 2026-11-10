@@ -14,6 +14,7 @@ export default function SecuritySettings() {
       {can(Perm.OrganisationManage) && <Printers />}
       {can(Perm.UsersManage) && mod('portal') && <PortalSettings />}
       {can(Perm.UsersManage) && <DocumentText />}
+      {can(Perm.UsersManage) && <WebsiteLog />}
       {can(Perm.UsersManage) && mod('portal') && <Delegates />}
     </div>
   );
@@ -123,9 +124,32 @@ function DocumentText() {
         {s.engineProblem && <p className="error" role="alert">{s.engineProblem}</p>}
         <p>{Object.keys(textNames).map((k) => `${textNames[k]}: ${counts[k] ?? 0}`).join(' · ')}</p>
         {s.summary?.lastProblem && <p className="small muted">Last problem: {s.summary.lastProblem}</p>}
-        {(counts.Failed ?? 0) > 0 && <div><button className="btn btn-light" onClick={retry}>Try failed documents again</button></div>}
+        {((counts.Failed ?? 0) > 0 || s.engineProblem) && <div><button className="btn btn-light" onClick={retry}>Try failed documents again</button></div>}
       </>}
       {msg && <p className="ok-text">{msg}</p>}
+    </section>
+  );
+}
+
+function WebsiteLog() {
+  const [level, setLevel] = useState('WRN');
+  const [lines, setLines] = useState<any[] | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
+  const load = (l = level) => api<any[]>(`/api/admin/logs?level=${l}&take=200`).then(setLines).catch(() => setLines([]));
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <section className="card stack">
+      <div className="row-between"><h2>Website log</h2>
+        <div className="row"><label>Show<select value={level} onChange={(e) => { setLevel(e.target.value); load(e.target.value); }}>
+          <option value="ERR">Errors only</option><option value="WRN">Warnings and errors</option><option value="INF">Everything</option></select></label>
+          <button className="btn btn-light btn-small" onClick={() => load()}>Refresh</button></div></div>
+      <p className="hint">The website writes a log file every day on the server (C:\ProgramData\BrightPAS\logs, kept 30 days; Setup option 5 collects it). No patient details are written to it. When a user sees "Something went wrong … reference ABC12345", search for that reference here.</p>
+      {!lines ? <p>Loading…</p> : lines.length === 0 ? <p className="ok-text">Nothing to show.</p> : (
+        <table className="results compact"><thead><tr><th>When</th><th>Level</th><th>Where</th><th>What happened</th></tr></thead>
+          <tbody>{lines.map((l, i) => (
+            <tr key={i}><td className="small">{l.time.slice(0, 19)}</td><td><span className={`badge ${l.level === 'ERR' || l.level === 'FTL' ? 'warn' : l.level === 'WRN' ? '' : 'off'}`}>{({ ERR: 'Error', FTL: 'Fatal', WRN: 'Warning', INF: 'Info', DBG: 'Debug' } as any)[l.level] ?? l.level}</span></td>
+              <td className="small">{l.source.replace(/^BrightPAS\./, '')}</td>
+              <td className="small">{l.text.split('\n')[0]}{l.text.includes('\n') && <> <button className="btn btn-link btn-small" onClick={() => setOpen(open === i ? null : i)}>{open === i ? 'Hide detail' : 'Detail'}</button>{open === i && <pre className="mono-box raw">{l.text}</pre>}</>}</td></tr>))}</tbody></table>)}
     </section>
   );
 }

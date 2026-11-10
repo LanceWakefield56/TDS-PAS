@@ -86,7 +86,9 @@ public static class WebPackage
             ["DataProtection"] = new System.Text.Json.Nodes.JsonObject { ["KeysPath"] = keysPath },
             ["Logging"] = new System.Text.Json.Nodes.JsonObject
             {
-                ["LogLevel"] = new System.Text.Json.Nodes.JsonObject { ["Default"] = "Warning", ["Microsoft.AspNetCore"] = "Warning" }
+                ["LogLevel"] = new System.Text.Json.Nodes.JsonObject { ["Default"] = "Information", ["Microsoft"] = "Warning", ["Microsoft.Hosting.Lifetime"] = "Information" },
+                // Website log files (0.12.2): <data>\logs\BrightPAS-Web-YYYYMMDD.log, 30 days.
+                ["File"] = new System.Text.Json.Nodes.JsonObject { ["Path"] = Path.Combine(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(keysPath))!, "logs"), ["Level"] = "Information", ["RetainDays"] = 30 },
             },
             ["AllowedHosts"] = "*",
             ["Https"] = new System.Text.Json.Nodes.JsonObject { ["Port"] = httpsPort },

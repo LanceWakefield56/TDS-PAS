@@ -57,7 +57,9 @@ public static partial class Diagnostics
                 }
             }
 
-            AddFiles(Path.Combine(dataDir, "Logs"), "BrightPAS-*.log", "setup-logs", 20);
+            AddFiles(Path.Combine(dataDir, "Logs"), "BrightPAS-Install-*.log", "setup-logs", 15);
+            AddFiles(Path.Combine(dataDir, "Logs"), "BrightPAS-Check-*.log", "setup-logs", 5);
+            AddFiles(Path.Combine(dataDir, "logs"), "BrightPAS-Web-*.log", "website-logs", 7); // the website's own log (0.12.2), incl. start-up errors
             AddFiles(AppContext.BaseDirectory, "BrightPAS-*.log", "setup-logs-next-to-setup", 10);
             AddFiles(Path.Combine(dataDir, "Reports"), "BrightPAS-Security-Report-*.txt", "security-reports", 5);
             AddFiles(Path.GetTempPath(), "BrightPAS-HostingBundle-*.log", "hosting-bundle", 3);

@@ -85,6 +85,24 @@ public class PdfAndOcrTests
         Assert.Contains("cholecystectomy", t2, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>0.12.2: OCR runs in a child process so a native crash cannot stop the website; problems come back as messages and pause OCR.</summary>
+    [Fact]
+    public void Ocr_runs_in_a_separate_process_and_reports_problems_instead_of_crashing()
+    {
+        if (!PrepareNatives()) return;
+        var png = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Resources", "ocr-sample.png"));
+        var good = new OutOfProcessOcrEngine(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Ocr:TessdataPath"] = Path.Combine(AppContext.BaseDirectory, "tessdata") }).Build(),
+            NullLogger<OutOfProcessOcrEngine>.Instance);
+        Assert.Contains("penicillin", good.Recognise(png), StringComparison.OrdinalIgnoreCase);
+        Assert.Null(good.Problem);
+
+        var broken = new OutOfProcessOcrEngine(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Ocr:TessdataPath"] = "/no/such/folder" }).Build(),
+            NullLogger<OutOfProcessOcrEngine>.Instance);
+        var ex = Assert.Throws<InvalidOperationException>(() => broken.Recognise(png));
+        Assert.Contains("eng.traineddata", ex.Message);
+        Assert.NotNull(broken.Problem);
+    }
+
     private static bool PrepareNatives()
     {
         if (OperatingSystem.IsWindows()) return true;

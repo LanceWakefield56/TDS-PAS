@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -209,5 +210,29 @@ public class TestBuildLicensingTests
         Assert.Null(s.Licence);
         foreach (var m in BrightPAS.Licensing.ProductModules.All.Where(m => m.Available)) Assert.Equal(BrightPAS.Licensing.ModuleAccess.Full, s.AccessTo(m.Id));
         Assert.Equal(BrightPAS.Licensing.ModuleAccess.None, s.AccessTo("endoscopy")); // not built yet
+    }
+}
+
+public class LoggingTests
+{
+    [Fact]
+    public void Secret_tokens_never_reach_the_log_and_log_lines_are_read_back_with_detail()
+    {
+        Assert.Equal("/api/my/***/open", BrightPAS.Web.Security.PasLogging.SafePath(new Microsoft.AspNetCore.Http.PathString("/api/my/SECRET-TOKEN/open")));
+        Assert.Equal("/api/q/***", BrightPAS.Web.Security.PasLogging.SafePath(new Microsoft.AspNetCore.Http.PathString("/api/q/abc123")));
+        Assert.Equal("/api/hooks/sms/***/inbound", BrightPAS.Web.Security.PasLogging.SafePath(new Microsoft.AspNetCore.Http.PathString("/api/hooks/sms/KEY/inbound")));
+        Assert.Equal("/api/patients/123", BrightPAS.Web.Security.PasLogging.SafePath(new Microsoft.AspNetCore.Http.PathString("/api/patients/123")));
+
+        var dir = Path.Combine(Path.GetTempPath(), "pas-log-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "BrightPAS-Web-20261110.log"),
+            "2026-11-10 09:00:00.000 +13:00 [INF] BrightPAS.Requests #AB12CD34: GET /api/me answered 200\n" +
+            "2026-11-10 09:00:01.000 +13:00 [ERR] BrightPAS.Requests #EF56AB78: Unexpected error EF56AB78 on POST /api/x for nurse\nSystem.InvalidOperationException: boom\n   at X.Y()\n");
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Logging:File:Path"] = dir }).Build();
+        var errors = BrightPAS.Web.Security.PasLogging.Recent(config, "ERR", 10);
+        var e = Assert.Single(errors);
+        Assert.Contains("EF56AB78", e.Text);
+        Assert.Contains("boom", e.Text);
+        Assert.Equal(2, BrightPAS.Web.Security.PasLogging.Recent(config, "INF", 10).Count);
     }
 }

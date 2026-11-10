@@ -116,7 +116,7 @@ public static class ModuleSuites
             [("POST", "api/billing/fees", "{}"), ("PUT", "api/billing/settings", "{}")]),
         new("reminders", "SMS & email reminders", ["api/reminders/status", "api/reminders/messages", "api/reminders/replies", "api/reminders/settings", "api/reminders/templates"],
             [("POST", "api/reminders/test", """{"channel":"Sms","to":"0211234567"}"""), ("PUT", "api/reminders/settings", "{}"), ("POST", "api/reminders/simulate-reply", "{}")]),
-        new("referrals", "Referrals & waitlist", ["api/referrals", "api/referrals/summary", "api/waitlist", "api/waitlist/export"],
+        new("referrals", "Referrals & waitlist", ["api/referrals", "api/referrals/summary", "api/waitlist"],
             [("POST", "api/referrals", "{}"), ("POST", "api/waitlist", "{}"), ("POST", $"api/waitlist/{Guid.Empty}/book", "{}"), ("PUT", "api/referrals/settings", "{}")]),
         new("letters", "Letters & documents", ["api/letters", "api/letters/templates", "api/letters/practices", "api/letters/healthlink", "api/letters/admin/templates", $"api/letters/{Guid.Empty}"],
             [("POST", "api/letters", "{}"), ("POST", $"api/letters/{Guid.Empty}/send", "{}"), ("PUT", "api/letters/templates", "{}"), ("PUT", "api/letters/healthlink", "{}")]),

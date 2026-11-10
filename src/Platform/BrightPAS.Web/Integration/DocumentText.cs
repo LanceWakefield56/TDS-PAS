@@ -18,6 +18,86 @@ public interface IOcrEngine
     string? Problem { get; }
 }
 
+/// <summary>
+/// The engine the website uses: each image is recognised in a short-lived child process ("dotnet BrightPAS.Web.dll --ocr-worker"),
+/// so a native crash in Tesseract/Leptonica (e.g. the Visual C++ Redistributable missing) can never stop the website.
+/// After a failure it pauses for 30 minutes, then tries again (or straight away when an administrator presses Retry).
+/// </summary>
+public sealed class OutOfProcessOcrEngine(IConfiguration config, ILogger<OutOfProcessOcrEngine> log) : IOcrEngine
+{
+    private readonly object _gate = new();
+    private DateTimeOffset _pausedUntil;
+    public string? Problem { get; private set; }
+
+    private string DataPath => config["Ocr:TessdataPath"] is { Length: > 0 } p ? p : Path.Combine(AppContext.BaseDirectory, "tessdata");
+
+    public static string DotnetHost()
+    {
+        var root = Path.GetFullPath(Path.Combine(System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", ".."));
+        var exe = Path.Combine(root, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
+        return File.Exists(exe) ? exe : "dotnet";
+    }
+
+    public void Resume() { lock (_gate) { _pausedUntil = default; Problem = null; } }
+
+    public string Recognise(byte[] image)
+    {
+        lock (_gate)
+        {
+            if (DateTimeOffset.UtcNow < _pausedUntil) throw new InvalidOperationException(Problem ?? "Text recognition is paused after a problem.");
+            var psi = new System.Diagnostics.ProcessStartInfo(DotnetHost())
+            {
+                RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8, WorkingDirectory = AppContext.BaseDirectory,
+            };
+            psi.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "BrightPAS.Web.dll"));
+            psi.ArgumentList.Add("--ocr-worker");
+            psi.ArgumentList.Add(DataPath);
+            using var p = System.Diagnostics.Process.Start(psi) ?? throw new InvalidOperationException("The text recognition helper could not be started.");
+            var stdout = p.StandardOutput.ReadToEndAsync();
+            var stderr = p.StandardError.ReadToEndAsync();
+            using (var input = p.StandardInput.BaseStream) input.Write(image);
+            if (!p.WaitForExit(TimeSpan.FromMinutes(2)))
+            {
+                try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                return Fail("Text recognition took longer than 2 minutes on one page and was stopped.", pause: false);
+            }
+            if (p.ExitCode == 0) { Problem = null; return stdout.Result; }
+            var why = stderr.Result.Trim();
+            log.LogWarning("OCR helper exited with code {Code}: {Error}", p.ExitCode, why);
+            return Fail(p.ExitCode == 2
+                ? why
+                : $"The text recognition engine stopped unexpectedly (exit code {p.ExitCode}). On the server install the Microsoft Visual C++ Redistributable 2015–2022 (x64), then press Try again. The website itself is not affected.", pause: true);
+        }
+    }
+
+    private string Fail(string message, bool pause)
+    {
+        Problem = message;
+        if (pause) _pausedUntil = DateTimeOffset.UtcNow.AddMinutes(30);
+        throw new InvalidOperationException(message);
+    }
+
+    /// <summary>Child-process entry: image bytes on stdin, text on stdout. Exit 0 = ok, 2 = engine could not start (message on stderr).</summary>
+    public static int RunWorker(string[] args)
+    {
+        try
+        {
+            using var ms = new MemoryStream();
+            Console.OpenStandardInput().CopyTo(ms);
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Ocr:TessdataPath"] = args.Length > 1 ? args[1] : null }).Build();
+            using var engine = new TesseractOcrEngine(config);
+            var text = engine.Recognise(ms.ToArray());
+            using var stdout = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false));
+            stdout.Write(text);
+            return 0;
+        }
+        catch (InvalidOperationException ex) { Console.Error.Write(ex.Message); return 2; }
+        catch (TesseractException ex) { Console.Error.Write("The image could not be read: " + ex.Message); return 2; }
+    }
+}
+
+/// <summary>Tesseract in this process (used by the child worker and tests).</summary>
 public sealed class TesseractOcrEngine(IConfiguration config) : IOcrEngine, IDisposable
 {
     private readonly object _gate = new();

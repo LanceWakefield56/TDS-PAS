@@ -12,7 +12,11 @@ using BrightPAS.Modules.Patients;
 using BrightPAS.Web.Api;
 using BrightPAS.Web.Security;
 
+// Child process for text recognition (see OutOfProcessOcrEngine): keeps native OCR crashes away from the website.
+if (args.Length > 0 && args[0] == "--ocr-worker") { Environment.Exit(BrightPAS.Web.Integration.OutOfProcessOcrEngine.RunWorker(args)); }
+
 var builder = WebApplication.CreateBuilder(args);
+BrightPAS.Web.Security.PasLogging.Configure(builder); // log files, error references, crash capture (0.12.2)
 builder.WebHost.ConfigureKestrel(k => k.AddServerHeader = false);
 
 var connectionString = builder.Configuration.GetConnectionString("Pas")
@@ -50,7 +54,8 @@ builder.Services.AddScoped<BrightPAS.Core.Setup.SettingsService>();
 builder.Services.AddScoped<BrightPAS.Web.Security.SecureExportService>();
 builder.Services.AddSingleton<BrightPAS.Modules.Patients.IDocumentCipher, BrightPAS.Web.Security.DataProtectionDocumentCipher>();
 builder.Services.AddScoped<BrightPAS.Web.Integration.OffboardingService>();
-builder.Services.AddSingleton<BrightPAS.Web.Integration.IOcrEngine, BrightPAS.Web.Integration.TesseractOcrEngine>();
+builder.Services.AddSingleton<BrightPAS.Web.Integration.OutOfProcessOcrEngine>();
+builder.Services.AddSingleton<BrightPAS.Web.Integration.IOcrEngine>(sp => sp.GetRequiredService<BrightPAS.Web.Integration.OutOfProcessOcrEngine>());
 builder.Services.AddScoped<BrightPAS.Modules.Patients.IDocumentTextExtractor, BrightPAS.Web.Integration.DocumentTextExtractor>();
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.DocumentTextWorker>();
 foreach (var t in new[] { typeof(BrightPAS.Web.Integration.TheatreMerge), typeof(BrightPAS.Web.Integration.FormsMerge), typeof(BrightPAS.Web.Integration.BillingMerge),
@@ -115,6 +120,7 @@ using (var scope = app.Services.CreateScope())
     await scope.ServiceProvider.GetRequiredService<BrightPAS.Web.Licensing.LicensingService>().RefreshAsync(heartbeat: true);
 }
 
+app.UsePasErrorHandling();
 app.UseHttpsOnly(builder.Configuration.GetValue("Https:Port", 443));
 app.Use(async (ctx, next) =>
 {
@@ -135,6 +141,10 @@ app.UseRateLimiter();
 app.UsePasCsrfProtection(); // before sign-in checks, so forged requests are refused the same way whether or not a cookie is present
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Website log for administrators (no patient data is written to the log).
+app.MapGet("/api/admin/logs", (string? level, int? take, IConfiguration config) =>
+    Results.Ok(BrightPAS.Web.Security.PasLogging.Recent(config, level ?? "WRN", Math.Clamp(take ?? 200, 1, 1000)))).RequireAuthorization(Permissions.UsersManage);
 
 // Liveness check used by the installer and monitoring.
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "BrightPAS", version = typeof(Program).Assembly.GetName().Version?.ToString() })).AllowAnonymous();
@@ -180,7 +190,8 @@ app.MapMcpAndAiEndpoints();
 app.MapFallback("/api/{**rest}", () => Results.NotFound()).AllowAnonymous();
 app.MapFallbackToFile("index.html").AllowAnonymous(); // the app shell itself holds no data; every API call is checked
 
-app.Run();
+try { app.Run(); }
+catch (Exception ex) when (ex is not OperationCanceledException) { BrightPAS.Web.Security.PasLogging.StartupFailed(ex, builder.Configuration); throw; }
 
 internal sealed record StartFirstAdmin(string Code, string UserName, string DisplayName, string Password);
 internal sealed record CompleteFirstAdmin(string Code, string UserName, string TotpCode);

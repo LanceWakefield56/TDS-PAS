@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.2 – 2026-11-10 – **Text recognition can no longer stop the website**
+- Fix: on a server without the Visual C++ Redistributable, the text-recognition (OCR) engine crashed the whole website about 15 seconds after start (HTTP Error 500.30). OCR now runs each page in a separate short-lived helper process: if the engine cannot start or crashes, the website keeps running, OCR pauses for 30 minutes and Security & printers shows the reason with **Try again**.
+- **Logging and error trapping (ADR 0022):** the website now writes its own daily log file (C:\ProgramData\BrightPAS\logs\BrightPAS-Web-YYYYMMDD.log, kept 30 days, 20 MB per file) as well as warnings/errors to the Windows Event Log. Every request gets a reference (header X-BrightPAS-Ref); any unexpected error shows the user "Something went wrong … reference ABC12345" and logs the full detail under that reference. Start-up failures (also written to BrightPAS-Web-startup-error-*.log), unhandled background errors and failing background workers are always logged, and one failing worker no longer stops the website. Slow (> 5 s) and failed requests are logged. **No patient data in logs:** SQL parameter values are never logged, secret link tokens/callback keys in URLs are masked, request bodies are not logged.
+- **Website log screen** (Security & printers, System Administrator): recent errors/warnings with detail, searchable by reference. Setup option 5 now collects the website logs too.
+- Fix: the security self-test reported a false FAIL for "GET /api/waitlist/export -> 404" (that address only accepts POST).
+
 ## 0.12.1 – 2026-11-10 – **Test builds: licence keys switched off**
 - Until BrightPAS is near production, licence keys and activation are not enforced: every built module is available straight after install, with a "Test build – licence keys switched off" bar and a note on Licence & modules. Module set-up wizards still guide each module. Licence checking comes back with the setting `Licensing:Enforce = true` (all licence code and its tests are kept; the automated tests run with enforcement on).
 

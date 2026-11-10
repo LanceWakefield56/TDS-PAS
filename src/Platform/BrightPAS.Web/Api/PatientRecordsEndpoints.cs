@@ -137,8 +137,9 @@ public static class PatientRecordsEndpoints
         // Document text recognition (OCR) status and retry.
         admin.MapGet("/document-text", async (DocumentService svc, IOcrEngine ocr) => Results.Ok(new { summary = await svc.TextSummaryAsync(), engineProblem = ocr.Problem }))
             .RequireAuthorization(Permissions.UsersManage);
-        admin.MapPost("/document-text/retry", async (ClaimsPrincipal u, DocumentService svc, AuditWriter audit) =>
+        admin.MapPost("/document-text/retry", async (ClaimsPrincipal u, DocumentService svc, AuditWriter audit, OutOfProcessOcrEngine ocr) =>
         {
+            ocr.Resume();
             var n = await svc.RetryFailedTextAsync();
             await audit.WriteAsync(Me(u), "Retry", "DocumentText", "failed", reason: $"{n} document(s) queued again");
             return Results.Ok(new { queued = n });
