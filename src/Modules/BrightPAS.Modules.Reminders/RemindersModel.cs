@@ -119,7 +119,8 @@ public sealed class OptOut
 public sealed class OutboundMessage
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid PatientId { get; set; }
+    /// <summary>The patient the message is about; null for test messages sent from the settings page (0.12.3).</summary>
+    public Guid? PatientId { get; set; }
     public Guid? BookingId { get; set; }
     public DateOnly? AppointmentDate { get; set; }
     public MessageKind Kind { get; set; }

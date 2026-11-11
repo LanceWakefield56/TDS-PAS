@@ -49,9 +49,9 @@ public class InstallerTests
     public async Task Preview_changes_nothing_and_plans_every_step()
     {
         var runner = new FakeRunner();
-        var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL", WhatIf = true }, new WindowsProbe(), runner, new InstallLog(null, false, console: false), TimeProvider.System);
+        var ctx = new InstallContext(new InstallOptions { SqlServer = "PAS-SQL", WhatIf = true, DemoData = true }, new WindowsProbe(), runner, new InstallLog(null, false, console: false), TimeProvider.System);
         var records = await Installer.RunAsync(Installer.PlatformSteps(), ctx);
-        Assert.Equal(12, records.Count);
+        Assert.Equal(14, records.Count);
         Assert.Empty(runner.Scripts);
         Assert.All(records.Skip(1), r => Assert.Equal(StepOutcome.WhatIf, r.Result.Outcome));
     }
@@ -280,4 +280,71 @@ public class InstallerDatabaseTests
             await drop.ExecuteNonQueryAsync();
         }
     }
+}
+
+public class DemoDataStepTests
+{
+    [Fact]
+    public async Task Demo_steps_do_nothing_unless_asked()
+    {
+        var ctx = new InstallContext(new InstallOptions { SqlServer = "nowhere" }, new NonWindowsSystemProbe(), new ProcessRunner(), new InstallLog(null, false, console: false), TimeProvider.System);
+        Assert.Equal(StepOutcome.Skipped, (await new RequestDemoDataStep().RunAsync(ctx, CancellationToken.None)).Outcome);
+        Assert.Equal(StepOutcome.Skipped, (await new WaitForDemoDataStep().RunAsync(ctx, CancellationToken.None)).Outcome);
+        var steps = Installer.PlatformSteps().Select(s => s.GetType()).ToList();
+        Assert.True(steps.IndexOf(typeof(RequestDemoDataStep)) > steps.IndexOf(typeof(ApplySchemaStep)));
+        Assert.True(steps.IndexOf(typeof(WaitForDemoDataStep)) > steps.IndexOf(typeof(WebHealthCheckStep)));
+    }
+
+    [SqlServerFact]
+    public async Task Demo_data_is_only_requested_for_a_database_without_users()
+    {
+        var src = new SqlConnectionStringBuilder(SqlServerFactAttribute.Cs);
+        var dbName = "BrightPASDemoStep_" + Guid.NewGuid().ToString("N")[..10];
+        var options = new InstallOptions { SqlServer = src.DataSource.Replace(',', ':'), Database = dbName, IntegratedSecurity = false, SqlUser = src.UserID, SqlPassword = src.Password, TrustServerCertificate = true, DemoData = true };
+        InstallContext Ctx() => new(options, new NonWindowsSystemProbe(), new ProcessRunner(), new InstallLog(null, false, console: false), TimeProvider.System);
+        try
+        {
+            var r = await Installer.RunAsync([new CreateDatabaseStep(), new ApplySchemaStep(), new RequestDemoDataStep()], Ctx());
+            Assert.All(r, x => Assert.Equal(StepOutcome.Done, x.Result.Outcome));
+            Assert.Equal(StepOutcome.AlreadyDone, (await new RequestDemoDataStep().RunAsync(Ctx(), CancellationToken.None)).Outcome);
+
+            await using var conn = new SqlConnection(options.ConnectionString());
+            await conn.OpenAsync();
+            await new SqlCommand("UPDATE core.Settings SET Value = 'done' WHERE [Key] = 'demo.state'; INSERT core.Settings([Key], Value, UpdatedAt, UpdatedBy) VALUES ('demo.detail', '{}', SYSDATETIMEOFFSET(), 'x');", conn).ExecuteNonQueryAsync();
+            var waitCtx = new InstallContext(options, new FakeWindowsProbe(), new ProcessRunner(), new InstallLog(null, false, console: false), TimeProvider.System);
+            Assert.Equal(StepOutcome.Done, (await new WaitForDemoDataStep(TimeSpan.FromMilliseconds(50), TimeSpan.FromSeconds(5)).RunAsync(waitCtx, CancellationToken.None)).Outcome);
+            Assert.True(waitCtx.DemoDataLoaded);
+
+            // A database that already has people in it is refused (a real installation is never touched).
+            await new SqlCommand("DELETE core.Settings WHERE [Key] LIKE 'demo.%'; INSERT [identity].[AspNetUsers] (Id, DisplayName, IsActive, CreatedAt, UserName, NormalizedUserName, EmailConfirmed, PhoneNumberConfirmed, TwoFactorEnabled, LockoutEnabled, AccessFailedCount) " +
+                                 "VALUES (NEWID(), 'Real person', 1, SYSDATETIMEOFFSET(), 'real', 'REAL', 0, 0, 1, 1, 0);", conn).ExecuteNonQueryAsync();
+            var refused = await new RequestDemoDataStep().RunAsync(Ctx(), CancellationToken.None);
+            Assert.Equal(StepOutcome.Failed, refused.Outcome);
+            Assert.Contains("NEW database", refused.Message);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await using var m = new SqlConnection(options.ConnectionString("master"));
+            await m.OpenAsync();
+            await new SqlCommand($"IF DB_ID('{dbName}') IS NOT NULL BEGIN ALTER DATABASE [{dbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{dbName}]; END", m).ExecuteNonQueryAsync();
+        }
+    }
+}
+
+internal sealed class FakeWindowsProbe : ISystemProbe
+{
+    public bool IsWindows => true;
+    public Version OsVersion => new(10, 0, 20348);
+    public string? WindowsInstallationType => "Server";
+    public bool Is64Bit => true;
+    public bool IsAdministrator => true;
+    public long TotalMemoryBytes => 16 * PrerequisiteChecks.GiB;
+    public long? FreeDiskBytes(string drive) => 100 * PrerequisiteChecks.GiB;
+    public int? IisMajorVersion => 10;
+    public bool AspNetCoreModuleV2Installed => true;
+    public IReadOnlyList<Version> AspNetCoreRuntimeVersions => [];
+    public bool? TlsProtocolServerEnabled(string protocol) => null;
+    public string TimeZoneId => "New Zealand Standard Time";
+    public bool CanConnectTcp(string host, int port, TimeSpan timeout) => true;
 }

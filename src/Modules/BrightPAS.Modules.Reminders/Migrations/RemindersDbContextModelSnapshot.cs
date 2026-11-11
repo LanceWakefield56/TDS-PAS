@@ -276,7 +276,7 @@ namespace BrightPAS.Modules.Reminders.Migrations
                     b.Property<DateTimeOffset>("NextAttemptAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<Guid>("PatientId")
+                    b.Property<Guid?>("PatientId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Provider")

@@ -30,6 +30,9 @@ export default function Shell() {
           <button className="btn btn-light btn-small" onClick={signOut}>Sign out</button>
         </div>
       </header>
+      {me?.demo && (
+        <div className="demo-bar" role="status"><strong>DEMONSTRATION SYSTEM</strong> – every patient, staff member and number here is invented. Never enter real patient information.</div>
+      )}
       {showLicence && (
         <div className={`licence-bar ${lic.health === 'Valid' || lic.health === 'ExpiringSoon' ? '' : 'warn'}`} role="status">
           {lic.testBuild && <strong>Test build – licence keys switched off, all modules available. Not for real patient data. </strong>}

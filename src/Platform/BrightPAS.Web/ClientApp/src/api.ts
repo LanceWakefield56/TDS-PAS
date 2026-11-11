@@ -22,6 +22,7 @@ export async function api<T = any>(path: string, options: { method?: string; bod
 export type Access = 'None' | 'ReadOnly' | 'Full';
 export interface Me {
   userName: string; displayName: string; roles: string[]; permissions: string[];
+  demo?: boolean;
   modules: Record<string, Access>;
   moduleSetup: Record<string, boolean>;
   licence: { health: string; edition: string | null; developmentKey: boolean; testBuild?: boolean; message: string | null };

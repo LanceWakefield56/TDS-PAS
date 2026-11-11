@@ -76,7 +76,7 @@ export function MessageTable({ rows, onRetry, onCancel, showPatient = true }: { 
       <tbody>{rows.map((m) => (
         <tr key={m.id}>
           <td data-label="Created" className="time">{nzDateTime(m.createdAt)}</td>
-          {showPatient && <td data-label="Patient">{m.patientId !== '00000000-0000-0000-0000-000000000000' ? <Link to={`/patients/${m.patientId}`}>{m.patientName}</Link> : m.patientName}</td>}
+          {showPatient && <td data-label="Patient">{m.patientId ? <Link to={`/patients/${m.patientId}`}>{m.patientName}</Link> : m.patientName}</td>}
           <td data-label="Message"><strong>{kindName(m.kind)}</strong> · {m.channel === 'Sms' ? 'SMS' : 'Email'}{m.appointmentDate && <> · for {formatDate(m.appointmentDate)}</>}
             <details><summary className="small">Show text</summary>{m.subject && <p className="small"><b>{m.subject}</b></p>}<p className="small pre">{m.body}</p></details></td>
           <td data-label="To" className="small">{m.address}</td>

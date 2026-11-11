@@ -11,7 +11,7 @@ using BrightPAS.Setup.Support;
 //                            [--skip-iis] [--skip-web] [--what-if] [--ignore-prerequisites] [--web-package PATH]
 //                            [--install-dir PATH] [--host-name NAME] [--https-port 443] [--no-http-redirect] [--certificate-thumbprint THUMB]
 //                            [--app-windows-login DOMAIN\ACCOUNT$] [--sms-provider Modica|GenericHttp|TestOutbox|Off]
-//                            [--email-provider Smtp|TestOutbox|Off]
+//                            [--email-provider Smtp|TestOutbox|Off] [--demo-data]   (demo/training: fills a NEW database with invented data)
 //   Setup.exe security-test  [--url https://server/] [--sql-server NAME] [--database BrightPAS] [--no-rate-limit-tests]
 //   Setup.exe diagnostics    (collects logs and settings into one zip file to send for help)
 //   Common: --verbose (show every detail on screen), --quiet (no prompts)
@@ -95,7 +95,14 @@ async Task<int> RunInstallAsync()
     {
         Console.WriteLine("Answer the questions below. Press Enter to accept the value in [brackets].\n");
         o = o with { SqlServer = o.SqlServer ?? Ui.Ask("SQL Server name (single server: localhost)", "localhost") };
-        o = o with { Database = Ui.Ask("Database name", o.Database) ?? o.Database };
+        if (!o.DemoData)
+        {
+            Console.WriteLine("\nDemonstration / training system? BrightPAS can fill a NEW database with an invented practice (staff accounts, patients,");
+            Console.WriteLine("three months of lists, bookings, invoices, referrals, results, roster and interfaces) so you can try every feature straight away.");
+            Console.WriteLine("Never choose this for a real (production) system.");
+            o = o with { DemoData = Ui.YesNo("Load demonstration data?", false) };
+        }
+        o = o with { Database = Ui.Ask("Database name", o.DemoData && o.Database == "BrightPAS" ? "BrightPAS_Demo" : o.Database) ?? o.Database };
         if (o.SqlUser is null && !Ui.YesNo("Connect to SQL Server with your Windows account (recommended)?", true))
             o = o with { IntegratedSecurity = false, SqlUser = Ui.Ask("SQL login name", "sa") };
         if (o.SqlUser is not null && o.SqlPassword is null) o = o with { IntegratedSecurity = false, SqlPassword = Ui.Secret("SQL password (hidden as you type)") };
@@ -121,7 +128,7 @@ async Task<int> RunInstallAsync()
     }
     log.AddSecret(o.SqlPassword);
     log.Debug($"Install options: SqlServer={o.SqlServer}; Database={o.Database}; WindowsAuth={o.IntegratedSecurity}; SqlUser={o.SqlUser ?? "-"}; TrustServerCertificate={o.TrustServerCertificate}; " +
-              $"LocalSql={o.IsLocalSqlServer()}; SkipIis={o.SkipIis}; SkipWeb={o.SkipWeb}; WhatIf={o.WhatIf}; IgnorePrerequisites={o.IgnorePrerequisites}");
+              $"LocalSql={o.IsLocalSqlServer()}; SkipIis={o.SkipIis}; SkipWeb={o.SkipWeb}; WhatIf={o.WhatIf}; IgnorePrerequisites={o.IgnorePrerequisites}; DemoData={o.DemoData}");
     log.Debug($"Web options: InstallDir={cli.Web.InstallDir}; DataDir={cli.Web.DataDir}; Site={cli.Web.SiteName}; Pool={cli.Web.AppPoolName}; Host={cli.Web.HostName ?? "(this server)"}; " +
               $"Port={cli.Web.HttpsPort}; HttpRedirect={cli.Web.HttpRedirect}; Certificate={cli.Web.CertificateThumbprint ?? "(self-signed)"}; AppWindowsLogin={cli.Web.AppWindowsLogin ?? "(automatic)"}; Package={cli.Web.PackagePath ?? "(search next to Setup.exe)"}; " +
               $"SmsVendor={cli.Web.SmsProvider ?? "(keep; default Modica)"}; EmailSender={cli.Web.EmailProvider ?? "(keep; default Smtp)"}");
@@ -143,7 +150,17 @@ async Task<int> RunInstallAsync()
     if (o.WhatIf) { Ui.Colour(ConsoleColor.Cyan, "PREVIEW COMPLETE – nothing was changed."); return 0; }
 
     Ui.Colour(ConsoleColor.Green, "INSTALLATION COMPLETE.");
-    if (context.BootstrapCode is not null)
+    if (o.DemoData)
+    {
+        Ui.Colour(ConsoleColor.Magenta, context.DemoDataLoaded ? "\nDEMONSTRATION SYSTEM – invented data only. Never enter real patient information."
+            : "\nDEMONSTRATION SYSTEM – the data loads when the website first starts (open it once and wait a minute or two).");
+        Console.WriteLine($"Every demo account uses the password:  {DemoSignIn.Password}");
+        Console.WriteLine($"Add this key ONCE to your authenticator app (same for every demo account):  {DemoSignIn.AuthenticatorSecret}");
+        Console.WriteLine("(Microsoft/Google Authenticator: Add account › Enter a setup key › Time-based.)  Demo accounts:");
+        foreach (var (u, who) in DemoSignIn.Accounts) Console.WriteLine($"   {u,-14} {who}");
+        Console.WriteLine("The full list is also on the website's sign-in page.");
+    }
+    else if (context.BootstrapCode is not null)
     {
         Console.WriteLine("\nOne-time code for setting up the first administrator (valid 7 days):");
         Ui.Colour(ConsoleColor.Yellow, $"\n        {context.BootstrapCode}\n");
@@ -255,6 +272,7 @@ internal sealed record Cli(string? Command, InstallOptions Install, WebDeployOpt
                 case "--skip-web": o = o with { SkipWeb = true }; break;
                 case "--what-if": o = o with { WhatIf = true }; break;
                 case "--ignore-prerequisites": o = o with { IgnorePrerequisites = true }; break;
+                case "--demo-data": o = o with { DemoData = true }; break;
                 case "--drive": o = o with { Drive = Next() }; break;
                 case "--web-package": w = w with { PackagePath = Next() }; break;
                 case "--install-dir": w = w with { InstallDir = Next() }; break;

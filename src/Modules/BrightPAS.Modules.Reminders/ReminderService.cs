@@ -11,7 +11,7 @@ namespace BrightPAS.Modules.Reminders;
 /// <summary>Installation defaults chosen in Setup (written to appsettings.Production.json). Used only when the settings row is first created.</summary>
 public sealed record ReminderDefaults(SmsProvider SmsProvider = SmsProvider.Modica, EmailProvider EmailProvider = EmailProvider.Smtp);
 
-public sealed record MessageRow(Guid Id, Guid PatientId, string PatientName, string Mrn, Guid? BookingId, DateOnly? AppointmentDate, string Kind, string Channel,
+public sealed record MessageRow(Guid Id, Guid? PatientId, string PatientName, string Mrn, Guid? BookingId, DateOnly? AppointmentDate, string Kind, string Channel,
     string Address, string? Subject, string Body, string Status, string? Provider, int Attempts, string? LastError, DateTimeOffset CreatedAt, string CreatedBy,
     DateTimeOffset? SentAt, DateTimeOffset? DeliveredAt);
 public sealed record ReplyRow(Guid Id, string From, string Body, DateTimeOffset ReceivedAt, Guid? PatientId, string? PatientName, Guid? BookingId,
@@ -342,7 +342,7 @@ public sealed class ReminderService(
         var values = new Dictionary<string, string?> { ["ClinicName"] = s.ClinicName };
         var m = new OutboundMessage
         {
-            PatientId = Guid.Empty, Kind = MessageKind.Test, Channel = channel, Address = address, Subject = tpl?.Subject is null ? null : Render(tpl.Subject, values),
+            PatientId = null, Kind = MessageKind.Test, Channel = channel, Address = address, Subject = tpl?.Subject is null ? null : Render(tpl.Subject, values),
             Body = Render(tpl?.Body ?? "Test from {ClinicName}", values), IgnoreQuietHours = true, NextAttemptAt = clock.GetUtcNow(), CreatedAt = clock.GetUtcNow(), CreatedBy = user
         };
         db.Messages.Add(m);
@@ -508,10 +508,10 @@ public sealed class ReminderService(
         var since = now.AddDays(-14);
         original ??= (await db.Messages.AsNoTracking().Where(m => m.Channel == Channel.Sms && m.Address == number && m.BookingId != null && m.CreatedAt >= since).ToListAsync(ct))
             .OrderByDescending(m => m.CreatedAt).FirstOrDefault();
-        original ??= (await db.Messages.AsNoTracking().Where(m => m.Channel == Channel.Sms && m.Address == number && m.PatientId != Guid.Empty && m.CreatedAt >= since).ToListAsync(ct))
+        original ??= (await db.Messages.AsNoTracking().Where(m => m.Channel == Channel.Sms && m.Address == number && m.PatientId != null && m.CreatedAt >= since).ToListAsync(ct))
             .OrderByDescending(m => m.CreatedAt).FirstOrDefault();
         reply.MatchedMessageId = original?.Id;
-        reply.PatientId = original?.PatientId == Guid.Empty ? null : original?.PatientId;
+        reply.PatientId = original?.PatientId;
         reply.BookingId = original?.BookingId;
         var patient = reply.PatientId is { } pid ? await patients.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == pid, ct) : null;
         Appointment? appt = null;
@@ -587,11 +587,11 @@ public sealed class ReminderService(
         if (patientId is not null) q = q.Where(m => m.PatientId == patientId);
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<MessageStatus>(status, true, out var st)) q = q.Where(m => m.Status == st);
         var list = await q.OrderByDescending(m => m.CreatedAt).Take(500).ToListAsync(ct);
-        var ids = list.Select(m => m.PatientId).Distinct().ToList();
+        var ids = list.Where(m => m.PatientId != null).Select(m => m.PatientId!.Value).Distinct().ToList();
         var people = await patients.Patients.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         return list.Select(m =>
         {
-            var p = people.GetValueOrDefault(m.PatientId);
+            var p = m.PatientId is { } pid ? people.GetValueOrDefault(pid) : null;
             return new MessageRow(m.Id, m.PatientId, p is null ? (m.Kind == MessageKind.Test ? "(test)" : "") : $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}", p?.Mrn ?? "",
                 m.BookingId, m.AppointmentDate, m.Kind.ToString(), m.Channel.ToString(), m.Address, m.Subject, m.Body, m.Status.ToString(), m.Provider, m.Attempts,
                 m.LastError, m.CreatedAt, m.CreatedBy, m.SentAt, m.DeliveredAt);
@@ -625,7 +625,7 @@ public sealed class ReminderService(
         if (m.Kind is MessageKind.FormLink or MessageKind.PortalLink && m.SecretLink is null) return "Secure links cannot be resent (the link is not stored). Create a new link instead.";
         m.Status = MessageStatus.Queued; m.Attempts = 0; m.NextAttemptAt = clock.GetUtcNow(); m.IgnoreQuietHours = true; m.LastError = null;
         await db.SaveChangesAsync(ct);
-        await audit.WriteAsync(user, "Retry", "OutboundMessage", m.Id.ToString(), m.PatientId.ToString(), ct: ct);
+        await audit.WriteAsync(user, "Retry", "OutboundMessage", m.Id.ToString(), m.PatientId?.ToString(), ct: ct);
         return null;
     }
 
@@ -636,7 +636,7 @@ public sealed class ReminderService(
         if (m.Status != MessageStatus.Queued) return "Only messages waiting to be sent can be cancelled.";
         Close(m, MessageStatus.Cancelled, $"Cancelled by {user}.");
         await db.SaveChangesAsync(ct);
-        await audit.WriteAsync(user, "Cancel", "OutboundMessage", m.Id.ToString(), m.PatientId.ToString(), ct: ct);
+        await audit.WriteAsync(user, "Cancel", "OutboundMessage", m.Id.ToString(), m.PatientId?.ToString(), ct: ct);
         return null;
     }
 

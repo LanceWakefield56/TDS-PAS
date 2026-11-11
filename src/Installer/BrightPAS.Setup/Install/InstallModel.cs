@@ -18,6 +18,8 @@ public sealed record InstallOptions
     public bool WhatIf { get; init; }
     /// <summary>Test labs only: continue even if prerequisite checks fail. Recorded in the log; never for production.</summary>
     public bool IgnorePrerequisites { get; init; }
+    /// <summary>Demonstration / training system: fill the NEW database with invented demonstration data (0.12.3). Never for production.</summary>
+    public bool DemoData { get; init; }
     public string Drive { get; init; } = OperatingSystem.IsWindows() ? @"C:\" : "/";
     public string Version { get; init; } = typeof(InstallOptions).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
@@ -84,6 +86,8 @@ public sealed class InstallContext(InstallOptions options, ISystemProbe probe, I
     /// <summary>Set by the bootstrap step so the final summary can show it.</summary>
     public string? BootstrapCode { get; set; }
     public bool RebootRequired { get; set; }
+    public bool DemoDataRequested { get; set; }
+    public bool DemoDataLoaded { get; set; }
 }
 
 public interface IInstallStep

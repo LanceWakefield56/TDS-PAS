@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { api } from '../api';
 import { useSession } from '../App';
@@ -19,6 +19,10 @@ export default function SignIn() {
   const [recovery, setRecovery] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(params.get('expired') ? 'You were signed out. Please sign in again.' : null);
   const [busy, setBusy] = useState(false);
+
+  // Demonstration systems only: the shared demo sign-in details (never shown on a real installation).
+  const [demo, setDemo] = useState<DemoInfo | null>(null);
+  useEffect(() => { api<{ demo: DemoInfo | null }>('/api/setup/status').then((s) => setDemo(s.demo)).catch(() => { /* ignore */ }); }, []);
 
   const finish = async () => { await refresh(); navigate((location.state as any)?.from ?? '/', { replace: true }); };
 
@@ -63,6 +67,7 @@ export default function SignIn() {
             <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
             {error && <p className="error" role="alert">{error}</p>}
             <button className="btn btn-primary btn-big" disabled={busy}>{busy ? 'Signing in…' : 'Next'}</button>
+            {demo && <DemoPanel demo={demo} pick={setUserName} />}
           </form>
         )}
         {stage === 'mfa' && (
@@ -87,5 +92,22 @@ export default function SignIn() {
       </div>
       <p className="auth-footer">Authorised staff only. All access is recorded.</p>
     </div>
+  );
+}
+
+interface DemoInfo { state: string; password: string | null; authenticatorSecret: string | null; accounts: { userName: string; displayName: string; purpose: string }[] | null }
+
+function DemoPanel({ demo, pick }: { demo: DemoInfo; pick: (u: string) => void }) {
+  if (demo.state !== 'done') return <div className="demo-panel"><strong>Demonstration system</strong><p className="small">Demonstration data is {demo.state === 'failed' ? 'NOT loaded – see the website log' : 'being loaded – try again in a minute'}.</p></div>;
+  return (
+    <details className="demo-panel">
+      <summary><strong>Demonstration system</strong> – sign-in details</summary>
+      <p className="small">Every account uses the password <code>{demo.password}</code>. Add this key once to your authenticator app (it is the same for every demo account): <code>{demo.authenticatorSecret}</code></p>
+      <table className="small"><tbody>
+        {demo.accounts?.map((a) => (
+          <tr key={a.userName}><td><button type="button" className="btn btn-link" onClick={() => pick(a.userName)}>{a.userName}</button></td><td>{a.displayName}<div className="muted">{a.purpose}</div></td></tr>
+        ))}
+      </tbody></table>
+    </details>
   );
 }

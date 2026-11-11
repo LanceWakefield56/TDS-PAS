@@ -35,7 +35,7 @@ public sealed class LabsMerge(BrightPAS.Modules.Labs.LabsDbContext db) : IPatien
 public sealed class MessagingMerge(BrightPAS.Modules.Messaging.MsgDbContext db) : IPatientMergeParticipant
 {
     public string Name => "Interface messages";
-    public Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) => db.Messages.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
+    public Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) => db.Messages.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct);
 }
 
 public sealed class ReferralsMerge(BrightPAS.Modules.Referrals.ReferralsDbContext db) : IPatientMergeParticipant
@@ -57,7 +57,7 @@ public sealed class RemindersMerge(BrightPAS.Modules.Reminders.RemindersDbContex
     public string Name => "SMS & email";
     public async Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct)
     {
-        var n = await db.Messages.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
+        var n = await db.Messages.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct)
             + await db.Replies.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct);
         // Contact preferences are keyed by patient: keep the survivor's; otherwise carry the duplicate's across.
         var dup = await db.Preferences.SingleOrDefaultAsync(x => x.PatientId == from, ct);

@@ -101,6 +101,8 @@ fieldset.roles legend { font-weight: 700; padding: 0 .3rem; }
 .menu-btn { display: none; background: none; border: 2px solid rgba(255,255,255,.6); color: #fff; border-radius: 8px; min-width: var(--tap); min-height: var(--tap); font-size: 1.3rem; cursor: pointer; }
 .btn-small { min-height: 36px; padding: 0 .8rem; font-size: .9rem; }
 .nav-group { margin: .9rem .9rem .2rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; }
+.demo-bar { background: #7a1f5c; color: #fff; padding: .45rem 1.25rem; font-size: .92rem; }
+.demo-panel { border: 1px dashed var(--navy); border-radius: 8px; padding: .6rem .8rem; margin-top: .5rem; } .demo-panel table { width: 100%; } .demo-panel td { vertical-align: top; padding: .15rem .3rem; } .demo-panel code { user-select: all; }
 .licence-bar { background: var(--light); color: var(--navy); padding: .5rem 1.25rem; font-size: .92rem; } .licence-bar.warn { background: var(--warn-bg); color: var(--warn); }
 .tabs { display: flex; gap: .4rem; flex-wrap: wrap; border-bottom: 2px solid var(--line); margin-bottom: 1rem; }
 .tabs button { background: none; border: 0; border-bottom: 4px solid transparent; margin-bottom: -2px; padding: .6rem .9rem; font: inherit; font-weight: 600; color: var(--muted); cursor: pointer; min-height: var(--tap); }
@@ -154,7 +156,7 @@ textarea:focus { border-color: var(--teal); outline: none; box-shadow: 0 0 0 3px
   .totals { min-width: 0; width: 100%; }
 }
 @media print {
-  .topbar, .sidenav, .btn, .auth-footer, .licence-bar, .no-print, .tabs { display: none !important; }
+  .topbar, .sidenav, .btn, .auth-footer, .licence-bar, .demo-bar, .no-print, .tabs { display: none !important; }
   .auth-page { background: none; } body, .content { background: #fff; padding: 0; } .card { border: 0; padding: 0; }
 }
 .on-dark { color: #fff; } .pre { white-space: pre-wrap; } .mt { margin-top: 1rem; } .mb { margin-bottom: 1rem; } .warn-text { color: var(--warn); }

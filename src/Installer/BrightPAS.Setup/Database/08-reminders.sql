@@ -304,3 +304,46 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261111032244_TestMessagesWithoutPatient'
+)
+BEGIN
+    EXEC(N'IF OBJECT_ID(N''[reminders].[FK_reminders_Messages_Patient]'', N''F'') IS NOT NULL ALTER TABLE [reminders].[Messages] DROP CONSTRAINT [FK_reminders_Messages_Patient];')
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261111032244_TestMessagesWithoutPatient'
+)
+BEGIN
+    DECLARE @var nvarchar(max);
+    SELECT @var = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[reminders].[Messages]') AND [c].[name] = N'PatientId');
+    IF @var IS NOT NULL EXEC(N'ALTER TABLE [reminders].[Messages] DROP CONSTRAINT ' + @var + ';');
+    ALTER TABLE [reminders].[Messages] ALTER COLUMN [PatientId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261111032244_TestMessagesWithoutPatient'
+)
+BEGIN
+    EXEC(N'UPDATE [reminders].[Messages] SET [PatientId] = NULL WHERE [PatientId] = ''00000000-0000-0000-0000-000000000000'';')
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261111032244_TestMessagesWithoutPatient'
+)
+BEGIN
+    INSERT INTO [reminders].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261111032244_TestMessagesWithoutPatient', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

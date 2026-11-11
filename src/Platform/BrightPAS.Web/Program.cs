@@ -33,7 +33,7 @@ if (!string.IsNullOrWhiteSpace(keysPath))
     if (OperatingSystem.IsWindows()) dp.ProtectKeysWithDpapi(protectToLocalMachine: true);
 }
 
-builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<TimeProvider>(new BrightPAS.Web.Demo.DemoClock(TimeProvider.System)); // real time; the demo-data loader can wind it back for its own work
 builder.Services.AddSingleton(new PasDatabaseOptions(UseSql));
 builder.Services.AddDbContext<PasDbContext>(o => UseSql(o, PasDbContext.Schema));
 builder.Services.AddScoped<AuditWriter>();
@@ -64,6 +64,9 @@ foreach (var t in new[] { typeof(BrightPAS.Web.Integration.TheatreMerge), typeof
     builder.Services.AddScoped(typeof(BrightPAS.Modules.Patients.IPatientMergeParticipant), t);
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.HealthLinkWorker>();
 builder.Services.AddScoped<BrightPAS.Web.Licensing.ModuleSetupService>();
+// Demonstration data (0.12.3): loaded once when Setup asks for it on a new database.
+builder.Services.AddScoped<BrightPAS.Web.Demo.DemoDataSeeder>();
+if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Demo.DemoDataWorker>();
 builder.Services.AddSingleton<BrightPAS.Modules.Reminders.ISecretProtector, BrightPAS.Web.Integration.DataProtectionSecretProtector>();
 // Installation defaults chosen in Setup (Reminders:SmsProvider / Reminders:EmailProvider); Modica + SMTP when not set.
 builder.Services.AddSingleton(new BrightPAS.Modules.Reminders.ReminderDefaults(
@@ -154,7 +157,17 @@ app.MapGet("/api/setup/status", async (PasDbContext core, Microsoft.AspNetCore.I
 {
     var state = await core.SetupState.SingleOrDefaultAsync(s => s.Id == 1);
     var adminReady = (await users.GetUsersInRoleAsync(DefaultRoles.SystemAdministrator)).Any(u => u.TwoFactorEnabled);
-    return Results.Ok(new { firstAdminNeeded = !adminReady && state?.BootstrapCodeHash is not null && state.BootstrapCodeUsedAt is null });
+    // Demonstration systems only (never set on a real installation): show the shared demo sign-in details on the sign-in page.
+    var demoSettings = await core.Settings.AsNoTracking().Where(x => x.Key == BrightPAS.Web.Demo.DemoDataSeeder.StateKey || x.Key == "demo.banner").ToDictionaryAsync(x => x.Key, x => x.Value);
+    var demoState = demoSettings.GetValueOrDefault(BrightPAS.Web.Demo.DemoDataSeeder.StateKey) ?? (demoSettings.GetValueOrDefault("demo.banner") == "true" ? "done" : null);
+    object? demo = demoState is null ? null : new
+    {
+        state = demoState,
+        password = demoState == "done" ? BrightPAS.Web.Demo.DemoAccounts.Password : null,
+        authenticatorSecret = demoState == "done" ? BrightPAS.Web.Demo.DemoAccounts.TotpSecret : null,
+        accounts = demoState == "done" ? BrightPAS.Web.Demo.DemoAccounts.All.Select(a => new { a.UserName, a.DisplayName, a.Purpose }) : null
+    };
+    return Results.Ok(new { firstAdminNeeded = demoState is null && !adminReady && state?.BootstrapCodeHash is not null && state.BootstrapCodeUsedAt is null, demo });
 }).AllowAnonymous();
 var setup = app.MapGroup("/api/setup/first-admin").RequireRateLimiting("setup").AllowAnonymous();
 setup.MapPost("/start", async (StartFirstAdmin req, FirstAdminService svc) =>

@@ -30,7 +30,7 @@ export default function Home() {
 
   return (
     <div className="stack-lg">
-      <div className="page-head"><h1>{greeting}, {me?.displayName?.split(' ')[0]}</h1><p className="muted">{today}</p></div>
+      <div className="page-head"><h1>{greeting}, {me?.displayName?.replace(/^(Dr|Mr|Mrs|Ms|Miss|Prof)\.? /i, '').split(' ')[0]}</h1><p className="muted">{today}</p></div>
       <div className="grid">
         {can(Perm.PatientView) && (
           <section className="card action">

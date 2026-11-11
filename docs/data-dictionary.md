@@ -205,7 +205,7 @@ PatientId (PK), AllowSms, AllowEmail, Language (en/mi), UpdatedAt/By. No row = S
 Channel + Address (E.164 mobile or lower-case email; unique), CreatedAt, Source (e.g. "SMS reply STOP" or staff user). UEMA 2007 unsubscribe register.
 
 ## reminders.Messages
-Outbound message: PatientId, BookingId, AppointmentDate, Kind, Channel, Address, Subject, Body (questionnaire link replaced by "[questionnaire link]"), SecretLink (**Restricted**, cleared when sent/closed), Status (Queued, Sending, Sent, Delivered, Failed, Cancelled, Suppressed), IgnoreQuietHours, Provider, ProviderMessageId, Attempts, NextAttemptAt, LastError, DedupeKey (unique when set), CreatedAt/By, SentAt, DeliveredAt. **Clinical-adjacent:** contact details and appointment dates.
+Outbound message: PatientId (null for test messages sent from the settings page – 0.12.3; otherwise FK to patients.Patients), BookingId, AppointmentDate, Kind, Channel, Address, Subject, Body (questionnaire link replaced by "[questionnaire link]"), SecretLink (**Restricted**, cleared when sent/closed), Status (Queued, Sending, Sent, Delivered, Failed, Cancelled, Suppressed), IgnoreQuietHours, Provider, ProviderMessageId, Attempts, NextAttemptAt, LastError, DedupeKey (unique when set), CreatedAt/By, SentAt, DeliveredAt. **Clinical-adjacent:** contact details and appointment dates.
 
 ## reminders.Replies
 Inbound SMS: From (E.164), Body, ReceivedAt, Provider, ProviderMessageId, ReplyToProviderId, MatchedMessageId, PatientId, BookingId, Meaning (Confirm, Cancel, OptOut, OptIn, Unknown), ActionTaken, Status (New, Handled), HandledBy/At, Note.
@@ -261,7 +261,7 @@ StaffId, From, To, Type (Annual/Sick/Training/Parental/Other), Status (Requested
 ### core.Settings
 | Column | Type | Null | Description | Sensitivity |
 |---|---|---|---|---|
-| Key | nvarchar(60) | No | PK, e.g. export.protection, export.minPasswordLength, documents.maxUploadMegabytes, portal.linkDays | P |
+| Key | nvarchar(60) | No | PK, e.g. export.protection, export.minPasswordLength, documents.maxUploadMegabytes, portal.linkDays; demonstration systems only (0.12.3): demo.state (requested/running/done/failed, set by Setup --demo-data), demo.detail (summary or error), demo.banner (true = DEMONSTRATION SYSTEM bar) | P |
 | Value | nvarchar(500) | No | Setting value | P |
 | UpdatedAt / UpdatedBy | datetimeoffset / nvarchar(100) | No | Last change | I |
 

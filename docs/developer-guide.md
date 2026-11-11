@@ -26,3 +26,11 @@ Filled in as the system is built.
 4. Self-test: a `ModuleSuites` entry and module rule in `Setup/Security/Standards.cs`.
 5. Guided set-up (ADR 0014): add live checks in `ModuleSetupService.ChecksAsync` and the id to `WithWizard` (also `SETUP_MODULES` in the UI).
 6. `scripts/generate-db-scripts.sh` (new numbered script) + `InstallerTests` expected list; data dictionary; guide test section; CHANGELOG.
+7. Demonstration data (ADR 0023): add the module's data to `Web/Demo/DemoData.cs` through the module's own services so a demo system shows it already set up; `DemoDataTests` checks every module in `WithWizard` passes its set-up wizard.
+
+
+## Demonstration data (0.12.3, ADR 0023)
+- `Setup.exe install --demo-data` (or answer Yes) on a NEW database → `RequestDemoDataStep` writes `core.Settings demo.state = requested` → the website's `DemoDataWorker` runs `DemoDataSeeder` once (inside the app pool, so Data Protection keys and encryption are the real ones) → `WaitForDemoDataStep` waits for `done`/`failed`.
+- The seeder only uses the module services (same validation as the screens). `DemoClock` (the registered `TimeProvider`) lets the seeder wind the clock back for its own async flow only, so history (bookings, invoices, audit) has realistic dates; nothing else is affected.
+- Refuses when any user account exists. Demo accounts: `DemoAccounts` (password `Demo-Passphrase-2026`, shared TOTP key `BRIGHTPASDEMOKEY`), shown on the sign-in page only when demo data is present.
+- Dev loop: `tools/dev-e2e` DevDb → insert `demo.state=requested` → `run-web.sh` → wait; `flow7.js` signs in as each role through the screens.
