@@ -94,3 +94,11 @@ public sealed class AssetsMerge(BrightPAS.Modules.Assets.AssetsDbContext db) : I
         + await db.Movements.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct)
         + await db.Implants.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
 }
+
+public sealed class EmrMerge(BrightPAS.Modules.Emr.EmrDbContext db) : IPatientMergeParticipant
+{
+    public string Name => "Clinical record (episodes, controlled drug register)";
+    public async Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) =>
+        await db.Episodes.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
+        + await db.CdRegister.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct);
+}

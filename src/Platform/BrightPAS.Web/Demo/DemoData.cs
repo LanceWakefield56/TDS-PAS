@@ -13,6 +13,7 @@ using BrightPAS.Modules.Referrals;
 using BrightPAS.Modules.Theatre;
 using Ast = BrightPAS.Modules.Assets;
 using Cred = BrightPAS.Modules.Credentialing;
+using Emr = BrightPAS.Modules.Emr;
 using Let = BrightPAS.Modules.Letters;
 using Msg = BrightPAS.Modules.Messaging;
 using Por = BrightPAS.Modules.Portal;
@@ -111,6 +112,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await PortalAsync(ct);
         await RosterActivityAsync(ct);
         await AssetsAsync(ct);
+        await EmrAsync(ct);
         await MessagingAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
@@ -442,6 +444,55 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             created += c;
         }
         if (created == 0) throw new InvalidOperationException("Demo data – roster: no shifts were created.");
+    }
+
+    // ------------------------------------------------------------------ Clinical record (0.14.0)
+    private async Task EmrAsync(CancellationToken ct)
+    {
+        var svc = S<Emr.EmrService>();
+        const string Witness = "Demo Witness RN";
+        var drugs = new Dictionary<string, Guid>();
+        foreach (var (name, strength, form, qty) in new[] { ("Fentanyl", "100 microgram/2 mL", "ampoule", 20), ("Morphine", "10 mg/mL", "ampoule", 10), ("Midazolam", "5 mg/5 mL", "ampoule", 20), ("Oxycodone", "5 mg", "tablet", 40) })
+        {
+            var (d, err) = await svc.AddControlledDrugAsync(name, strength, form, Actor, ct);
+            Ok(err, "controlled drug " + name);
+            drugs[name] = d!.Id;
+            Ok(await svc.RegisterAsync(new Emr.CdRequest(d.Id, Emr.CdMovement.Received, qty, Witness, "Pharmacy order " + _rng.Next(1000, 9999)), Actor, ct), "CD received");
+        }
+        var team = new Dictionary<string, string> { ["Nurse"] = "Demo Scrub RN", ["Anaesthetist"] = "Demo Anaesthetist", ["Surgeon"] = "Demo Surgeon" };
+        // Completed records for recent finished cases.
+        foreach (var (b, sess, _) in _done.OrderByDescending(x => x.Session.Date).Take(6))
+        {
+            var e = await svc.EpisodeAsync(b.Id, b.PatientId, Actor, ct);
+            var sed = b.Anaesthetic is not (AnaestheticType.Local or AnaestheticType.None);
+            Ok((await svc.AssessAsync(e.Id, new Emr.AssessmentRequest(Emr.AssessmentKind.NursingAdmission, new Dictionary<string, string> { ["id_band"] = "yes", ["allergies_checked"] = "None known", ["fasting_from"] = "02:00", ["escort_name"] = "Family member" }, null), Actor, ct)).Errors, "nursing admission");
+            Ok(await svc.AdmitAsync(e.Id, sed, Actor, ct), "admit");
+            Ok((await svc.AssessAsync(e.Id, new Emr.AssessmentRequest(Emr.AssessmentKind.Vte, new Dictionary<string, string> { ["age"] = "55", ["major_surgery"] = "yes" }, "Mechanical prophylaxis (stockings)"), Actor, ct)).Errors, "VTE");
+            Ok((await svc.AssessAsync(e.Id, new Emr.AssessmentRequest(Emr.AssessmentKind.Falls, new Dictionary<string, string> { ["sedation"] = sed ? "yes" : "no", ["age"] = "55" }, null), Actor, ct)).Errors, "falls");
+            foreach (var phase in new[] { Emr.CheckPhase.SignIn, Emr.CheckPhase.TimeOut })
+                Ok((await svc.CompleteCheckAsync(e.Id, new Emr.CheckRequest(phase, Emr.EmrService.CheckItems[phase].Select(i => i.Key).ToList(), team, null), Actor, ct)).Errors, "checklist " + phase);
+            var t0 = new DateTimeOffset(sess.Date.ToDateTime(new TimeOnly(9, 0)), TimeSpan.FromHours(13)).AddMinutes(_rng.Next(0, 120));
+            Ok((await svc.SaveIntraopAsync(e.Id, new Emr.IntraopEdit(t0, t0.AddMinutes(5), t0.AddMinutes(15), t0.AddMinutes(55), t0.AddMinutes(65), "Supine", "Gel head ring, heel pads", "Chlorhexidine 2% in alcohol",
+                "ELEC-01", "Left thigh", true, null, null, null, null, true, "Clean", null, "Island dressing", null), Actor, ct)).Errors, "intraop");
+            foreach (var stage in new[] { Emr.CountStage.Initial, Emr.CountStage.Final })
+                foreach (var (item, n) in new[] { ("Swabs", 10), ("Sharps", 4) })
+                    Ok((await svc.CountAsync(e.Id, new Emr.CountRequest(stage, item, n, n, "Demo Circulating RN"), Actor, ct)).Error, "count");
+            Ok((await svc.CompleteCheckAsync(e.Id, new Emr.CheckRequest(Emr.CheckPhase.SignOut, Emr.EmrService.CheckItems[Emr.CheckPhase.SignOut].Select(i => i.Key).ToList(), team, null), Actor, ct)).Errors, "sign out");
+            Ok((await svc.GiveAsync(e.Id, new Emr.MedicationRequest("Cefazolin", "2 g", "IV", t0.AddMinutes(8), null, null, null, null), Actor, ct)).Error, "medication");
+            if (sed) Ok((await svc.GiveAsync(e.Id, new Emr.MedicationRequest("Fentanyl", "50 microgram", "IV", t0.AddMinutes(6), null, drugs["Fentanyl"], Witness, null), Actor, ct)).Error, "CD given");
+            Ok(await svc.FluidAsync(e.Id, new Emr.FluidRequest(t0.AddMinutes(60), true, "IV", 500), Actor, ct), "fluids");
+            foreach (var m in new[] { 75, 105 })
+                Ok((await svc.ObserveAsync(e.Id, new Emr.ObservationRequest(t0.AddMinutes(m), 14, 97, false, null, 124, 78, 72, 36.6m, "A", 2, 0), Actor, ct)).Errors, "observations");
+            Ok((await svc.NoteAsync(e.Id, new Emr.NoteRequest(Emr.NoteKind.OperationNote, $"{b.Procedure}. Uncomplicated. Haemostasis secured. Counts correct.", true, null), Actor, ct)).Error, "op note");
+            Ok(await svc.DischargeAsync(e.Id, new Emr.DischargeRequest("Family member", "021 555 0101", "Family member", true, null, true, "Home", sess.Date.AddDays(1)), Actor, ct), "discharge");
+        }
+        // Today's patients (if any list runs today): admitted with the nursing admission done.
+        foreach (var (b, _, _) in _upcoming.Where(x => x.Session.Date == _today).Take(2))
+        {
+            var e = await svc.EpisodeAsync(b.Id, b.PatientId, Actor, ct);
+            Ok((await svc.AssessAsync(e.Id, new Emr.AssessmentRequest(Emr.AssessmentKind.NursingAdmission, new Dictionary<string, string> { ["id_band"] = "yes", ["allergies_checked"] = "None known", ["fasting_from"] = "06:00", ["escort_name"] = "Partner" }, null), Actor, ct)).Errors, "nursing admission today");
+            Ok(await svc.AdmitAsync(e.Id, b.Anaesthetic is not (AnaestheticType.Local or AnaestheticType.None), Actor, ct), "admit today");
+        }
     }
 
     // ------------------------------------------------------------------ Assets & CSSD (0.13.0)

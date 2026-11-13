@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.14.0 – 2026-11-14 – **Clinical record (eMR): admission, safety checklist, theatre record, observations, medicines, discharge**
+- **Clinical record module (ADR 0026, spec 7.7):** one episode per theatre/procedure booking, opened from **Clinical record** (today's patients) or the **Clinical record** link on a theatre list.
+  - **Admission & risk:** nursing admission (identity band, allergies, fasting, escort); VTE (Caprini-based), falls, pressure injury (Braden), Clinical Frailty Scale and delirium (4AT) with live scores and advice. Admit needs the nursing admission.
+  - **Surgical Safety Checklist (WHO / HQSC):** Sign In, Time Out, Sign Out in order; every item confirmed and each role named; Sign Out refused while counts are wrong.
+  - **Theatre record:** times (in, anaesthetic, knife to skin, closure, out), position and pressure care, skin prep, diathermy unit and pad site, tourniquet, smoke evacuation, wound class, drains, dressings.
+  - **Counts and specimens:** initial/additional/closing/final counts with second checker; discrepancies must be resolved; numbered specimens collected → sent → received by the lab.
+  - **Observations** with an early warning score (NEWS-style bands – confirm against the HQSC NZ EWS chart before clinical use) and escalation wording; the source field is ready for monitor feeds (0.17.0).
+  - **Medicines and fluids:** medicines given (barcode optional), **controlled drug register** with witnessed entries and running balance, fluid balance, blood products (two checkers, cold chain, reactions).
+  - **Notes:** nursing, medical, operation, anaesthetic, discharge and patient-instruction notes from templates; draft or signed; amendments keep the original.
+  - **Discharge:** criteria confirmed; escort home and overnight carer required after sedation/anaesthesia (or a recorded override); doctor review needed when the last EWS is above 2; Sign Out must be complete; emergency transfer to hospital recorded.
+  - Patient merge, module set-up wizard, standards self-test, reporting views (vEpisode, vControlledDrugRegister), demonstration data (controlled drugs, six completed records, today's admitted patients).
+  - New permissions: emr.view, emr.write, emr.controlled-drugs (Nurse and Anaesthetist all three; Surgeon view and write).
+- Test robot: Clinical record page added; clinical buttons (admit, checklist, sign note, discharge, transfer) are never pressed by the explorer.
+- Fix: reporting view for the controlled drug register failed to install (column named By).
+
 ## 0.13.0 – 2026-11-14 – **Assets & CSSD: equipment, sterile traceability, endoscopes, stock and purchasing**
 - **Assets & CSSD module (ADR 0025, spec 7.9):**
   - **Equipment register:** asset number, category (incl. washers, sterilisers, AERs, endoscopes, patient monitors, endoscopy towers), make/model/serial, room, supplier, value, warranty, risk class, network address for devices that will connect. Planned maintenance, calibration, **electrical test-and-tag (AS/NZS 3760)**, biomedical checks and validation with due-date warnings. **Out-of-service lockout** by anyone who finds a fault; a failed electrical test locks the item out automatically and it cannot return to service until a passed test is recorded. Out-of-service machines cannot run loads.

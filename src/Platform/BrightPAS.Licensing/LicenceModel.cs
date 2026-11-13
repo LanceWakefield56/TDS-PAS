@@ -75,7 +75,7 @@ public static class ProductModules
         new("referrals", "Referrals & waitlist", "Referral intake and triage, the surgical waitlist with target dates, and booking theatre from the waitlist.", true),
         new("forms", "Pre-admission forms", "Online patient health questionnaire and nurse triage.", true),
         new("billing", "Estimates & invoices", "Fee schedule, estimates, invoices, payments and fee splits.", true),
-        new("emr", "Clinical record (eMR)", "Perioperative, anaesthetic and nursing records.", false),
+        new("emr", "Clinical record (eMR)", "Perioperative and nursing record: risk screens, Surgical Safety Checklist, intra-op record and counts, observations with early warning score, medicines and controlled drugs, blood products, notes and discharge.", true),
         new("rostering", "Rostering", "Staff rosters: shifts, regular shifts, leave and hours (replaces TeamUp).", true),
         new("assets", "Assets & CSSD", "Equipment register and maintenance, sterile instrument (AS/NZS 5369) and endoscope traceability, loan sets, stock, implants and purchasing.", true),
         new("quality", "Quality management", "Incidents, surveys, SSI, falls and quality reporting.", false),

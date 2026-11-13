@@ -82,6 +82,10 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_StockMovements_Patient', N
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_StockMovements_Booking', N'[assets].[StockMovements]', N'BookingId', N'[theatre].[Bookings]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_Implants_Patient', N'[assets].[Implants]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_Implants_Booking', N'[assets].[Implants]', N'BookingId', N'[theatre].[Bookings]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_emr_Episodes_Patient', N'[emr].[Episodes]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_emr_Episodes_Booking', N'[emr].[Episodes]', N'BookingId', N'[theatre].[Bookings]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_emr_ControlledDrugRegister_Patient', N'[emr].[ControlledDrugRegister]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_emr_Observations_Device', N'[emr].[Observations]', N'DeviceId', N'[assets].[Equipment]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_LoanSets_Booking', N'[assets].[LoanSets]', N'BookingId', N'[theatre].[Bookings]';
 GO
 
@@ -188,6 +192,22 @@ SELECT e.AssetNumber, e.Name, e.Category, e.Status, mp.Kind, mp.NextDue, DATEDIF
 FROM [assets].[MaintenancePlans] mp
 JOIN [assets].[Equipment] e ON e.Id = mp.EquipmentId
 WHERE e.Status <> N'Retired';
+GO
+-- Controlled drug register (Misuse of Drugs Regulations): every movement with balance, person and witness.
+CREATE OR ALTER VIEW [reporting].[vControlledDrugRegister] AS
+SELECT r.At, d.Name, d.Strength, d.Form, r.Movement, r.Quantity, r.BalanceAfter, r.[By], r.WitnessedBy, r.Reference, p.Nhi, p.Mrn
+FROM [emr].[ControlledDrugRegister] r
+JOIN [emr].[ControlledDrugs] d ON d.Id = r.ControlledDrugId
+LEFT JOIN [patients].[Patients] p ON p.Id = r.PatientId;
+GO
+-- Episodes with checklist completion and times (quality reporting: checklist compliance, theatre times, escort overrides).
+CREATE OR ALTER VIEW [reporting].[vEpisode] AS
+SELECT e.Id AS EpisodeId, e.BookingId, e.PatientId, e.Stage, e.AdmittedAt, e.DischargedAt, e.DischargeDestination, e.EscortConfirmed,
+       CASE WHEN e.EscortOverrideReason IS NULL THEN 0 ELSE 1 END AS EscortOverride,
+       (SELECT COUNT(*) FROM [emr].[SafetyChecks] c WHERE c.EpisodeId = e.Id) AS ChecklistPhasesDone,
+       i.InTheatreAt, i.KnifeToSkinAt, i.ClosureAt, i.OutOfTheatreAt, i.WoundClass
+FROM [emr].[Episodes] e
+LEFT JOIN [emr].[IntraopRecords] i ON i.EpisodeId = e.Id;
 GO
 CREATE OR ALTER VIEW [reporting].[vAuditDaily] AS
 SELECT CAST(a.[OccurredAt] AS date) AS [Day], a.[Action], a.[EntityType], COUNT_BIG(*) AS Events, COUNT(DISTINCT a.[UserId]) AS Users

@@ -28,7 +28,7 @@ const label = (s: string) => ({ InTheatre: 'In theatre', DidNotAttend: 'Did not 
 const hm = (t: string) => t.slice(0, 5);
 
 export default function TheatreLists() {
-  const { can, writable } = useSession();
+  const { can, writable, mod } = useSession();
   const [params, setParams] = useSearchParams();
   const date = params.get('date') ?? todayIso();
   const patientId = params.get('patient');
@@ -109,6 +109,7 @@ export default function TheatreLists() {
                     <td data-label="Status"><span className={`pill ${statusClass[b.status]}`}>{label(b.status)}</span>{b.isTentative && <span className="pill amber">Tentative</span>}
                       <div className="small muted">{b.payment !== 'NotSet' ? PAYMENTS.find(([k]) => k === b.payment)?.[1] : ''}{checkItems.length > 0 ? ` · ✓ ${b.checklist.length}/${checkItems.length}` : ''}{b.theatreIn ? ` · in ${hm(b.theatreIn)}${b.theatreOut ? `–${hm(b.theatreOut)}` : ''}` : ''}{b.scopeId ? ` · scope ${b.scopeId}` : ''}</div></td>
                     <td data-label="Actions" className="no-print">
+                      {mod('emr') && can(Perm.EmrView) && !inactive && <Link className="btn btn-link" to={`/emr/${b.id}`}>Clinical record</Link>}
                       {can(Perm.TheatreBook) && canWrite && (
                         <div className="status-actions">
                           {(next[b.status] ?? []).map(([st, t]) => <button key={st} className="btn btn-light btn-small" onClick={() => setStatus(b, st)}>{t}</button>)}

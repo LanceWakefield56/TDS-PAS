@@ -74,6 +74,7 @@ public static class Standards
         (["letter", "healthlink"], "Letters & documents"),
         (["roster", "shift", "leave", "payroll", "swap"], "Rostering"),
         (["credential"], "Credentialing"),
+        (["emr", "episode", "checklist", "controlled drug", "observation"], "Clinical record (eMR)"),
         (["assets", "cssd", "steriliser", "tray", "scope", "implant", "stock", "purchase"], "Assets & CSSD"),
         (["messaging", "interface", "dicom", "mapping", "flow"], "Messaging & integration engine"),
         (["portal"], "Portals"),
@@ -135,5 +136,8 @@ public static class ModuleSuites
                 $"api/assets/trace?patientId={Guid.Empty}", $"api/assets/implants?patientId={Guid.Empty}"],
             [("POST", "api/assets/equipment", "{}"), ("POST", "api/assets/cycles", "{}"), ("POST", $"api/assets/cycles/{Guid.Empty}/release", "{}"), ("POST", "api/assets/trays/issue", "{}"),
              ("POST", "api/assets/implants", "{}"), ("POST", $"api/assets/orders/{Guid.Empty}/approve", "{}"), ("POST", "api/assets/xero/bills", "{}")]),
+        new("emr", "Clinical record (eMR)", ["api/emr/today", $"api/emr/bookings/{Guid.Empty}", "api/emr/controlled-drugs"],
+            [("POST", $"api/emr/episodes/{Guid.Empty}/checks", "{}"), ("POST", $"api/emr/episodes/{Guid.Empty}/medications", "{}"), ("POST", "api/emr/controlled-drugs/register", "{}"),
+             ("POST", $"api/emr/episodes/{Guid.Empty}/discharge", "{}")]),
     ];
 }

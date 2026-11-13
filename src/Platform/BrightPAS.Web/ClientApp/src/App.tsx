@@ -3,6 +3,8 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { api, Me, Perm } from './api';
 import Cssd from './pages/Cssd';
 import Assets from './pages/Assets';
+import Emr from './pages/Emr';
+import EmrEpisode from './pages/EmrEpisode';
 import Stock from './pages/Stock';
 import Shell from './components/Shell';
 import SignIn from './pages/SignIn';
@@ -154,6 +156,8 @@ export default function App() {
           <Route path="/portal" element={allowed(mod('portal') && can(Perm.PortalSpecialist), <SpecialistPortal />)} />
           <Route path="/portal/requests" element={allowed(mod('portal') && can(Perm.PortalManage), <PortalRequests />)} />
           <Route path="/admin/security" element={allowed((can(Perm.UsersManage) || can(Perm.OrganisationManage)), <SecuritySettings />)} />
+          <Route path="/emr" element={allowed(mod('emr') && can(Perm.EmrView), <Emr />)} />
+          <Route path="/emr/:bookingId" element={allowed(mod('emr') && can(Perm.EmrView), <EmrEpisode />)} />
           <Route path="/cssd" element={allowed(mod('assets') && can(Perm.AssetsView), <Cssd />)} />
           <Route path="/assets" element={allowed(mod('assets') && can(Perm.AssetsView), <Assets />)} />
           <Route path="/stock" element={allowed(mod('assets') && can(Perm.AssetsView), <Stock />)} />

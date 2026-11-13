@@ -60,7 +60,7 @@ public class ModuleSetupWebTests(PasWebFactory factory) : IClassFixture<PasWebFa
         // Not licensed: shown as such, set-up refused, waitlist API blocked.
         var before = await (await admin.GetAsync("/api/admin/modules")).Json();
         Assert.Equal("NotLicensed", Module(before, "referrals").GetProperty("state").GetString());
-        Assert.Equal("ComingLater", Module(before, "emr").GetProperty("state").GetString());
+        Assert.Equal("ComingLater", Module(before, "quality").GetProperty("state").GetString());
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/modules/referrals/setup/complete", new { })).StatusCode);
 
         // A tampered licence is rejected with a reason; the real one installs through the same API the screen uses.
@@ -95,7 +95,7 @@ public class ModuleSetupWebTests(PasWebFactory factory) : IClassFixture<PasWebFa
         Assert.True(me.GetProperty("moduleSetup").GetProperty("referrals").GetBoolean());
 
         // Unknown or coming-later modules have no wizard.
-        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/admin/modules/emr/setup")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/admin/modules/quality/setup")).StatusCode);
         // Re-open puts it back to needs set-up.
         Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/admin/modules/referrals/setup/reopen", new { })).StatusCode);
         Assert.Equal("NeedsSetUp", Module(await (await admin.GetAsync("/api/admin/modules")).Json(), "referrals").GetProperty("state").GetString());

@@ -384,3 +384,20 @@ Classification letters as above (P = public/configuration, I = internal, R = res
 - **assets.SupplierInvoices**: PurchaseOrderId, InvoiceNumber, InvoiceDate, DueDate, AmountExGst, Matched (within $1 or 1 % of goods received, or difference accepted), MatchNote, ExportedToXeroAt, RecordedBy/At. I
 - **assets.Settings** (Id = 1): ScopeStorageHours (72), MaintenanceWarningDays (30), ReleaseNeedsSecondPerson, NextLoad/NextNc/NextPo/NextLoan counters. P
 - Reporting views: **reporting.vTrayTrace**, **reporting.vImplant**, **reporting.vMaintenanceDue**.
+
+## 0.14.0 – Clinical record (schema emr)
+Cross-schema keys (90-reporting.sql): Episodes.BookingId → theatre.Bookings, Episodes.PatientId → patients.Patients. All tables R unless marked.
+- **emr.Episodes**: BookingId (unique), PatientId, Stage, SedationOrAnaesthesia, AdmittedAt/By, EscortName, EscortPhone, OvernightCarer, EscortConfirmed, EscortOverrideReason, DischargedAt/By, DischargeDestination, FollowUpCallOn.
+- **emr.Assessments** / **emr.AssessmentAnswers**: Kind (NursingAdmission, Vte, Falls, PressureInjury, Frailty, Delirium), Score, Risk (Low/Moderate/High), Actions, RecordedBy/At; answers as Key/Value.
+- **emr.SafetyChecks** / **SafetyCheckItems** / **SafetyCheckTeam**: Phase (SignIn, TimeOut, SignOut), CompletedAt/By, Notes; confirmed item keys; Role + Name of each team member.
+- **emr.Intraop**: one per episode – theatre times, position, positioning aids, skin prep, diathermy unit/pad site/skin after, tourniquet site/pressure/on/off, smoke evacuation, wound class, drains, dressings, notes, UpdatedBy/At.
+- **emr.Counts**: Stage (Initial, Additional, Closing, Final), Item, Expected, Counted, CountedBy, CheckedBy, At, Resolved, ResolutionNote.
+- **emr.Specimens**: Number (per episode), Site, Test, Container, Status (Collected, Sent, ReceivedByLab), Courier, CollectedBy/At.
+- **emr.Observations**: At, RespiratoryRate, SpO2, OnOxygen, OxygenLitres, SystolicBp, DiastolicBp, HeartRate, TemperatureC, Consciousness (ACVPU), Pain, Sedation, Ews, Escalation, Source (Manual/Device), DeviceId → assets.Equipment, RecordedBy.
+- **emr.Medications**: Medicine, Dose, Route, GivenAt, GivenBy, Barcode, ControlledDrugId, WitnessedBy, Notes.
+- **emr.ControlledDrugs** (Name, Strength, Form, Balance, IsActive) / **emr.CdRegister** (Movement: Received, Administered, Wasted, Returned, Correction; Quantity, BalanceAfter, By, WitnessedBy, Reference, MedicationId/PatientId when administered). I/R
+- **emr.Fluids**: At, IsInput, Kind, Millilitres, RecordedBy.
+- **emr.BloodUnits**: UnitNumber, Product, ReceivedAt, ColdChainOk, CheckedBy1/2, StartedAt, StoppedAt, Reaction, ReactionDetails, Returned.
+- **emr.Notes**: Kind (Nursing, Medical, OperationNote, Anaesthetic, Discharge, PatientInstructions), Text, Author, At, Signed, AmendsNoteId.
+- **emr.Templates**: Name, Kind, Body (placeholders {procedure}, {surgeon}, {anaesthetist}, {date}, {clinic_phone}). P
+- Views: reporting.vEpisode, reporting.vControlledDrugRegister.

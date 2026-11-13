@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -65,6 +65,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "portal" => await PortalChecksAsync(ct),
         "messaging" => await MessagingChecksAsync(ct),
         "assets" => await AssetsChecksAsync(ct),
+        "emr" => await EmrChecksAsync(ct),
         _ => []
     };
 
@@ -212,6 +213,26 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 withCreds > 0, $"{withCreds} of {clinicians} clinician(s) have credentials recorded.", false, "Open credentialing", "/credentialing", Permissions.CredentialingManage),
             new("privileges", "Scope of practice", "Record what each surgeon/endoscopist is approved to do at TDS (whole service or individual procedures).",
                 privs > 0, $"{privs} clinician(s) with scope recorded.", true, "Open credentialing", "/credentialing", Permissions.CredentialingManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> EmrChecksAsync(CancellationToken ct)
+    {
+        var db = Svc<BrightPAS.Modules.Emr.EmrDbContext>();
+        var writers = await UsersWithAsync(Permissions.EmrWrite, ct);
+        var cdKeepers = await UsersWithAsync(Permissions.EmrControlledDrugs, ct);
+        var drugs = await db.ControlledDrugs.CountAsync(d => d.IsActive, ct);
+        var templates = (await Svc<BrightPAS.Modules.Emr.EmrService>().TemplatesAsync(ct)).Count;
+        return
+        [
+            new("staff", "Clinical staff can write the record", "Nurses, surgeons and anaesthetists need 'Record assessments, checklist…' (given to those roles by default).",
+                writers > 0, $"{writers} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("cdkeepers", "Controlled drug register keepers", "At least one nurse or anaesthetist keeps the register (receive, waste, stock check).",
+                cdKeepers > 0, $"{cdKeepers} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("drugs", "Controlled drugs in the register", "Add each controlled drug, strength and form TDS holds, with its opening balance (witnessed).",
+                drugs > 0, $"{drugs} drug(s).", true, "Open clinical record", "/emr?tab=cd", Permissions.EmrControlledDrugs),
+            new("templates", "Note templates", "Operation note, discharge summary and patient instructions templates (defaults supplied; change them to TDS's wording).",
+                templates > 0, $"{templates} template(s).", true, "Open clinical record", "/emr", Permissions.EmrWrite),
         ];
     }
 
