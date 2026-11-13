@@ -346,3 +346,9 @@ input.drop { min-width: 9rem; } input.drop.over { outline: 3px dashed var(--teal
 .table-scroll { overflow-x: auto; max-width: 100%; }
 .table-scroll table { min-width: 100%; }
 input[type=checkbox], input[type=radio] { min-width: 24px; min-height: 24px; }
+
+/* 0.13.0 Assets & CSSD */
+.stat-row { display: flex; flex-wrap: wrap; gap: .75rem; }
+.stat { flex: 1 1 110px; background: var(--light); border-radius: var(--radius); padding: .6rem .8rem; display: flex; flex-direction: column; }
+.stat strong { font-size: 1.6rem; color: var(--navy); } .stat span { color: var(--muted); font-size: .9rem; }
+.error-text { color: var(--danger); }

@@ -41,3 +41,9 @@ Filled in as the system is built.
   `dotnet run --project tools/BrightPAS.TestBot -- --url https://localhost:5001 --browser chromium --out /tmp/tb` (as root, so the simulator certificate can be trusted; restart the website once after the first trust). `--only devices` for the device scenarios only (~3 min); a full run is ~30 min.
 - The explorer presses buttons on a demo database: start each full run from a fresh demo database, or results are affected by earlier runs.
 - Review `report.html` (problems, warnings, device outputs) and the screen gallery screenshots before each release.
+
+## Assets & CSSD (0.13.0, ADR 0025)
+- `src/Modules/BrightPAS.Modules.Assets`: `AssetsModel.cs` (entities, schema `assets`), `EquipmentService` (register, maintenance, lockout, suppliers, settings), `CssdService` (trays, cycles, `ParseMachineLog`, release, issue, recall, scopes, loans, nonconformance, tray ZPL), `StockService` (stock, lots, implants, orders, receipt, invoice matching, Xero bills CSV).
+- Web: `Api/AssetsEndpoints.cs` (`/api/assets/*`), merge participant `AssetsMerge`, set-up checks `AssetsChecksAsync`, demo data `AssetsAsync` in DemoData.cs. UI: `pages/Cssd.tsx`, `pages/Assets.tsx`, `pages/Stock.tsx`, patient panel in `components/PatientModules.tsx`.
+- Machine-log reader: extend `CssdService.ParseMachineLog` (and its test) when a real Belimed/steriliser export is available; keep it tolerant and always store the raw log.
+- Devices that will connect (monitors, endoscopy towers) are `Equipment` rows with `NetworkAddress` – the 0.17.0 device integration builds on them.

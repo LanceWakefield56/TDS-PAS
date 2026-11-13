@@ -71,6 +71,7 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         }
         else R.Add(Area, "", "SMS company (virtual Modica)", "SMS and email tests", Outcome.Skip, "The server does not trust the virtual SMS company's certificate. Run the robot from an administrator command prompt on the BrightPAS server.");
         await Step("Virtual Zebra printer", "Print a wristband and labels from the patient record", ZebraAsync);
+        await Step("Virtual washer (Belimed log)", "Import a washer log, release the load, pack the tray, print its label on the virtual Zebra and issue it to a case", CssdAsync);
         await Step("Virtual DYMO printer", "Print DYMO labels from the patient record", DymoAsync);
         await Step("Virtual scanner", "Scan a letter to the patient record; text recognition finds a word in it", ScanAsync);
         await Step("Virtual barcode scanner", "Scan a patient label barcode into Find a patient", BarcodeAsync);
@@ -125,7 +126,8 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         var cb = _remOriginal.GetProperty("callbacks");
         sims.ReceiptUrl = cb.GetProperty("deliveryReceipts").GetString()!.Replace(new Uri(cb.GetProperty("deliveryReceipts").GetString()!).GetLeftPart(UriPartial.Authority), bot.O.Url);
         sims.ReplyUrl = cb.GetProperty("replies").GetString()!.Replace(new Uri(cb.GetProperty("replies").GetString()!).GetLeftPart(UriPartial.Authority), bot.O.Url);
-        var put = await _rem.PutAsync("/api/reminders/settings", Settings(_remOriginal, "Modica", "Smtp", sims.ModicaUrl, sims.ModicaApp, sims.ModicaPassword, "localhost", bot.O.SmtpPort, false, "reception@tds-demo.example.nz"));
+        // No quiet hours while testing, so messages go straight away whatever the time of day (put back afterwards).
+        var put = await _rem.PutAsync("/api/reminders/settings", Settings(_remOriginal, "Modica", "Smtp", sims.ModicaUrl, sims.ModicaApp, sims.ModicaPassword, "localhost", bot.O.SmtpPort, false, "reception@tds-demo.example.nz", "00:00", "00:00"));
         if (put.Status != 200) return (Outcome.Fail, $"Settings refused ({put.Status}): {put.Text}");
         var orig = _remOriginal;
         _restore.Add(async () =>
@@ -139,12 +141,13 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         return (Outcome.Pass, $"As {_rem.Account}: SMS via {sims.ModicaUrl}, email via localhost:{bot.O.SmtpPort}. Was: SMS {Str(orig, "smsProvider")}, email {Str(orig, "emailProvider")}. {(problems.Length > 0 ? "Problems listed: " + problems : "")}");
     }
 
-    private static object Settings(JsonElement o, string sms, string email, string? modicaUrl, string? modicaApp, string? modicaPassword, string? smtpHost, int smtpPort, bool startTls, string? from) => new
+    private static object Settings(JsonElement o, string sms, string email, string? modicaUrl, string? modicaApp, string? modicaPassword, string? smtpHost, int smtpPort, bool startTls, string? from,
+        string? quietStart = null, string? quietEnd = null) => new
     {
         smsProvider = sms, emailProvider = email,
         sendBookingConfirmation = o.GetProperty("sendBookingConfirmation").GetBoolean(), sendDayBeforeReminder = o.GetProperty("sendDayBeforeReminder").GetBoolean(),
         sendEmailCopies = o.GetProperty("sendEmailCopies").GetBoolean(), dayBeforeHour = o.GetProperty("dayBeforeHour").GetInt32(), arrivalLeadMinutes = o.GetProperty("arrivalLeadMinutes").GetInt32(),
-        quietStart = Str(o, "quietStart"), quietEnd = Str(o, "quietEnd"), clinicName = Str(o, "clinicName") ?? "Tasman Day Surgery", clinicPhone = Str(o, "clinicPhone"),
+        quietStart = quietStart ?? Str(o, "quietStart"), quietEnd = quietEnd ?? Str(o, "quietEnd"), clinicName = Str(o, "clinicName") ?? "Tasman Day Surgery", clinicPhone = Str(o, "clinicPhone"),
         modicaBaseUrl = modicaUrl, modicaApplication = modicaApp, modicaPassword, modicaMask = Str(o, "modicaMask"),
         genericUrl = Str(o, "genericUrl"), genericAuthHeader = Str(o, "genericAuthHeader"), genericAuthValue = (string?)null, genericBodyTemplate = Str(o, "genericBodyTemplate"),
         smtpHost, smtpPort, smtpStartTls = startTls, smtpUser = (string?)null, smtpPassword = (string?)null, fromAddress = from ?? "reception@tds-demo.example.nz", fromName = Str(o, "fromName") ?? "Tasman Day Surgery",
@@ -429,6 +432,54 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         if (!text.Contains(_patient.Mrn, StringComparison.Ordinal)) fails.Add("MRN missing.");
         if (!fits) fails.Add("Something on the label runs past its edge (would be cut off).");
         return fails.Count > 0 ? (Outcome.Fail, string.Join(" ", fails)) : (Outcome.Pass, $"Print window opened; label {box?.Width:0}×{box?.Height:0}px shows name, DOB, NHI/MRN and barcode inside the edges.");
+    }
+
+    // ------------------------------------------------------------------ CSSD
+    private async Task<(Outcome, string)> CssdAsync()
+    {
+        var s = await As("cssd");
+        if ((await s.GetAsync("/api/assets/dashboard")).Status != 200) return (Outcome.Skip, "Assets & CSSD module not available to the CSSD account.");
+        var machines = (await s.GetAsync("/api/assets/equipment?category=Washer")).Json;
+        var washer = Find(machines, m => Str(m, "status") == "InService");
+        if (washer is not { } w) return (Outcome.Skip, "No washer-disinfector in service.");
+        var dirty = Find((await s.GetAsync("/api/assets/trays?status=Dirty")).Json, _ => true);
+        if (dirty is not { } tray) return (Outcome.Skip, "No dirty tray to wash in the demonstration data.");
+        var barcode = Str(tray, "barcode")!;
+        var log = $"BELIMED WD 290 IQ\nBatch no.: 77{Random.Shared.Next(100, 999)}\nProgram: Instruments Standard\nStart: {DateTime.Now.AddMinutes(-60):dd.MM.yyyy HH:mm:ss}\nEnd: {DateTime.Now.AddMinutes(-5):dd.MM.yyyy HH:mm:ss}\nDisinfection temp: 93.2 °C\nHolding time: 05:00\nA0 value: 3010\nResult: Cycle OK\n";
+        R.Device("Virtual washer (Belimed log)", "Cycle log produced by the virtual washer", log);
+        var imp = await s.PostAsync("/api/assets/cycles/import", new { machineId = Str(w, "id"), kind = "Wash", fileName = "WD290-virtual.log", text = log, trayBarcodes = new[] { barcode }, otherItems = Array.Empty<object>(),
+            chemicalIndicator = "NotUsed", biologicalIndicator = "NotUsed", bowieDickTest = false, startedAt = (string?)null });
+        if (imp.Status != 200) return (Outcome.Fail, $"Log import refused ({imp.Status}): {imp.Text}");
+        var parsed = imp.Json!.Value.GetProperty("parsed");
+        if (parsed.GetProperty("notes").GetArrayLength() > 0 || Str(parsed, "a0") != "3010") return (Outcome.Fail, $"The log was not read fully: {parsed}");
+        var id = Str(imp.Json.Value, "id")!;
+        var rel = await s.PostAsync($"/api/assets/cycles/{id}/release", new { release = true, note = (string?)null });
+        if (rel.Status != 200) return (Outcome.Fail, $"Release refused: {rel.Text}");
+        var pack = await s.PostAsync("/api/assets/trays/pack", new { barcode, contentsChecked = true });
+        if (pack.Status != 200) return (Outcome.Fail, $"Packing refused: {pack.Text}");
+        var notes = new List<string> { $"load {Str(imp.Json.Value, "loadNumber")} imported (A0 3010, cycle OK) and released; {barcode} packed" };
+        // A sterile tray: print its label on the virtual Zebra (the default label printer during the device tests) and issue it to today's case.
+        var sterile = Find((await s.GetAsync("/api/assets/trays?status=Sterile")).Json, _ => true);
+        if (sterile is { } st)
+        {
+            var before = sims.Labels.Count;
+            var pr = await s.PostAsync($"/api/assets/trays/{Str(st, "id")}/print", new { });
+            var label = await Sims.WaitForAsync(sims.Labels, x => sims.Labels.ToList().IndexOf(x) >= before, TimeSpan.FromSeconds(10));
+            if (pr.Status != 200 || label is null) return (Outcome.Fail, string.Join("; ", notes) + $". Tray label did not reach the virtual Zebra ({pr.Status} {pr.Text}).");
+            if (!label.Zpl.Contains(Str(st, "barcode")!, StringComparison.Ordinal) || !label.Zpl.Contains("Use by", StringComparison.Ordinal)) return (Outcome.Fail, "Tray label is missing the barcode or use-by date.");
+            notes.Add($"label for {Str(st, "barcode")} printed with barcode, load and use-by date");
+            var cases = (await s.GetAsync("/api/assets/cases")).Json;
+            if (Find(cases, _ => true) is { } c)
+            {
+                var iss = await s.PostAsync("/api/assets/trays/issue", new { barcode = Str(st, "barcode"), bookingId = Str(c, "bookingId") });
+                if (iss.Status != 200) return (Outcome.Fail, string.Join("; ", notes) + $". Issue to case refused: {iss.Text}");
+                var trace = await s.GetAsync($"/api/assets/trace?patientId={Str(c, "patientId")}");
+                if (!trace.Text.Contains(Str(st, "barcode")!, StringComparison.Ordinal)) return (Outcome.Fail, "Tray issued but not found when tracing the patient.");
+                notes.Add($"issued to {Str(c, "patientName")} and found by tracing the patient");
+            }
+            else notes.Add("no theatre case today to issue to (weekend?) – issue not tested");
+        }
+        return (Outcome.Pass, string.Join("; ", notes) + ".");
     }
 
     // ------------------------------------------------------------------ scanning

@@ -11,6 +11,7 @@ using BrightPAS.Modules.Labs;
 using BrightPAS.Modules.Patients;
 using BrightPAS.Modules.Referrals;
 using BrightPAS.Modules.Theatre;
+using Ast = BrightPAS.Modules.Assets;
 using Cred = BrightPAS.Modules.Credentialing;
 using Let = BrightPAS.Modules.Letters;
 using Msg = BrightPAS.Modules.Messaging;
@@ -109,6 +110,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await PatientRecordsAsync(ct);
         await PortalAsync(ct);
         await RosterActivityAsync(ct);
+        await AssetsAsync(ct);
         await MessagingAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
@@ -442,6 +444,155 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         if (created == 0) throw new InvalidOperationException("Demo data – roster: no shifts were created.");
     }
 
+    // ------------------------------------------------------------------ Assets & CSSD (0.13.0)
+    private async Task AssetsAsync(CancellationToken ct)
+    {
+        var eq = S<Ast.EquipmentService>();
+        var cssd = S<Ast.CssdService>();
+        var stock = S<Ast.StockService>();
+        var now = _clock.GetUtcNow();
+        Guid Sup(string name, string? xero, string email) => Must(eq.SaveSupplierAsync(new Ast.SupplierEdit(null, name, "Orders desk", email, "0800 555 0" + _rng.Next(100, 999), xero, true), Actor, ct).GetAwaiter().GetResult().Supplier, [], name).Id;
+        var medSup = Sup("Medical Supplies NZ (demo)", "Medical Supplies NZ Ltd", "orders@medsupplies.example.nz");
+        var belimed = Sup("Belimed NZ (demo)", "Belimed NZ", "service@belimed.example.nz");
+        var olympus = Sup("Olympus NZ (demo)", "Olympus NZ", "service@olympus.example.nz");
+        var loans = Sup("Ortho Loans NZ (demo)", null, "loans@ortholoans.example.nz");
+
+        async Task<Guid> E(string no, string name, Ast.EquipmentCategory cat, string make, string model, string? room, Ast.RiskClass risk, Guid? sup, decimal? value, string? ip = null)
+        {
+            var (row, errors) = await eq.SaveAsync(new Ast.EquipmentEdit(null, no, name, cat, make, model, "SN" + _rng.Next(100000, 999999), room is null ? null : _loc[room], cat is Ast.EquipmentCategory.Washer or Ast.EquipmentCategory.Steriliser or Ast.EquipmentCategory.Aer or Ast.EquipmentCategory.DryingCabinet or Ast.EquipmentCategory.Endoscope ? "CSSD" : "Theatre",
+                sup, _today.AddYears(-3).AddDays(-_rng.Next(0, 700)), value, _today.AddYears(1).AddDays(_rng.Next(-500, 300)), risk, ip, null), Actor, ct);
+            return Must(row, errors, "equipment " + no).Id;
+        }
+        var washer = await E("WD-01", "Washer-disinfector", Ast.EquipmentCategory.Washer, "Belimed", "WD 290 IQ", null, Ast.RiskClass.High, belimed, 85000);
+        var steriliser = await E("ST-01", "Steam steriliser", Ast.EquipmentCategory.Steriliser, "Belimed", "MST-V 6-6-9", null, Ast.RiskClass.High, belimed, 120000);
+        var aer = await E("AER-01", "Endoscope reprocessor", Ast.EquipmentCategory.Aer, "Olympus", "OER-Elite", null, Ast.RiskClass.High, olympus, 60000);
+        await E("DRY-01", "Scope drying cabinet", Ast.EquipmentCategory.DryingCabinet, "Olympus", "ETD-Dry", null, Ast.RiskClass.Medium, olympus, 25000);
+        var scopes = new List<Guid>();
+        foreach (var (no, name, model) in new[] { ("GIF-H190-01", "Gastroscope 1", "GIF-H190"), ("GIF-H190-02", "Gastroscope 2", "GIF-H190"), ("GIF-H190-03", "Gastroscope 3", "GIF-H190"),
+                     ("CF-HQ190L-1", "Colonoscope 1", "CF-HQ190L"), ("CF-HQ190L-2", "Colonoscope 2", "CF-HQ190L"), ("CF-HQ190L-3", "Colonoscope 3", "CF-HQ190L") })
+            scopes.Add(await E(no, name, Ast.EquipmentCategory.Endoscope, "Olympus", model, null, Ast.RiskClass.High, olympus, 45000));
+        await E("TOWER-01", "Endoscopy video tower", Ast.EquipmentCategory.EndoscopyTower, "Olympus", "EVIS X1 CV-1500", "PR1", Ast.RiskClass.High, olympus, 150000, "192.168.1.150");
+        var mon1 = await E("MON-01", "Patient monitor – theatre", Ast.EquipmentCategory.Monitor, "GE HealthCare", "CARESCAPE B450", "TH1", Ast.RiskClass.High, medSup, 28000, "192.168.1.171");
+        var mon2 = await E("MON-02", "Patient monitor – recovery 1", Ast.EquipmentCategory.Monitor, "GE HealthCare", "CARESCAPE B155", null, Ast.RiskClass.High, medSup, 12000, "192.168.1.172");
+        var diathermy = await E("ELEC-01", "Diathermy generator", Ast.EquipmentCategory.Electromedical, "Medtronic", "Valleylab FT10", "TH1", Ast.RiskClass.High, medSup, 38000);
+        var suction = await E("ELEC-02", "Theatre suction unit", Ast.EquipmentCategory.Electromedical, "Medela", "Basic 30", "TH1", Ast.RiskClass.Medium, medSup, 3500);
+        var warmer = await E("ELEC-03", "Patient warming unit", Ast.EquipmentCategory.Electromedical, "3M", "Bair Hugger 675", "TH1", Ast.RiskClass.Medium, medSup, 4200);
+        await E("FURN-01", "Operating table", Ast.EquipmentCategory.Furniture, "Maquet", "Alphamaxx", "TH1", Ast.RiskClass.Medium, medSup, 90000);
+
+        foreach (var id in new[] { mon1, mon2, diathermy, suction, warmer })
+        {
+            Ok(await eq.SavePlanAsync(new Ast.PlanEdit(id, Ast.MaintenanceKind.TestAndTag, 12, _today.AddDays(_rng.Next(20, 300)), "Nelson Electrical Testing (demo)"), Actor, ct), "test and tag plan");
+            Ok((await eq.RecordAsync(new Ast.MaintenanceEdit(id, Ast.MaintenanceKind.TestAndTag, _today.AddMonths(-_rng.Next(2, 10)), "Nelson Electrical Testing (demo)", true, "T-" + _rng.Next(1000, 9999), null), Actor, ct)).Errors, "test and tag");
+        }
+        foreach (var id in new[] { washer, steriliser, aer })
+        {
+            Ok(await eq.SavePlanAsync(new Ast.PlanEdit(id, Ast.MaintenanceKind.Ppm, 6, _today.AddDays(_rng.Next(15, 150)), id == aer ? "Olympus NZ (demo)" : "Belimed NZ (demo)"), Actor, ct), "PPM plan");
+            Ok(await eq.SavePlanAsync(new Ast.PlanEdit(id, Ast.MaintenanceKind.Validation, 12, _today.AddDays(_rng.Next(60, 330)), "Sterile Validation Services (demo)"), Actor, ct), "validation plan");
+            Ok((await eq.RecordAsync(new Ast.MaintenanceEdit(id, Ast.MaintenanceKind.Ppm, _today.AddMonths(-4), id == aer ? "Olympus NZ (demo)" : "Belimed NZ (demo)", true, null, "Six-monthly service"), Actor, ct)).Errors, "PPM record");
+        }
+        Ok(await eq.SavePlanAsync(new Ast.PlanEdit(suction, Ast.MaintenanceKind.Ppm, 12, _today.AddDays(-12), "Medela service (demo)"), Actor, ct), "overdue PPM");
+        Ok(await eq.SavePlanAsync(new Ast.PlanEdit(mon1, Ast.MaintenanceKind.Calibration, 12, _today.AddDays(18), "GE HealthCare service (demo)"), Actor, ct), "calibration due soon");
+        Ok((await eq.RecordAsync(new Ast.MaintenanceEdit(warmer, Ast.MaintenanceKind.TestAndTag, _today.AddDays(-2), "Nelson Electrical Testing (demo)", false, null, "Insulation resistance failed – cracked hose housing"), Actor, ct)).Errors, "failed test and tag");
+
+        // Tray catalogue (names match the theatre records) and two barcoded trays each.
+        var sets = new (string Code, string Name, string Spec, string[] Items)[]
+        {
+            ("GENERAL", "General set", "General surgery", ["2 Mayo scissors", "2 Metzenbaum scissors", "6 Artery forceps (curved)", "2 Toothed dissecting forceps", "2 Non-toothed dissecting forceps", "1 Needle holder", "2 Langenbeck retractors", "1 Scalpel handle no. 3", "1 Gallipot", "1 Kidney dish"]),
+            ("LAPCHOLE", "Lap chole set", "General surgery", ["2 Maryland grasper", "2 Atraumatic grasper", "1 Hook diathermy", "1 Clip applier (medium-large)", "1 Suction-irrigation probe", "2 10 mm trocar", "2 5 mm trocar", "1 Veress needle"]),
+            ("ANORECTAL", "Anorectal set", "Colorectal", ["1 Eisenhammer retractor", "1 Proctoscope", "2 Allis forceps", "1 Probe set", "1 Needle holder"]),
+            ("HAND", "Hand set", "Orthopaedics (hand)", ["1 Tourniquet set", "2 Skin hooks", "1 Senn retractor pair", "1 Tenotomy scissors", "2 Mosquito forceps", "1 Adson forceps"]),
+            ("PLASTICS", "Plastics fine set", "Plastics", ["2 Iris scissors", "2 Adson-Brown forceps", "1 Castroviejo needle holder", "4 Fine skin hooks", "1 Jeweller's forceps"]),
+            ("MINOR", "Minor set", "General", ["1 Scissors", "2 Artery forceps", "1 Dissecting forceps", "1 Needle holder", "1 Scalpel handle"]),
+        };
+        foreach (var t in sets)
+        {
+            var set = Must((await cssd.SaveTraySetAsync(new Ast.TraySetEdit(null, t.Code, t.Name, t.Spec, 90, true,
+                t.Items.Select(i => { var sp = i.IndexOf(' '); return new Ast.TrayItemEdit(i[(sp + 1)..], int.Parse(i[..sp], System.Globalization.CultureInfo.InvariantCulture)); }).ToList()), Actor, ct)).Set, [], "tray " + t.Code);
+            Ok((await cssd.AddTraysAsync(set.Id, 2, Actor, ct)).Error, "trays " + t.Code);
+        }
+        var all = sets.SelectMany(t => new[] { $"{t.Code}-01", $"{t.Code}-02" }).ToList();
+        // Wash, pack and sterilise every tray (yesterday), in loads of four.
+        var start = now.AddDays(-1).AddHours(-6);
+        foreach (var chunk in all.Chunk(6))
+        {
+            var (wash, we) = await cssd.CreateCycleAsync(new Ast.CycleEdit(washer, Ast.CycleKind.Wash, (4400 + _rng.Next(1, 99)).ToString(System.Globalization.CultureInfo.InvariantCulture), "Instruments Standard", start, start.AddMinutes(55), 93.2m, 300, null, 3050, true,
+                Ast.IndicatorResult.NotUsed, Ast.IndicatorResult.NotUsed, false, chunk, null), "Manual", null, "cssd", ct);
+            Ok((await cssd.ReleaseAsync(Must(wash, we, "wash load").Id, true, null, "cssd", ct)).Ok ? null : "release wash", "wash release");
+            foreach (var b in chunk) Ok(await cssd.PackAsync(b, true, null, "cssd", ct), "pack " + b);
+            start = start.AddMinutes(70);
+        }
+        var sterile = all.Where(b => !b.StartsWith("MINOR-02", StringComparison.Ordinal)).ToList();
+        foreach (var chunk in sterile.Chunk(4))
+        {
+            var (steam, se) = await cssd.CreateCycleAsync(new Ast.CycleEdit(steriliser, Ast.CycleKind.Steam, (8800 + _rng.Next(1, 99)).ToString(System.Globalization.CultureInfo.InvariantCulture), "134 °C 4 min wrapped", start, start.AddMinutes(48), 134.3m, 240, 212, null, true,
+                Ast.IndicatorResult.Pass, Ast.IndicatorResult.Pass, chunk[0] == sterile[0], chunk, [new Ast.CycleItemEdit("Steri packs (dressing, suture removal)", 6)]), "Manual", null, "cssd", ct);
+            Ok((await cssd.ReleaseAsync(Must(steam, se, "steam load").Id, true, null, "cssd", ct)).Ok ? null : "release steam", "steam release");
+            start = start.AddMinutes(60);
+        }
+        // Today: one load waiting for release (BI incubating).
+        var (pending, pe) = await cssd.CreateCycleAsync(new Ast.CycleEdit(steriliser, Ast.CycleKind.Steam, "8899", "134 °C 4 min wrapped", now.AddMinutes(-50), now.AddMinutes(-5), 134.1m, 240, 211, null, true,
+            Ast.IndicatorResult.Pass, Ast.IndicatorResult.Pending, false, ["MINOR-02"], [new Ast.CycleItemEdit("Steri packs", 4)]), "Manual", null, "cssd", ct);
+        Must(pending, pe, "pending load");
+
+        // Issue trays to recent cases (set-to-patient traceability) and bring most back dirty.
+        var recent = _done.Where(d => d.Session.Type == SessionType.Surgical).OrderByDescending(d => d.Session.Date).Take(5).ToList();
+        var issueable = new Queue<string>(sterile.Where(b => b.EndsWith("-01", StringComparison.Ordinal)));
+        foreach (var (b, _, _) in recent)
+        {
+            if (issueable.Count == 0) break;
+            var code = issueable.Dequeue();
+            Ok((await cssd.IssueAsync(code, b.Id, b.PatientId, "nurse2", ct)).Error, "issue " + code);
+            if (issueable.Count % 2 == 0) Ok(await cssd.ReturnDirtyAsync(code, "cssd", ct), "return " + code);
+        }
+
+        // Endoscopes: reprocessed and ready, one used today, one past storage time, one quarantined after a failed leak test.
+        for (var n = 0; n < scopes.Count; n++)
+        {
+            var sc = scopes[n];
+            var t0 = n == 4 ? now.AddDays(-5) : now.AddHours(-20 + n);
+            foreach (var (kind, passed, mins) in new[] { (Ast.ScopeEventKind.LeakTest, (bool?)true, 0), (Ast.ScopeEventKind.ManualClean, null, 10), (Ast.ScopeEventKind.AerCycle, true, 40), (Ast.ScopeEventKind.DryingIn, null, 75) })
+                Ok((await cssd.RecordScopeEventAsync(new Ast.ScopeEventEdit(sc, kind, passed, null, null, null, kind == Ast.ScopeEventKind.AerCycle ? $"AER cycle {5500 + n}" : null, t0.AddMinutes(mins)), "cssd", ct)).Error, "scope event");
+        }
+        var endo = _done.Where(d => d.Session.Type == SessionType.Endoscopy).OrderByDescending(d => d.Session.Date).FirstOrDefault();
+        if (endo.Booking is not null)
+            Ok((await cssd.RecordScopeEventAsync(new Ast.ScopeEventEdit(scopes[0], Ast.ScopeEventKind.Use, null, null, endo.Booking.Id, endo.Booking.PatientId, null, now.AddMinutes(-30)), "nurse", ct)).Error, "scope use");
+        Ok((await cssd.RecordScopeEventAsync(new Ast.ScopeEventEdit(scopes[5], Ast.ScopeEventKind.LeakTest, false, null, null, null, "Leak at the bending section rubber", now.AddMinutes(-20)), "cssd", ct)).Error, "scope leak fail");
+
+        // Loan sets.
+        var (loan1, l1e) = await cssd.SaveLoanAsync(new Ast.LoanEdit(null, loans, "Mini C-arm hand fixation set (loan)", 42, recent.FirstOrDefault().Booking?.Id), "cssd", ct);
+        Ok(await cssd.AdvanceLoanAsync(Must(loan1, l1e, "loan").Id, Ast.LoanStatus.Received, null, null, "cssd", ct), "loan received");
+        var (loan2, l2e) = await cssd.SaveLoanAsync(new Ast.LoanEdit(null, loans, "Small fragment set (trial)", 65, null), "cssd", ct);
+        Must(loan2, l2e, "loan 2");
+
+        // Stock, an order received and invoiced, a draft reorder, and an implant used on a hernia repair.
+        Ast.StockItem Item(string code, string name, string unit, bool implant, int reorder, int qty, decimal cost) =>
+            Must(stock.SaveItemAsync(new Ast.StockItemEdit(null, code, name, unit, implant, medSup, code + "-MS", reorder, qty, cost, "310", true), Actor, ct).GetAwaiter().GetResult().Item, [], code);
+        var mesh = Item("MESH-1515", "Polypropylene hernia mesh 15 × 15 cm", "each", true, 3, 5, 145m);
+        var clips = Item("CLIP-ML", "Ligating clips medium-large (cartridge)", "box", false, 4, 10, 62m);
+        var gauze = Item("GAUZE-10", "Gauze swabs 10 × 10 (pk 10)", "pack", false, 50, 200, 1.85m);
+        var indicators = Item("BI-STEAM", "Steam biological indicators (box 25)", "box", false, 2, 4, 210m);
+        Item("SUT-30V", "Absorbable suture 3/0 (box 12)", "box", false, 6, 12, 96m);
+        var (po, poe) = await stock.CreateOrderAsync(medSup, [new Ast.OrderLineEdit(mesh.Id, 5, null), new Ast.OrderLineEdit(clips.Id, 10, null), new Ast.OrderLineEdit(gauze.Id, 200, null), new Ast.OrderLineEdit(indicators.Id, 4, null)], "Monthly order", "cssd", ct);
+        var order = Must(po, poe, "order");
+        Ok(await stock.SetOrderStatusAsync(order.Id, Ast.PoStatus.Approved, "finance", ct), "approve order");
+        Ok(await stock.SetOrderStatusAsync(order.Id, Ast.PoStatus.Sent, "cssd", ct), "send order");
+        var lines = (await stock.OrdersAsync(true, ct)).Single(o => o.Id == order.Id).Items;
+        Ok(await stock.ReceiveAsync(order.Id, lines.Select(l => new Ast.ReceiptLine(l.Id, l.Quantity, "L" + _rng.Next(10000, 99999), l.Code == "GAUZE-10" ? null : _today.AddMonths(_rng.Next(8, 30)))).ToList(), "cssd", ct), "receive order");
+        var total = lines.Sum(l => l.Quantity * l.UnitCost);
+        Ok((await stock.AddInvoiceAsync(order.Id, new Ast.InvoiceRequest("MSNZ-" + _rng.Next(20000, 29999), _today.AddDays(-1), _today.AddDays(19), total), "finance", ct)).Error, "invoice");
+        Ok(await stock.UseAsync(new Ast.UseRequest(gauze.Id, 180, null, null, null, "Theatre use this month"), "nurse2", ct), "gauze use");
+        Ok(await stock.UseAsync(new Ast.UseRequest(clips.Id, 7, null, null, null, "Theatre use this month"), "nurse2", ct), "clip use");
+        var hernia = _done.FirstOrDefault(d => d.Booking.Procedure.Contains("hernia", StringComparison.OrdinalIgnoreCase));
+        if (hernia.Booking is not null)
+        {
+            var lot = (await stock.LotsAsync(mesh.Id, ct)).First();
+            Ok((await stock.RecordImplantAsync(new Ast.ImplantRequest(mesh.Id, lot.Id, null, "SN-" + _rng.Next(100000, 999999), "Demo Medical", "Left inguinal", hernia.Booking.PatientId, hernia.Booking.Id,
+                hernia.Session.Date), "nurse2", ct)).Error, "implant");
+        }
+        await stock.DraftReordersAsync("cssd", ct);
+        Ok((await cssd.RaiseAsync(new Ast.NcEdit(null, "Instrument damage", "Hand set: one Senn retractor found bent at inspection.", null, null, null, "Removed from tray, replacement ordered.", null, null, null), "cssd", ct)).Errors, "nonconformance");
+    }
+
     private async Task RosterActivityAsync(CancellationToken ct)
     {
         var svc = S<Ros.RosterService>();
@@ -497,9 +648,11 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         {
             var to = from.AddDays(55) > _today.AddDays(42) ? _today.AddDays(42) : from.AddDays(55);
             var result = await svc.GenerateFromTemplatesAsync(from, to, Actor, ct);
-            if (result.Created == 0) throw new InvalidOperationException("Demo data – theatre: no lists were created. " + string.Join(" ", result.Skipped.Take(3)));
+            // A short last window (e.g. a weekend) can legitimately create nothing – only fail if no lists are made at all (0.13.0 fix: the
+            // demonstration loader failed on some days of the week).
             made += result.Created;
         }
+        if (made == 0) throw new InvalidOperationException("Demo data – theatre: no lists were created.");
         // One list cancelled because the surgeon was away.
         var core = S<TheatreDbContext>();
         var away = await core.Sessions.Where(s => s.Date > _today.AddDays(14) && s.SurgeonId == _clin["tipene"]).OrderBy(s => s.Date).FirstOrDefaultAsync(ct);
@@ -1122,7 +1275,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
 
         // Traffic: results posted by the partner lab and images from the endoscopy tower over the last few days.
         var n = 0;
-        foreach (var (b, s, _) in _done.Where(d => d.Session.Date >= _today.AddDays(-10)).Take(12))
+        foreach (var (b, s, _) in _done.OrderByDescending(d => d.Session.Date).Take(12))
         {
             n++;
             var p = await S<PatientsDbContext>().Patients.AsNoTracking().SingleAsync(x => x.Id == b.PatientId, ct);

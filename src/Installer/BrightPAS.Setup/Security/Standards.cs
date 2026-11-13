@@ -74,6 +74,7 @@ public static class Standards
         (["letter", "healthlink"], "Letters & documents"),
         (["roster", "shift", "leave", "payroll", "swap"], "Rostering"),
         (["credential"], "Credentialing"),
+        (["assets", "cssd", "steriliser", "tray", "scope", "implant", "stock", "purchase"], "Assets & CSSD"),
         (["messaging", "interface", "dicom", "mapping", "flow"], "Messaging & integration engine"),
         (["portal"], "Portals"),
         (["theatre"], "Theatre bookings"),
@@ -130,5 +131,9 @@ public static class ModuleSuites
         new("messaging", "Messaging & integration engine", ["api/messaging/dashboard", "api/messaging/interfaces", "api/messaging/messages", "api/messaging/flows", "api/messaging/mappings", "api/messaging/tables", "api/messaging/settings"],
             [("POST", "api/messaging/interfaces", "{}"), ("POST", "api/messaging/flows", "{}"), ("POST", "api/messaging/mappings", "{}"), ("POST", "api/messaging/tables", "{}"),
              ("POST", $"api/messaging/messages/{Guid.Empty}/replay", "{}"), ("POST", $"api/messaging/versions/{Guid.Empty}/approve", "{}"), ("PUT", "api/messaging/settings", "{}")]),
+        new("assets", "Assets & CSSD", ["api/assets/dashboard", "api/assets/equipment", "api/assets/trays", "api/assets/cycles", "api/assets/scopes", "api/assets/stock", "api/assets/orders",
+                $"api/assets/trace?patientId={Guid.Empty}", $"api/assets/implants?patientId={Guid.Empty}"],
+            [("POST", "api/assets/equipment", "{}"), ("POST", "api/assets/cycles", "{}"), ("POST", $"api/assets/cycles/{Guid.Empty}/release", "{}"), ("POST", "api/assets/trays/issue", "{}"),
+             ("POST", "api/assets/implants", "{}"), ("POST", $"api/assets/orders/{Guid.Empty}/approve", "{}"), ("POST", "api/assets/xero/bills", "{}")]),
     ];
 }

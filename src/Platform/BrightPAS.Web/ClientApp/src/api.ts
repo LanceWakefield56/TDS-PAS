@@ -52,6 +52,7 @@ export const Perm = {
   RosterView: 'roster.view', RosterManage: 'roster.manage', PatientMerge: 'patient.merge',
   CredentialingView: 'credentialing.view', CredentialingManage: 'credentialing.manage', PortalSpecialist: 'portal.specialist', PortalManage: 'portal.manage',
   MessagingView: 'messaging.view',
+  AssetsView: 'assets.view', AssetsManage: 'assets.manage', CssdProcess: 'cssd.process', CssdRelease: 'cssd.release', StockManage: 'stock.manage', PurchasingApprove: 'purchasing.approve',
 } as const;
 
 /** POSTs and saves the returned file (exports). Throws ApiError with the JSON body on refusal (e.g. password needed). */
@@ -72,6 +73,9 @@ export const fileToBase64 = (f: File) => new Promise<string>((resolve, reject) =
   const r = new FileReader(); r.onload = () => resolve(String(r.result).split(',')[1] ?? ''); r.onerror = () => reject(r.error); r.readAsDataURL(f);
 });
 
+export const fileToText = (f: File) => new Promise<string>((resolve, reject) => {
+  const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = () => reject(r.error); r.readAsText(f);
+});
 export const nzDateTime = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 export const money = (n: number) => n.toLocaleString('en-NZ', { style: 'currency', currency: 'NZD' });
 export const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };

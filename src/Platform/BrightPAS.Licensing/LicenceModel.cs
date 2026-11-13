@@ -77,7 +77,7 @@ public static class ProductModules
         new("billing", "Estimates & invoices", "Fee schedule, estimates, invoices, payments and fee splits.", true),
         new("emr", "Clinical record (eMR)", "Perioperative, anaesthetic and nursing records.", false),
         new("rostering", "Rostering", "Staff rosters: shifts, regular shifts, leave and hours (replaces TeamUp).", true),
-        new("assets", "Assets & CSSD", "Asset register and sterile instrument traceability.", false),
+        new("assets", "Assets & CSSD", "Equipment register and maintenance, sterile instrument (AS/NZS 5369) and endoscope traceability, loan sets, stock, implants and purchasing.", true),
         new("quality", "Quality management", "Incidents, surveys, SSI, falls and quality reporting.", false),
         new("endoscopy", "Endoscopy", "Endoscopy reporting and scope tracking (replaces Endobase).", false),
         new("messaging", "Messaging & integration engine", "TDS's own integration engine: HL7, FHIR, DICOM, CDA/XML, X12 and REST interfaces; visual message flows, mappings and translation tables with a test harness; message store, retries, monitoring and alerts.", true),

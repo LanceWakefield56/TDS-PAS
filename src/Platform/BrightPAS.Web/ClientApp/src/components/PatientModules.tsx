@@ -21,8 +21,11 @@ export default function PatientModules({ patientId }: { patientId: string }) {
   const [comms, setComms] = useState<{ preference: any; messages: any[] } | null>(null);
   const [sendBy, setSendBy] = useState({ sms: true, email: false });
   const remindersOn = mod('reminders') && can(Perm.RemindersView);
+  const [trace, setTrace] = useState<any>(null);
+  const [implants, setImplants] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
+    if (mod('assets') && can(Perm.AssetsView)) { api(`/api/assets/trace?patientId=${patientId}`).then(setTrace).catch(() => setTrace(null)); api<any[]>(`/api/assets/implants?patientId=${patientId}`).then(setImplants).catch(() => setImplants(null)); }
     if (mod('theatre') && can(Perm.TheatreView)) api<any[]>(`/api/theatre/patients/${patientId}`).then(setBookings).catch(() => setBookings([]));
     if (mod('labs') && can(Perm.LabsView)) api<any[]>(`/api/labs?view=all&patientId=${patientId}`).then(setLabs).catch(() => setLabs([]));
     if (mod('forms') && can(Perm.FormsSend)) api<any[]>(`/api/forms?view=all&patientId=${patientId}`).then(setForms).catch(() => setForms([]));
@@ -125,6 +128,16 @@ export default function PatientModules({ patientId }: { patientId: string }) {
           {docs.length === 0 ? <p className="muted">None.</p> : <ul className="plain">{docs.map((d) => (
             <li key={d.id}><Link to={`/billing/${d.id}`}><strong>{d.number ?? `Draft ${d.kind.toLowerCase()}`}</strong></Link> · {money(d.totals.total)} <span className={`pill ${docStatusClass(d.status)}`}>{d.status}</span></li>
           ))}</ul>}
+        </section>
+      )}
+      {trace && implants && (
+        <section className="card">
+          <h2>Sterile items, scopes &amp; implants</h2>
+          {trace.trays.length === 0 && trace.scopes.length === 0 && implants.length === 0 ? <p className="muted">None recorded.</p> : <ul className="plain">
+            {implants.map((i) => <li key={i.id}><strong>Implant:</strong> {i.item} · lot {i.lot}{i.serialNumber && ` · serial ${i.serialNumber}`}{i.site && ` · ${i.site}`} · {formatDate(i.implantedOn)}</li>)}
+            {trace.scopes.map((s: any, n: number) => <li key={`s${n}`}><strong>Endoscope:</strong> {s.scope} · {new Date(s.at).toLocaleDateString('en-NZ')}</li>)}
+            {trace.trays.map((t: any) => <li key={t.id}><strong>Tray:</strong> {t.tray} ({t.barcode}) · load {t.loadNumber} · {t.caseDate ? formatDate(t.caseDate) : new Date(t.issuedAt).toLocaleDateString('en-NZ')}</li>)}
+          </ul>}
         </section>
       )}
     </>

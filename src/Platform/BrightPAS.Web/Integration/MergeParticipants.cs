@@ -84,3 +84,13 @@ public sealed class PortalMerge(BrightPAS.Modules.Portal.PortalDbContext db) : I
         await db.Requests.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
         + await db.Access.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
 }
+
+public sealed class AssetsMerge(BrightPAS.Modules.Assets.AssetsDbContext db) : IPatientMergeParticipant
+{
+    public string Name => "Sterile items, scopes, stock used and implants";
+    public async Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) =>
+        await db.Issues.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct)
+        + await db.ScopeEvents.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct)
+        + await db.Movements.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct)
+        + await db.Implants.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
+}

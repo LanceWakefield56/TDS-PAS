@@ -4,8 +4,10 @@
     <Project Path="src/Installer/BrightPAS.Setup/BrightPAS.Setup.csproj" />
   </Folder>
   <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/BrightPAS.Modules.Assets/BrightPAS.Modules.Assets.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Billing/BrightPAS.Modules.Billing.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Credentialing/BrightPAS.Modules.Credentialing.csproj" />
+    <Project Path="src/Modules/BrightPAS.Modules.Emr/BrightPAS.Modules.Emr.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Forms/BrightPAS.Modules.Forms.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Labs/BrightPAS.Modules.Labs.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Letters/BrightPAS.Modules.Letters.csproj" />

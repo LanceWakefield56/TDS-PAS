@@ -145,11 +145,11 @@ function WebsiteLog() {
           <button className="btn btn-light btn-small" onClick={() => load()}>Refresh</button></div></div>
       <p className="hint">The website writes a log file every day on the server (C:\ProgramData\BrightPAS\logs, kept 30 days; Setup option 5 collects it). No patient details are written to it. When a user sees "Something went wrong … reference ABC12345", search for that reference here.</p>
       {!lines ? <p>Loading…</p> : lines.length === 0 ? <p className="ok-text">Nothing to show.</p> : (
-        <table className="results compact"><thead><tr><th>When</th><th>Level</th><th>Where</th><th>What happened</th></tr></thead>
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Website log (scrolls sideways)"><table className="results compact"><thead><tr><th>When</th><th>Level</th><th>Where</th><th>What happened</th></tr></thead>
           <tbody>{lines.map((l, i) => (
             <tr key={i}><td className="small">{l.time.slice(0, 19)}</td><td><span className={`badge ${l.level === 'ERR' || l.level === 'FTL' ? 'warn' : l.level === 'WRN' ? '' : 'off'}`}>{({ ERR: 'Error', FTL: 'Fatal', WRN: 'Warning', INF: 'Info', DBG: 'Debug' } as any)[l.level] ?? l.level}</span></td>
               <td className="small">{l.source.replace(/^BrightPAS\./, '')}</td>
-              <td className="small">{l.text.split('\n')[0]}{l.text.includes('\n') && <> <button className="btn btn-link btn-small" onClick={() => setOpen(open === i ? null : i)}>{open === i ? 'Hide detail' : 'Detail'}</button>{open === i && <pre className="mono-box raw">{l.text}</pre>}</>}</td></tr>))}</tbody></table>)}
+              <td className="small">{l.text.split('\n')[0]}{l.text.includes('\n') && <> <button className="btn btn-link btn-small" onClick={() => setOpen(open === i ? null : i)}>{open === i ? 'Hide detail' : 'Detail'}</button>{open === i && <pre className="mono-box raw">{l.text}</pre>}</>}</td></tr>))}</tbody></table></div>)}
     </section>
   );
 }

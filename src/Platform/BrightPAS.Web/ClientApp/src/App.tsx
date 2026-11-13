@@ -1,6 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { api, Me, Perm } from './api';
+import Cssd from './pages/Cssd';
+import Assets from './pages/Assets';
+import Stock from './pages/Stock';
 import Shell from './components/Shell';
 import SignIn from './pages/SignIn';
 import FirstAdmin from './pages/FirstAdmin';
@@ -151,6 +154,9 @@ export default function App() {
           <Route path="/portal" element={allowed(mod('portal') && can(Perm.PortalSpecialist), <SpecialistPortal />)} />
           <Route path="/portal/requests" element={allowed(mod('portal') && can(Perm.PortalManage), <PortalRequests />)} />
           <Route path="/admin/security" element={allowed((can(Perm.UsersManage) || can(Perm.OrganisationManage)), <SecuritySettings />)} />
+          <Route path="/cssd" element={allowed(mod('assets') && can(Perm.AssetsView), <Cssd />)} />
+          <Route path="/assets" element={allowed(mod('assets') && can(Perm.AssetsView), <Assets />)} />
+          <Route path="/stock" element={allowed(mod('assets') && can(Perm.AssetsView), <Stock />)} />
           <Route path="/waitlist/nbrs" element={allowed(mod('referrals') && can(Perm.ReferralsView), <Nbrs />)} />
           <Route path="*" element={<div className="card"><h1>Page not found</h1><p>Use the menu to find what you need.</p></div>} />
         </Route>

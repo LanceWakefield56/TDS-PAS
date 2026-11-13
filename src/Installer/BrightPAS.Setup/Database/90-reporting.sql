@@ -72,6 +72,17 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_theatre_Templates_Anaesthetist', 
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_theatre_Appointments_Clinician', N'[theatre].[Appointments]', N'ClinicianId', N'[core].[Clinicians]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_referrals_Referrals_Specialist', N'[referrals].[Referrals]', N'SpecialistId', N'[core].[Clinicians]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_referrals_Waitlist_Specialist', N'[referrals].[Waitlist]', N'SpecialistId', N'[core].[Clinicians]';
+-- Assets & CSSD (0.13.0): rooms, cases and patients for traceability and implants
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_Equipment_Location', N'[assets].[Equipment]', N'LocationId', N'[core].[Locations]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_TrayIssues_Patient', N'[assets].[TrayIssues]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_TrayIssues_Booking', N'[assets].[TrayIssues]', N'BookingId', N'[theatre].[Bookings]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_ScopeEvents_Patient', N'[assets].[ScopeEvents]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_ScopeEvents_Booking', N'[assets].[ScopeEvents]', N'BookingId', N'[theatre].[Bookings]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_StockMovements_Patient', N'[assets].[StockMovements]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_StockMovements_Booking', N'[assets].[StockMovements]', N'BookingId', N'[theatre].[Bookings]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_Implants_Patient', N'[assets].[Implants]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_Implants_Booking', N'[assets].[Implants]', N'BookingId', N'[theatre].[Bookings]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_LoanSets_Booking', N'[assets].[LoanSets]', N'BookingId', N'[theatre].[Bookings]';
 GO
 
 -- ---------------------------------------------------------------------------------------------------------------
@@ -153,6 +164,31 @@ FROM [roster].[Shifts] sh
 JOIN [roster].[Staff] st ON st.[Id] = sh.[StaffId];
 GO
 
+-- Set-to-patient traceability: every sterile tray issued to a case, with its steriliser load (AS/NZS 5369 recall by load or by patient).
+CREATE OR ALTER VIEW [reporting].[vTrayTrace] AS
+SELECT i.IssuedAt, t.Barcode, s.Code AS TrayCode, s.Name AS TrayName, c.LoadNumber, c.StartedAt AS SterilisedAt, m.Name AS Steriliser, c.Release,
+       i.BookingId, i.PatientId, p.Nhi, p.Mrn, i.IssuedBy, i.ReturnedAt
+FROM [assets].[TrayIssues] i
+JOIN [assets].[Trays] t ON t.Id = i.TrayInstanceId
+JOIN [assets].[TraySets] s ON s.Id = t.TraySetId
+LEFT JOIN [assets].[Cycles] c ON c.Id = i.CycleId
+LEFT JOIN [assets].[Equipment] m ON m.Id = c.MachineId
+LEFT JOIN [patients].[Patients] p ON p.Id = i.PatientId;
+GO
+-- Implant registry extract (recalls by product and lot).
+CREATE OR ALTER VIEW [reporting].[vImplant] AS
+SELECT im.ImplantedOn, si.Code, si.Name AS Implant, im.Lot, im.SerialNumber, im.Manufacturer, im.Site, im.PatientId, p.Nhi, p.Mrn, im.BookingId, im.RecordedBy
+FROM [assets].[Implants] im
+JOIN [assets].[StockItems] si ON si.Id = im.StockItemId
+LEFT JOIN [patients].[Patients] p ON p.Id = im.PatientId;
+GO
+-- Equipment maintenance due (PPM, calibration, test-and-tag).
+CREATE OR ALTER VIEW [reporting].[vMaintenanceDue] AS
+SELECT e.AssetNumber, e.Name, e.Category, e.Status, mp.Kind, mp.NextDue, DATEDIFF(day, CAST(SYSDATETIME() AS date), mp.NextDue) AS DaysUntilDue
+FROM [assets].[MaintenancePlans] mp
+JOIN [assets].[Equipment] e ON e.Id = mp.EquipmentId
+WHERE e.Status <> N'Retired';
+GO
 CREATE OR ALTER VIEW [reporting].[vAuditDaily] AS
 SELECT CAST(a.[OccurredAt] AS date) AS [Day], a.[Action], a.[EntityType], COUNT_BIG(*) AS Events, COUNT(DISTINCT a.[UserId]) AS Users
 FROM [core].[AuditEvents] a

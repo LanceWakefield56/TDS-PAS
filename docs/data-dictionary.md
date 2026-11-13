@@ -361,3 +361,26 @@ Sensitivity: **R** restricted (patient data), **I** internal, **S** secret (encr
 | msg.Settings (single row) | MaxAttempts, AlertEmail, RequireSecondApprover, AiEnabled, AiEndpoint, AiModel, **AiKey** (S, encrypted), AiPrivacyReference, AiApprovedBy/At. **I** |
 
 Cross-schema FK (90-reporting.sql): msg.Messages.PatientId → patients.Patients.
+
+## 0.13.0 – Assets & CSSD (schema assets)
+Classification letters as above (P = public/configuration, I = internal, R = restricted patient-linked). Cross-schema keys (90-reporting.sql): Equipment.LocationId → core.Locations; TrayIssues, ScopeEvents, StockMovements, Implants PatientId → patients.Patients and BookingId → theatre.Bookings; LoanSets.BookingId → theatre.Bookings.
+- **assets.Suppliers**: Name (unique), ContactName, Email, Phone, XeroContactName (name used on Xero bills), IsActive. I
+- **assets.Equipment**: AssetNumber (unique, upper case), Name, Category (Electromedical, Monitor, Washer, Steriliser, Aer, DryingCabinet, Endoscope, EndoscopyTower, Instrument, Furniture, It, Other), Make, Model, SerialNumber, LocationId, Owner, SupplierId, PurchasedOn, Value, WarrantyUntil, Risk (Low/Medium/High), Status (InService/OutOfService/Retired), OutOfServiceReason, LockedOutBy/At, NetworkAddress (devices that connect to BrightPAS), Notes, CreatedAt. I
+- **assets.MaintenancePlans** (EquipmentId, Kind) unique: Kind (Ppm, Calibration, TestAndTag, BiomedicalSafety, Validation), IntervalMonths, NextDue, DoneBy. I
+- **assets.MaintenanceRecords**: EquipmentId, Kind (+ Repair), DoneOn, DoneBy, Passed, TagNumber, Notes, RecordedBy/At. A failed test-and-tag, biomedical check or calibration locks the equipment out. I
+- **assets.TraySets** (Code unique, Name, Specialty, ShelfLifeDays, IsActive) / **assets.TrayItems** (TraySetId, Sort, Description, Quantity): tray catalogue and count sheet. P
+- **assets.Trays**: Barcode (unique, CODE-nn), TraySetId, Status (Dirty, Washed, Packed, Sterile, Issued, Quarantine, Retired), LastCycleId (steriliser load), SterileUntil, PackedBy/At, Notes, UpdatedAt. I
+- **assets.Cycles**: LoadNumber (unique, W/S/L/A + yyMMdd-nnn), MachineId → Equipment, Kind (Wash, Steam, LowTemperature, Aer), MachineCycleNumber, Program, StartedAt, EndedAt, MaxTemperatureC, HoldSeconds, PressureKpa, A0, MachinePassed, ChemicalIndicator / BiologicalIndicator (NotUsed, Pending, Pass, Fail), BowieDickTest, Release (Pending, Released, Failed), ReleasedBy/At, ReleaseNote, Operator, Source ("Manual" or log file name), RawLog (machine log as received). I
+- **assets.CycleItems**: CycleId, TrayInstanceId (or Description + Quantity for packs/devices). I
+- **assets.TrayIssues**: TrayInstanceId, CycleId, BookingId, PatientId, IssuedAt/By, ReturnedAt – set-to-patient traceability and recall by load. R
+- **assets.ScopeEvents**: ScopeId → Equipment, Kind (Use, LeakTest, ManualClean, AerCycle, DryingIn, DryingOut, MicroSample, Repair, Quarantine), At, By, Passed, CycleId, BookingId, PatientId, Notes. R
+- **assets.LoanSets**: Number (unique), SupplierId, Description, ItemCount, BookingId, Status (Expected, Received, Checked, Reprocessed, Used, Returned), ReceivedAt, CheckedBy, CheckNotes, CycleId, ReturnedAt, UpdatedAt. I
+- **assets.Nonconformances**: Number (unique), RaisedOn/By, Category, Description, CycleId, TrayInstanceId, EquipmentId, ImmediateAction, RootCause, CorrectiveAction, PreventiveAction, Status (Open, ActionsAgreed, Closed), ClosedBy/At. I
+- **assets.StockItems**: Code (unique), Name, Unit, IsImplant, SupplierId, SupplierCode, ReorderLevel, ReorderQuantity, UnitCost, AccountCode (Xero), IsActive. P
+- **assets.StockLots** (StockItemId, Lot) unique: Expiry, OnHand, ReceivedOn. I
+- **assets.StockMovements**: StockItemId, LotId, Quantity (+/-), Kind (Receipt, Use, Adjust, Expired, Return), BookingId, PatientId, PurchaseOrderId, Reason, At, By. R
+- **assets.Implants**: PatientId, BookingId, StockItemId, LotId, Lot, SerialNumber, Manufacturer, Site, ImplantedOn, RecordedBy/At – implant registry for recalls. R
+- **assets.PurchaseOrders** (Number unique, SupplierId, Status Draft/Approved/Sent/PartReceived/Received/Invoiced/Cancelled, CreatedBy/At, ApprovedBy/At, Notes) / **assets.PurchaseOrderLines** (StockItemId, Quantity, UnitCost, QuantityReceived). I
+- **assets.SupplierInvoices**: PurchaseOrderId, InvoiceNumber, InvoiceDate, DueDate, AmountExGst, Matched (within $1 or 1 % of goods received, or difference accepted), MatchNote, ExportedToXeroAt, RecordedBy/At. I
+- **assets.Settings** (Id = 1): ScopeStorageHours (72), MaintenanceWarningDays (30), ReleaseNeedsSecondPerson, NextLoad/NextNc/NextPo/NextLoan counters. P
+- Reporting views: **reporting.vTrayTrace**, **reporting.vImplant**, **reporting.vMaintenanceDue**.

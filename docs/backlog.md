@@ -68,7 +68,9 @@ Status: ☐ to do · ◐ in progress · ☑ done
 ## Next
 - ☐ Test robot: calendar day columns with many overlapping bookings are unreadable (text cut to "0 T…") – needs a denser layout or a list view for busy days
 - ☐ Test robot: DICOM C-ECHO/C-STORE virtual modality; REST interface (key) and folder interfaces; questionnaire completed end to end by the virtual patient; reset-demo option
-- ☐ Assets & CSSD (spec 7.9) – 0.13.0; Clinical record (eMR) – 0.14.0
+- ☑ Assets & CSSD (spec 7.9) – 0.13.0 (ADR 0025)
+- ☐ Assets & CSSD follow-ups: confirm Belimed WD 290 IQ log layout with a real file; scan trays at the theatre case screen; Xero API push for bills; ultrasonic cleaner cycles; label stock layout check on the real Zebra
+- ☐ Clinical record (eMR) – 0.14.0; Endoscopy – 0.15.0; AI scribe – 0.16.0; SaferSleep + GE device foundations – 0.17.0
 - ☐ Messaging: workflow engine (human tasks, timers, escalation), MLLP/DICOM over TLS, DICOM MWL/MPPS (with endoscopy), drag lines in mapper, C# extension scripts
 - ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends
 - ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)

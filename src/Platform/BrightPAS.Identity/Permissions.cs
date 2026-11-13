@@ -60,6 +60,13 @@ public static class Permissions
     public const string PortalManage = "portal.manage";
     // Messaging engine (changes use IntegrationManage)
     public const string MessagingView = "messaging.view";
+    // Assets & CSSD module (0.13.0)
+    public const string AssetsView = "assets.view";
+    public const string AssetsManage = "assets.manage";
+    public const string CssdProcess = "cssd.process";
+    public const string CssdRelease = "cssd.release";
+    public const string StockManage = "stock.manage";
+    public const string PurchasingApprove = "purchasing.approve";
 
     /// <summary>Policy name allowing ANY of the given permissions (0.12.4), e.g. forms listed for staff who send OR triage them. Registered in <see cref="AnyOfPolicies"/>.</summary>
     public static string AnyOf(params string[] permissions) => string.Join('|', permissions);
@@ -73,7 +80,8 @@ public static class Permissions
         AuditView, UsersManage, OrganisationManage, ModulesManage, IntegrationManage,
         LabsView, LabsAcknowledge, LabsMatch, TheatreView, TheatreBook, TheatreManage, FormsSend, FormsTriage,
         BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage,
-        CredentialingView, CredentialingManage, PortalSpecialist, PortalManage, MessagingView
+        CredentialingView, CredentialingManage, PortalSpecialist, PortalManage, MessagingView,
+        AssetsView, AssetsManage, CssdProcess, CssdRelease, StockManage, PurchasingApprove
     ];
 }
 
@@ -102,7 +110,7 @@ public static class DefaultRoles
         {
             [SystemAdministrator] = ("Manages users, organisation set-up and modules. No routine clinical access.",
                 [Permissions.UsersManage, Permissions.OrganisationManage, Permissions.ModulesManage, Permissions.TheatreManage, Permissions.RemindersView, Permissions.RemindersManage,
-                 Permissions.LettersTemplates, Permissions.CredentialingView, Permissions.CredentialingManage]),
+                 Permissions.LettersTemplates, Permissions.CredentialingView, Permissions.CredentialingManage, Permissions.AssetsView, Permissions.AssetsManage]),
             [PrivacyOfficer] = ("Reviews break-glass use and audit reports; handles privacy requests; second-person check for identity corrections and merges.",
                 [Permissions.AuditView, Permissions.BreakGlassReview, Permissions.PatientView, Permissions.PatientMerge]),
             [Reception] = ("Registers patients and manages bookings.",
@@ -111,13 +119,13 @@ public static class DefaultRoles
                  Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.PortalManage]),
             [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.PatientRegister, Permissions.TheatreBook, Permissions.FormsSend,
                  Permissions.FormsTriage, Permissions.LabsMatch, Permissions.RemindersView, Permissions.ReferralsView, Permissions.ReferralsManage,
-                 Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView]),
+                 Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.AssetsView, Permissions.CssdProcess, Permissions.StockManage]),
             [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsTriage, Permissions.ReferralsView, Permissions.LettersView, Permissions.RosterView, Permissions.PortalSpecialist]),
             [Surgeon] = ("Clinical access for surgeons and endoscopists.", [.. Clinical, Permissions.TheatreBook, Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.ReferralsTriage,
                  Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",
-                [Permissions.PatientView, Permissions.RosterView]),
-            [Finance] = ("Billing, invoices and payments.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees]),
+                [Permissions.PatientView, Permissions.RosterView, Permissions.AssetsView, Permissions.AssetsManage, Permissions.CssdProcess, Permissions.CssdRelease, Permissions.StockManage]),
+            [Finance] = ("Billing, invoices and payments.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees, Permissions.AssetsView, Permissions.PurchasingApprove]),
             [PracticeAssistant] = ("Specialist's practice assistant: bookings for their specialist's patients.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.TheatreView, Permissions.TheatreBook, Permissions.FormsSend, Permissions.LabsView,
                  Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist]),

@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -64,6 +64,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "credentialing" => await CredentialingChecksAsync(ct),
         "portal" => await PortalChecksAsync(ct),
         "messaging" => await MessagingChecksAsync(ct),
+        "assets" => await AssetsChecksAsync(ct),
         _ => []
     };
 
@@ -211,6 +212,33 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 withCreds > 0, $"{withCreds} of {clinicians} clinician(s) have credentials recorded.", false, "Open credentialing", "/credentialing", Permissions.CredentialingManage),
             new("privileges", "Scope of practice", "Record what each surgeon/endoscopist is approved to do at TDS (whole service or individual procedures).",
                 privs > 0, $"{privs} clinician(s) with scope recorded.", true, "Open credentialing", "/credentialing", Permissions.CredentialingManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> AssetsChecksAsync(CancellationToken ct)
+    {
+        var db = Svc<BrightPAS.Modules.Assets.AssetsDbContext>();
+        var equipment = await db.Equipment.CountAsync(e => e.Status != BrightPAS.Modules.Assets.EquipmentStatus.Retired, ct);
+        var machines = await db.Equipment.CountAsync(e => e.Category == BrightPAS.Modules.Assets.EquipmentCategory.Washer || e.Category == BrightPAS.Modules.Assets.EquipmentCategory.Steriliser, ct);
+        var plans = await db.Plans.CountAsync(ct);
+        var sets = await db.TraySets.CountAsync(t => t.IsActive && t.Items.Count > 0, ct);
+        var trays = await db.Trays.CountAsync(ct);
+        var releasers = await UsersWithAsync(Permissions.CssdRelease, ct);
+        var stock = await db.StockItems.CountAsync(i => i.IsActive, ct);
+        return
+        [
+            new("equipment", "Equipment register", "Add the equipment TDS looks after, with its asset number, serial number, room and risk class.",
+                equipment > 0, $"{equipment} item(s).", false, "Open assets", "/assets", Permissions.AssetsManage),
+            new("machines", "Washer and steriliser", "Add the washer-disinfector and steriliser(s) as equipment so their loads can be recorded and traced.",
+                machines > 0, $"{machines} machine(s).", false, "Open assets", "/assets", Permissions.AssetsManage),
+            new("plans", "Planned maintenance", "Set the PPM, calibration and test-and-tag schedule so BrightPAS warns before checks are due.",
+                plans > 0, $"{plans} schedule(s).", true, "Open assets", "/assets", Permissions.AssetsManage),
+            new("trays", "Tray catalogue and barcodes", "Enter each tray with its contents list (count sheet) and add the physical trays to get their barcodes.",
+                sets > 0 && trays > 0, $"{sets} tray type(s) with contents, {trays} barcoded tray(s).", false, "Open CSSD", "/cssd?tab=trays", Permissions.AssetsManage),
+            new("release", "Who releases loads", "At least one person needs 'Release or fail steriliser loads' (CSSD Technician has it).",
+                releasers > 0, $"{releasers} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("stock", "Stock and implants", "Add consumables and implants with reorder levels if TDS will use stock and purchasing.",
+                stock > 0, $"{stock} stock item(s).", true, "Open stock", "/stock", Permissions.AssetsManage),
         ];
     }
 
