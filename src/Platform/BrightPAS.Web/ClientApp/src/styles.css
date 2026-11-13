@@ -352,3 +352,20 @@ input[type=checkbox], input[type=radio] { min-width: 24px; min-height: 24px; }
 .stat { flex: 1 1 110px; background: var(--light); border-radius: var(--radius); padding: .6rem .8rem; display: flex; flex-direction: column; }
 .stat strong { font-size: 1.6rem; color: var(--navy); } .stat span { color: var(--muted); font-size: .9rem; }
 .error-text { color: var(--danger); }
+
+/* Endoscopy (0.15.0) */
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 16px; margin-bottom: 8px; }
+tr.strong td { font-weight: 600; }
+.endo-live { position: relative; background: #000; border-radius: 8px; overflow: hidden; max-width: 960px; aspect-ratio: 16 / 9; }
+.endo-live video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.endo-live.flash { outline: 6px solid #fff; }
+.endo-live.recording { outline: 4px solid #c62828; }
+.endo-rec { position: absolute; top: 10px; left: 12px; color: #fff; background: #c62828; padding: 2px 10px; border-radius: 12px; font-weight: 700; font-size: 14px; }
+.endo-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.endo-strip img { height: 72px; border-radius: 4px; }
+.endo-video-chip { display: inline-flex; align-items: center; height: 72px; padding: 0 14px; background: #263238; color: #fff; border-radius: 4px; font-size: 13px; }
+.endo-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.endo-thumb { margin: 0; border: 1px solid #d5dde3; border-radius: 8px; padding: 8px; background: #fff; }
+.endo-thumb img, .endo-thumb video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; background: #000; display: block; }
+.endo-thumb figcaption { margin-top: 6px; gap: 6px; }
+.endo-thumb select, .endo-thumb input:not([type=checkbox]) { width: 100%; }

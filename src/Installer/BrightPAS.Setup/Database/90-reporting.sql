@@ -86,6 +86,13 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_emr_Episodes_Patient', N'[emr].[E
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_emr_Episodes_Booking', N'[emr].[Episodes]', N'BookingId', N'[theatre].[Bookings]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_emr_ControlledDrugRegister_Patient', N'[emr].[ControlledDrugRegister]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_emr_Observations_Device', N'[emr].[Observations]', N'DeviceId', N'[assets].[Equipment]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_Patient', N'[endo].[Procedures]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_Booking', N'[endo].[Procedures]', N'BookingId', N'[theatre].[Bookings]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_Endoscopist', N'[endo].[Procedures]', N'EndoscopistId', N'[core].[Clinicians]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_UpperScope', N'[endo].[Procedures]', N'UpperScopeId', N'[assets].[Equipment]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_LowerScope', N'[endo].[Procedures]', N'LowerScopeId', N'[assets].[Equipment]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_Tower', N'[endo].[Procedures]', N'TowerId', N'[assets].[Equipment]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Media_Patient', N'[endo].[Media]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_LoanSets_Booking', N'[assets].[LoanSets]', N'BookingId', N'[theatre].[Bookings]';
 GO
 
@@ -208,6 +215,26 @@ SELECT e.Id AS EpisodeId, e.BookingId, e.PatientId, e.Stage, e.AdmittedAt, e.Dis
        i.InTheatreAt, i.KnifeToSkinAt, i.ClosureAt, i.OutOfTheatreAt, i.WoundClass
 FROM [emr].[Episodes] e
 LEFT JOIN [emr].[IntraopRecords] i ON i.EpisodeId = e.Id;
+GO
+-- Endoscopy procedures with quality measures (caecal intubation, withdrawal time, BBPS, comfort, polyps, adenomas).
+CREATE OR ALTER VIEW [reporting].[vEndoscopyProcedure] AS
+SELECT p.Id AS ProcedureId, p.BookingId, p.PatientId, p.AccessionNumber, p.Kind, p.Status, p.EndoscopistName, p.NbspScreening, p.Sedation,
+       COALESCE(p.InsertedAt, p.UpperStartAt, p.CreatedAt) AS ProcedureAt, p.UpperExtent, p.Retroflexion, p.LowerExtent,
+       CASE WHEN p.LowerExtent IN (N'Caecum', N'TerminalIleum') THEN 1 ELSE 0 END AS CaecumReached,
+       DATEDIFF(SECOND, COALESCE(p.WithdrawalStartAt, p.CaecumAt), p.EndedAt) / 60.0 AS WithdrawalMinutes,
+       DATEDIFF(SECOND, p.UpperStartAt, p.UpperEndAt) / 60.0 AS UpperMinutes,
+       p.BbpsRight + p.BbpsTransverse + p.BbpsLeft AS BbpsTotal, p.Comfort, p.Complication, p.RectalRetroflexion, p.SurveillanceMonths, p.SignedAt,
+       (SELECT COUNT(*) FROM [endo].[Polyps] x WHERE x.ProcedureId = p.Id) AS Polyps,
+       (SELECT COUNT(*) FROM [endo].[Polyps] x WHERE x.ProcedureId = p.Id AND x.Histology IN (N'TubularAdenoma', N'TubulovillousAdenoma', N'VillousAdenoma', N'TraditionalSerrated', N'Adenocarcinoma')) AS Adenomas,
+       (SELECT COUNT(*) FROM [endo].[Media] m WHERE m.ProcedureId = p.Id AND m.Status <> N'Deleted' AND m.Kind = N'Image') AS Pictures,
+       (SELECT COUNT(*) FROM [endo].[Media] m WHERE m.ProcedureId = p.Id AND m.Status <> N'Deleted' AND m.Kind = N'Video') AS Videos
+FROM [endo].[Procedures] p;
+GO
+-- Polyps with histology (polyp registers, ADR/SSLDR, recall by site).
+CREATE OR ALTER VIEW [reporting].[vEndoscopyPolyp] AS
+SELECT x.Id AS PolypId, p.AccessionNumber, p.PatientId, p.EndoscopistName, COALESCE(p.InsertedAt, p.CreatedAt) AS ProcedureAt, x.Number, x.Site, x.DistanceCm, x.SizeMm, x.Paris, x.Nice,
+       x.Technique, x.Resection, x.Retrieved, x.Complete, x.Tattooed, x.Histology, x.Dysplasia, x.HistologyAt
+FROM [endo].[Polyps] x JOIN [endo].[Procedures] p ON p.Id = x.ProcedureId;
 GO
 CREATE OR ALTER VIEW [reporting].[vAuditDaily] AS
 SELECT CAST(a.[OccurredAt] AS date) AS [Day], a.[Action], a.[EntityType], COUNT_BIG(*) AS Events, COUNT(DISTINCT a.[UserId]) AS Users

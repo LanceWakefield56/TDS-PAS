@@ -74,6 +74,7 @@ public static class Standards
         (["letter", "healthlink"], "Letters & documents"),
         (["roster", "shift", "leave", "payroll", "swap"], "Rostering"),
         (["credential"], "Credentialing"),
+        (["endoscopy", "polyp", "colonoscopy", "gastroscopy", "worklist"], "Endoscopy"),
         (["emr", "episode", "checklist", "controlled drug", "observation"], "Clinical record (eMR)"),
         (["assets", "cssd", "steriliser", "tray", "scope", "implant", "stock", "purchase"], "Assets & CSSD"),
         (["messaging", "interface", "dicom", "mapping", "flow"], "Messaging & integration engine"),
@@ -139,5 +140,8 @@ public static class ModuleSuites
         new("emr", "Clinical record (eMR)", ["api/emr/today", $"api/emr/bookings/{Guid.Empty}", "api/emr/controlled-drugs"],
             [("POST", $"api/emr/episodes/{Guid.Empty}/checks", "{}"), ("POST", $"api/emr/episodes/{Guid.Empty}/medications", "{}"), ("POST", "api/emr/controlled-drugs/register", "{}"),
              ("POST", $"api/emr/episodes/{Guid.Empty}/discharge", "{}")]),
+        new("endoscopy", "Endoscopy", ["api/endoscopy/today", $"api/endoscopy/bookings/{Guid.Empty}", "api/endoscopy/kpis", $"api/endoscopy/media/{Guid.Empty}"],
+            [("POST", $"api/endoscopy/procedures/{Guid.Empty}/polyps", "{}"), ("POST", $"api/endoscopy/procedures/{Guid.Empty}/sign", "{}"), ("POST", $"api/endoscopy/procedures/{Guid.Empty}/pictures", "{}"),
+             ("PUT", "api/endoscopy/settings", "{}")]),
     ];
 }

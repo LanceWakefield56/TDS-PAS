@@ -90,6 +90,8 @@ public static class WebPackage
                 // Website log files (0.12.2): <data>\logs\BrightPAS-Web-YYYYMMDD.log, 30 days.
                 ["File"] = new System.Text.Json.Nodes.JsonObject { ["Path"] = Path.Combine(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(keysPath))!, "logs"), ["Level"] = "Information", ["RetainDays"] = 30 },
             },
+            // Endoscopy pictures and video (0.15.0): <data>\endoscopy – inherits the data folder's app-pool Modify right.
+            ["Endoscopy"] = new System.Text.Json.Nodes.JsonObject { ["MediaPath"] = Path.Combine(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(keysPath))!, "endoscopy") },
             ["AllowedHosts"] = "*",
             ["Https"] = new System.Text.Json.Nodes.JsonObject { ["Port"] = httpsPort },
             ["Reminders"] = new System.Text.Json.Nodes.JsonObject

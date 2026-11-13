@@ -70,6 +70,8 @@ public sealed class PasWebFactory : WebApplicationFactory<Program>, IAsyncLifeti
             await x.Database.MigrateAsync();
         await using (var x = new BrightPAS.Modules.Emr.EmrDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Emr.EmrDbContext>().Also(o => Sql(o, "emr")).Options))
             await x.Database.MigrateAsync();
+        await using (var x = new BrightPAS.Modules.Endoscopy.EndoDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Endoscopy.EndoDbContext>().Also(o => Sql(o, "endo")).Options))
+            await x.Database.MigrateAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

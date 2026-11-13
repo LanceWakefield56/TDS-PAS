@@ -360,7 +360,10 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
                         var tmp = Path.Combine(dir, name + ".tmp");
                         if (i.Format == MsgFormat.Dicom) await File.WriteAllBytesAsync(tmp, DicomConvert.ToFile(content), ct);
                         else await File.WriteAllTextAsync(tmp, content, new UTF8Encoding(false), ct);
-                        File.Move(tmp, Path.Combine(dir, name + ext), overwrite: false);
+                        // Never overwrite a file the other system has not collected yet (control IDs can repeat, e.g. after a database rebuild): add a suffix.
+                        var dest = Path.Combine(dir, name + ext);
+                        if (File.Exists(dest)) dest = Path.Combine(dir, $"{name}-{m.Id.ToString("N")[..8]}{ext}");
+                        File.Move(tmp, dest, overwrite: false);
                         await svc.SentAsync(m.Id, null, null, ct);
                         break;
                     }

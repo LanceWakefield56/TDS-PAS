@@ -15,6 +15,7 @@ using Interface = BrightPAS.Modules.Messaging.Interface;
 namespace BrightPAS.Web.Tests;
 
 /// <summary>0.12.0 messaging engine over HTTP: inbound REST interface, SQL connector, MCP server.</summary>
+[Collection("fo-dicom")]
 public class MessagingWebTests(PasWebFactory factory) : IClassFixture<PasWebFactory>
 {
     private const string Pw = "correct horse battery staple";
@@ -209,7 +210,7 @@ public class TestBuildLicensingTests
         Assert.Equal(BrightPAS.Licensing.LicenceHealth.Valid, s.Health);
         Assert.Null(s.Licence);
         foreach (var m in BrightPAS.Licensing.ProductModules.All.Where(m => m.Available)) Assert.Equal(BrightPAS.Licensing.ModuleAccess.Full, s.AccessTo(m.Id));
-        Assert.Equal(BrightPAS.Licensing.ModuleAccess.None, s.AccessTo("endoscopy")); // not built yet
+        Assert.Equal(BrightPAS.Licensing.ModuleAccess.None, s.AccessTo("quality")); // not built yet
     }
 }
 

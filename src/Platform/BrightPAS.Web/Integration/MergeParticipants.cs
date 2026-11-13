@@ -102,3 +102,11 @@ public sealed class EmrMerge(BrightPAS.Modules.Emr.EmrDbContext db) : IPatientMe
         await db.Episodes.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
         + await db.CdRegister.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct);
 }
+
+public sealed class EndoscopyMerge(BrightPAS.Modules.Endoscopy.EndoDbContext db) : IPatientMergeParticipant
+{
+    public string Name => "Endoscopy (procedures, pictures and videos)";
+    public async Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) =>
+        await db.Procedures.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
+        + await db.Media.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct);
+}

@@ -401,3 +401,16 @@ Cross-schema keys (90-reporting.sql): Episodes.BookingId → theatre.Bookings, E
 - **emr.Notes**: Kind (Nursing, Medical, OperationNote, Anaesthetic, Discharge, PatientInstructions), Text, Author, At, Signed, AmendsNoteId.
 - **emr.Templates**: Name, Kind, Body (placeholders {procedure}, {surgeon}, {anaesthetist}, {date}, {clinic_phone}). P
 - Views: reporting.vEpisode, reporting.vControlledDrugRegister.
+
+## 0.15.0 – Endoscopy (schema endo)
+Cross-schema keys (90-reporting.sql): Procedures.PatientId → patients.Patients, BookingId → theatre.Bookings, EndoscopistId → core.Clinicians, UpperScopeId/LowerScopeId/TowerId → assets.Equipment, Media.PatientId → patients.Patients. All tables R unless marked.
+- **endo.Procedures**: BookingId (unique), PatientId, Kind (Gastroscopy, Colonoscopy, FlexibleSigmoidoscopy, Bidirectional), Status (Planned, InProgress, Completed, Signed), EndoscopistId/Name, Assistants, UpperScopeId, LowerScopeId, TowerId, AccessionNumber (unique, E+yyMMdd+nnnn), StudyInstanceUid, NbspScreening, NbspNumber, OtherIndication, ConsentConfirmed, Sedation, SedationNotes, Co2, WaterAssisted, ScopeGuide, PositionChange, AbdominalPressure; UpperStartAt, UpperEndAt, UpperExtent (Oesophagus, Stomach, D1, D2, Failed), Retroflexion, UpperPhotoDocumentation; InsertedAt, CaecumAt, WithdrawalStartAt, EndedAt, LowerExtent (Rectum … Caecum, TerminalIleum, Anastomosis), AppendicealOrifice, IleocaecalValve, TerminalIleum, CaecumPhotographed, BbpsRight/Transverse/Left (0–3), RectalRetroflexion, IncompleteReason, Comfort (Gloucester 1–5), Complication, ComplicationDetails, Diagnosis, Recommendations, FollowUp, SurveillanceMonths, PatientAdvice, MppsUid, SignedBy/At, Created/Updated By/At.
+- **endo.ProcedureIndications** (ProcedureId, Code) PK both.
+- **endo.Findings**: ProcedureId, Number, Site, Kind, Grade, SizeMm, Description.
+- **endo.Polyps**: ProcedureId, Number, Site, DistanceCm, SizeMm, Paris, Nice, Jnet, Technique, Lifted, Resection (EnBloc, Piecemeal, NotRemoved), Retrieved (Yes, No, Partial, NotApplicable), Pot, Complete (Yes, No, Uncertain), Clips, Tattooed, Notes, Histology, Dysplasia (None, Low, High), HistologyNotes, HistologyBy/At.
+- **endo.Tattoos**: ProcedureId, Site, DistanceCm, Position (Distal, Proximal, Both, Opposite wall), Ink, VolumeMl, Injections, PolypId, Reason.
+- **endo.Interventions**: ProcedureId, Kind (Biopsy, Clo, Clip, Banding, Dilatation, Apc, Injection, Haemostasis, ForeignBody, Other), Site, Count, Pot, Purpose, Details, Result.
+- **endo.Media**: ProcedureId (null = unmatched), PatientId, Kind (Image, Video), Source (CaptureStation, Dicom, Upload), Status (Recording, Ready, Deleted), FileName (relative to the media folder), ContentType, Bytes, Sha256, Chunks, CapturedAt/By, DurationSeconds, Site, Caption, InReport, InPatientReport, Sort, FindingId, PolypId, SopInstanceUid (unique when set), DicomPatientId, DicomPatientName, DicomAccession, DeletedBy/At, DeleteReason.
+- **endo.AdviceTexts**: Key (unique), Title, Body, UpdatedBy/At – patient report wording. P
+- Settings (core.Settings): endo.mediaPath, endo.dicom.enabled/port/aeTitle/callingAes/anyTower, endo.videoRetentionDays, endo.target.* (cir, adr, withdrawal, retrieval, prep, comfort, upper). P
+- Views: reporting.vEndoscopyProcedure, reporting.vEndoscopyPolyp.

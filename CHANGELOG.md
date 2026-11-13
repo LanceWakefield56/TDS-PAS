@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.15.0 – 2026-11-14 – **Endoscopy: EndoBASE-style reporting with pictures and video from the Olympus tower**
+- **Endoscopy module (ADR 0027, spec 7.18):** one procedure per endoscopy booking (gastroscopy, colonoscopy, flexible sigmoidoscopy, bidirectional), opened from **Endoscopy** (today's list) or **Endoscopy report** on a theatre list.
+  - **Pictures and video from the tower:** a DICOM node for the Olympus towers – **worklist** (the tower shows today's patients with BrightPAS accession numbers), **storage** (JPEG, uncompressed and MPEG-4 video become pictures/videos on the procedure) and **MPPS** (start/end times). Pictures for an unknown patient wait in **Pictures to match**. Towers are accepted by their asset network address or AE title.
+  - **Capture screen** for towers without DICOM: the capture card shows as a camera in the browser – live video, **Take picture** (Space / foot pedal), **Start/stop recording** (R) with video saved in chunks as it records; upload pictures or video from a file.
+  - **Structured record (minimum standard terminology):** indications (incl. NBSP positive FIT), consent, sedation (medicines shown from the clinical record), scopes and tower (scope use recorded against the patient in Assets & CSSD; a scope that is not ready is refused), CO₂/water/ScopeGuide; gastroscopy extent, retroflexion, times and photo-documentation; colonoscopy extent, caecal landmarks, **Boston Bowel Preparation Scale**, withdrawal time (live timer), rectal retroflexion, reason if incomplete; modified Gloucester comfort.
+  - **Findings** with grades (LA oesophagitis, Prague C&M, Forrest, Mayo, haemorrhoids …); **polyps** (site, distance, size, Paris, NICE/JNET, technique incl. EMR lift, en bloc/piecemeal, retrieval, pot, completeness, clips); **tattoos** (site, ink, volume, position to the lesion, linked polyp); **biopsies and therapy** (Sydney, coeliac, Seattle, random colonic; clips, banding, dilatation, APC …); complications.
+  - **Pictures:** site, caption, link to polyp/finding, choose for the clinical and/or patient report; videos play in the browser; delete keeps who/when/why.
+  - **Sign** with hard stops for the minimum dataset (extent, times, landmarks, BBPS, comfort, specimen pots, conclusion); **amend** with a reason; **histology** added after signing.
+  - **Reports with pictures:** clinical report (for the record, GP and referrer) and a plain-language **patient report** (what we found, pictures, polyp/biopsy/tattoo advice, sedation and when to get help – wording editable in Settings); protected PDF download or saved to the patient's documents.
+  - **Quality indicators** per endoscopist: caecal intubation, adenoma and serrated detection, polyp detection and retrieval, withdrawal time, adequate prep, discomfort, rectal retroflexion, complications; gastroscopy D2, retroflexion, ≥ 7 min, photo-documentation; targets set by TDS. Surveillance suggestion from polyp number/size/histology (to confirm clinically).
+  - Video retention setting; module set-up wizard; patient merge; standards self-test; reporting views vEndoscopyProcedure, vEndoscopyPolyp; demonstration data (12 procedures with findings, polyps, histology, tattoos, biopsies and invented pictures).
+  - New permissions: endoscopy.view, endoscopy.write (Nurse, Surgeon / Endoscopist), endoscopy.sign (Surgeon / Endoscopist), endoscopy.manage (System Administrator).
+- The browser may now use the camera on BrightPAS pages (Permissions-Policy camera=self) – needed for the capture screen.
+- Setup writes the media folder (Endoscopy:MediaPath = data folder\endoscopy).
+- Demonstration messaging DICOM interface moved to port 11114 (the endoscopy node uses 11112).
+- Test robot: **virtual Olympus tower** (DICOM echo, worklist, picture, MPPS, unmatched picture), **virtual capture card** (browser fake camera: two pictures and a recorded video) and both endoscopy reports checked for pictures.
+
 ## 0.14.0 – 2026-11-14 – **Clinical record (eMR): admission, safety checklist, theatre record, observations, medicines, discharge**
 - **Clinical record module (ADR 0026, spec 7.7):** one episode per theatre/procedure booking, opened from **Clinical record** (today's patients) or the **Clinical record** link on a theatre list.
   - **Admission & risk:** nursing admission (identity band, allergies, fasting, escort); VTE (Caprini-based), falls, pressure injury (Braden), Clinical Frailty Scale and delirium (4AT) with live scores and advice. Admit needs the nursing admission.

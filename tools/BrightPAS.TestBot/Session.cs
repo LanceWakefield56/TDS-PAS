@@ -43,7 +43,8 @@ public sealed class Bot(Options o, Report report, IPlaywright pw, IBrowser brows
     public static async Task<Bot> StartAsync(Options o, Report r, DemoInfo demo)
     {
         var pw = await Playwright.CreateAsync();
-        var launch = new BrowserTypeLaunchOptions { Headless = !o.Headed, SlowMo = o.SlowMo };
+        // Fake camera = a virtual endoscopy capture card for the capture screen (0.15.0).
+        var launch = new BrowserTypeLaunchOptions { Headless = !o.Headed, SlowMo = o.SlowMo, Args = ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] };
         if (o.Browser is "msedge" or "chrome") launch.Channel = o.Browser;
         IBrowser b;
         try { b = await pw.Chromium.LaunchAsync(launch); }
@@ -60,7 +61,7 @@ public sealed class Bot(Options o, Report report, IPlaywright pw, IBrowser brows
         var ctx = await browser.NewContextAsync(new BrowserNewContextOptions
         {
             IgnoreHTTPSErrors = true, ViewportSize = size ?? new ViewportSize { Width = 1366, Height = 900 }, IsMobile = mobile, HasTouch = mobile,
-            AcceptDownloads = true, Locale = "en-NZ", TimezoneId = "Pacific/Auckland",
+            AcceptDownloads = true, Locale = "en-NZ", TimezoneId = "Pacific/Auckland", Permissions = ["camera"],
         });
         ctx.SetDefaultTimeout(15000);
         var page = await ctx.NewPageAsync();

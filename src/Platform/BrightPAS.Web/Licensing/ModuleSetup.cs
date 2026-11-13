@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -66,6 +66,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "messaging" => await MessagingChecksAsync(ct),
         "assets" => await AssetsChecksAsync(ct),
         "emr" => await EmrChecksAsync(ct),
+        "endoscopy" => await EndoChecksAsync(ct),
         _ => []
     };
 
@@ -233,6 +234,33 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 drugs > 0, $"{drugs} drug(s).", true, "Open clinical record", "/emr?tab=cd", Permissions.EmrControlledDrugs),
             new("templates", "Note templates", "Operation note, discharge summary and patient instructions templates (defaults supplied; change them to TDS's wording).",
                 templates > 0, $"{templates} template(s).", true, "Open clinical record", "/emr", Permissions.EmrWrite),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> EndoChecksAsync(CancellationToken ct)
+    {
+        var signers = await UsersWithAsync(Permissions.EndoSign, ct);
+        var writers = await UsersWithAsync(Permissions.EndoWrite, ct);
+        var (mediaOk, mediaDetail) = await Svc<BrightPAS.Modules.Endoscopy.MediaStore>().CheckAsync(ct);
+        var s = await BrightPAS.Web.Api.EndoscopyEndpoints.SettingsAsync(Svc<BrightPAS.Core.Setup.SettingsService>(), Svc<BrightPAS.Modules.Endoscopy.MediaStore>());
+        var dicom = Svc<BrightPAS.Web.Integration.EndoscopyDicomHost>().Status;
+        var advice = (await Svc<BrightPAS.Modules.Endoscopy.EndoService>().AdviceAsync(ct)).Count;
+        var scopes = licence.Status.AccessTo("assets") != ModuleAccess.None
+            ? await Svc<BrightPAS.Modules.Assets.AssetsDbContext>().Equipment.CountAsync(e => e.Category == BrightPAS.Modules.Assets.EquipmentCategory.Endoscope && e.Status == BrightPAS.Modules.Assets.EquipmentStatus.InService, ct) : 0;
+        return
+        [
+            new("media", "Picture and video folder", "Pictures and videos are kept as files on the server (allow plenty of space – a 10-minute HD video is about 500 MB). The website's app pool must be able to write to it.",
+                mediaOk, mediaDetail, false, "Open endoscopy settings", "/endoscopy?tab=settings", Permissions.EndoManage),
+            new("signers", "Endoscopists can sign reports", "Endoscopists need 'Sign and amend endoscopy reports' (given to the Surgeon / Endoscopist role by default).",
+                signers > 0, $"{signers} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("writers", "Endoscopy nurses can document", "Nurses need 'Document procedures, capture pictures…' (given to the Nurse role by default).",
+                writers > 0, $"{writers} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("tower", "Olympus tower connection (DICOM)", "Optional: turn on the DICOM node so the tower shows today's worklist and sends pictures/videos. Without it, use a capture card and the capture screen.",
+                s.DicomEnabled && dicom.Listening, s.DicomEnabled ? (dicom.Listening ? $"Listening on port {dicom.Port} as {dicom.AeTitle}." : dicom.Error ?? "Starting…") : "Off – capture screen only.", true, "Open endoscopy settings", "/endoscopy?tab=settings", Permissions.EndoManage),
+            new("scopes", "Endoscopes in the asset register", "Optional (needs Assets & CSSD): add each gastroscope and colonoscope so scope use is traced to the patient and a scope that is not ready is flagged.",
+                scopes > 0, $"{scopes} scope(s).", true, "Open assets", "/assets", Permissions.AssetsManage),
+            new("advice", "Patient report wording", "Plain-language text for patient reports (defaults supplied – change them to TDS's wording and phone numbers).",
+                advice > 0, $"{advice} text(s).", true, "Open endoscopy settings", "/endoscopy?tab=settings", Permissions.EndoManage),
         ];
     }
 

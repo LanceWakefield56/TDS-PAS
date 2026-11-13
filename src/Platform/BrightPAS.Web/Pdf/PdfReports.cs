@@ -52,7 +52,7 @@ public static class PdfReports
         }
     }
 
-    private static Document NewDocument(string title, bool landscape = false)
+    internal static Document NewDocument(string title, bool landscape = false)
     {
         EnsureFonts();
         var d = new Document();

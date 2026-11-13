@@ -71,6 +71,11 @@ public static class Permissions
     public const string EmrView = "emr.view";
     public const string EmrWrite = "emr.write";
     public const string EmrControlledDrugs = "emr.controlled-drugs";
+    // Endoscopy module (0.15.0)
+    public const string EndoView = "endoscopy.view";
+    public const string EndoWrite = "endoscopy.write";
+    public const string EndoSign = "endoscopy.sign";
+    public const string EndoManage = "endoscopy.manage";
 
     /// <summary>Policy name allowing ANY of the given permissions (0.12.4), e.g. forms listed for staff who send OR triage them. Registered in <see cref="AnyOfPolicies"/>.</summary>
     public static string AnyOf(params string[] permissions) => string.Join('|', permissions);
@@ -85,7 +90,8 @@ public static class Permissions
         LabsView, LabsAcknowledge, LabsMatch, TheatreView, TheatreBook, TheatreManage, FormsSend, FormsTriage,
         BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage,
         CredentialingView, CredentialingManage, PortalSpecialist, PortalManage, MessagingView,
-        AssetsView, AssetsManage, CssdProcess, CssdRelease, StockManage, PurchasingApprove, EmrView, EmrWrite, EmrControlledDrugs
+        AssetsView, AssetsManage, CssdProcess, CssdRelease, StockManage, PurchasingApprove, EmrView, EmrWrite, EmrControlledDrugs,
+        EndoView, EndoWrite, EndoSign, EndoManage
     ];
 }
 
@@ -114,7 +120,7 @@ public static class DefaultRoles
         {
             [SystemAdministrator] = ("Manages users, organisation set-up and modules. No routine clinical access.",
                 [Permissions.UsersManage, Permissions.OrganisationManage, Permissions.ModulesManage, Permissions.TheatreManage, Permissions.RemindersView, Permissions.RemindersManage,
-                 Permissions.LettersTemplates, Permissions.CredentialingView, Permissions.CredentialingManage, Permissions.AssetsView, Permissions.AssetsManage]),
+                 Permissions.LettersTemplates, Permissions.CredentialingView, Permissions.CredentialingManage, Permissions.AssetsView, Permissions.AssetsManage, Permissions.EndoManage]),
             [PrivacyOfficer] = ("Reviews break-glass use and audit reports; handles privacy requests; second-person check for identity corrections and merges.",
                 [Permissions.AuditView, Permissions.BreakGlassReview, Permissions.PatientView, Permissions.PatientMerge]),
             [Reception] = ("Registers patients and manages bookings.",
@@ -123,9 +129,9 @@ public static class DefaultRoles
                  Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.PortalManage]),
             [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.PatientRegister, Permissions.TheatreBook, Permissions.FormsSend,
                  Permissions.FormsTriage, Permissions.LabsMatch, Permissions.RemindersView, Permissions.ReferralsView, Permissions.ReferralsManage,
-                 Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.AssetsView, Permissions.CssdProcess, Permissions.StockManage, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs]),
-            [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs, Permissions.FormsTriage, Permissions.ReferralsView, Permissions.LettersView, Permissions.RosterView, Permissions.PortalSpecialist]),
-            [Surgeon] = ("Clinical access for surgeons and endoscopists.", [.. Clinical, Permissions.EmrView, Permissions.EmrWrite, Permissions.TheatreBook, Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.ReferralsTriage,
+                 Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.AssetsView, Permissions.CssdProcess, Permissions.StockManage, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs, Permissions.EndoView, Permissions.EndoWrite]),
+            [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs, Permissions.EndoView, Permissions.FormsTriage, Permissions.ReferralsView, Permissions.LettersView, Permissions.RosterView, Permissions.PortalSpecialist]),
+            [Surgeon] = ("Clinical access for surgeons and endoscopists.", [.. Clinical, Permissions.EmrView, Permissions.EmrWrite, Permissions.EndoView, Permissions.EndoWrite, Permissions.EndoSign, Permissions.TheatreBook, Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.ReferralsTriage,
                  Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",
                 [Permissions.PatientView, Permissions.RosterView, Permissions.AssetsView, Permissions.AssetsManage, Permissions.CssdProcess, Permissions.CssdRelease, Permissions.StockManage]),

@@ -110,6 +110,7 @@ export default function TheatreLists() {
                       <div className="small muted">{b.payment !== 'NotSet' ? PAYMENTS.find(([k]) => k === b.payment)?.[1] : ''}{checkItems.length > 0 ? ` · ✓ ${b.checklist.length}/${checkItems.length}` : ''}{b.theatreIn ? ` · in ${hm(b.theatreIn)}${b.theatreOut ? `–${hm(b.theatreOut)}` : ''}` : ''}{b.scopeId ? ` · scope ${b.scopeId}` : ''}</div></td>
                     <td data-label="Actions" className="no-print">
                       {mod('emr') && can(Perm.EmrView) && !inactive && <Link className="btn btn-link" to={`/emr/${b.id}`}>Clinical record</Link>}
+                      {mod('endoscopy') && can(Perm.EndoView) && !inactive && (s.type !== 'Surgical' || /colonoscop|gastroscop|sigmoidoscop|ogd/i.test(b.procedure)) && <Link className="btn btn-link" to={`/endoscopy/${b.id}`}>Endoscopy report</Link>}
                       {can(Perm.TheatreBook) && canWrite && (
                         <div className="status-actions">
                           {(next[b.status] ?? []).map(([st, t]) => <button key={st} className="btn btn-light btn-small" onClick={() => setStatus(b, st)}>{t}</button>)}

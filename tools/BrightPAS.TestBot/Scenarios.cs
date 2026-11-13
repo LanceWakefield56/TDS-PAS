@@ -72,6 +72,7 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         else R.Add(Area, "", "SMS company (virtual Modica)", "SMS and email tests", Outcome.Skip, "The server does not trust the virtual SMS company's certificate. Run the robot from an administrator command prompt on the BrightPAS server.");
         await Step("Virtual Zebra printer", "Print a wristband and labels from the patient record", ZebraAsync);
         await Step("Virtual washer (Belimed log)", "Import a washer log, release the load, pack the tray, print its label on the virtual Zebra and issue it to a case", CssdAsync);
+        await EndoscopyStepsAsync();
         await Step("Virtual DYMO printer", "Print DYMO labels from the patient record", DymoAsync);
         await Step("Virtual scanner", "Scan a letter to the patient record; text recognition finds a word in it", ScanAsync);
         await Step("Virtual barcode scanner", "Scan a patient label barcode into Find a patient", BarcodeAsync);

@@ -71,7 +71,9 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Assets & CSSD (spec 7.9) – 0.13.0 (ADR 0025)
 - ☐ Assets & CSSD follow-ups: confirm Belimed WD 290 IQ log layout with a real file; scan trays at the theatre case screen; Xero API push for bills; ultrasonic cleaner cycles; label stock layout check on the real Zebra
 - ☑ Clinical record (eMR) – 0.14.0 (ADR 0026)
-- ☐ Endoscopy – 0.15.0; AI scribe – 0.16.0; SaferSleep + GE device foundations – 0.17.0
+- ☑ Endoscopy – 0.15.0 (ADR 0027)
+- ☐ Endoscopy follow-ups: NBSP data extract, GP letter by HealthLink from the report, picture annotation, confirm CV-1500 DICOM options with Olympus NZ
+- ☐ AI scribe – 0.16.0; SaferSleep + GE device foundations – 0.17.0
 - ☐ Messaging: workflow engine (human tasks, timers, escalation), MLLP/DICOM over TLS, DICOM MWL/MPPS (with endoscopy), drag lines in mapper, C# extension scripts
 - ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends
 - ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)

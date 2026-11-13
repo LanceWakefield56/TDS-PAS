@@ -14,6 +14,7 @@ using BrightPAS.Modules.Theatre;
 using Ast = BrightPAS.Modules.Assets;
 using Cred = BrightPAS.Modules.Credentialing;
 using Emr = BrightPAS.Modules.Emr;
+using Endo = BrightPAS.Modules.Endoscopy;
 using Let = BrightPAS.Modules.Letters;
 using Msg = BrightPAS.Modules.Messaging;
 using Por = BrightPAS.Modules.Portal;
@@ -113,6 +114,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await RosterActivityAsync(ct);
         await AssetsAsync(ct);
         await EmrAsync(ct);
+        await EndoscopyAsync(ct);
         await MessagingAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
@@ -492,6 +494,96 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             var e = await svc.EpisodeAsync(b.Id, b.PatientId, Actor, ct);
             Ok((await svc.AssessAsync(e.Id, new Emr.AssessmentRequest(Emr.AssessmentKind.NursingAdmission, new Dictionary<string, string> { ["id_band"] = "yes", ["allergies_checked"] = "None known", ["fasting_from"] = "06:00", ["escort_name"] = "Partner" }, null), Actor, ct)).Errors, "nursing admission today");
             Ok(await svc.AdmitAsync(e.Id, b.Anaesthetic is not (AnaestheticType.Local or AnaestheticType.None), Actor, ct), "admit today");
+        }
+    }
+
+    // ------------------------------------------------------------------ Endoscopy (0.15.0)
+    private async Task EndoscopyAsync(CancellationToken ct)
+    {
+        var svc = S<Endo.EndoService>();
+        var names = await S<PasDbContext>().Clinicians.AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.Name, ct);
+        var scopes = await S<Ast.AssetsDbContext>().Equipment.AsNoTracking().Where(e => e.Category == Ast.EquipmentCategory.Endoscope).OrderBy(e => e.AssetNumber).ToListAsync(ct);
+        var tower = await S<Ast.AssetsDbContext>().Equipment.AsNoTracking().Where(e => e.Category == Ast.EquipmentCategory.EndoscopyTower).Select(e => (Guid?)e.Id).FirstOrDefaultAsync(ct);
+        Guid? Scope(string prefix) => scopes.FirstOrDefault(x => (x.Model ?? "").StartsWith(prefix, StringComparison.Ordinal))?.Id;
+        var cases = _done.Where(d => Endo.Terminology.Guess(d.Booking.Procedure) is not null).OrderByDescending(d => d.Session.Date).ThenBy(d => d.Booking.Order).Take(12).ToList();
+        if (cases.Count == 0) return;
+        var n = 0;
+        foreach (var (b, sess, _) in cases)
+        {
+            var kind = Endo.Terminology.Guess(b.Procedure)!.Value;
+            var p = await svc.EnsureAsync(b.Id, b.PatientId, b.Procedure, sess.SurgeonId, names.GetValueOrDefault(sess.SurgeonId), sess.Date, Actor, ct);
+            var up = Endo.Terminology.HasUpper(kind); var low = Endo.Terminology.HasLower(kind); var col = Endo.Terminology.IsColonoscopy(kind);
+            var ind = new List<string>();
+            if (up) ind.Add(new[] { "Dyspepsia", "Reflux", "IdaUpper", "BarrettSurveillance" }[n % 4]);
+            if (low) ind.Add(n % 3 == 0 ? "PositiveFit" : new[] { "RectalBleeding", "ChangeInBowelHabit", "PolypSurveillance" }[n % 3]);
+            Ok(await svc.UpdateDetailsAsync(p.Id, new Endo.DetailsEdit(kind, sess.SurgeonId, names.GetValueOrDefault(sess.SurgeonId), "Demo Endoscopy RN, Demo Assistant",
+                up ? Scope("GIF") : null, low ? Scope("CF") : null, tower, low && n % 3 == 0, low && n % 3 == 0 ? $"NBSP{_rng.Next(100000, 999999)}" : null, ind, null, true,
+                Endo.SedationKind.Conscious, "Midazolam and fentanyl", true, false, false, n % 2 == 0, false), Actor, ct), "endoscopy details");
+            var t0 = new DateTimeOffset(sess.Date.ToDateTime(b.TheatreIn ?? sess.StartTime.AddMinutes(30 * b.Order)), TimeSpan.FromHours(13));
+            var lowStart = up ? t0.AddMinutes(10) : t0;
+            var reached = !col || n % 7 != 5;
+            var withdrawal = 6 + _rng.Next(0, 9) + (n % 6 == 4 ? -2 : 0);
+            Ok((await svc.UpdateProcedureAsync(p.Id, new Endo.ProcedureEdit(
+                up ? t0 : null, up ? t0.AddMinutes(7 + _rng.Next(0, 4)) : null, up ? Endo.UpperExtent.D2 : null, up ? true : null, up ? true : null,
+                low ? lowStart : null, col && reached ? lowStart.AddMinutes(8 + _rng.Next(0, 8)) : null, null, low ? lowStart.AddMinutes((col ? 16 : 10) + withdrawal) : null,
+                low ? (col ? (reached ? (n % 4 == 0 ? Endo.LowerExtent.TerminalIleum : Endo.LowerExtent.Caecum) : Endo.LowerExtent.HepaticFlexure) : Endo.LowerExtent.Descending) : null,
+                col && reached ? true : null, col && reached ? true : null, col && reached ? n % 4 == 0 : null, col && reached ? true : null,
+                col ? 2 + n % 2 : null, col ? 2 + (n + 1) % 2 : null, col ? (n % 7 == 5 ? 1 : 3) : null, low ? true : null,
+                col && !reached ? "Poor bowel preparation in the right colon" : null, 1 + n % 3), Actor, ct)).Errors, "endoscopy procedure");
+            var findings = new List<string>();
+            if (up)
+            {
+                var (kindF, grade, site) = (n % 4) switch { 0 => ("Gastritis", (string?)null, "Antrum"), 1 => ("Oesophagitis", (string?)"LA A", "LowerOesophagus"), 2 => ("HiatusHernia", (string?)"< 2 cm", "Goj"), _ => ("Barretts", (string?)"C1M2", "LowerOesophagus") };
+                Ok((await svc.SaveFindingAsync(p.Id, null, new Endo.FindingEdit(site, kindF, grade, null, null), Actor, ct)).Errors, "finding");
+                Ok((await svc.SaveInterventionAsync(p.Id, null, new Endo.InterventionEdit("Biopsy", kindF == "Barretts" ? "LowerOesophagus" : "Antrum", kindF == "Barretts" ? 8 : 4, "B1", kindF == "Barretts" ? "Barrett's (Seattle)" : "Sydney protocol", null, null), Actor, ct)).Errors, "biopsy");
+                if (kindF == "Gastritis") Ok((await svc.SaveInterventionAsync(p.Id, null, new Endo.InterventionEdit("Clo", "Antrum", 1, null, null, null, "Negative"), Actor, ct)).Errors, "CLO");
+                findings.Add(Endo.Terminology.FindingLabel(kindF) + (grade is null ? "" : $" ({grade})"));
+            }
+            var polyps = new List<Endo.Polyp>();
+            if (low)
+            {
+                if (n % 3 != 1) Ok((await svc.SaveFindingAsync(p.Id, null, new Endo.FindingEdit("Sigmoid", "Diverticulosis", "Mild", null, null), Actor, ct)).Errors, "finding");
+                var count = n % 5 == 0 ? 0 : 1 + n % 3;
+                for (var i = 0; i < count; i++)
+                {
+                    var big = n % 4 == 3 && i == 0;
+                    var site = new[] { "Ascending", "Transverse", "Sigmoid", "Rectum", "Descending" }[(n + i) % 5];
+                    var (polyp, pe) = await svc.SavePolypAsync(p.Id, null, new Endo.PolypEdit(site, site == "Rectum" ? 8 : site == "Sigmoid" ? 25 : null, big ? 22 : 3 + _rng.Next(0, 6), big ? "LST-G" : i % 2 == 0 ? "Is" : "IIa",
+                        big ? "2" : "2", null, big ? "Emr" : "ColdSnare", big ? true : null, big ? "Piecemeal" : "EnBloc", "Yes", $"P{i + 1}", "Yes", big ? 2 : 0, big, null), Actor, ct);
+                    polyps.Add(Must(polyp, pe, "polyp"));
+                    if (big) Ok((await svc.SaveTattooAsync(p.Id, null, new Endo.TattooEdit(site, null, "Distal", "Spot (carbon particle suspension)", 1.5m, 3, polyp!.Id, "EMR site for surveillance"), Actor, ct)).Errors, "tattoo");
+                }
+                if (n % 3 == 0) Ok((await svc.SaveFindingAsync(p.Id, null, new Endo.FindingEdit("Anus", "Haemorrhoids", "Grade 1", null, null), Actor, ct)).Errors, "finding");
+            }
+            // Pictures (invented): landmarks plus one per polyp; the first few in each report.
+            var pics = new List<(Guid Id, string Site, string Caption, Guid? Polyp)>();
+            async Task Pic(string site, string caption, bool polypLook, Guid? polypId)
+            {
+                var (m, err) = await svc.AddImageAsync(p.Id, Endo.Imaging.DemoPicture(_rng.Next(), polypLook), Endo.MediaSource.Dicom, "tower CV1500_PR1", null, ct);
+                Ok(err, "demo picture");
+                pics.Add((m!.Id, site, caption, polypId));
+            }
+            if (up) { await Pic("Goj", "Z-line", false, null); await Pic("Antrum", "Antrum", false, null); await Pic("D2", "D2", false, null); }
+            if (col && reached) { await Pic("Caecum", "Appendiceal orifice", false, null); await Pic("Caecum", "Ileocaecal valve", false, null); }
+            foreach (var x in polyps) await Pic(x.Site, $"Polyp {x.Number} – {x.SizeMm} mm {x.Paris}", true, x.Id);
+            if (low) await Pic("Rectum", "Rectal retroflexion", false, null);
+            var k = 0;
+            foreach (var (id, site, caption, pid) in pics)
+            {
+                Ok(await svc.UpdateMediaAsync(id, new Endo.MediaEdit(site, caption, k < 6, pid is not null || k < 2, null, null, pid), Actor, ct), "picture details");
+                k++;
+            }
+            // Histology for the older cases (results back); the newest stay "awaited".
+            if (n >= 3)
+                foreach (var x in polyps)
+                    Ok(await svc.HistologyAsync(x.Id, new Endo.HistologyEdit(x.SizeMm >= 20 ? "TubulovillousAdenoma" : (n + x.Number) % 3 == 0 ? "Hyperplastic" : (n + x.Number) % 4 == 0 ? "SessileSerrated" : "TubularAdenoma",
+                        x.SizeMm >= 20 ? "Low" : "None", null), "pathology", ct), "histology");
+            var diagnosis = string.Join("; ", findings.Concat(polyps.Count > 0 ? [$"{polyps.Count} polyp(s) removed"] : []).DefaultIfEmpty("Normal examination")) + ".";
+            Ok(await svc.UpdateReportAsync(p.Id, new Endo.ReportEdit("None", null, diagnosis, polyps.Count > 0 ? "Await histology. Surveillance as per the result." : "No further endoscopic follow-up needed for this indication.",
+                up && findings.Any(f => f.StartsWith("Barrett")) ? "Repeat gastroscopy for Barrett's surveillance in 3 years." : null, polyps.Any(x => x.SizeMm >= 20) ? 6 : null,
+                polyps.Count > 0 ? "We will write to you and your GP with the laboratory results." : null), Actor, ct), "endoscopy report");
+            if (n != 0) Ok(await svc.SignAsync(p.Id, Actor, ct), "sign endoscopy");
+            n++;
         }
     }
 
@@ -1258,7 +1350,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             Msg.InboundHandler.LabResults, null, 12575, null, null, null, null, [new Msg.ClientEdit("192.168.1.140", null, "Delta lab interface engine"), new Msg.ClientEdit("127.0.0.1", null, "This server (testing)")],
             true, 3, 24, "Results from the community laboratory."), "integration", ct), "MLLP interface");
         var dicom = I(await svc.SaveInterfaceAsync(new Msg.InterfaceEdit(null, "endo-dicom", "Endoscopy tower images (DICOM)", Msg.InterfaceDirection.Inbound, Msg.Transport.DicomListen, Msg.MessageFormat.Dicom,
-            Msg.InboundHandler.None, null, 11112, null, null, null, "BRIGHTPAS", [new Msg.ClientEdit("192.168.1.150", "ENDOTOWER1", "Procedure room 1 tower"), new Msg.ClientEdit("127.0.0.1", "TESTSCU", "Testing from this server")],
+            Msg.InboundHandler.None, null, 11114, null, null, null, "BRIGHTPAS", [new Msg.ClientEdit("192.168.1.150", "ENDOTOWER1", "Procedure room 1 tower"), new Msg.ClientEdit("127.0.0.1", "TESTSCU", "Testing from this server")],
             true, 3, null, "Image headers from the endoscopy stack."), "integration", ct), "DICOM interface");
         var api = I(await svc.SaveInterfaceAsync(new Msg.InterfaceEdit(null, "lab-api", "Partner results (REST)", Msg.InterfaceDirection.Inbound, Msg.Transport.HttpReceive, Msg.MessageFormat.Hl7v2,
             Msg.InboundHandler.None, null, null, null, null, "demo-" + Guid.NewGuid().ToString("N"), null, null, true, 3, null, "Posted to /api/integration/in/lab-api with the interface key."), "integration", ct), "REST interface");
