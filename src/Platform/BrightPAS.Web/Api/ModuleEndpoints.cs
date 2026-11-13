@@ -149,9 +149,11 @@ public static class ModuleEndpoints
     private static void MapForms(IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/forms").RequireModule(FormsModule.Id);
+        // 0.12.4 (test robot): staff who only triage (e.g. anaesthetists) must be able to list the forms waiting for triage.
+        var sendOrTriage = Permissions.AnyOf(Permissions.FormsSend, Permissions.FormsTriage);
         g.MapGet("/", async (string? view, Guid? patientId, FormService svc) => Results.Ok(await svc.ListAsync(view ?? "to-triage", patientId)))
-            .RequireAuthorization(Permissions.FormsSend);
-        g.MapGet("/definition", () => Results.Ok(new { version = Questionnaire.Version, sections = Questionnaire.Sections })).RequireAuthorization(Permissions.FormsSend);
+            .RequireAuthorization(sendOrTriage);
+        g.MapGet("/definition", () => Results.Ok(new { version = Questionnaire.Version, sections = Questionnaire.Sections })).RequireAuthorization(sendOrTriage);
         g.MapPost("/", async (CreateFormRequest req, ClaimsPrincipal u, HttpContext http, FormService svc, LicenceCache licence, IServiceProvider sp) =>
         {
             var (r, token, error) = await svc.CreateAsync(req.PatientId, req.BookingId, Me(u));

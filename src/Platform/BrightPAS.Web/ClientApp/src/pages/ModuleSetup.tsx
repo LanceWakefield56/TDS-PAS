@@ -59,7 +59,7 @@ export default function ModuleSetup() {
           <h2>{ready ? 'All required steps are done' : `Step ${doneRequired + 1} of ${required.length}`}</h2>
           <button className="btn btn-light btn-small" onClick={load}>Check again</button>
         </div>
-        <div className="progressbar" role="progressbar" aria-valuemin={0} aria-valuemax={required.length} aria-valuenow={doneRequired}>
+        <div className="progressbar" role="progressbar" aria-label="Set-up steps done" aria-valuemin={0} aria-valuemax={required.length} aria-valuenow={doneRequired}>
           <span className={`fill w${Math.round((doneRequired / Math.max(required.length, 1)) * 10)}`} />
         </div>
         <ol className="setup-steps">

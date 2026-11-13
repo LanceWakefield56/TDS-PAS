@@ -38,7 +38,7 @@ export default function ListTemplates() {
     <div className="stack-lg">
       <RefLists {...ref} />
       <div className="row-between">
-        <div className="page-head"><p className="small"><Link to="/theatre">← Theatre lists</Link></p><h1>Regular list templates</h1><p className="muted">Each surgeon's regular sessions. Create the real lists for the coming weeks in one step; existing lists are never changed.</p></div>
+        <div className="page-head">{can(Perm.TheatreView) && <p className="small"><Link to="/theatre">← Theatre lists</Link></p>}<h1>Regular list templates</h1><p className="muted">Each surgeon's regular sessions. Create the real lists for the coming weeks in one step; existing lists are never changed.</p></div>
         {manage && !edit && <button className="btn btn-primary" onClick={() => setEdit({ locationId: locs[0]?.id, dayOfWeek: 'Tuesday', startTime: '08:00', endTime: '12:30', type: 'Surgical', surgeonId: '', anaesthetistId: '', everyWeeks: 1, startsOn: todayIso(), endsOn: '', isActive: true })}>Add template</button>}
       </div>
       {edit && (
@@ -71,7 +71,7 @@ export default function ListTemplates() {
                 <td data-label="Room">{t.locationName}</td><td data-label="Surgeon">{t.surgeon}<div className="small muted">{t.type}{t.anaesthetist ? ` · ${t.anaesthetist}` : ''}</div></td>
                 <td data-label="Repeat">{t.everyWeeks === 1 ? 'Weekly' : `Every ${t.everyWeeks} weeks`}<div className="small muted">from {formatDate(t.startsOn)}{t.endsOn ? ` to ${formatDate(t.endsOn)}` : ''}</div></td>
                 <td data-label="Status"><span className={`pill ${t.isActive ? 'green' : ''}`}>{t.isActive ? 'Active' : 'Off'}</span></td>
-                <td>{manage && <button className="btn btn-link" onClick={() => setEdit({ ...t, anaesthetistId: t.anaesthetistId ?? '', endsOn: t.endsOn ?? '' })}>Edit</button>}</td></tr>
+                <td>{manage && <button className="btn btn-link" onClick={() => { setErrors([]); setEdit({ ...t, anaesthetistId: t.anaesthetistId ?? '', endsOn: t.endsOn ?? '' }); }}>Edit</button>}</td></tr>
             ))}</tbody>
           </table>
         )}

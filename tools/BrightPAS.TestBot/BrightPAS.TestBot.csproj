@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- BrightPAS Test Robot: drives the website as every demo account, with virtual printers, phones, email, scanner and outside systems. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>BrightPAS-TestBot</AssemblyName>
+    <RootNamespace>BrightPAS.TestBot</RootNamespace>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Playwright" Version="1.63.0" />
+    <EmbeddedResource Include="Assets\**\*" />
+  </ItemGroup>
+</Project>

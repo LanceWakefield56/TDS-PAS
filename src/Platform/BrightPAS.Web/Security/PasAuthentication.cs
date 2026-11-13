@@ -51,6 +51,8 @@ public static class PasAuthentication
             o.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder(Scheme).RequireAuthenticatedUser().Build();
             foreach (var p in Permissions.All)
                 o.AddPolicy(p, b => b.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser().RequireClaim(Permissions.ClaimType, p));
+            foreach (var p in Permissions.AnyOfPolicies)
+                o.AddPolicy(p, b => b.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser().RequireClaim(Permissions.ClaimType, p.Split('|')));
         });
         return services;
     }

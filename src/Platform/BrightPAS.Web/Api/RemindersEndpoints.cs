@@ -85,8 +85,8 @@ public static class RemindersEndpoints
             var m = await svc.QueueTestAsync(r.Channel, r.To, Me(u));
             if (m.Count == 0) return Done(r.Channel == Channel.Sms ? "Enter a NZ mobile number (e.g. 021 123 4567)." : "Enter a valid email address.");
             await svc.SendDueAsync();
-            var row = (await svc.MessagesAsync(null, Guid.Empty)).First(x => x.Id == m[0].Id);
-            return Results.Ok(new { row.Status, row.LastError, row.Provider });
+            var row = (await svc.MessagesAsync(null, Guid.Empty)).FirstOrDefault(x => x.Id == m[0].Id);
+            return row is null ? Results.Ok(new { Status = "Queued", LastError = (string?)null, Provider = (string?)null }) : Results.Ok(new { row.Status, row.LastError, row.Provider });
         }).RequireAuthorization(Permissions.RemindersManage);
         g.MapPost("/run-now", async (ReminderService svc) => { var (q, s, f) = await svc.RunCycleAsync(); return Results.Ok(new { queued = q, sent = s, failed = f }); })
             .RequireAuthorization(Permissions.RemindersManage);

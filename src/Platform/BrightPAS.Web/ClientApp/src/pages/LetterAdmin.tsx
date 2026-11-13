@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { api, errText, nzDateTime } from '../api';
+import { api, errText, nzDateTime, Perm } from '../api';
+import { useSession } from '../App';
 
 interface Tpl { code: string; name: string; kind: string; recipient: string; subject: string; body: string; isActive: boolean; version: number; updatedAt: string | null; updatedBy: string | null }
 interface Practice { id: string; name: string; hpiFacilityId: string | null; healthLinkEdi: string | null; addressLine1: string | null; addressLine2: string | null; city: string | null; postcode: string | null; phone: string | null; email: string | null; preferredChannel: string; isActive: boolean }
@@ -13,9 +14,10 @@ function Errs({ list }: { list: string[] }) { return list.length ? <div classNam
 export default function LetterAdmin() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'templates';
+  const { can } = useSession();
   return (
     <div className="stack-lg">
-      <div className="page-head"><p className="small"><Link to="/letters">← Letters</Link></p><h1>Letter templates &amp; GP practices</h1></div>
+      <div className="page-head">{can(Perm.LettersView) && <p className="small"><Link to="/letters">← Letters</Link></p>}<h1>Letter templates &amp; GP practices</h1></div>
       <section className="card">
         <div className="tabs">{[['templates', 'Templates'], ['practices', 'GP practices'], ['healthlink', 'HealthLink']].map(([k, t]) =>
           <button key={k} className={tab === k ? 'on' : ''} onClick={() => setParams({ tab: k })}>{t}</button>)}</div>

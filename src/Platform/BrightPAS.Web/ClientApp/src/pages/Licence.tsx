@@ -76,7 +76,7 @@ export default function Licence() {
         <div className="row-between">
           <h2>Licence <span className={`pill ${hClass}`}>{hText}</span>{info.developmentKey && <span className="pill amber">Sandbox – not for real patients</span>}</h2>
           <div className="row">
-            <input ref={fileRef} type="file" accept=".lic,.txt" className="sr-only" id="licfile" onChange={(e) => onFile(e.target.files?.[0])} />
+            <input ref={fileRef} type="file" accept=".lic,.txt" className="sr-only" id="licfile" aria-label="Licence file" onChange={(e) => onFile(e.target.files?.[0])} />
             <button className="btn btn-primary btn-big" disabled={busy} onClick={() => fileRef.current?.click()}>{busy ? 'Installing…' : l ? 'Load a new licence file' : 'Load licence file'}</button>
             {l?.activation && <button className="btn btn-light" disabled={busy} onClick={activate}>Check licence online now</button>}
           </div>

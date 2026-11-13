@@ -26,7 +26,7 @@ export default function PortalRequests() {
           <div key={r.id} className="card subtle stack">
             <div><strong>{KIND[r.kind] ?? r.kind}</strong> – <Link to={`/patients/${r.patientId}`}>{r.patientName}</Link> ({r.mrn}) · {nzDateTime(r.createdAt)}</div>
             <div className="mono-box">{r.message}</div>
-            {r.status === 'Open' ? <div className="row"><input placeholder="Reply to the patient (shown in the portal)" value={reply[r.id] ?? ''} onChange={(e) => setReply({ ...reply, [r.id]: e.target.value })} />
+            {r.status === 'Open' ? <div className="row"><input aria-label="Reply to the patient (shown in the portal)" placeholder="Reply to the patient (shown in the portal)" value={reply[r.id] ?? ''} onChange={(e) => setReply({ ...reply, [r.id]: e.target.value })} />
               <button className="btn btn-primary" onClick={() => handle(r.id, 'Done')}>Done</button><button className="btn btn-light" onClick={() => handle(r.id, 'Declined')}>Decline</button></div>
               : <div className="small muted">{r.status} by {r.handledBy} {nzDateTime(r.handledAt)}{r.response && ` – "${r.response}"`}</div>}
           </div>))}

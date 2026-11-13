@@ -62,7 +62,12 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Visual flow designer + test harness; mapping designer with versions, second-person approval, rollback; translation tables
 - ☑ MCP server (read-only, no content); AI troubleshooting assistant (opt-in, de-identified) + built-in explainer
 
+## Increment 0.12.4 (done)
+- ☑ Test robot with virtual devices and outside systems (ADR 0024); fixes it found (send test 500, anaesthetist forms, typed-address guards, accessibility)
+
 ## Next
+- ☐ Test robot: calendar day columns with many overlapping bookings are unreadable (text cut to "0 T…") – needs a denser layout or a list view for busy days
+- ☐ Test robot: DICOM C-ECHO/C-STORE virtual modality; REST interface (key) and folder interfaces; questionnaire completed end to end by the virtual patient; reset-demo option
 - ☐ Assets & CSSD (spec 7.9) – 0.13.0; Clinical record (eMR) – 0.14.0
 - ☐ Messaging: workflow engine (human tasks, timers, escalation), MLLP/DICOM over TLS, DICOM MWL/MPPS (with endoscopy), drag lines in mapper, C# extension scripts
 - ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends

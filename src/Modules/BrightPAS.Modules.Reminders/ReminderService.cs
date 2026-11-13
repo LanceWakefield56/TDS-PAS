@@ -584,7 +584,9 @@ public sealed class ReminderService(
     public async Task<IReadOnlyList<MessageRow>> MessagesAsync(string? status, Guid? patientId, CancellationToken ct = default)
     {
         var q = db.Messages.AsNoTracking().AsQueryable();
-        if (patientId is not null) q = q.Where(m => m.PatientId == patientId);
+        // Guid.Empty = messages with no patient (test messages, 0.12.3).
+        if (patientId == Guid.Empty) q = q.Where(m => m.PatientId == null);
+        else if (patientId is not null) q = q.Where(m => m.PatientId == patientId);
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<MessageStatus>(status, true, out var st)) q = q.Where(m => m.Status == st);
         var list = await q.OrderByDescending(m => m.CreatedAt).Take(500).ToListAsync(ct);
         var ids = list.Where(m => m.PatientId != null).Select(m => m.PatientId!.Value).Distinct().ToList();

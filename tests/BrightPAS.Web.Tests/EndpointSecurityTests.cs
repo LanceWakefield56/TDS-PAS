@@ -97,7 +97,8 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
             }
             var policies = e.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(a => a.Policy).Where(p => p is not null).ToList();
             if (policies.Count == 0 && !AnySignedInUser.Contains(route)) problems.Add($"{name}: needs a specific permission (RequireAuthorization(Permissions.X)).");
-            foreach (var p in policies) if (!Permissions.All.Contains(p!)) problems.Add($"{name}: unknown permission '{p}'.");
+            foreach (var p in policies)
+                if (!Permissions.All.Contains(p!) && !(Permissions.AnyOfPolicies.Contains(p!) && p!.Split('|').All(Permissions.All.Contains))) problems.Add($"{name}: unknown permission '{p}'.");
         }
         Assert.True(problems.Count == 0, "Endpoint security problems:\n" + string.Join("\n", problems));
     }

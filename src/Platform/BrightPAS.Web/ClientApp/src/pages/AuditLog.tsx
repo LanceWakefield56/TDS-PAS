@@ -35,13 +35,13 @@ export default function AuditLog() {
         <button className="btn btn-primary">Filter</button>
       </form>
       <section className="card">
-        <table className="results compact">
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Table (scrolls sideways)"><table className="results compact">
           <thead><tr><th>#</th><th>When</th><th>User</th><th>Action</th><th>Record</th><th>Patient</th><th>Details</th><th>From</th></tr></thead>
           <tbody>{rows.map((r) => (
             <tr key={r.sequence}><td>{r.sequence}</td><td>{new Date(r.occurredAt).toLocaleString('en-NZ')}</td><td>{r.userId}</td><td><strong>{r.action}</strong></td>
               <td className="small">{r.entityType}</td><td className="small">{r.patientId ? r.patientId.slice(0, 8) + '…' : ''}</td><td className="small">{r.reason}</td><td className="small">{r.workstation}</td></tr>))}
           </tbody>
-        </table>
+        </table></div>
       </section>
     </div>
   );

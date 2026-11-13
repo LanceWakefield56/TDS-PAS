@@ -26,7 +26,7 @@ export default function Interfaces() {
   };
   return (
     <div className="stack-lg">
-      <div className="page-head"><h1>Interfaces</h1><p className="muted">Lab results normally arrive automatically from the laboratory (HL7 over MLLP). Use this page to import a message by hand or to test. Synthetic test data only.</p></div>
+      <div className="page-head"><h1>Lab test import</h1><p className="muted">Lab results normally arrive automatically from the laboratory (HL7 over MLLP). Use this page to import a message by hand or to test. Synthetic test data only.</p></div>
       {!writable('labs') && <p className="warn-box">The Lab results module is not licensed or is read-only, so messages cannot be imported.</p>}
       <section className="card stack">
         <h2>Make a sample lab result</h2>

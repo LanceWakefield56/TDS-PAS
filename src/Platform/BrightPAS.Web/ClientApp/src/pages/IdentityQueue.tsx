@@ -34,7 +34,7 @@ export default function IdentityQueue() {
             <div><Link to={`/patients/${c.patientId}`}>{c.mrn}</Link> – now: {c.before}</div>
             <div><strong>Change:</strong> {change(c)}</div>
             <div className="small">Reason: {c.reason}{c.evidence && ` · Evidence: ${c.evidence}`} · requested by {c.requestedBy} {nzDateTime(c.requestedAt)}</div>
-            {c.status === 'Pending' ? <div className="row"><input placeholder="Note (required to reject)" value={notes[c.id] ?? ''} onChange={(e) => setNotes({ ...notes, [c.id]: e.target.value })} />
+            {c.status === 'Pending' ? <div className="row"><input aria-label="Note (required to reject)" placeholder="Note (required to reject)" value={notes[c.id] ?? ''} onChange={(e) => setNotes({ ...notes, [c.id]: e.target.value })} />
               <button className="btn btn-primary" onClick={() => decide('identity-corrections', c.id, true)}>Approve</button><button className="btn btn-light" onClick={() => decide('identity-corrections', c.id, false)}>Reject</button></div>
               : <div className="small muted">{c.status} by {c.decidedBy} {nzDateTime(c.decidedAt)} {c.decisionNote}</div>}
           </div>))}
@@ -45,7 +45,7 @@ export default function IdentityQueue() {
             <div><strong>Keep:</strong> <Link to={`/patients/${m.survivorId}`}>{m.survivor}</Link></div>
             <div><strong>Merge in (duplicate):</strong> {m.duplicate}</div>
             <div className="small">Reason: {m.reason} · requested by {m.requestedBy} {nzDateTime(m.requestedAt)}</div>
-            {!m.completedAt && m.status !== 'Rejected' ? <div className="row"><input placeholder="Note (required to reject)" value={notes[m.id] ?? ''} onChange={(e) => setNotes({ ...notes, [m.id]: e.target.value })} />
+            {!m.completedAt && m.status !== 'Rejected' ? <div className="row"><input aria-label="Note (required to reject)" placeholder="Note (required to reject)" value={notes[m.id] ?? ''} onChange={(e) => setNotes({ ...notes, [m.id]: e.target.value })} />
               <button className="btn btn-primary" onClick={() => decide('merges', m.id, true)}>{m.status === 'Approved' ? 'Finish merge' : 'Approve and merge'}</button>
               {m.status === 'Pending' && <button className="btn btn-light" onClick={() => decide('merges', m.id, false)}>Reject</button>}</div>
               : <div className="small muted">{m.status}{m.completedAt && ` – merged ${nzDateTime(m.completedAt)} by ${m.decidedBy}: ${m.result}`}</div>}

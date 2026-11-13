@@ -74,7 +74,7 @@ export default function AdminUsers() {
 
       {offboard && <Offboard user={offboard} onDone={(t) => { setOffboard(null); if (t) setMessage({ ok: true, text: t }); load(); }} />}
       <section className="card">
-        <table className="results compact">
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Table (scrolls sideways)"><table className="results compact">
           <thead><tr><th>Name</th><th>Username</th><th>Roles</th><th>Status</th><th>Last sign-in</th><th>Actions</th></tr></thead>
           <tbody>
             {users.map((u) => (
@@ -108,7 +108,7 @@ export default function AdminUsers() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </section>
     </div>
   );

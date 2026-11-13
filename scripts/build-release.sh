@@ -32,6 +32,14 @@ dotnet publish tools/BrightPAS.LicenceManager -c Release -r win-x64 --self-conta
 cp "$LPUB/BrightPAS-LicenceManager.exe" "$OUT/Vendor/BrightPAS-LicenceManager-$VERSION.exe"
 rm -rf "$LPUB"
 
+echo "== Test robot (demonstration systems only)"
+TPUB=$(mktemp -d)
+dotnet publish tools/BrightPAS.TestBot -c Release -r win-x64 --self-contained -p:PublishTrimmed=false -o "$TPUB/BrightPASTestBot" --nologo -v q
+rm -f "$TPUB"/BrightPASTestBot/*.pdb
+cp tools/BrightPAS.TestBot/README.md "$TPUB/BrightPASTestBot/How to run the test robot.md"
+(cd "$TPUB" && zip -qr "$OUT/BrightPAS-TestBot-$VERSION.zip" BrightPASTestBot)
+rm -rf "$TPUB"
+
 echo "== Installation guide"
 NODE_PATH=$(npm root -g) node scripts/docs/install-guide.js "$OUT/BrightPAS-Installation-Guide-$VERSION.docx" "$VERSION"
 ls -la "$OUT"

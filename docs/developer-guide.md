@@ -27,6 +27,7 @@ Filled in as the system is built.
 5. Guided set-up (ADR 0014): add live checks in `ModuleSetupService.ChecksAsync` and the id to `WithWizard` (also `SETUP_MODULES` in the UI).
 6. `scripts/generate-db-scripts.sh` (new numbered script) + `InstallerTests` expected list; data dictionary; guide test section; CHANGELOG.
 7. Demonstration data (ADR 0023): add the module's data to `Web/Demo/DemoData.cs` through the module's own services so a demo system shows it already set up; `DemoDataTests` checks every module in `WithWizard` passes its set-up wizard.
+8. Test robot (ADR 0024): menu entry for the right roles (the robot follows the menu) and a route guard in `App.tsx` (`allowed(...)`) matching it; add the module's pages to `Crawler.AllPages`, any button the explorer must never press to `Crawler.Dangerous`, and a scenario in `Scenarios.cs` for any new device or outside system. Run the robot against a fresh demo database before release.
 
 
 ## Demonstration data (0.12.3, ADR 0023)
@@ -34,3 +35,9 @@ Filled in as the system is built.
 - The seeder only uses the module services (same validation as the screens). `DemoClock` (the registered `TimeProvider`) lets the seeder wind the clock back for its own async flow only, so history (bookings, invoices, audit) has realistic dates; nothing else is affected.
 - Refuses when any user account exists. Demo accounts: `DemoAccounts` (password `Demo-Passphrase-2026`, shared TOTP key `BRIGHTPASDEMOKEY`), shown on the sign-in page only when demo data is present.
 - Dev loop: `tools/dev-e2e` DevDb → insert `demo.state=requested` → `run-web.sh` → wait; `flow7.js` signs in as each role through the screens.
+
+## Test robot (0.12.4, ADR 0024)
+- `tools/BrightPAS.TestBot` – see its README. Dev container: fresh demo DB (above), `run-web.sh`, then
+  `dotnet run --project tools/BrightPAS.TestBot -- --url https://localhost:5001 --browser chromium --out /tmp/tb` (as root, so the simulator certificate can be trusted; restart the website once after the first trust). `--only devices` for the device scenarios only (~3 min); a full run is ~30 min.
+- The explorer presses buttons on a demo database: start each full run from a fresh demo database, or results are affected by earlier runs.
+- Review `report.html` (problems, warnings, device outputs) and the screen gallery screenshots before each release.

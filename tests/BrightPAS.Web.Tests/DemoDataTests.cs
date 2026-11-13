@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -97,6 +98,22 @@ public class DemoDataTests(InstallerScriptWebFactory factory) : IClassFixture<In
         Assert.Equal("done", mfa.GetProperty("next").GetString());
         var me = await (await c.GetAsync("/api/me")).Json();
         Assert.True(me.GetProperty("demo").GetBoolean());
+
+        // 0.12.4 (found by the test robot): "Send test" answered 500 although the message was sent – test messages have no patient.
+        var a = factory.NewClient();
+        await a.PostAsJsonAsync("/api/auth/login", new { userName = "admin", password = DemoAccounts.Password });
+        Assert.Equal(HttpStatusCode.OK, (await a.PostAsJsonAsync("/api/auth/mfa", new { code = TestAuthenticator.Code(DemoAccounts.TotpSecret) })).StatusCode);
+        var test = await a.PostAsJsonAsync("/api/reminders/test", new { channel = "Sms", to = "021 555 0101" });
+        Assert.Equal(HttpStatusCode.OK, test.StatusCode);
+        Assert.Equal("Sent", (await test.Json()).GetProperty("status").GetString());
+        var noPatient = await (await a.GetAsync($"/api/reminders/messages?patientId={Guid.Empty}")).Json();
+        Assert.True(noPatient.GetArrayLength() > 0);
+        // 0.12.4 (test robot): anaesthetists triage pre-admission forms, so they must be able to list them.
+        var an = factory.NewClient();
+        await an.PostAsJsonAsync("/api/auth/login", new { userName = "bkowalski", password = DemoAccounts.Password });
+        Assert.Equal(HttpStatusCode.OK, (await an.PostAsJsonAsync("/api/auth/mfa", new { code = TestAuthenticator.Code(DemoAccounts.TotpSecret) })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await an.GetAsync("/api/forms?view=to-triage")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await an.PostAsJsonAsync("/api/forms", new { patientId = Guid.NewGuid() })).StatusCode); // sending still needs forms.send
 
         // Never twice, never on a database with users.
         await using (var scope = factory.Services.CreateAsyncScope())

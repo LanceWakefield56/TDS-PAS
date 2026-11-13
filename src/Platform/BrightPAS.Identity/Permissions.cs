@@ -61,6 +61,12 @@ public static class Permissions
     // Messaging engine (changes use IntegrationManage)
     public const string MessagingView = "messaging.view";
 
+    /// <summary>Policy name allowing ANY of the given permissions (0.12.4), e.g. forms listed for staff who send OR triage them. Registered in <see cref="AnyOfPolicies"/>.</summary>
+    public static string AnyOf(params string[] permissions) => string.Join('|', permissions);
+
+    /// <summary>Every "any of" policy used by an endpoint; each part must be a real permission (checked by the endpoint security test).</summary>
+    public static readonly IReadOnlyList<string> AnyOfPolicies = [AnyOf(FormsSend, FormsTriage)];
+
     public static readonly IReadOnlyList<string> All =
     [
         PatientView, PatientRegister, PatientEdit, PatientMerge, PatientAlertsManage, BreakGlass, BreakGlassReview,

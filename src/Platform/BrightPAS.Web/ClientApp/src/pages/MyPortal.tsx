@@ -51,7 +51,7 @@ export default function MyPortal() {
       ) : (<>
         <h1>Kia ora {d.givenName}</h1>
         <section className="card stack"><h2>Your procedure</h2>
-          {d.procedures.length === 0 ? <p className="muted">No procedure booked.</p> : d.procedures.map((p: any) => <div key={p.id}><strong>{formatDate(p.date)}</strong> – {p.procedure} with {p.surgeon} ({p.location}){!p.confirmed && ' – to be confirmed'}<div className="small muted">We will tell you your arrival time and fasting instructions before the day.</div></div>)}
+          {d.procedures.length === 0 ? <p className="muted">No procedure booked.</p> : d.procedures.map((p: any) => <div key={p.id}><strong>{formatDate(p.date)}</strong> – {p.procedure} with {p.surgeon}, {p.location}{!p.confirmed && ' – to be confirmed'}<div className="small muted">We will tell you your arrival time and fasting instructions before the day.</div></div>)}
         </section>
         {d.questionnaire && d.questionnaire !== 'none' && <section className="card stack"><h2>Pre-admission health questionnaire</h2>
           {d.questionnaire === 'submitted' ? <p>We have your questionnaire – thank you. If anything about your health changes before the day, please phone us.</p> : <>

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { api, errText, formatDate, nzDateTime } from '../api';
+import { api, errText, formatDate, nzDateTime, Perm } from '../api';
+import { useSession } from '../App';
 import ExportButton from '../components/ExportButton';
 
 /** Emergency transfer pack: everything the receiving hospital needs, with an SBAR handover. Print it to go with the patient, or export it protected. */
 export default function TransferPack() {
   const { id } = useParams();
+  const { can } = useSession();
   const [pack, setPack] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export default function TransferPack() {
         <div className="form-grid">{field('situation', 'Situation', true)}{field('background', 'Background', true)}{field('assessment', 'Assessment (latest observations)', true)}{field('recommendation', 'Recommendation', true)}</div>
         {error && <p className="error" role="alert">{error}</p>}
         {saved && <p className="ok-text">{saved}</p>}
-        <div className="row"><button className="btn btn-primary" onClick={save}>Record transfer</button><button className="btn btn-light" onClick={() => window.print()}>Print pack</button>
+        <div className="row">{can(Perm.PatientEdit) && <button className="btn btn-primary" onClick={save}>Record transfer</button>}<button className="btn btn-light" onClick={() => { setError(null); window.print(); }}>Print pack</button>
           <ExportButton label="Export pack (protected)" formats={["pdf", "zip"]} path={`/api/patients/${id}/transfer-pack/export`} body={{ transfer: body }} /></div>
       </section>
       <section className="card stack print-sheet">

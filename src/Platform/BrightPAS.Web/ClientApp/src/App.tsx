@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
-import { api, Me } from './api';
+import { api, Me, Perm } from './api';
 import Shell from './components/Shell';
 import SignIn from './pages/SignIn';
 import FirstAdmin from './pages/FirstAdmin';
@@ -91,6 +91,9 @@ export default function App() {
   if (loading) return <div className="splash"><div className="brand-mark">BrightPAS</div><p>Loading…</p></div>;
 
   const session: Session = { me, refresh, signOut, can, mod, writable };
+  // 0.12.4: a page typed into the address bar that this person may not use says so, instead of failing on refused server calls.
+  const allowed = (ok: boolean, page: React.ReactElement) => ok ? page
+    : <div className="card"><h1>Not available to you</h1><p>Your account does not include this page. If you need it for your work, ask your BrightPAS administrator.</p></div>;
   const publicPaths = ['/signin', '/setup'];
   if (needsSetup && location.pathname !== '/setup') return <Navigate to="/setup" replace />;
   if (!me && !publicPaths.includes(location.pathname)) return <Navigate to="/signin" replace state={{ from: location.pathname }} />;
@@ -103,52 +106,52 @@ export default function App() {
         <Route path="/patients/:id/labels" element={<DymoLabels />} />
         <Route element={<Shell />}>
           <Route path="/" element={<Home />} />
-          <Route path="/patients" element={<PatientSearch />} />
-          <Route path="/patients/new" element={<PatientRegister />} />
-          <Route path="/patients/:id" element={<PatientView />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
-          <Route path="/audit" element={<AuditLog />} />
-          <Route path="/admin/licence" element={<Licence />} />
-          <Route path="/admin/modules/:id" element={<ModuleSetup />} />
+          <Route path="/patients" element={allowed(can(Perm.PatientView), <PatientSearch />)} />
+          <Route path="/patients/new" element={allowed(can(Perm.PatientRegister), <PatientRegister />)} />
+          <Route path="/patients/:id" element={allowed(can(Perm.PatientView), <PatientView />)} />
+          <Route path="/admin/users" element={allowed(can(Perm.UsersManage), <AdminUsers />)} />
+          <Route path="/audit" element={allowed(can(Perm.AuditView), <AuditLog />)} />
+          <Route path="/admin/licence" element={allowed(can(Perm.ModulesManage), <Licence />)} />
+          <Route path="/admin/modules/:id" element={allowed(can(Perm.ModulesManage), <ModuleSetup />)} />
           <Route path="/admin/referral-targets" element={<ReferralTargets />} />
-          <Route path="/referrals" element={<Referrals />} />
-          <Route path="/admin/organisation" element={<Organisation />} />
-          <Route path="/admin/roles" element={<Roles />} />
-          <Route path="/theatre/templates" element={<ListTemplates />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/roster" element={<Roster />} />
-          <Route path="/letters" element={<Letters />} />
-          <Route path="/letters/new" element={<LetterNew />} />
-          <Route path="/letters/:id" element={<LetterView />} />
-          <Route path="/admin/letters" element={<LetterAdmin />} />
-          <Route path="/waitlist" element={<Waitlist />} />
-          <Route path="/admin/interfaces" element={<Interfaces />} />
-          <Route path="/messaging" element={<MessagingDashboard />} />
-          <Route path="/messaging/interfaces" element={<MessagingInterfaces />} />
-          <Route path="/messaging/messages" element={<MessagingMessages />} />
-          <Route path="/messaging/messages/:id" element={<MessagingMessage />} />
-          <Route path="/messaging/flows" element={<MessagingFlows />} />
-          <Route path="/messaging/flows/:id" element={<FlowEditor />} />
-          <Route path="/messaging/mappings" element={<MessagingMappings />} />
-          <Route path="/messaging/mappings/:id" element={<MappingEditor />} />
-          <Route path="/messaging/tables" element={<MessagingTables />} />
-          <Route path="/messaging/settings" element={<MessagingSettings />} />
-          <Route path="/labs" element={<LabsInbox />} />
-          <Route path="/labs/:id" element={<LabReport />} />
-          <Route path="/theatre" element={<TheatreLists />} />
-          <Route path="/forms" element={<FormsList />} />
-          <Route path="/forms/:id" element={<FormTriage />} />
-          <Route path="/billing" element={<Billing />} />
-          <Route path="/billing/new" element={<BillingNew />} />
-          <Route path="/billing/:id" element={<BillingDocument />} />
-          <Route path="/reminders" element={<Reminders />} />
-          <Route path="/patients/:id/transfer" element={<TransferPack />} />
-          <Route path="/admin/identity" element={<IdentityQueue />} />
-          <Route path="/credentialing" element={<Credentialing />} />
-          <Route path="/portal" element={<SpecialistPortal />} />
-          <Route path="/portal/requests" element={<PortalRequests />} />
-          <Route path="/admin/security" element={<SecuritySettings />} />
-          <Route path="/waitlist/nbrs" element={<Nbrs />} />
+          <Route path="/referrals" element={allowed(mod('referrals') && can(Perm.ReferralsView), <Referrals />)} />
+          <Route path="/admin/organisation" element={allowed(can(Perm.OrganisationManage), <Organisation />)} />
+          <Route path="/admin/roles" element={allowed(can(Perm.UsersManage), <Roles />)} />
+          <Route path="/theatre/templates" element={allowed(mod('theatre') && can(Perm.TheatreManage), <ListTemplates />)} />
+          <Route path="/calendar" element={allowed(mod('theatre') && can(Perm.TheatreView), <Calendar />)} />
+          <Route path="/roster" element={allowed(mod('rostering') && can(Perm.RosterView), <Roster />)} />
+          <Route path="/letters" element={allowed(mod('letters') && can(Perm.LettersView), <Letters />)} />
+          <Route path="/letters/new" element={allowed(mod('letters') && can(Perm.LettersWrite), <LetterNew />)} />
+          <Route path="/letters/:id" element={allowed(mod('letters') && can(Perm.LettersView), <LetterView />)} />
+          <Route path="/admin/letters" element={allowed(mod('letters') && can(Perm.LettersTemplates), <LetterAdmin />)} />
+          <Route path="/waitlist" element={allowed(mod('referrals') && can(Perm.ReferralsView), <Waitlist />)} />
+          <Route path="/admin/interfaces" element={allowed(can(Perm.Integration), <Interfaces />)} />
+          <Route path="/messaging" element={allowed(mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)), <MessagingDashboard />)} />
+          <Route path="/messaging/interfaces" element={allowed(mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)), <MessagingInterfaces />)} />
+          <Route path="/messaging/messages" element={allowed(mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)), <MessagingMessages />)} />
+          <Route path="/messaging/messages/:id" element={allowed(mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)), <MessagingMessage />)} />
+          <Route path="/messaging/flows" element={allowed(mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)), <MessagingFlows />)} />
+          <Route path="/messaging/flows/:id" element={allowed(mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)), <FlowEditor />)} />
+          <Route path="/messaging/mappings" element={allowed(mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)), <MessagingMappings />)} />
+          <Route path="/messaging/mappings/:id" element={allowed(mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)), <MappingEditor />)} />
+          <Route path="/messaging/tables" element={allowed(mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)), <MessagingTables />)} />
+          <Route path="/messaging/settings" element={allowed(mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)), <MessagingSettings />)} />
+          <Route path="/labs" element={allowed(mod('labs') && can(Perm.LabsView), <LabsInbox />)} />
+          <Route path="/labs/:id" element={allowed(mod('labs') && can(Perm.LabsView), <LabReport />)} />
+          <Route path="/theatre" element={allowed(mod('theatre') && can(Perm.TheatreView), <TheatreLists />)} />
+          <Route path="/forms" element={allowed(mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)), <FormsList />)} />
+          <Route path="/forms/:id" element={allowed(mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)), <FormTriage />)} />
+          <Route path="/billing" element={allowed(mod('billing') && can(Perm.BillingView), <Billing />)} />
+          <Route path="/billing/new" element={allowed(mod('billing') && can(Perm.BillingView), <BillingNew />)} />
+          <Route path="/billing/:id" element={allowed(mod('billing') && can(Perm.BillingView), <BillingDocument />)} />
+          <Route path="/reminders" element={allowed(mod('reminders') && can(Perm.RemindersView), <Reminders />)} />
+          <Route path="/patients/:id/transfer" element={allowed(can(Perm.PatientView), <TransferPack />)} />
+          <Route path="/admin/identity" element={allowed(can(Perm.PatientMerge), <IdentityQueue />)} />
+          <Route path="/credentialing" element={allowed(mod('credentialing') && can(Perm.CredentialingView), <Credentialing />)} />
+          <Route path="/portal" element={allowed(mod('portal') && can(Perm.PortalSpecialist), <SpecialistPortal />)} />
+          <Route path="/portal/requests" element={allowed(mod('portal') && can(Perm.PortalManage), <PortalRequests />)} />
+          <Route path="/admin/security" element={allowed((can(Perm.UsersManage) || can(Perm.OrganisationManage)), <SecuritySettings />)} />
+          <Route path="/waitlist/nbrs" element={allowed(mod('referrals') && can(Perm.ReferralsView), <Nbrs />)} />
           <Route path="*" element={<div className="card"><h1>Page not found</h1><p>Use the menu to find what you need.</p></div>} />
         </Route>
       </Routes>
