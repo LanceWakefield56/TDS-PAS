@@ -74,7 +74,9 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Endoscopy – 0.15.0 (ADR 0027)
 - ☑ Endoscopy follow-ups – 0.15.1: NBSP extract, report to GP by HealthLink, drawing on pictures, 4K/MP4, TIFF
 - ☐ Confirm CV-1500 DICOM options with Olympus NZ; confirm NBSP extract layout with the National Screening Unit
-- ☐ AI scribe – 0.16.0; SaferSleep + GE device foundations – 0.17.0
+- ☑ BrightPAS Scribe foundations – 0.16.0 (ADR 0028)
+- ☐ Scribe next: PAS-SPEECH server build and accuracy testing, NZMT dose checking, speaker diarisation, confirm Medow API
+- ☐ SaferSleep + GE device foundations – 0.17.0
 - ☐ Messaging: workflow engine (human tasks, timers, escalation), MLLP/DICOM over TLS, DICOM MWL/MPPS (with endoscopy), drag lines in mapper, C# extension scripts
 - ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends
 - ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)

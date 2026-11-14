@@ -94,6 +94,11 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_LowerScope', N'[e
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_Tower', N'[endo].[Procedures]', N'TowerId', N'[assets].[Equipment]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Media_Patient', N'[endo].[Media]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_GpLetter', N'[endo].[Procedures]', N'GpLetterId', N'[letters].[Letters]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_scribe_Sessions_Patient', N'[scribe].[Sessions]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_scribe_Sessions_Booking', N'[scribe].[Sessions]', N'BookingId', N'[theatre].[Bookings]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_scribe_Sessions_Note', N'[scribe].[Sessions]', N'NoteId', N'[emr].[Notes]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_scribe_Sessions_Document', N'[scribe].[Sessions]', N'DocumentId', N'[patients].[Documents]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_scribe_Consents_Patient', N'[scribe].[Consents]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_LoanSets_Booking', N'[assets].[LoanSets]', N'BookingId', N'[theatre].[Bookings]';
 GO
 
@@ -236,6 +241,12 @@ CREATE OR ALTER VIEW [reporting].[vEndoscopyPolyp] AS
 SELECT x.Id AS PolypId, p.AccessionNumber, p.PatientId, p.EndoscopistName, COALESCE(p.InsertedAt, p.CreatedAt) AS ProcedureAt, x.Number, x.Site, x.DistanceCm, x.SizeMm, x.Paris, x.Nice,
        x.Technique, x.Resection, x.Retrieved, x.Complete, x.Tattooed, x.Histology, x.Dysplasia, x.HistologyAt
 FROM [endo].[Polyps] x JOIN [endo].[Procedures] p ON p.Id = x.ProcedureId;
+GO
+-- Scribe sessions (AI-assisted documentation audit: who, what, engines, consent, how much the clinician edited).
+CREATE OR ALTER VIEW [reporting].[vScribeSession] AS
+SELECT s.Id AS SessionId, s.PatientId, s.BookingId, s.Context, s.Provider, s.Status, s.Clinician, s.CreatedAt, s.SignedAt, s.DurationSeconds, s.SpeechEngine, s.DraftEngine,
+       s.DeIdentified, s.EditPercent, CASE WHEN s.ConsentId IS NULL THEN 0 ELSE 1 END AS ConsentLinked, s.AudioDeletedAt, t.Code AS TemplateCode, s.TemplateVersion
+FROM [scribe].[Sessions] s JOIN [scribe].[Templates] t ON t.Id = s.TemplateId;
 GO
 CREATE OR ALTER VIEW [reporting].[vAuditDaily] AS
 SELECT CAST(a.[OccurredAt] AS date) AS [Day], a.[Action], a.[EntityType], COUNT_BIG(*) AS Events, COUNT(DISTINCT a.[UserId]) AS Users

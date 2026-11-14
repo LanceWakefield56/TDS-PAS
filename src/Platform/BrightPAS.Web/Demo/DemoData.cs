@@ -15,6 +15,7 @@ using Ast = BrightPAS.Modules.Assets;
 using Cred = BrightPAS.Modules.Credentialing;
 using Emr = BrightPAS.Modules.Emr;
 using Endo = BrightPAS.Modules.Endoscopy;
+using Scr = BrightPAS.Modules.Scribe;
 using Let = BrightPAS.Modules.Letters;
 using Msg = BrightPAS.Modules.Messaging;
 using Por = BrightPAS.Modules.Portal;
@@ -115,6 +116,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await AssetsAsync(ct);
         await EmrAsync(ct);
         await EndoscopyAsync(ct);
+        await ScribeAsync(ct);
         await MessagingAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
@@ -494,6 +496,57 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             var e = await svc.EpisodeAsync(b.Id, b.PatientId, Actor, ct);
             Ok((await svc.AssessAsync(e.Id, new Emr.AssessmentRequest(Emr.AssessmentKind.NursingAdmission, new Dictionary<string, string> { ["id_band"] = "yes", ["allergies_checked"] = "None known", ["fasting_from"] = "06:00", ["escort_name"] = "Partner" }, null), Actor, ct)).Errors, "nursing admission today");
             Ok(await svc.AdmitAsync(e.Id, b.Anaesthetic is not (AnaestheticType.Local or AnaestheticType.None), Actor, ct), "admit today");
+        }
+    }
+
+    // ------------------------------------------------------------------ BrightPAS Scribe (0.16.0)
+    private async Task ScribeAsync(CancellationToken ct)
+    {
+        var svc = S<Scr.ScribeService>();
+        var templates = await svc.TemplatesAsync(ct);
+        await svc.DictionaryAsync(ct);
+        foreach (var c in await S<PasDbContext>().Clinicians.AsNoTracking().Where(c => c.IsActive).ToListAsync(ct))
+        {
+            var surname = c.Name.Split(' ').Last();
+            var (_, err) = await svc.SaveTermAsync(null, new Scr.TermEdit(c.Name, surname.Length > 3 ? $"doctor {surname.ToLowerInvariant()}" : null, "Clinician"), Actor, ct);
+            if (err is not null && !err.Contains("already")) throw new InvalidOperationException("Demo data – scribe dictionary: " + err);
+        }
+        var consult = templates.Single(t => t.Code == "CONSULT");
+        var cases = _done.OrderByDescending(d => d.Session.Date).Skip(2).Take(4).ToList();
+        var n = 0;
+        foreach (var (b, _, _) in cases)
+        {
+            var (sess, errs) = await svc.StartAsync(new Scr.NewSession(b.PatientId, b.Id, Scr.ScribeContext.Consultation, consult.Id), Actor, ct);
+            Ok(errs, "scribe session");
+            Ok((await svc.RecordConsentAsync(b.PatientId, sess!.Id, true, n == 0, Actor, ct)).Error, "scribe consent");
+            Scr.Segment Seg(int i, string who, string text, decimal start) => new(i, who, start, start + 6, text, i == 4 ? 0.52m : 0.93m);
+            var segs = new List<Scr.Segment>
+            {
+                Seg(1, "Clinician", $"Kia ora, thanks for coming in. Your GP referred you about {b.Procedure.ToLowerInvariant()}.", 0),
+                Seg(2, "Patient", "Yes, it has been bothering me for about six months, mostly in the evenings.", 7),
+                Seg(3, "Clinician", "Any allergies, and what medicines are you taking?", 14),
+                Seg(4, "Patient", "No allergies. I take metformin 500 mg twice a day and aspirin.", 20),
+                Seg(5, "Clinician", "On examination there is mild tenderness on the right side. We talked about the procedure, the risks of bleeding and infection, and you would like to go ahead.", 27),
+                Seg(6, "Patient", "Yes please. My wife will drive me home.", 40),
+                Seg(7, "Clinician", "I'll book you in, stop the aspirin seven days before, and we'll see you two weeks after.", 46),
+            };
+            await svc.SaveTranscriptAsync(sess.Id, segs, "pas-speech large-v3 (demo)", Actor, ct);
+            var draft = new List<Scr.DraftedSentence>
+            {
+                new("Reason for referral", $"GP referral regarding {b.Procedure.ToLowerInvariant()}.", [1]),
+                new("History", "Symptoms for about six months, mainly in the evenings.", [2]),
+                new("Medicines and allergies", "No known allergies. Metformin 500 mg twice daily; aspirin.", [3, 4]),
+                new("Examination", "Mild tenderness on the right side.", [5]),
+                new("Discussion", "Procedure, risks of bleeding and infection discussed; patient wishes to proceed.", [5, 6]),
+                new("Plan", "Book procedure. Stop aspirin 7 days before. Escort home arranged (wife). Review 2 weeks after.", [6, 7]),
+            };
+            await svc.SaveDraftAsync(sess.Id, draft, "pas-speech llama-3.1-70b (demo)", false, Actor, ct);
+            if (n < 3)
+            {
+                var text = Scr.ScribeText.Render(draft) + (n == 1 ? "\nPatient given written information." : "");
+                Ok((await svc.SignAsync(sess.Id, n == 2 ? text.Replace("Mild tenderness on the right side.", "Mild right iliac fossa tenderness, no guarding.") : text, Actor, ct)).Error, "scribe sign");
+            }
+            n++;
         }
     }
 

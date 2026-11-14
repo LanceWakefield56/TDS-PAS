@@ -88,7 +88,8 @@ public static class PasAuthentication
         var unsafeMethod = !(HttpMethods.IsGet(m) || HttpMethods.IsHead(m) || HttpMethods.IsOptions(m));
         // Vendor callbacks (/api/hooks/...) come from servers, not browsers: they carry no cookie and are authenticated by a secret URL key instead.
         // Machine-to-machine endpoints (no cookies; authenticated by their own keys): SMS vendor callbacks and inbound REST interfaces.
-        var vendorCallback = ctx.Request.Path.StartsWithSegments("/api/hooks") || ctx.Request.Path.StartsWithSegments("/api/integration/in") || ctx.Request.Path.StartsWithSegments("/api/mcp");
+        var vendorCallback = ctx.Request.Path.StartsWithSegments("/api/hooks") || ctx.Request.Path.StartsWithSegments("/api/integration/in") || ctx.Request.Path.StartsWithSegments("/api/mcp")
+            || ctx.Request.Path.StartsWithSegments("/api/scribe/inbound"); // external scribe returning drafts (bearer token)
         if (unsafeMethod && !vendorCallback && ctx.Request.Path.StartsWithSegments("/api") && ctx.Request.Headers[CsrfHeader] != "1")
         {
             ctx.Response.StatusCode = StatusCodes.Status400BadRequest;

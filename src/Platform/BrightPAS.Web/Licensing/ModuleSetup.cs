@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -67,6 +67,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "assets" => await AssetsChecksAsync(ct),
         "emr" => await EmrChecksAsync(ct),
         "endoscopy" => await EndoChecksAsync(ct),
+        "scribe" => await ScribeChecksAsync(ct),
         _ => []
     };
 
@@ -234,6 +235,30 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 drugs > 0, $"{drugs} drug(s).", true, "Open clinical record", "/emr?tab=cd", Permissions.EmrControlledDrugs),
             new("templates", "Note templates", "Operation note, discharge summary and patient instructions templates (defaults supplied; change them to TDS's wording).",
                 templates > 0, $"{templates} template(s).", true, "Open clinical record", "/emr", Permissions.EmrWrite),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> ScribeChecksAsync(CancellationToken ct)
+    {
+        var svc = Svc<BrightPAS.Modules.Scribe.ScribeService>();
+        var s = await svc.SettingsAsync(ct);
+        var approved = (await svc.TemplatesAsync(ct)).Count(t => t.Status == BrightPAS.Modules.Scribe.TemplateStatus.Approved);
+        var users = await UsersWithAsync(Permissions.ScribeUse, ct);
+        var approvers = await UsersWithAsync(Permissions.ScribeApprove, ct);
+        var terms = (await svc.DictionaryAsync(ct)).Count;
+        var (audioOk, audioDetail) = Svc<BrightPAS.Modules.Scribe.AudioStore>().Check();
+        var cloud = s.Speech == BrightPAS.Modules.Scribe.SpeechMode.Cloud || s.Draft == BrightPAS.Modules.Scribe.DraftMode.CloudClaude;
+        return
+        [
+            new("audio", "Audio folder (encrypted)", "Consultation audio is kept encrypted in the scribe folder until the note is signed.", audioOk, audioDetail, false, "Open scribe settings", "/scribe?tab=settings", Permissions.ScribeManage),
+            new("users", "Clinicians can use the scribe", "Nurses, surgeons and anaesthetists get 'Use AI dictation and the ambient scribe' by default.", users > 0, $"{users} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("templates", "Approved templates", "At least one template approved by clinical governance (defaults supplied – review them).", approved > 0, $"{approved} approved.", false, "Open scribe templates", "/scribe?tab=templates", Permissions.ScribeApprove),
+            new("approvers", "Someone can approve templates", "Clinical governance approves scribe templates (given to Surgeon / Endoscopist by default).", approvers > 0, $"{approvers} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("speech", "Speech engine", "Optional: an on-site speech server (option A/B) for dictation and transcription. Without it, the scribe can still use Medow or pasted drafts.",
+                s.Speech != BrightPAS.Modules.Scribe.SpeechMode.Off, s.Speech == BrightPAS.Modules.Scribe.SpeechMode.Off ? "Not set up." : $"{s.Speech} – {s.SpeechUrl}", true, "Open scribe settings", "/scribe?tab=settings", Permissions.ScribeManage),
+            new("privacy", "Privacy approval for cloud processing", "Cloud speech or drafting needs the PIA addendum / supplier assessment reference (identifiers are removed before drafting).",
+                !cloud || s.CloudPrivacyReference is not null, cloud ? s.CloudPrivacyReference ?? "Missing" : "No cloud processing.", false, "Open scribe settings", "/scribe?tab=settings", Permissions.ScribeManage),
+            new("dictionary", "TDS custom dictionary", "Clinician, place, medicine and te reo Māori terms (starter list supplied – add TDS names).", terms > 0, $"{terms} term(s).", true, "Open dictionary", "/scribe?tab=dictionary", Permissions.ScribeManage),
         ];
     }
 

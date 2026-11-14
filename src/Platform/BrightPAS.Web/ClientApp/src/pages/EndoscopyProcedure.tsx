@@ -4,6 +4,7 @@ import { api, errText, formatDate, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
 import ExportButton from '../components/ExportButton';
 import Annotator from '../components/Annotator';
+import DictateButton from '../components/DictateButton';
 import { KIND, STATUS } from './Endoscopy';
 
 type Item = { code: string; label: string };
@@ -481,14 +482,14 @@ function Report({ r, t, act, write }: Ctx) {
         <label>Complication<select value={f.complication} disabled={!write} onChange={(e) => setF({ ...f, complication: e.target.value })}>{t.complications.map((c: string) => <option key={c}>{c}</option>)}</select></label>
         {f.complication !== 'None' && <label>What happened and what was done<input value={f.complicationDetails} disabled={!write} onChange={(e) => setF({ ...f, complicationDetails: e.target.value })} /></label>}
       </div>
-      <label>Conclusion / diagnosis{write && <button type="button" className="btn btn-link" onClick={draft}>Draft from findings</button>}<textarea rows={3} value={f.diagnosis} disabled={!write} onChange={(e) => setF({ ...f, diagnosis: e.target.value })} /></label>
-      <label>Recommendations (for the GP and referrer)<textarea rows={3} value={f.recommendations} disabled={!write} onChange={(e) => setF({ ...f, recommendations: e.target.value })} /></label>
+      <label>Conclusion / diagnosis{write && <DictateButton onText={(t) => setF((x) => ({ ...x, diagnosis: x.diagnosis ? x.diagnosis + (t.startsWith('\n') ? '' : ' ') + t : t }))} />}{write && <button type="button" className="btn btn-link" onClick={draft}>Draft from findings</button>}<textarea rows={3} value={f.diagnosis} disabled={!write} onChange={(e) => setF({ ...f, diagnosis: e.target.value })} /></label>
+      <label>Recommendations (for the GP and referrer){write && <DictateButton onText={(t) => setF((x) => ({ ...x, recommendations: x.recommendations ? x.recommendations + (t.startsWith('\n') ? '' : ' ') + t : t }))} />}<textarea rows={3} value={f.recommendations} disabled={!write} onChange={(e) => setF({ ...f, recommendations: e.target.value })} /></label>
       <div className="form-grid">
         <label>Follow-up<input value={f.followUp} disabled={!write} onChange={(e) => setF({ ...f, followUp: e.target.value })} placeholder="e.g. Clinic review with histology in 4 weeks" /></label>
         <label>Next colonoscopy in (months)<input type="number" value={f.surveillanceMonths} disabled={!write} onChange={(e) => setF({ ...f, surveillanceMonths: e.target.value })} /></label>
       </div>
       {r.suggestion && <p className="hint">Suggested (confirm clinically): {r.suggestion}{write && /(\d+) years?/.test(r.suggestion) && <button type="button" className="btn btn-link" onClick={() => setF({ ...f, surveillanceMonths: String(Number(/(\d+) years?/.exec(r.suggestion)![1]) * 12) })}>Use</button>}</p>}
-      <label>Advice for the patient (in plain words – printed on the patient report)<textarea rows={3} value={f.patientAdvice} disabled={!write} onChange={(e) => setF({ ...f, patientAdvice: e.target.value })} /></label>
+      <label>Advice for the patient (in plain words – printed on the patient report){write && <DictateButton onText={(t) => setF((x) => ({ ...x, patientAdvice: x.patientAdvice ? x.patientAdvice + (t.startsWith('\n') ? '' : ' ') + t : t }))} />}<textarea rows={3} value={f.patientAdvice} disabled={!write} onChange={(e) => setF({ ...f, patientAdvice: e.target.value })} /></label>
       <div className="row">
         {write && <button className="btn btn-primary" onClick={save}>Save report</button>}
         {write && can(Perm.EndoSign) && <button className="btn btn-primary" onClick={async () => { await save(); act(() => api(`/api/endoscopy/procedures/${p.id}/sign`, { body: {} }), 'Report signed.'); }}>Save and sign</button>}

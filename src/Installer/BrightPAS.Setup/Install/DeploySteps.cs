@@ -92,6 +92,8 @@ public static class WebPackage
             },
             // Endoscopy pictures and video (0.15.0): <data>\endoscopy – inherits the data folder's app-pool Modify right.
             ["Endoscopy"] = new System.Text.Json.Nodes.JsonObject { ["MediaPath"] = Path.Combine(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(keysPath))!, "endoscopy") },
+            // Scribe audio (0.16.0): <data>\\scribe, encrypted, deleted on signing.
+            ["Scribe"] = new System.Text.Json.Nodes.JsonObject { ["AudioPath"] = Path.Combine(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(keysPath))!, "scribe") },
             ["AllowedHosts"] = "*",
             ["Https"] = new System.Text.Json.Nodes.JsonObject { ["Port"] = httpsPort },
             ["Reminders"] = new System.Text.Json.Nodes.JsonObject

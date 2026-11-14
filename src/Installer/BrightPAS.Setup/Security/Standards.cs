@@ -74,6 +74,7 @@ public static class Standards
         (["letter", "healthlink"], "Letters & documents"),
         (["roster", "shift", "leave", "payroll", "swap"], "Rostering"),
         (["credential"], "Credentialing"),
+        (["scribe", "dictation", "transcri", "ai-assisted", "consent to ai"], "BrightPAS Scribe"),
         (["endoscopy", "polyp", "colonoscopy", "gastroscopy", "worklist"], "Endoscopy"),
         (["emr", "episode", "checklist", "controlled drug", "observation"], "Clinical record (eMR)"),
         (["assets", "cssd", "steriliser", "tray", "scope", "implant", "stock", "purchase"], "Assets & CSSD"),
@@ -143,5 +144,7 @@ public static class ModuleSuites
         new("endoscopy", "Endoscopy", ["api/endoscopy/today", $"api/endoscopy/bookings/{Guid.Empty}", "api/endoscopy/kpis", $"api/endoscopy/media/{Guid.Empty}"],
             [("POST", $"api/endoscopy/procedures/{Guid.Empty}/polyps", "{}"), ("POST", $"api/endoscopy/procedures/{Guid.Empty}/sign", "{}"), ("POST", $"api/endoscopy/procedures/{Guid.Empty}/pictures", "{}"),
              ("PUT", "api/endoscopy/settings", "{}")]),
+        new("scribe", "BrightPAS Scribe", ["api/scribe/status", "api/scribe/sessions", "api/scribe/templates", $"api/scribe/sessions/{Guid.Empty}"],
+            [("POST", "api/scribe/dictate", "{}"), ("POST", "api/scribe/sessions", "{}"), ("POST", $"api/scribe/sessions/{Guid.Empty}/sign", "{}"), ("PUT", "api/scribe/settings", "{}")]),
     ];
 }

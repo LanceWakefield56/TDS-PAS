@@ -20,6 +20,8 @@ public sealed class Options
     public HashSet<string> Skip { get; } = new(StringComparer.OrdinalIgnoreCase);
     public int SlowMo { get; set; }
     public int ModicaPort { get; set; } = 9443;
+    /// <summary>Virtual speech server and language model for BrightPAS Scribe (OpenAI-compatible and Claude-compatible APIs, http on loopback).</summary>
+    public int AiPort { get; set; } = 9460;
     public int SmtpPort { get; set; } = 2525;
     public int ZebraPort { get; set; } = 9150;
     public bool Full => Depth.Equals("full", StringComparison.OrdinalIgnoreCase);

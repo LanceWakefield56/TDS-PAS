@@ -73,6 +73,7 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         await Step("Virtual Zebra printer", "Print a wristband and labels from the patient record", ZebraAsync);
         await Step("Virtual washer (Belimed log)", "Import a washer log, release the load, pack the tray, print its label on the virtual Zebra and issue it to a case", CssdAsync);
         await EndoscopyStepsAsync();
+        await ScribeStepsAsync();
         await Step("Virtual DYMO printer", "Print DYMO labels from the patient record", DymoAsync);
         await Step("Virtual scanner", "Scan a letter to the patient record; text recognition finds a word in it", ScanAsync);
         await Step("Virtual barcode scanner", "Scan a patient label barcode into Find a patient", BarcodeAsync);
@@ -257,8 +258,8 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         await p.Locator("textarea").FillAsync("Robot test: can I bring a support person on the day?");
         await p.GetByRole(AriaRole.Button, new() { Name = "Send", Exact = true }).ClickAsync();
         await p.Locator("text=Thank you").First.WaitForAsync(new() { Timeout = 10000 });
-        var req = await staff.GetAsync("/api/portal/requests");
-        var seen = req.Text.Contains("support person", StringComparison.Ordinal);
+        var seen = false;
+        for (var i = 0; i < 10 && !seen; i++) { if (i > 0) await Task.Delay(1000); seen = (await staff.GetAsync("/api/portal/requests")).Text.Contains("support person", StringComparison.Ordinal); }
         return seen ? (Outcome.Pass, $"SMS: \"{sms.Text}\". Patient opened it on a phone, entered date of birth, sent a question; it is in Portal requests.")
             : (Outcome.Fail, "Patient sent a question from the portal but it is not in Portal requests.");
     }

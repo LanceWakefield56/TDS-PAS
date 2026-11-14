@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { api, errText, formatDate, nzDateTime, Perm, todayIso } from '../api';
 import { useSession } from '../App';
+import DictateButton from '../components/DictateButton';
 
 const STAGE: Record<string, string> = { PreAdmission: 'Pre-admission', Admitted: 'Admitted', InTheatre: 'In theatre', Recovery: 'Recovery', ReadyForDischarge: 'Ready for discharge', Discharged: 'Discharged', Transferred: 'Transferred to hospital' };
 const RISK: Record<string, string> = { Low: 'pill green', Moderate: 'pill', High: 'pill bad' };
@@ -36,7 +37,8 @@ export default function EmrEpisode() {
     <div className="stack-lg">
       <div className="patient-banner"><div><h1>{h.name}</h1><p>NHI {h.nhi ?? '—'} · {h.mrn} · born {formatDate(h.dateOfBirth)} · {h.sex}</p>
         <p>{h.procedure}{h.laterality !== 'NotApplicable' ? ` (${h.laterality.toLowerCase()})` : ''} · {formatDate(h.date)} · {h.surgeon}{h.anaesthetist ? ` · ${h.anaesthetist}` : ''} · {h.anaesthetic}</p></div>
-        <div className="row"><Link className="btn btn-light btn-small" to="/emr">Today's patients</Link><Link className="btn btn-light btn-small" to={`/patients/${h.patientId}`}>Patient record</Link></div></div>
+        <div className="row"><Link className="btn btn-light btn-small" to="/emr">Today's patients</Link>
+          <ScribeLink patientId={h.patientId} bookingId={h.bookingId} /><Link className="btn btn-light btn-small" to={`/patients/${h.patientId}`}>Patient record</Link></div></div>
       {h.alerts.map((a: any, i: number) => <p key={i} className={a.severity === 'Critical' ? 'alert-critical' : 'alert-warning'}><strong>{a.severity === 'Critical' ? 'Critical alert' : 'Alert'}:</strong> {a.type} – {a.description}</p>)}
       {error && <p className="error" role="alert">{error}</p>}{msg && <p className="ok-text" role="status">{msg}</p>}
       {!r.episode ? <section className="card"><p className="muted">No clinical record has been started for this booking.</p></section> : <section className="card stack">
@@ -258,7 +260,7 @@ function Notes({ r, act, write }: Ctx) {
       {canWrite && <div className="card subtle stack">
         <div className="row"><label>Kind<select value={n.kind} onChange={(e) => setN({ ...n, kind: e.target.value })}>{[['Nursing', 'Nursing note'], ['Medical', 'Medical note'], ['OperationNote', 'Operation note'], ['Anaesthetic', 'Anaesthetic note'], ['Discharge', 'Discharge summary'], ['PatientInstructions', 'Patient instructions']].map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
           <label>Start from a template<select value="" onChange={(e) => fill(e.target.value)}><option value="">—</option>{r.templates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label></div>
-        <label>Note<textarea rows={8} value={n.text} onChange={(e) => setN({ ...n, text: e.target.value })} /></label>
+        <label>Note <DictateButton onText={(t) => setN((x) => ({ ...x, text: x.text ? x.text + (t.startsWith('\n') ? '' : ' ') + t : t }))} /><textarea rows={8} value={n.text} onChange={(e) => setN({ ...n, text: e.target.value })} /></label>
         <div className="row"><button className="btn btn-primary" onClick={async () => { if (await act(() => api(`/api/emr/episodes/${r.episode.id}/notes`, { body: { ...n, sign: true, amendsNoteId: null } }), 'Note signed.')) setN({ ...n, text: '' }); }}>Sign note</button>
           <button className="btn btn-light" onClick={async () => { if (await act(() => api(`/api/emr/episodes/${r.episode.id}/notes`, { body: { ...n, sign: false, amendsNoteId: null } }), 'Draft saved.')) setN({ ...n, text: '' }); }}>Save as draft</button></div></div>}
       {!write && r.episode && ['Discharged', 'Transferred'].includes(r.episode.stage) && <p className="hint">The episode is closed; late notes can still be added.</p>}
@@ -290,4 +292,10 @@ function Discharge({ r, act, write }: Ctx) {
         <button className="btn btn-warn" onClick={() => act(() => api(`/api/emr/episodes/${e.id}/discharge`, { body: { escortName: null, escortPhone: null, overnightCarer: null, escortConfirmed: false, escortOverrideReason: null, criteriaMet: false, destination: transfer.destination, followUpCallOn: null, transfer: true } }), 'Recorded as transferred.')}>Record transfer to hospital</button></div>
     </div>
   );
+}
+
+function ScribeLink({ patientId, bookingId }: { patientId: string; bookingId: string }) {
+  const { mod, can } = useSession();
+  if (!mod('scribe') || !can(Perm.ScribeUse)) return null;
+  return <Link className="btn btn-light btn-small" to={`/scribe?patientId=${patientId}&bookingId=${bookingId}`}>Start scribe</Link>;
 }

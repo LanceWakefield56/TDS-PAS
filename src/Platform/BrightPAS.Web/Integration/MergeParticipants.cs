@@ -110,3 +110,11 @@ public sealed class EndoscopyMerge(BrightPAS.Modules.Endoscopy.EndoDbContext db)
         await db.Procedures.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
         + await db.Media.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct);
 }
+
+public sealed class ScribeMerge(BrightPAS.Modules.Scribe.ScribeDbContext db) : IPatientMergeParticipant
+{
+    public string Name => "Scribe (sessions and AI-recording consent)";
+    public async Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) =>
+        await db.Sessions.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
+        + await db.Consents.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
+}

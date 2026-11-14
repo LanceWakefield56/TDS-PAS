@@ -43,6 +43,7 @@ export const Perm = {
   PatientView: 'patient.view', PatientRegister: 'patient.register', PatientEdit: 'patient.edit', PatientAlerts: 'patient.alerts.manage',
   UsersManage: 'admin.users.manage', AuditView: 'privacy.audit.view', ModulesManage: 'admin.modules.manage', Integration: 'admin.integration.manage',
   LabsView: 'labs.view', LabsAck: 'labs.acknowledge', LabsMatch: 'labs.match',
+  ScribeUse: 'scribe.use', ScribeApprove: 'scribe.approve', ScribeManage: 'scribe.manage',
   EndoView: 'endoscopy.view', EndoWrite: 'endoscopy.write', EndoSign: 'endoscopy.sign', EndoManage: 'endoscopy.manage',
   EmrView: 'emr.view', EmrWrite: 'emr.write', EmrControlledDrugs: 'emr.controlled-drugs',
   TheatreView: 'theatre.view', TheatreBook: 'theatre.book', TheatreManage: 'theatre.manage',

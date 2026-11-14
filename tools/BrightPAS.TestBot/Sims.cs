@@ -45,6 +45,14 @@ public sealed class Sims : IAsyncDisposable
     public string? ReceiptUrl { get; set; }
     public string? ReplyUrl { get; set; }
     public Func<string, Task<string?>>? RenderLabel { get; set; }
+    public string AiUrl => $"http://localhost:{_o.AiPort}";
+    /// <summary>Name and NHI the virtual speech engine "hears" (to test de-identification before cloud drafting).</summary>
+    public string? HeardName { get; set; }
+    public string? HeardNhi { get; set; }
+    public string? LastDraftPrompt { get; private set; }
+    public string? LastDraftPath { get; private set; }
+    public int Transcriptions;
+    private WebApplication? _ai;
     private int _smsId = 1000;
 
     public Sims(Options o, Report r) { _o = o; _r = r; }
@@ -78,6 +86,46 @@ public sealed class Sims : IAsyncDisposable
         });
         await app.StartAsync(_stop.Token);
         _http = app;
+
+        // Virtual speech server (OpenAI-compatible /v1/audio/transcriptions) and language model (/v1/chat/completions and Claude /v1/messages).
+        var ab = WebApplication.CreateSlimBuilder();
+        ab.Logging.ClearProviders();
+        ab.WebHost.ConfigureKestrel(k => { k.Listen(IPAddress.Loopback, _o.AiPort); k.Limits.MaxRequestBodySize = 64 * 1024 * 1024; });
+        var ai = ab.Build();
+        ai.MapPost("/v1/audio/transcriptions", async (HttpRequest req) =>
+        {
+            var form = await req.ReadFormAsync();
+            var bytes = form.Files.FirstOrDefault()?.Length ?? 0;
+            Interlocked.Increment(ref Transcriptions);
+            var who = HeardName is null ? "" : $" {HeardName}, NHI {HeardNhi},";
+            var segs = new object[]
+            {
+                new { id = 0, start = 0.0, end = 5.5, text = $"Kia ora{who} thanks for coming in. How has the pain been since your last anesthetic?", avg_logprob = -0.08, speaker = "Clinician" },
+                new { id = 1, start = 5.5, end = 10.0, text = "It's mostly on the right side and worse at night. My far no came with me today.", avg_logprob = -0.12, speaker = "Patient" },
+                new { id = 2, start = 10.0, end = 17.0, text = "You take metformin 500 mg, and on the day we give 10 units of insulin new paragraph the plan is a laparoscopic cholecystectomy.", avg_logprob = -0.9, speaker = "Clinician" },
+            };
+            _r.Device("Virtual speech server", $"Transcribed {bytes / 1024} KB of audio ({form["model"]})", string.Join("\n", segs.Select(s => s.ToString())));
+            return Results.Json(new { text = "", language = "en", segments = segs });
+        });
+        IResult Draft(string prompt, string path)
+        {
+            LastDraftPrompt = prompt; LastDraftPath = path;
+            var cloud = path == "/v1/messages";
+            var name = cloud ? "[PATIENT_FIRST_NAME]" : "the patient";
+            var json = "{\"sections\":[{\"heading\":\"History\",\"sentences\":[{\"text\":\"Right-sided pain, worse at night, since the last anaesthetic; seen with " + name + "'s whānau.\",\"sources\":[1,2]}]},"
+                + "{\"heading\":\"Medicines and allergies\",\"sentences\":[{\"text\":\"Metformin 500 mg. Insulin 10 units on the day of surgery.\",\"sources\":[3]}]},"
+                + "{\"heading\":\"Plan\",\"sentences\":[{\"text\":\"Laparoscopic cholecystectomy.\",\"sources\":[3]}]}]}";
+            _r.Device("Virtual language model", $"Draft request to {path} ({prompt.Length} characters)", prompt.Length > 1500 ? prompt[..1500] + "…" : prompt);
+            return cloud ? Results.Json(new { content = new[] { new { type = "text", text = json } } }) : Results.Json(new { choices = new[] { new { message = new { role = "assistant", content = json } } } });
+        }
+        ai.MapPost("/v1/chat/completions", async (HttpRequest req) => { using var d = await JsonDocument.ParseAsync(req.Body); return Draft(d.RootElement.GetProperty("messages")[0].GetProperty("content").GetString() ?? "", "/v1/chat/completions"); });
+        ai.MapPost("/v1/messages", async (HttpRequest req) =>
+        {
+            if (string.IsNullOrEmpty(req.Headers["x-api-key"])) return Results.Json(new { error = "no key" }, statusCode: 401);
+            using var d = await JsonDocument.ParseAsync(req.Body); return Draft(d.RootElement.GetProperty("messages")[0].GetProperty("content").GetString() ?? "", "/v1/messages");
+        });
+        await ai.StartAsync(_stop.Token);
+        _ai = ai;
 
         // Virtual email server.
         _smtp = new TcpListener(IPAddress.Loopback, _o.SmtpPort); _smtp.Start();
@@ -361,6 +409,7 @@ public sealed class Sims : IAsyncDisposable
         await _stop.CancelAsync();
         _smtp?.Stop(); _zebra?.Stop();
         if (_http is not null) await _http.DisposeAsync();
+        if (_ai is not null) await _ai.DisposeAsync();
         if (CertificateTrusted && Certificate is not null) TrustCertificate(Certificate, false);
         Certificate?.Dispose();
         _stop.Dispose();

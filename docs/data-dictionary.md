@@ -419,3 +419,14 @@ Cross-schema keys (90-reporting.sql): Procedures.PatientId → patients.Patients
 - endo.Procedures: GpLetterId → letters.Letters (report sent to GP), NbspExportedAt.
 - endo.Media: AnnotatedFromId → endo.Media (annotated copy of), OriginalFileName, OriginalContentType (e.g. the TIFF a PNG was made from).
 - **letters.LetterAttachments**: LetterId (PK, FK letters.Letters), FileName, ContentType, Content (varbinary) – PDF sent with a letter (OBX ED in HealthLink). R
+
+## 0.16.0 – BrightPAS Scribe (schema scribe)
+Cross-schema keys (90-reporting.sql): Sessions.PatientId → patients.Patients, BookingId → theatre.Bookings, NoteId → emr.Notes, DocumentId → patients.Documents; Consents.PatientId → patients.Patients. All tables R unless marked.
+- **scribe.Settings** (single row): Provider (Off, BrightPas, Medow), Speech (Off, OnSite, Cloud), SpeechUrl, SpeechModel, SpeechKey (encrypted), Draft (TemplateOnly, OnSite, CloudClaude), DraftUrl, DraftModel, DraftKey (encrypted), CloudPrivacyReference, CloudApprovedBy/At, MedowPiaReference, MedowSupplierAssessment, MedowAgreementReference, MedowLaunchUrl, InboundTokenHash (SHA-256), MedowApprovedBy/At, AudioRetentionDays, UpdatedBy/At. P
+- **scribe.Templates**: Code (unique), Name, Context, Sections ("Heading: instruction" per line), Version, Status (Draft, Approved, Retired), ApprovedBy/At, UpdatedBy/At. P
+- **scribe.DictionaryTerms**: Term (unique), SoundsLike (comma-separated), Category, UpdatedBy/At. P
+- **scribe.Consents**: PatientId, Given, Standing, Product, RecordedBy/At, WithdrawnBy/At.
+- **scribe.Sessions**: PatientId, BookingId, Context, TemplateId, TemplateVersion, Provider, Status (Recording, Recorded, Transcribed, Drafted, Signed, Discarded), Clinician, ConsentId, AudioFolder, AudioType, AudioChunks, AudioBytes, DurationSeconds, AudioDeletedAt, SpeechEngine, DraftEngine, DeIdentified, Draft, SignedText, SignedBy/At, EditPercent, NoteId, DocumentId, DiscardReason, CreatedAt, UpdatedAt.
+- **scribe.TranscriptSegments** (SessionId, Seq): Speaker, StartSeconds, EndSeconds, Text, Confidence.
+- **scribe.DraftSentences** (SessionId, Seq): Section, Text, Sources (segment numbers).
+- View: reporting.vScribeSession. Audio files: <data>\scribe\<session>\nnnnn.part (encrypted).

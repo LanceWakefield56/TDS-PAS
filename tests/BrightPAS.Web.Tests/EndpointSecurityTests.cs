@@ -39,6 +39,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         ("/api/q/{token}/open", "Patient questionnaire.", true),
         ("/api/q/{token}/save", "Patient questionnaire.", true),
         ("/api/q/{token}/submit", "Patient questionnaire.", true),
+        ("/api/scribe/inbound", "External scribe (Medow) returning a draft: bearer token, SHA-256 stored, constant-time check; licence checked; draft stays unsigned.", true),
         ("/api/hooks/sms/{key}/inbound", "SMS vendor callback: secret key in URL, constant-time check.", true),
         ("/api/hooks/sms/{key}/status", "SMS vendor callback: secret key in URL, constant-time check.", true),
         ("/api/my/{token}/open", "Patient portal: secret link + date of birth, lockout after 5 attempts.", true),
@@ -59,7 +60,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
     private static readonly (string Prefix, string? Module)[] Areas =
     [
         ("/api/labs", "labs"), ("/api/theatre", "theatre"), ("/api/forms", "forms"), ("/api/q/", "forms"), ("/api/billing", "billing"),
-        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/mcp", "messaging"), ("/api/assets", "assets"), ("/api/emr", "emr"), ("/api/endoscopy", "endoscopy"), ("/api/export-policy", null),
+        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/mcp", "messaging"), ("/api/assets", "assets"), ("/api/emr", "emr"), ("/api/endoscopy", "endoscopy"), ("/api/scribe", "scribe"), ("/api/export-policy", null),
         ("/api/patients", null), ("/api/admin", null), ("/api/audit", null), ("/api/auth", null), ("/api/setup", null), ("/api/me", null),
         ("/api/organisation", null), ("/api/{**rest}", null), ("/health", null), ("/{*path", null),
     ];
@@ -142,7 +143,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         c.DefaultRequestHeaders.Remove("X-BrightPAS-Request");
         var problems = new List<string>();
         // Machine-to-machine endpoints ignore cookies and authenticate with their own keys, so CSRF does not apply to them.
-        foreach (var (method, url, _) in Probeable().Where(p => p.Method != "GET" && !p.Url.StartsWith("/api/hooks/") && !p.Url.StartsWith("/api/integration/in/") && p.Url != "/api/mcp"))
+        foreach (var (method, url, _) in Probeable().Where(p => p.Method != "GET" && !p.Url.StartsWith("/api/hooks/") && !p.Url.StartsWith("/api/integration/in/") && p.Url != "/api/mcp" && p.Url != "/api/scribe/inbound"))
         {
             var res = await c.SendAsync(new HttpRequestMessage(new HttpMethod(method), url) { Content = new StringContent("{}", Encoding.UTF8, "application/json") });
             if (res.StatusCode != HttpStatusCode.BadRequest) problems.Add($"{method} {url} -> {(int)res.StatusCode}");

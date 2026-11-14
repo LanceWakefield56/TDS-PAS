@@ -7,6 +7,8 @@ import Emr from './pages/Emr';
 import EmrEpisode from './pages/EmrEpisode';
 import Endoscopy from './pages/Endoscopy';
 import EndoscopyProcedure from './pages/EndoscopyProcedure';
+import Scribe from './pages/Scribe';
+import ScribeSession from './pages/ScribeSession';
 import Stock from './pages/Stock';
 import Shell from './components/Shell';
 import SignIn from './pages/SignIn';
@@ -160,6 +162,8 @@ export default function App() {
           <Route path="/admin/security" element={allowed((can(Perm.UsersManage) || can(Perm.OrganisationManage)), <SecuritySettings />)} />
           <Route path="/emr" element={allowed(mod('emr') && can(Perm.EmrView), <Emr />)} />
           <Route path="/emr/:bookingId" element={allowed(mod('emr') && can(Perm.EmrView), <EmrEpisode />)} />
+          <Route path="/scribe" element={allowed(mod('scribe') && (can(Perm.ScribeUse) || can(Perm.ScribeManage) || can(Perm.ScribeApprove)), <Scribe />)} />
+          <Route path="/scribe/:id" element={allowed(mod('scribe') && can(Perm.ScribeUse), <ScribeSession />)} />
           <Route path="/endoscopy" element={allowed(mod('endoscopy') && can(Perm.EndoView), <Endoscopy />)} />
           <Route path="/endoscopy/:bookingId" element={allowed(mod('endoscopy') && can(Perm.EndoView), <EndoscopyProcedure />)} />
           <Route path="/cssd" element={allowed(mod('assets') && can(Perm.AssetsView), <Cssd />)} />

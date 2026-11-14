@@ -46,6 +46,7 @@ public sealed class EndoscopyDicomHost(IServiceScopeFactory scopes, ILogger<Endo
             if (clock.GetUtcNow() > nextClean)
             {
                 try { await RetentionAsync(ct); } catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning(ex, "Endoscopy video retention clean-up failed."); }
+                try { await ScribeRetentionAsync(ct); } catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning(ex, "Scribe audio clean-up failed."); }
                 nextClean = clock.GetUtcNow().AddHours(6);
             }
             await _reload.WaitAsync(TimeSpan.FromMinutes(5), ct).ContinueWith(_ => { }, CancellationToken.None);
@@ -107,6 +108,16 @@ public sealed class EndoscopyDicomHost(IServiceScopeFactory scopes, ILogger<Endo
         var svc = sp.GetRequiredService<EndoService>();
         foreach (var id in old) await svc.DeleteMediaAsync(id, $"Video retention ({days} days)", "system", ct);
         if (old.Count > 0) log.LogInformation("Endoscopy: deleted {Count} video(s) older than {Days} days.", old.Count, days);
+    }
+
+    /// <summary>Scribe audio housekeeping (0.16.0) runs on the same 6-hourly timer.</summary>
+    private async Task ScribeRetentionAsync(CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        if (sp.GetRequiredService<LicenceCache>().Status.AccessTo(BrightPAS.Modules.Scribe.ScribeModule.Id) == ModuleAccess.None) return;
+        var n = await sp.GetRequiredService<BrightPAS.Modules.Scribe.ScribeService>().RetentionAsync(ct);
+        if (n > 0) log.LogInformation("Scribe: deleted audio of {Count} session(s).", n);
     }
 
     public override void Dispose() { Stop(); base.Dispose(); }

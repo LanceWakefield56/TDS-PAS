@@ -376,3 +376,16 @@ tr.strong td { font-weight: 600; }
 .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #90a4ae; padding: 0; cursor: pointer; }
 .swatch.on { outline: 3px solid #24688A; outline-offset: 2px; }
 .swatch-yellow { background: #FFEB3B; } .swatch-green { background: #00E676; } .swatch-white { background: #fff; } .swatch-blue { background: #2979FF; } .swatch-black { background: #000; }
+/* BrightPAS Scribe (0.16.0) */
+.dictate { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; flex-wrap: wrap; font-weight: normal; }
+.dictate-warn { color: var(--warn); }
+.scribe-review { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 900px) { .scribe-review { grid-template-columns: 1fr; } }
+.scribe-seg { border-left: 4px solid transparent; padding: 4px 8px; border-radius: 4px; }
+.scribe-seg p { margin: 2px 0 6px; }
+.scribe-seg.on { border-left-color: #24688A; background: #E3F2FD; }
+.scribe-seg.unsure { background: #FFF8E1; }
+.scribe-sentence { padding: 2px 6px; border-radius: 4px; margin: 2px 0; }
+.scribe-sentence.linked { cursor: pointer; }
+.scribe-sentence.linked:hover, .scribe-sentence.linked:focus { background: #E3F2FD; outline: none; }
+.endo-rec-inline { color: #c62828; font-weight: 600; }

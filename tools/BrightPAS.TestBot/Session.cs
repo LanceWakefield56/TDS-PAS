@@ -61,7 +61,7 @@ public sealed class Bot(Options o, Report report, IPlaywright pw, IBrowser brows
         var ctx = await browser.NewContextAsync(new BrowserNewContextOptions
         {
             IgnoreHTTPSErrors = true, ViewportSize = size ?? new ViewportSize { Width = 1366, Height = 900 }, IsMobile = mobile, HasTouch = mobile,
-            AcceptDownloads = true, Locale = "en-NZ", TimezoneId = "Pacific/Auckland", Permissions = ["camera"],
+            AcceptDownloads = true, Locale = "en-NZ", TimezoneId = "Pacific/Auckland", Permissions = ["camera", "microphone"],
         });
         ctx.SetDefaultTimeout(15000);
         var page = await ctx.NewPageAsync();
