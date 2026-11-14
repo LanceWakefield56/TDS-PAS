@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import { api, errText, formatDate, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
 import ExportButton from '../components/ExportButton';
+import Annotator from '../components/Annotator';
 import { KIND, STATUS } from './Endoscopy';
 
 type Item = { code: string; label: string };
@@ -121,6 +122,8 @@ function Capture({ r, act, reload, write }: Ctx) {
   const rec = useRef<{ recorder: MediaRecorder; id: string; seq: number; queue: Promise<void>; started: number } | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [device, setDevice] = useState<string>(() => { try { return localStorage.getItem('endo.camera') ?? ''; } catch { return ''; } });
+  const [quality, setQuality] = useState<string>(() => { try { return localStorage.getItem('endo.quality') ?? '1080'; } catch { return '1080'; } });
+  const [format, setFormat] = useState('');
   const [live, setLive] = useState(false);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -133,13 +136,16 @@ function Capture({ r, act, reload, write }: Ctx) {
     setProblem(null);
     try {
       stream.current?.getTracks().forEach((x) => x.stop());
-      const s = await navigator.mediaDevices.getUserMedia({ video: device ? { deviceId: { exact: device }, width: { ideal: 1920 }, height: { ideal: 1080 } } : { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+      const size = quality === '2160' ? { width: { ideal: 3840 }, height: { ideal: 2160 } } : quality === '720' ? { width: { ideal: 1280 }, height: { ideal: 720 } } : { width: { ideal: 1920 }, height: { ideal: 1080 } };
+      const s = await navigator.mediaDevices.getUserMedia({ video: device ? { deviceId: { exact: device }, ...size, frameRate: { ideal: 30 } } : { ...size, frameRate: { ideal: 30 } }, audio: false });
+      const st = s.getVideoTracks()[0]?.getSettings();
+      setFormat(st?.width ? `${st.width}×${st.height}${st.frameRate ? ` at ${Math.round(st.frameRate)} fps` : ''}` : '');
       stream.current = s;
       if (video.current) { video.current.srcObject = s; await video.current.play().catch(() => undefined); }
       setLive(true);
       setDevices((await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput'));
     } catch (e: any) { setLive(false); setProblem(`The video source could not be opened (${e?.name ?? 'error'}). Check the capture card is plugged in and the browser may use the camera.`); }
-  }, [device]);
+  }, [device, quality]);
   useEffect(() => { if (canCapture) start(); return () => { stream.current?.getTracks().forEach((x) => x.stop()); }; }, [start, canCapture]);
 
   const upload = (blob: Blob) => fetch(`/api/endoscopy/procedures/${p.id}/pictures`, { method: 'POST', credentials: 'same-origin', headers: { 'X-BrightPAS-Request': '1', 'X-Capture': 'station', 'Content-Type': blob.type }, body: blob })
@@ -166,10 +172,13 @@ function Capture({ r, act, reload, write }: Ctx) {
       return;
     }
     if (!stream.current) return;
-    const type = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
+    // MP4 (H.264) first – plays everywhere and suits archiving; WebM (VP9/VP8) where the browser cannot record MP4.
+    const type = ['video/mp4;codecs=avc1.640033', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
+    const h = stream.current.getVideoTracks()[0]?.getSettings().height ?? 1080;
+    const bitrate = h >= 2000 ? 25_000_000 : h >= 1000 ? 8_000_000 : 4_000_000;
     let id: string;
     try { id = (await api(`/api/endoscopy/procedures/${p.id}/videos`, { body: { contentType: type || 'video/webm' } })).id; } catch (e) { setProblem(errText(e)); return; }
-    const recorder = new MediaRecorder(stream.current, type ? { mimeType: type, videoBitsPerSecond: 6_000_000 } : undefined);
+    const recorder = new MediaRecorder(stream.current, type ? { mimeType: type, videoBitsPerSecond: bitrate } : { videoBitsPerSecond: bitrate });
     const state = { recorder, id, seq: 0, queue: Promise.resolve(), started: Date.now() };
     recorder.ondataavailable = (e) => {
       if (!e.data || e.data.size === 0) return;
@@ -208,7 +217,9 @@ function Capture({ r, act, reload, write }: Ctx) {
       <div className="row">
         <label>Video source<select value={device} onChange={(e) => { setDevice(e.target.value); try { localStorage.setItem('endo.camera', e.target.value); } catch { /* storage off */ } }}>
           <option value="">Default</option>{devices.map((d, i) => <option key={d.deviceId || i} value={d.deviceId}>{d.label || `Camera ${i + 1}`}</option>)}</select></label>
-        <button className="btn btn-light btn-small" onClick={start}>Reconnect</button>
+        <label>Quality<select value={quality} onChange={(e) => { setQuality(e.target.value); try { localStorage.setItem('endo.quality', e.target.value); } catch { /* storage off */ } }}>
+          <option value="720">720p</option><option value="1080">1080p (Full HD)</option><option value="2160">4K (UHD)</option></select></label>
+        <button className="btn btn-light btn-small" onClick={start}>Reconnect</button>{format && <span className="small muted">Receiving {format}</span>}
       </div>
       {problem && <p className="error-text" role="alert">{problem}</p>}
       <div className={`endo-live${flash ? ' flash' : ''}${recording ? ' recording' : ''}`}>
@@ -221,7 +232,7 @@ function Capture({ r, act, reload, write }: Ctx) {
         <span className="small">{taken} picture(s) this session</span>
       </div>
       <p className="hint">A USB foot pedal can be set to send Space (picture) and R (record) – or F9/F10. Pictures taken with the scope's release button on the tower arrive by DICOM when the tower is connected (Endoscopy › Settings).</p>
-      <label>Add pictures or video from a file (JPEG, PNG, MP4, WebM)<input type="file" accept="image/jpeg,image/png,video/mp4,video/webm" multiple onChange={(e) => uploadFiles(e.target.files)} /></label>
+      <label>Add pictures or video from a file (JPEG, PNG, TIFF, MP4, WebM)<input type="file" accept="image/jpeg,image/png,image/tiff,.tif,.tiff,video/mp4,video/webm" multiple onChange={(e) => uploadFiles(e.target.files)} /></label>
       <Strip media={r.media.slice(-8)} />
     </div>
   );
@@ -421,11 +432,18 @@ function Images({ r, t, act, write }: Ctx) {
 
 function MediaCard({ m, all, r, act, canEdit, canDelete }: { m: any; all: Item[]; r: any; t: any; act: Ctx['act']; canEdit: boolean; canDelete: boolean }) {
   const [f, setF] = useState({ site: m.site ?? '', caption: m.caption ?? '', inReport: m.inReport, inPatientReport: m.inPatientReport, findingId: m.findingId ?? '', polypId: m.polypId ?? '', sort: m.sort });
+  const [drawing, setDrawing] = useState(false);
+  const saveDrawing = async (png: Blob) => {
+    const res = await fetch(`/api/endoscopy/media/${m.id}/annotate`, { method: 'POST', credentials: 'same-origin', headers: { 'X-BrightPAS-Request': '1', 'Content-Type': 'image/png' }, body: png });
+    if (!res.ok) { const j = await res.json().catch(() => null); throw new Error(j?.errors?.join(' ') ?? `HTTP ${res.status}`); }
+    setDrawing(false); await act(async () => null, 'Annotated copy saved – it replaces the original in the reports.');
+  };
   const save = (n = f) => act(() => api(`/api/endoscopy/media/${m.id}`, { method: 'PUT', body: { ...n, site: n.site || null, caption: n.caption || null, findingId: n.findingId || null, polypId: n.polypId || null } }), 'Saved.');
   return (
     <figure className="endo-thumb">
       {m.kind === 'Image' ? <a href={m.url} target="_blank" rel="noreferrer"><img src={m.url} alt={m.caption ?? `Picture ${m.sort}`} /></a> : <video src={m.url} controls preload="metadata" aria-label={m.caption ?? 'Video'} />}
       <figcaption className="small stack">
+        {m.annotatedFromId && <span className="pill blue">Annotated copy</span>}{m.original && <a href={m.original}>Original {m.originalType === 'image/tiff' ? 'TIFF' : 'file'}</a>}
         <span className="muted">{nzDateTime(m.capturedAt)} · {m.source === 'Dicom' ? 'tower' : m.source === 'CaptureStation' ? 'capture' : 'upload'}{m.durationSeconds ? ` · ${Math.round(m.durationSeconds)} s` : ''}{m.bytes > 1048576 ? ` · ${Math.round(m.bytes / 1048576)} MB` : ''}</span>
         {canEdit ? <>
           <select aria-label="Site" value={f.site} onChange={(e) => setF({ ...f, site: e.target.value })}><option value="">Site…</option>{all.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}</select>
@@ -435,16 +453,18 @@ function MediaCard({ m, all, r, act, canEdit, canDelete }: { m: any; all: Item[]
           {m.kind === 'Image' && <><label className="check"><input type="checkbox" checked={f.inReport} onChange={(e) => { const n = { ...f, inReport: e.target.checked }; setF(n); save(n); }} /> Clinical report</label>
             <label className="check"><input type="checkbox" checked={f.inPatientReport} onChange={(e) => { const n = { ...f, inPatientReport: e.target.checked }; setF(n); save(n); }} /> Patient report</label></>}
           <span className="row"><button className="btn btn-light btn-small" onClick={() => save()}>Save</button>
+            {m.kind === 'Image' && <button className="btn btn-light btn-small" onClick={() => setDrawing(true)}>Draw on picture</button>}
             {canDelete && <button className="btn btn-link danger" onClick={() => { const reason = window.prompt('Reason for deleting (e.g. wrong patient, blurred)'); if (reason) act(() => api(`/api/endoscopy/media/${m.id}?reason=${encodeURIComponent(reason)}`, { method: 'DELETE' }), 'Deleted.'); }}>Delete</button>}</span>
         </> : <span>{[m.site && all.find((s) => s.code === m.site)?.label, m.caption].filter(Boolean).join(' – ')}</span>}
       </figcaption>
+      {drawing && <Annotator src={m.url} onSave={saveDrawing} onCancel={() => setDrawing(false)} />}
     </figure>
   );
 }
 
 // ------------------------------------------------------------------ report
 function Report({ r, t, act, write }: Ctx) {
-  const { can } = useSession();
+  const { can, mod } = useSession();
   const p = r.procedure;
   const [f, setF] = useState({ complication: p.complication ?? 'None', complicationDetails: p.complicationDetails ?? '', diagnosis: p.diagnosis ?? '', recommendations: p.recommendations ?? '', followUp: p.followUp ?? '', surveillanceMonths: p.surveillanceMonths ?? '', patientAdvice: p.patientAdvice ?? '' });
   const save = () => act(() => api(`/api/endoscopy/procedures/${p.id}/report`, { method: 'PUT', body: { ...f, complicationDetails: f.complicationDetails || null, diagnosis: f.diagnosis || null, recommendations: f.recommendations || null,
@@ -482,6 +502,10 @@ function Report({ r, t, act, write }: Ctx) {
           <button className="btn btn-light" onClick={() => act(() => api(`/api/endoscopy/procedures/${p.id}/save-to-record`, { body: { kind: 'clinical' } }), 'Clinical report saved to the patient record (Documents).')}>Save clinical report to patient record</button>
           <button className="btn btn-light" onClick={() => act(() => api(`/api/endoscopy/procedures/${p.id}/save-to-record`, { body: { kind: 'patient' } }), 'Patient report saved to the patient record (Documents).')}>Save patient report to patient record</button></>}
       </div>
+      {mod('letters') && <div className="stack"><h2>Send to the GP</h2>
+        {r.gpLetter ? <p>Sent as letter <strong>{r.gpLetter.number}</strong> to {r.gpLetter.recipientName} – {r.gpLetter.status}{r.gpLetter.sentAt ? `, ${nzDateTime(r.gpLetter.sentAt)}` : ''}{r.gpLetter.ackText ? ` (${r.gpLetter.ackText})` : ''}.</p>
+          : p.status === 'Signed' && can(Perm.EndoSign) ? <div><button className="btn btn-primary" onClick={() => act(() => api(`/api/endoscopy/procedures/${p.id}/send-to-gp`, { body: {} }), (x) => x.message)}>Send report to GP by HealthLink</button></div>
+          : <p className="muted">Sign the report to send it to the patient's GP by HealthLink (the PDF with pictures goes with a covering letter).</p>}</div>}
       <p className="hint">Pictures ticked "Clinical report" or "Patient report" in the Pictures & video tab are printed in that report. Patient report wording is set in Endoscopy › Settings.</p>
     </div>
   );

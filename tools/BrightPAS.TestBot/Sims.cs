@@ -258,7 +258,7 @@ public sealed class Sims : IAsyncDisposable
                     var msg = await File.ReadAllTextAsync(f);
                     var problems = CheckRefI12(msg, out var control, out var to);
                     HealthLink.Enqueue(new HlFile(Path.GetFileName(f), msg, problems, DateTimeOffset.Now));
-                    _r.Device("Virtual HealthLink", $"{Path.GetFileName(f)} to {to} {(problems.Length == 0 ? "– valid REF^I12" : "– PROBLEMS: " + problems)}", msg.Replace("\r", "\n"));
+                    _r.Device("Virtual HealthLink", $"{Path.GetFileName(f)} to {to} {(problems.Length == 0 ? "– valid REF^I12" : "– PROBLEMS: " + problems)}", System.Text.RegularExpressions.Regex.Replace(msg, "Base64\\^[A-Za-z0-9+/=]{200,}", m => $"Base64^({m.Length * 3 / 4 / 1024} KB PDF)").Replace("\r", "\n"));
                     var code = problems.Length == 0 ? "AA" : "AE";
                     var ack = $"MSH|^~\\&|HealthLink|HL|BrightPAS|TDS|{DateTime.Now:yyyyMMddHHmmss}||ACK^I12|ACK{control}|P|2.4\rMSA|{code}|{control}|{(problems.Length == 0 ? "Delivered to " + to + " (virtual HealthLink)" : problems)}\r";
                     await File.WriteAllTextAsync(Path.Combine(HealthLinkIn, control + ".ack.tmp"), ack);

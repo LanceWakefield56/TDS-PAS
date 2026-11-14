@@ -369,3 +369,10 @@ tr.strong td { font-weight: 600; }
 .endo-thumb img, .endo-thumb video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; background: #000; display: block; }
 .endo-thumb figcaption { margin-top: 6px; gap: 6px; }
 .endo-thumb select, .endo-thumb input:not([type=checkbox]) { width: 100%; }
+/* Picture annotation (0.15.1) */
+.annotator { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.annotator-panel { background: #fff; border-radius: 8px; padding: 14px; max-width: min(1200px, 100%); max-height: 100%; overflow: auto; }
+.annotator-canvas { width: 100%; max-height: 70vh; object-fit: contain; cursor: crosshair; touch-action: none; background: #000; display: block; }
+.swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #90a4ae; padding: 0; cursor: pointer; }
+.swatch.on { outline: 3px solid #24688A; outline-offset: 2px; }
+.swatch-yellow { background: #FFEB3B; } .swatch-green { background: #00E676; } .swatch-white { background: #fff; } .swatch-blue { background: #2979FF; } .swatch-black { background: #000; }

@@ -47,6 +47,23 @@ public sealed class MediaStore(SettingsService settings, Microsoft.Extensions.Co
         m.Sha256 = Convert.ToHexString(SHA256.HashData(data));
     }
 
+    /// <summary>Keeps the original file beside the displayable one (e.g. the TIFF a PNG was made from).</summary>
+    public async Task WriteOriginalAsync(Media m, byte[] data, string contentType, CancellationToken ct = default)
+    {
+        m.OriginalContentType = contentType;
+        m.OriginalFileName = Path.ChangeExtension(m.FileName.Length > 0 ? m.FileName : NewFileName(m), ".orig" + (contentType == "image/tiff" ? ".tif" : ".bin"));
+        var full = await FullAsync(new Media { FileName = m.OriginalFileName }, ct);
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        await File.WriteAllBytesAsync(full, data, ct);
+    }
+
+    public async Task<string?> OriginalPathAsync(Media m, CancellationToken ct = default)
+    {
+        if (m.OriginalFileName is null) return null;
+        var full = await FullAsync(new Media { FileName = m.OriginalFileName }, ct);
+        return File.Exists(full) ? full : null;
+    }
+
     public async Task AppendAsync(Media m, Stream chunk, CancellationToken ct = default)
     {
         if (m.FileName.Length == 0) m.FileName = NewFileName(m);
@@ -78,6 +95,7 @@ public sealed class MediaStore(SettingsService settings, Microsoft.Extensions.Co
     public async Task DeleteFileAsync(Media m, CancellationToken ct = default)
     {
         if (await PathIfExistsAsync(m, ct) is { } p) File.Delete(p);
+        if (await OriginalPathAsync(m, ct) is { } o) File.Delete(o);
     }
 
     /// <summary>Set-up check: the folder exists (or can be made) and the website can write to it.</summary>

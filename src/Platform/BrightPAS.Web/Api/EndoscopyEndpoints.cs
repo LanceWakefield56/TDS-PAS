@@ -26,6 +26,7 @@ public static class EndoscopyEndpoints
     public sealed record AdviceEdit(string Key, string Title, string Body);
     public sealed record ReportRequest(string Kind, BrightPAS.Web.Security.ExportOptions? Export);
     public sealed record SaveRequest(string Kind);
+    public sealed record NbspExtract(DateOnly From, DateOnly To, bool OnlyComplete, BrightPAS.Web.Security.ExportOptions? Export);
     public sealed record EndoSettings(string? MediaPath, bool DicomEnabled, int DicomPort, string DicomAeTitle, string? DicomCallingAes, bool DicomAnyTower, int? VideoRetentionDays);
 
     public const string DicomEnabledKey = "endo.dicom.enabled", DicomPortKey = "endo.dicom.port", DicomAeKey = "endo.dicom.aeTitle",
@@ -179,6 +180,17 @@ public static class EndoscopyEndpoints
             if ((signed || m.ProcedureId is null) && !Has(u, Permissions.EndoManage)) return Results.BadRequest(new { errors = new[] { "Only an endoscopy administrator can delete pictures from a signed report or the unmatched list." } });
             return Done(await svc.DeleteMediaAsync(mediaId, reason, Me(u)));
         }).RequireAuthorization(Permissions.EndoWrite);
+        g.MapPost("/media/{mediaId:guid}/annotate", (Guid mediaId, HttpRequest req, ClaimsPrincipal u, EndoService svc) => Guard(async () =>
+        {
+            var (m, error) = await svc.AnnotateAsync(mediaId, await Body(req, 30L * 1024 * 1024), Me(u));
+            return error is not null ? Done(error) : Results.Ok(new { m!.Id });
+        })).RequireAuthorization(Permissions.EndoWrite);
+        g.MapGet("/media/{mediaId:guid}/original", async (Guid mediaId, EndoService svc, MediaStore store) =>
+        {
+            var m = await svc.MediaRowAsync(mediaId);
+            if (m is null || await store.OriginalPathAsync(m) is not { } path) return Results.NotFound();
+            return Results.File(path, m.OriginalContentType ?? "application/octet-stream", $"endoscopy-{m.Id:N}{Path.GetExtension(path)}");
+        }).RequireAuthorization(Permissions.EndoView);
         g.MapGet("/unmatched", async (EndoService svc) => Results.Ok((await svc.UnmatchedAsync()).Select(m => new { m.Id, m.CapturedAt, m.DicomPatientId, m.DicomPatientName, m.DicomAccession, m.CapturedBy, kind = m.Kind.ToString() })))
             .RequireAuthorization(Permissions.EndoWrite);
         g.MapPost("/media/{mediaId:guid}/assign", (Guid mediaId, AssignRequest r, ClaimsPrincipal u, EndoService svc) => Guard(async () => Done(await svc.AssignAsync(mediaId, r.ProcedureId, Me(u))))).RequireAuthorization(Permissions.EndoWrite);
@@ -203,6 +215,58 @@ public static class EndoscopyEndpoints
             var (doc, errors) = await sp.GetRequiredService<DocumentService>().AddAsync(new NewPatientDocument(data.PatientId, data.BookingId, DocumentCategory.Clinical, title,
                 $"{(patient ? "patient-" : "")}endoscopy-{data.Accession}.pdf", Convert.ToBase64String(pdf), DocumentSource.Upload), Me(u), 50);
             return errors.Count > 0 ? Errors(errors) : Results.Ok(new { doc!.Id });
+        }).RequireAuthorization(Permissions.EndoSign);
+
+        // Signed clinical report to the patient's GP by HealthLink (a final letter with the PDF attached; Letters module).
+        g.MapPost("/procedures/{id:guid}/send-to-gp", async (Guid id, ClaimsPrincipal u, IServiceProvider sp) =>
+        {
+            if (sp.GetRequiredService<LicenceCache>().Status.AccessTo("letters") != ModuleAccess.Full) return Results.BadRequest(new { errors = new[] { "Sending to the GP needs the Letters module." } });
+            var data = await EndoRecord.ReportDataAsync(sp, id);
+            if (data is null) return Results.NotFound();
+            if (!data.Signed) return Results.BadRequest(new { errors = new[] { "Sign the report before sending it to the GP." } });
+            if (data.P.GpLetterId is not null) return Results.BadRequest(new { errors = new[] { "This report has already been sent to the GP (see Letters). Amend and re-sign to send a corrected report." } });
+            var p = data.P;
+            var body = $"Dear Doctor\n\nRe: {data.PatientName}, NHI {data.Nhi ?? "-"}, born {data.DateOfBirth:d MMM yyyy}\n\n{data.FirstName} had a {data.KindLabel.ToLowerInvariant()} at {data.Organisation} on {data.Date:d MMMM yyyy} with {p.EndoscopistName}. The full report with pictures is attached.\n\n"
+                + $"Conclusion: {p.Diagnosis}\n" + (p.Recommendations is null ? "" : $"\nRecommendations: {p.Recommendations}\n") + (p.FollowUp is null ? "" : $"\nFollow-up: {p.FollowUp}\n")
+                + (p.SurveillanceMonths is { } sm ? $"\nNext colonoscopy recommended in {(sm % 12 == 0 ? $"{sm / 12} year(s)" : $"{sm} months")}.\n" : "")
+                + (data.Polyps.Any(x => x.Retrieved == "Yes" && x.Histology is null) || data.Therapy.Any(x => x.Kind == "Biopsy") ? "\nHistology is awaited and will follow.\n" : "")
+                + $"\nKind regards\n{p.EndoscopistName}";
+            var letters = sp.GetRequiredService<BrightPAS.Modules.Letters.LetterService>();
+            var (letter, errors) = await letters.CreateGpReportAsync(data.PatientId, data.BookingId, $"{data.KindLabel} report – {data.PatientName}", body,
+                BrightPAS.Web.Pdf.EndoPdf.ClinicalReport(data, null), $"endoscopy-{data.Accession}.pdf", Me(u), p.EndoscopistName);
+            if (errors.Count > 0) return Errors(errors);
+            await sp.GetRequiredService<EndoService>().SetGpLetterAsync(id, letter!.Id);
+            var (ok, message) = await sp.GetRequiredService<BrightPAS.Modules.Letters.HealthLinkService>().SendAsync(letter.Id, Me(u));
+            return Results.Ok(new { letterId = letter.Id, letter.Number, sent = ok, message = ok ? $"Letter {letter.Number} to {letter.RecipientName}: {message}" : $"Letter {letter.Number} created but not sent: {message} You can print or resend it from Letters." });
+        }).RequireAuthorization(Permissions.EndoSign);
+
+        // National Bowel Screening Programme: dataset per screening colonoscopy, completeness check, encrypted CSV extract.
+        g.MapGet("/nbsp", async (DateOnly? from, DateOnly? to, EndoService svc, TimeProvider clock) =>
+        {
+            var t = to ?? DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+            return Results.Ok(await svc.NbspAsync(from ?? t.AddMonths(-3), t));
+        }).RequireAuthorization(Permissions.EndoView);
+        g.MapPost("/nbsp/extract", async (NbspExtract r, ClaimsPrincipal u, IServiceProvider sp, BrightPAS.Web.Security.SecureExportService export) =>
+        {
+            var svc = sp.GetRequiredService<EndoService>();
+            var rows = (await svc.NbspAsync(r.From, r.To)).Where(x => !r.OnlyComplete || x.Problems.Count == 0).ToList();
+            if (rows.Count == 0) return Results.BadRequest(new { errors = new[] { r.OnlyComplete ? "No complete NBSP procedures in that range (see the problems column)." : "No NBSP procedures in that range." } });
+            var pids = rows.Select(x => x.PatientId).Distinct().ToList();
+            var pts = await sp.GetRequiredService<PatientsDbContext>().Patients.AsNoTracking().Where(p => pids.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
+            var cids = rows.Select(x => x.EndoscopistId).OfType<Guid>().Distinct().ToList();
+            var cpn = await sp.GetRequiredService<BrightPAS.Core.Data.PasDbContext>().Clinicians.AsNoTracking().Where(c => cids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.HpiCpn);
+            var site = await sp.GetRequiredService<BrightPAS.Core.Organisation.OrganisationService>().MainSiteAsync();
+            static string C(object? v) { var s = v switch { null => "", bool b => b ? "Y" : "N", decimal d => d.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture), DateOnly d => d.ToString("yyyy-MM-dd"), _ => v.ToString() ?? "" }; return s.IndexOfAny([',', '"', '\n']) >= 0 ? $"\"{s.Replace("\"", "\"\"")}\"" : s; }
+            var sb = new System.Text.StringBuilder("NHI,NBSPParticipantId,FacilityHpi,ProcedureDate,Accession,EndoscopistName,EndoscopistCPN,Indication,Sedation,Extent,CaecalIntubation,TerminalIleum,BBPSTotal,AdequatePrep,WithdrawalMinutes,ComfortGloucester,PolypsSeen,PolypsRemoved,PolypsRetrieved,LargestPolypMm,Adenomas,AdvancedAdenomas,SerratedLesions,CancerSuspected,CancerConfirmed,HistologyAwaited,Tattoos,Complication,SurveillanceMonths,ReportStatus\r\n");
+            foreach (var x in rows)
+            {
+                var pt = pts[x.PatientId];
+                sb.Append(string.Join(",", new object?[] { pt.Nhi, x.NbspNumber, site?.Site.HpiFacilityId, x.Date, x.Accession, x.Endoscopist, x.EndoscopistId is { } eid ? cpn.GetValueOrDefault(eid) : null, x.Indications, x.Sedation,
+                    x.Extent, x.CaecumReached, x.TerminalIleum, x.Bbps, x.AdequatePrep, x.WithdrawalMinutes, x.Comfort, x.PolypsSeen, x.PolypsRemoved, x.PolypsRetrieved, x.LargestPolypMm, x.Adenomas, x.AdvancedAdenomas,
+                    x.Serrated, x.CancerSuspected, x.CancerConfirmed, x.HistologyAwaited, x.Tattoos, x.Complication, x.SurveillanceMonths, x.Status }.Select(C))).Append("\r\n");
+            }
+            await svc.MarkNbspExportedAsync(rows.Select(x => x.ProcedureId), Me(u));
+            return await export.ExportAsync(r.Export, $"BrightPAS-NBSP-{r.From:yyyyMMdd}-{r.To:yyyyMMdd}", [new($"nbsp-endoscopy-{r.From:yyyyMMdd}-{r.To:yyyyMMdd}.csv", BrightPAS.Web.Security.SecureExportService.Utf8Bom(sb.ToString()))], Me(u), "NbspExtract");
         }).RequireAuthorization(Permissions.EndoSign);
 
         // Quality indicators and settings.

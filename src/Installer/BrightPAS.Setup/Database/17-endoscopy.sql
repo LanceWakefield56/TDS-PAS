@@ -422,3 +422,80 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114042049_AnnotationsNbspGpLetter'
+)
+BEGIN
+    ALTER TABLE [endo].[Procedures] ADD [GpLetterId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114042049_AnnotationsNbspGpLetter'
+)
+BEGIN
+    ALTER TABLE [endo].[Procedures] ADD [NbspExportedAt] datetimeoffset NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114042049_AnnotationsNbspGpLetter'
+)
+BEGIN
+    ALTER TABLE [endo].[Media] ADD [AnnotatedFromId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114042049_AnnotationsNbspGpLetter'
+)
+BEGIN
+    ALTER TABLE [endo].[Media] ADD [OriginalContentType] nvarchar(60) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114042049_AnnotationsNbspGpLetter'
+)
+BEGIN
+    ALTER TABLE [endo].[Media] ADD [OriginalFileName] nvarchar(260) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114042049_AnnotationsNbspGpLetter'
+)
+BEGIN
+    CREATE INDEX [IX_Procedures_GpLetterId] ON [endo].[Procedures] ([GpLetterId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114042049_AnnotationsNbspGpLetter'
+)
+BEGIN
+    CREATE INDEX [IX_Media_AnnotatedFromId] ON [endo].[Media] ([AnnotatedFromId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114042049_AnnotationsNbspGpLetter'
+)
+BEGIN
+    ALTER TABLE [endo].[Media] ADD CONSTRAINT [FK_Media_Media_AnnotatedFromId] FOREIGN KEY ([AnnotatedFromId]) REFERENCES [endo].[Media] ([Id]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114042049_AnnotationsNbspGpLetter'
+)
+BEGIN
+    INSERT INTO [endo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261114042049_AnnotationsNbspGpLetter', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

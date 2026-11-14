@@ -260,6 +260,30 @@ namespace BrightPAS.Modules.Letters.Migrations
                     b.ToTable("Letters", "letters");
                 });
 
+            modelBuilder.Entity("BrightPAS.Modules.Letters.LetterAttachment", b =>
+                {
+                    b.Property<Guid>("LetterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("LetterId");
+
+                    b.ToTable("LetterAttachments", "letters");
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Letters.LetterTemplate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -322,6 +346,15 @@ namespace BrightPAS.Modules.Letters.Migrations
                         .WithMany()
                         .HasForeignKey("GpPracticeId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Letters.LetterAttachment", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Letters.Letter", null)
+                        .WithOne()
+                        .HasForeignKey("BrightPAS.Modules.Letters.LetterAttachment", "LetterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

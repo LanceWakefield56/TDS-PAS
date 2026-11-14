@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { addDays, api, errText, formatDate, nzDateTime, Perm, todayIso } from '../api';
 import { useSession } from '../App';
+import ExportButton from '../components/ExportButton';
 
 export const KIND: Record<string, string> = { Gastroscopy: 'Gastroscopy', Colonoscopy: 'Colonoscopy', FlexibleSigmoidoscopy: 'Flexible sigmoidoscopy', Bidirectional: 'Gastroscopy + colonoscopy' };
 export const STATUS: Record<string, string> = { NotStarted: 'Not started', Planned: 'Planned', InProgress: 'In progress', Completed: 'Completed – to sign', Signed: 'Signed' };
@@ -12,7 +13,7 @@ export default function Endoscopy() {
   const { can } = useSession();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'today';
-  const tabs: [string, string][] = [['today', "Today's list"], ...(can(Perm.EndoWrite) ? [['unmatched', 'Pictures to match'] as [string, string]] : []), ['quality', 'Quality indicators'],
+  const tabs: [string, string][] = [['today', "Today's list"], ...(can(Perm.EndoWrite) ? [['unmatched', 'Pictures to match'] as [string, string]] : []), ['nbsp', 'Bowel screening (NBSP)'], ['quality', 'Quality indicators'],
     ...(can(Perm.EndoManage) ? [['settings', 'Settings'] as [string, string]] : [])];
   return (
     <div className="stack-lg">
@@ -21,6 +22,7 @@ export default function Endoscopy() {
         <div className="tabs" role="tablist">{tabs.map(([k, t]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setParams({ tab: k })}>{t}</button>)}</div>
         {tab === 'today' && <Today />}
         {tab === 'unmatched' && <Unmatched />}
+        {tab === 'nbsp' && <Nbsp />}
         {tab === 'quality' && <Quality />}
         {tab === 'settings' && <Settings />}
       </section>
@@ -73,6 +75,35 @@ function Unmatched() {
             <div className="row"><select aria-label="Procedure" value={pick[m.id] ?? ''} onChange={(e) => setPick({ ...pick, [m.id]: e.target.value })}><option value="">Choose today's procedure…</option>
               {today.map((t) => <option key={t.procedureId} value={t.procedureId}>{t.start?.slice(0, 5)} {t.patientName} – {KIND[t.kind] ?? t.procedure}</option>)}</select>
               <button className="btn btn-light btn-small" disabled={!pick[m.id]} onClick={() => assign(m.id)}>Add</button></div></figcaption></figure>)}</div>)}
+    </div>
+  );
+}
+
+function Nbsp() {
+  const { can } = useSession();
+  const [to, setTo] = useState(todayIso());
+  const [from, setFrom] = useState(addDays(todayIso(), -90));
+  const [only, setOnly] = useState(true);
+  const [rows, setRows] = useState<any[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { setRows(null); api<any[]>(`/api/endoscopy/nbsp?from=${from}&to=${to}`).then(setRows).catch((e) => setError(errText(e))); }, [from, to]);
+  const ok = rows?.filter((r) => r.problems.length === 0).length ?? 0;
+  return (
+    <div className="stack">
+      <p className="hint">Screening colonoscopies (procedures marked National Bowel Screening Programme) with the endoscopy dataset for the programme. Fix the problems shown, then download the extract (encrypted CSV) for upload to the screening system. Field layout to be confirmed with the NBSP/National Screening Unit.</p>
+      <div className="row"><label>From<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label><label>To<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+        <label className="check"><input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} /> Only complete procedures</label>
+        {can(Perm.EndoSign) && <ExportButton label="Download NBSP extract" path="/api/endoscopy/nbsp/extract" body={{ from, to, onlyComplete: only }} disabled={!rows || (only ? ok : rows.length) === 0} />}</div>
+      {error && <p className="error" role="alert">{error}</p>}
+      {!rows ? <p>Loading…</p> : rows.length === 0 ? <p className="muted">No NBSP procedures in this range.</p> : <>
+        <p>{rows.length} procedure(s); {ok} complete.</p>
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="NBSP procedures (scrolls sideways)"><table className="results compact">
+          <thead><tr><th>Date</th><th>Accession</th><th>NBSP no.</th><th>Endoscopist</th><th>Caecum</th><th>BBPS</th><th>Withdrawal</th><th>Polyps (removed/retrieved)</th><th>Adenomas (advanced)</th><th>Cancer</th><th>Exported</th><th>Problems</th></tr></thead>
+          <tbody>{rows.map((r) => <tr key={r.procedureId}><td>{formatDate(r.date)}</td><td>{r.accession}</td><td>{r.nbspNumber ?? '—'}</td><td>{r.endoscopist}</td><td>{r.caecumReached ? 'Yes' : 'No'}</td>
+            <td>{r.bbps ?? '—'}{r.bbps != null && !r.adequatePrep ? ' (inadequate)' : ''}</td><td>{r.withdrawalMinutes != null ? `${r.withdrawalMinutes} min` : '—'}</td>
+            <td>{r.polypsSeen} ({r.polypsRemoved}/{r.polypsRetrieved}){r.largestPolypMm ? `, max ${r.largestPolypMm} mm` : ''}</td><td>{r.adenomas} ({r.advancedAdenomas})</td>
+            <td>{r.cancerConfirmed ? 'Confirmed' : r.cancerSuspected ? 'Suspected' : 'No'}</td><td className="small">{r.exportedAt ? nzDateTime(r.exportedAt) : '—'}</td>
+            <td className="small">{r.problems.length === 0 ? <span className="ok-text">Complete</span> : <span className="error-text">{r.problems.join('; ')}</span>}</td></tr>)}</tbody></table></div></>}
     </div>
   );
 }

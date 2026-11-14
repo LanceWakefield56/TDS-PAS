@@ -224,3 +224,31 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114041953_LetterAttachments'
+)
+BEGIN
+    CREATE TABLE [letters].[LetterAttachments] (
+        [LetterId] uniqueidentifier NOT NULL,
+        [FileName] nvarchar(200) NOT NULL,
+        [ContentType] nvarchar(60) NOT NULL,
+        [Content] varbinary(max) NOT NULL,
+        CONSTRAINT [PK_LetterAttachments] PRIMARY KEY ([LetterId]),
+        CONSTRAINT [FK_LetterAttachments_Letters_LetterId] FOREIGN KEY ([LetterId]) REFERENCES [letters].[Letters] ([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114041953_LetterAttachments'
+)
+BEGIN
+    INSERT INTO [letters].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261114041953_LetterAttachments', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

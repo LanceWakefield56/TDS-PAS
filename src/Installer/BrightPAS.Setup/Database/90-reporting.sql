@@ -93,6 +93,7 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_UpperScope', N'[e
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_LowerScope', N'[endo].[Procedures]', N'LowerScopeId', N'[assets].[Equipment]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_Tower', N'[endo].[Procedures]', N'TowerId', N'[assets].[Equipment]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Media_Patient', N'[endo].[Media]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_endo_Procedures_GpLetter', N'[endo].[Procedures]', N'GpLetterId', N'[letters].[Letters]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_LoanSets_Booking', N'[assets].[LoanSets]', N'BookingId', N'[theatre].[Bookings]';
 GO
 

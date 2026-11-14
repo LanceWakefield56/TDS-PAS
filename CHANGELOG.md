@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.1 – 2026-11-14 – **Endoscopy: NBSP extract, report to GP by HealthLink, drawing on pictures, 4K/MP4 capture, TIFF**
+- **Bowel screening (NBSP):** Endoscopy › Bowel screening tab lists screening colonoscopies with the programme dataset (caecal intubation, BBPS, withdrawal, polyps seen/removed/retrieved, largest polyp, adenomas and advanced adenomas, serrated lesions, cancer suspected/confirmed, tattoos, complications, surveillance) and what is missing for each (NBSP number, signing, histology). **Download NBSP extract** gives an encrypted CSV (field layout to confirm with the National Screening Unit); exported procedures are marked.
+- **Report to the GP by HealthLink:** a signed report can be sent with one click – a final covering letter (conclusion, recommendations, follow-up, histology to follow) with the **report PDF with pictures embedded in the HL7 REF^I12 (OBX ED)**; shown on the report with the letter number and HealthLink acknowledgement. Amending a report allows a corrected one to be sent. Letters gain PDF attachments (letters.LetterAttachments).
+- **Drawing on pictures:** Draw on picture – arrow, circle, pen and text labels in five colours with undo; saved as an annotated copy linked to the original (never changed), which takes the original's place in the reports.
+- **Capture quality:** choose 720p, 1080p or **4K**; the screen shows what the capture device is actually sending; recordings prefer **MP4 (H.264)** (WebM where the browser cannot) at 4/8/25 Mbit/s by resolution. Works with any capture device Windows shows as a camera (USB 4K boxes, internal cards, pass-through between tower and screen).
+- **TIFF pictures:** TIFF uploads (and TIFF from capture boxes) are converted to PNG for viewing and reports; the original TIFF is kept and can be downloaded. Baseline 8-bit greyscale/RGB, uncompressed, LZW or PackBits.
+- Messaging folder writer no longer fails when a file with the same name is still waiting in the folder (adds a suffix).
+- Test robot: TIFF upload, drawing an arrow, endoscopy report to GP by virtual HealthLink (PDF inside the message), NBSP extract.
+
 ## 0.15.0 – 2026-11-14 – **Endoscopy: EndoBASE-style reporting with pictures and video from the Olympus tower**
 - **Endoscopy module (ADR 0027, spec 7.18):** one procedure per endoscopy booking (gastroscopy, colonoscopy, flexible sigmoidoscopy, bidirectional), opened from **Endoscopy** (today's list) or **Endoscopy report** on a theatre list.
   - **Pictures and video from the tower:** a DICOM node for the Olympus towers – **worklist** (the tower shows today's patients with BrightPAS accession numbers), **storage** (JPEG, uncompressed and MPEG-4 video become pictures/videos on the procedure) and **MPPS** (start/end times). Pictures for an unknown patient wait in **Pictures to match**. Towers are accepted by their asset network address or AE title.

@@ -95,6 +95,9 @@ public sealed class Procedure
     public int? SurveillanceMonths { get; set; }
     public string? PatientAdvice { get; set; }
     public string? MppsUid { get; set; }
+    /// <summary>Letter (Letters module) that sent the signed report to the GP.</summary>
+    public Guid? GpLetterId { get; set; }
+    public DateTimeOffset? NbspExportedAt { get; set; }
     public string? SignedBy { get; set; }
     public DateTimeOffset? SignedAt { get; set; }
     public string CreatedBy { get; set; } = "";
@@ -199,6 +202,11 @@ public sealed class Media
     public Guid? FindingId { get; set; }
     public Guid? PolypId { get; set; }
     public string? SopInstanceUid { get; set; }
+    /// <summary>For an annotated copy: the original picture (kept unchanged).</summary>
+    public Guid? AnnotatedFromId { get; set; }
+    /// <summary>Original file when it was converted for display (e.g. TIFF kept beside the PNG shown).</summary>
+    public string? OriginalFileName { get; set; }
+    public string? OriginalContentType { get; set; }
     public string? DicomPatientId { get; set; }
     public string? DicomPatientName { get; set; }
     public string? DicomAccession { get; set; }
@@ -258,7 +266,7 @@ public sealed class EndoDbContext(DbContextOptions<EndoDbContext> options) : DbC
             e.Property(x => x.SignedBy).HasMaxLength(100); e.Property(x => x.CreatedBy).HasMaxLength(100); e.Property(x => x.UpdatedBy).HasMaxLength(100);
             e.HasIndex(x => x.BookingId).IsUnique(); e.HasIndex(x => x.AccessionNumber).IsUnique(); e.HasIndex(x => x.PatientId);
             e.HasIndex(x => new { x.Status, x.Kind }); e.HasIndex(x => x.EndoscopistId);
-            e.HasIndex(x => x.UpperScopeId); e.HasIndex(x => x.LowerScopeId); e.HasIndex(x => x.TowerId);
+            e.HasIndex(x => x.UpperScopeId); e.HasIndex(x => x.LowerScopeId); e.HasIndex(x => x.TowerId); e.HasIndex(x => x.GpLetterId);
             e.HasMany(x => x.Indications).WithOne().HasForeignKey(x => x.ProcedureId).OnDelete(DeleteBehavior.Cascade);
         });
         b.Entity<ProcedureIndication>(e => { e.ToTable("ProcedureIndications"); e.HasKey(x => new { x.ProcedureId, x.Code }); e.Property(x => x.Code).HasMaxLength(40); });
@@ -299,6 +307,7 @@ public sealed class EndoDbContext(DbContextOptions<EndoDbContext> options) : DbC
             e.Property(x => x.Site).HasMaxLength(40); e.Property(x => x.Caption).HasMaxLength(200);
             e.Property(x => x.SopInstanceUid).HasMaxLength(64); e.Property(x => x.DicomPatientId).HasMaxLength(64); e.Property(x => x.DicomPatientName).HasMaxLength(100); e.Property(x => x.DicomAccession).HasMaxLength(16);
             e.Property(x => x.DeletedBy).HasMaxLength(100); e.Property(x => x.DeleteReason).HasMaxLength(300);
+            e.Property(x => x.OriginalFileName).HasMaxLength(260); e.Property(x => x.OriginalContentType).HasMaxLength(60); e.HasIndex(x => x.AnnotatedFromId); e.HasOne<Media>().WithMany().HasForeignKey(x => x.AnnotatedFromId).OnDelete(DeleteBehavior.NoAction);
             e.HasIndex(x => new { x.ProcedureId, x.Sort }); e.HasIndex(x => x.PatientId); e.HasIndex(x => x.Status);
             e.HasIndex(x => x.SopInstanceUid).IsUnique().HasFilter("[SopInstanceUid] IS NOT NULL");
             e.HasOne<Procedure>().WithMany().HasForeignKey(x => x.ProcedureId).OnDelete(DeleteBehavior.Restrict);

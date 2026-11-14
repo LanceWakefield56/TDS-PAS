@@ -243,6 +243,15 @@ public class LettersTests
         var row = (await svc.ListAsync("recent", p.Id)).Single(l => l.Id == gp.Id);
         Assert.Equal("Acknowledged", row.Status);
         Assert.Equal("AA", row.AckCode);
+
+        // 0.15.1: a report letter with a PDF attached goes as OBX ED.
+        var pdf = "%PDF-1.4 test report"u8.ToArray();
+        var (rep, repErr) = await svc.CreateGpReportAsync(p.Id, bookingId, "Colonoscopy report", "Dear Doctor\nReport attached.", pdf, "endoscopy-E1.pdf", "dr", "Dr Lindqvist");
+        Assert.Empty(repErr);
+        Assert.Equal(LetterStatus.Final, rep!.Status);
+        Assert.True((await hl.SendAsync(rep.Id, "dr")).Ok);
+        var msg2 = string.Join("\n", Directory.GetFiles(outbox, "*.hl7").Select(File.ReadAllText));
+        Assert.Contains("OBX|2|ED|PDF^endoscopy-E1.pdf^L||^AP^PDF^Base64^" + Convert.ToBase64String(pdf), msg2);
         root.Delete(true);
     }
 

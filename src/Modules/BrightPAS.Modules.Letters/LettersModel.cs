@@ -94,6 +94,15 @@ public sealed class Letter
     public string? SentBy { get; set; }
 }
 
+/// <summary>A PDF sent with a letter (0.15.1: endoscopy report to the GP by HealthLink, embedded as OBX ED).</summary>
+public sealed class LetterAttachment
+{
+    public Guid LetterId { get; set; }
+    public string FileName { get; set; } = "";
+    public string ContentType { get; set; } = "application/pdf";
+    public byte[] Content { get; set; } = [];
+}
+
 /// <summary>HealthLink connection (single row). FolderDrop writes HL7 files for the HealthLink messaging client to send and reads acknowledgements back.</summary>
 public sealed class HealthLinkSettings
 {
@@ -115,6 +124,7 @@ public sealed class LettersDbContext(DbContextOptions<LettersDbContext> options)
     public DbSet<GpPractice> Practices => Set<GpPractice>();
     public DbSet<LetterTemplate> Templates => Set<LetterTemplate>();
     public DbSet<Letter> Letters => Set<Letter>();
+    public DbSet<LetterAttachment> Attachments => Set<LetterAttachment>();
     public DbSet<HealthLinkSettings> Settings => Set<HealthLinkSettings>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
@@ -127,6 +137,12 @@ public sealed class LettersDbContext(DbContextOptions<LettersDbContext> options)
     {
         b.HasDefaultSchema(Schema);
         // 0.10.1: indexes on lookup columns and referential integrity within the schema.
+        b.Entity<LetterAttachment>(e =>
+        {
+            e.ToTable("LetterAttachments"); e.HasKey(x => x.LetterId);
+            e.Property(x => x.FileName).HasMaxLength(200); e.Property(x => x.ContentType).HasMaxLength(60);
+            e.HasOne<Letter>().WithOne().HasForeignKey<LetterAttachment>(x => x.LetterId).OnDelete(DeleteBehavior.Cascade);
+        });
         b.Entity<Letter>().HasIndex(x => x.BookingId);
         b.Entity<Letter>().HasIndex(x => x.ReferralId);
         b.Entity<Letter>().HasOne<GpPractice>().WithMany().HasForeignKey(x => x.GpPracticeId).OnDelete(DeleteBehavior.Restrict);

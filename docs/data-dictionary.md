@@ -414,3 +414,8 @@ Cross-schema keys (90-reporting.sql): Procedures.PatientId → patients.Patients
 - **endo.AdviceTexts**: Key (unique), Title, Body, UpdatedBy/At – patient report wording. P
 - Settings (core.Settings): endo.mediaPath, endo.dicom.enabled/port/aeTitle/callingAes/anyTower, endo.videoRetentionDays, endo.target.* (cir, adr, withdrawal, retrieval, prep, comfort, upper). P
 - Views: reporting.vEndoscopyProcedure, reporting.vEndoscopyPolyp.
+
+### 0.15.1 additions
+- endo.Procedures: GpLetterId → letters.Letters (report sent to GP), NbspExportedAt.
+- endo.Media: AnnotatedFromId → endo.Media (annotated copy of), OriginalFileName, OriginalContentType (e.g. the TIFF a PNG was made from).
+- **letters.LetterAttachments**: LetterId (PK, FK letters.Letters), FileName, ContentType, Content (varbinary) – PDF sent with a letter (OBX ED in HealthLink). R

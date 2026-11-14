@@ -25,6 +25,103 @@ public sealed partial class Scenarios
         await Step("Virtual Olympus tower (DICOM)", "Tower checks the connection, reads the worklist, sends a picture and the procedure start/end; a picture for an unknown patient waits to be matched", TowerAsync);
         await Step("Virtual capture card", "Capture screen shows the live video, takes a picture and records a short video", CaptureAsync);
         await Step("Endoscopy reports", "Clinical and patient reports download as protected PDFs with the pictures in them", EndoReportsAsync);
+        await Step("Endoscopy pictures", "A TIFF from a capture box is shown and its original kept; a picture is drawn on (arrow) and the annotated copy saved", TiffAndDrawAsync);
+    }
+
+    /// <summary>Runs after the HealthLink test (which points BrightPAS at the virtual HealthLink folders).</summary>
+    private async Task EndoscopyGpStepsAsync()
+    {
+        await Step("Virtual HealthLink", "Signed endoscopy report goes to the GP by HealthLink with the PDF inside the message", EndoToGpAsync);
+        await Step("Exports", "Bowel screening (NBSP) endoscopy extract downloads as an encrypted file", NbspAsync);
+    }
+
+    private static byte[] RobotTiff(int w, int h)
+    {
+        var px = new byte[w * h * 3];
+        for (var i = 0; i < w * h; i++) { px[i * 3] = (byte)(180 + i % 60); px[i * 3 + 1] = (byte)(70 + i % 40); px[i * 3 + 2] = 80; }
+        using var ms = new MemoryStream(); using var bw = new BinaryWriter(ms);
+        bw.Write("II"u8); bw.Write((ushort)42); bw.Write(8u); bw.Write((ushort)9);
+        void E(ushort t, ushort ty, uint c, uint v) { bw.Write(t); bw.Write(ty); bw.Write(c); bw.Write(v); }
+        uint bps = 8 + 2 + 9 * 12 + 4, data = bps + 6;
+        E(256, 4, 1, (uint)w); E(257, 4, 1, (uint)h); E(258, 3, 3, bps); E(259, 3, 1, 1); E(262, 3, 1, 2); E(273, 4, 1, data); E(277, 3, 1, 3); E(278, 4, 1, (uint)h); E(279, 4, 1, (uint)px.Length);
+        bw.Write(0u); bw.Write((ushort)8); bw.Write((ushort)8); bw.Write((ushort)8); bw.Write(px);
+        return ms.ToArray();
+    }
+
+    private async Task<(Outcome, string)> TiffAndDrawAsync()
+    {
+        if (_endoBooking is null || _endoProcedure is null) return (Outcome.Skip, "Needs the tower test's procedure.");
+        var nurse = await As("nurse");
+        var up = await nurse.Ctx.APIRequest.PostAsync($"{bot.O.Url}/api/endoscopy/procedures/{_endoProcedure}/pictures", new() { IgnoreHTTPSErrors = true,
+            Headers = new Dictionary<string, string> { ["X-BrightPAS-Request"] = "1", ["Content-Type"] = "image/tiff" }, DataByte = RobotTiff(320, 240) });
+        if (up.Status != 200) return (Outcome.Fail, $"TIFF refused ({up.Status}): {await up.TextAsync()}");
+        var rec = (await nurse.GetAsync($"/api/endoscopy/bookings/{_endoBooking}")).Json!.Value;
+        var tif = rec.GetProperty("media").EnumerateArray().FirstOrDefault(m => Str(m, "originalType") == "image/tiff");
+        if (tif.ValueKind != JsonValueKind.Object || Str(tif, "contentType") != "image/png") return (Outcome.Fail, "TIFF stored but no PNG shown / original not kept.");
+        var orig = await nurse.Ctx.APIRequest.GetAsync($"{bot.O.Url}{Str(tif, "original")}", new() { IgnoreHTTPSErrors = true });
+        var ob = await orig.BodyAsync();
+        if (orig.Status != 200 || ob.Length < 8 || ob[0] != 'I' || ob[1] != 'I') return (Outcome.Fail, "Original TIFF could not be downloaded.");
+        var page = nurse.Page;
+        await page.GotoAsync($"{bot.O.Url}/endoscopy/{_endoBooking}?tab=images");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Draw on picture" }).First.ClickAsync();
+        var canvas = page.Locator("canvas.annotator-canvas");
+        await Assertions.Expect(canvas).ToBeVisibleAsync();
+        await page.WaitForTimeoutAsync(500);
+        var box = (await canvas.BoundingBoxAsync())!;
+        await page.Mouse.MoveAsync(box.X + box.Width * 0.2f, box.Y + box.Height * 0.2f);
+        await page.Mouse.DownAsync();
+        await page.Mouse.MoveAsync(box.X + box.Width * 0.5f, box.Y + box.Height * 0.5f, new() { Steps = 8 });
+        await page.Mouse.UpAsync();
+        var shot = await nurse.ShotAsync("endoscopy-annotate");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Save annotated copy" }).ClickAsync();
+        await Assertions.Expect(page.GetByText("Annotated copy saved")).ToBeVisibleAsync(new() { Timeout = 15000 });
+        var after = (await nurse.GetAsync($"/api/endoscopy/bookings/{_endoBooking}")).Json!.Value;
+        var copy = after.GetProperty("media").EnumerateArray().FirstOrDefault(m => m.TryGetProperty("annotatedFromId", out var a) && a.ValueKind == JsonValueKind.String);
+        if (copy.ValueKind != JsonValueKind.Object) return (Outcome.Fail, "No annotated copy after saving.");
+        R.Device("Virtual capture card", "Drawing an arrow on a picture", "Annotated copy saved; original kept", shot);
+        return (Outcome.Pass, $"TIFF (320×240) shown as PNG with the original TIFF downloadable; arrow drawn and saved as an annotated copy linked to the original ({Str(copy, "caption")}).");
+    }
+
+    private async Task<(Outcome, string)> EndoToGpAsync()
+    {
+        var dr = await As("hreid");
+        if ((await dr.GetAsync("/api/endoscopy/today")).Status != 200) return (Outcome.Skip, "Endoscopy not available to the endoscopist account.");
+        var tried = new List<string>();
+        for (var back = 0; back < 60; back++)
+        {
+            var day = DateTime.Today.AddDays(-back).ToString("yyyy-MM-dd");
+            foreach (var r in (await dr.GetAsync($"/api/endoscopy/today?date={day}")).Json?.EnumerateArray() ?? Enumerable.Empty<JsonElement>())
+            {
+                if (Str(r, "status") != "Signed") continue;
+                var before = sims.HealthLink.Count;
+                var res = await dr.PostAsync($"/api/endoscopy/procedures/{Str(r, "procedureId")}/send-to-gp", new { });
+                if (res.Status != 200) { tried.Add($"{Str(r, "accession")}: {Report.Trim(res.Text, 120)}"); if (tried.Count > 6) break; continue; }
+                var file = await Sims.WaitForAsync(sims.HealthLink, f => sims.HealthLink.ToList().IndexOf(f) >= before, TimeSpan.FromSeconds(20));
+                if (file is null) return (Outcome.Fail, $"BrightPAS said {res.Text} but no HealthLink file appeared.");
+                if (!file.Message.Contains("OBX|2|ED|PDF^", StringComparison.Ordinal) || !file.Message.Contains("^AP^PDF^Base64^JVBER", StringComparison.Ordinal)) return (Outcome.Fail, "HealthLink message has no PDF report inside.");
+                if (file.Problems.Length > 0) return (Outcome.Fail, $"Message not valid for HealthLink: {file.Problems}");
+                return (Outcome.Pass, $"{Str(r, "accession")} ({Str(r, "patientName")}): {Str(res.Json!.Value, "message")} – REF^I12 {file.Name} carries the report PDF (OBX ED).");
+            }
+            if (tried.Count > 6) break;
+        }
+        return tried.Count == 0 ? (Outcome.Skip, "No signed endoscopy report in the last 60 days.") : (Outcome.Fail, "No report could be sent: " + string.Join(" | ", tried.Take(4)));
+    }
+
+    private async Task<(Outcome, string)> NbspAsync()
+    {
+        var dr = await As("hreid");
+        var list = await dr.GetAsync($"/api/endoscopy/nbsp?from={DateTime.Today.AddDays(-120):yyyy-MM-dd}&to={DateTime.Today:yyyy-MM-dd}");
+        if (list.Status != 200) return (Outcome.Skip, "Endoscopy not available.");
+        var rows = list.Json!.Value.EnumerateArray().ToList();
+        if (rows.Count == 0) return (Outcome.Skip, "No NBSP procedures in the last 120 days.");
+        var complete = rows.Count(x => x.GetProperty("problems").GetArrayLength() == 0);
+        var res = await dr.Ctx.APIRequest.PostAsync($"{bot.O.Url}/api/endoscopy/nbsp/extract", new() { Headers = new Dictionary<string, string> { ["X-BrightPAS-Request"] = "1" }, IgnoreHTTPSErrors = true,
+            DataObject = new { from = DateTime.Today.AddDays(-120).ToString("yyyy-MM-dd"), to = DateTime.Today.ToString("yyyy-MM-dd"), onlyComplete = false, export = new { protect = true, password = "Robot-Nbsp-Pass-2026!", format = "zip" } } });
+        if (res.Status != 200) return (Outcome.Fail, $"Extract refused ({res.Status}): {await res.TextAsync()}");
+        var b = await res.BodyAsync();
+        await File.WriteAllBytesAsync(Path.Combine(R.DeviceFolder, "nbsp-extract.zip"), b);
+        if (b.Length < 4 || b[0] != 'P' || b[1] != 'K') return (Outcome.Fail, "Extract is not a ZIP file.");
+        return (Outcome.Pass, $"{rows.Count} NBSP procedure(s), {complete} complete; encrypted extract downloaded ({b.Length / 1024} KB).");
     }
 
     private static DicomDataset PictureDataset(byte[] jpeg, string? accession, string? study, string patientId, string patientName)

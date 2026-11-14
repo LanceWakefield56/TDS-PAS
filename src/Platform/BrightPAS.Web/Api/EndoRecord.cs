@@ -19,6 +19,7 @@ public static class EndoRecord
     {
         m.Id, kind = m.Kind.ToString(), m.ContentType, source = m.Source.ToString(), status = m.Status.ToString(), m.CapturedAt, m.CapturedBy, m.DurationSeconds, m.Bytes,
         m.Site, m.Caption, m.InReport, m.InPatientReport, m.Sort, m.FindingId, m.PolypId, url = $"/api/endoscopy/media/{m.Id}",
+        m.AnnotatedFromId, original = m.OriginalFileName is null ? null : $"/api/endoscopy/media/{m.Id}/original", originalType = m.OriginalContentType,
     };
 
     public static async Task<object> BuildAsync(IServiceProvider sp, TheatreBooking booking, TheatreSession session, Procedure? p)
@@ -53,6 +54,10 @@ public static class EndoRecord
             towers = await sp.GetRequiredService<Ast.AssetsDbContext>().Equipment.AsNoTracking().Where(e => e.Category == Ast.EquipmentCategory.EndoscopyTower && e.Status != Ast.EquipmentStatus.Retired)
                 .OrderBy(e => e.AssetNumber).Select(e => new { e.Id, e.AssetNumber, e.Name, e.Model, e.NetworkAddress }).ToListAsync();
         }
+        object? gpLetter = null;
+        if (p.GpLetterId is { } lid && Licensed(sp, "letters"))
+            gpLetter = await sp.GetRequiredService<BrightPAS.Modules.Letters.LettersDbContext>().Letters.AsNoTracking().Where(l => l.Id == lid)
+                .Select(l => new { l.Id, l.Number, status = l.Status.ToString(), l.RecipientName, l.SentAt, l.AckText }).SingleOrDefaultAsync();
         object? sedation = null; Guid? episodeId = null;
         if (Licensed(sp, "emr"))
         {
@@ -67,7 +72,7 @@ public static class EndoRecord
             procedure = p, indications = p.Indications.Select(i => i.Code), findings, polyps, tattoos, therapy, media = media.Select(MediaView),
             missing = await svc.MissingAsync(p), suggestion = EndoService.SuggestSurveillance(p, polyps),
             withdrawalMinutes = EndoService.WithdrawalMinutes(p), upperMinutes = EndoService.UpperMinutes(p), bbps = EndoService.BbpsTotal(p), adequatePrep = EndoService.AdequatePrep(p),
-            scopes, towers, sedation, episodeId,
+            scopes, towers, sedation, episodeId, gpLetter,
         };
     }
 

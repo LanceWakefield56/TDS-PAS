@@ -52,7 +52,8 @@ public sealed class HealthLinkService(LettersDbContext db, PatientsDbContext pat
         var site = await org.MainSiteAsync(ct);
         var control = $"BP{clock.GetUtcNow():yyMMdd}{s.NextControlNumber:00000}";
         s.NextControlNumber++;
-        var message = BuildRefI12(l, patient, practice, site?.Org.Name ?? "Clinic", site?.Site, s.SenderEdi ?? "brightpas", control, clock.GetLocalNow());
+        var attachment = await db.Attachments.AsNoTracking().SingleOrDefaultAsync(a => a.LetterId == l.Id, ct);
+        var message = BuildRefI12(l, patient, practice, site?.Org.Name ?? "Clinic", site?.Site, s.SenderEdi ?? "brightpas", control, clock.GetLocalNow(), attachment);
         if (s.Mode == HealthLinkMode.FolderDrop)
         {
             try
@@ -114,7 +115,7 @@ public sealed class HealthLinkService(LettersDbContext db, PatientsDbContext pat
     }
 
     /// <summary>HL7 v2.4 REF^I12 with the letter in OBX-5 (FT). Text is escaped so | ^ ~ \ &amp; in the letter cannot break the message.</summary>
-    public static string BuildRefI12(Letter l, Patient p, GpPractice to, string clinic, Site? site, string senderEdi, string controlId, DateTimeOffset now)
+    public static string BuildRefI12(Letter l, Patient p, GpPractice to, string clinic, Site? site, string senderEdi, string controlId, DateTimeOffset now, LetterAttachment? attachment = null)
     {
         var ts = now.ToString("yyyyMMddHHmmsszzz").Replace(":", "");
         var sex = p.Sex switch { BirthSex.Female => "F", BirthSex.Male => "M", _ => "U" };
@@ -131,6 +132,9 @@ public sealed class HealthLinkService(LettersDbContext db, PatientsDbContext pat
             $"OBR|1|{l.Number}||LETTER^{E(l.Kind.ToString())} letter^L|||{ts}||||||||||||||||||F",
             $"OBX|1|FT|LETTER^Letter^L||{body}||||||F|||{ts}",
         };
+        // Attached PDF (e.g. an endoscopy report with pictures): OBX-2 ED, OBX-5 = ^AP^PDF^Base64^<data> (HL7 v2.4 encapsulated data).
+        if (attachment is { Content.Length: > 0 })
+            segs = [.. segs, $"OBX|2|ED|PDF^{E(attachment.FileName)}^L||^AP^PDF^Base64^{Convert.ToBase64String(attachment.Content)}||||||F|||{ts}"];
         return string.Join("\r", segs) + "\r";
     }
 

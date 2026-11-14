@@ -108,7 +108,7 @@ public class EndoscopyTests
         await using var _ = h; await using var __ = s;
         var png = Imaging.DemoPicture(1, polyp: true, 64, 48);
         Assert.Equal("image/png", Imaging.Sniff(png));
-        Assert.Equal("Only JPEG or PNG pictures can be stored.", (await svc.AddImageAsync(p.Id, "hello"u8.ToArray(), MediaSource.Upload, "rn")).Error);
+        Assert.Equal("Only JPEG, PNG or TIFF pictures can be stored.", (await svc.AddImageAsync(p.Id, "hello"u8.ToArray(), MediaSource.Upload, "rn")).Error);
         var (img, err) = await svc.AddImageAsync(p.Id, png, MediaSource.CaptureStation, "rn");
         Assert.Null(err);
         Assert.Equal(64, img!.Sha256!.Length);
@@ -161,5 +161,59 @@ public class EndoscopyTests
         Assert.DoesNotContain(missing, m => m.StartsWith("Colonoscopy"));
         Assert.NotEmpty((await svc.SaveFindingAsync(p.Id, null, new FindingEdit("LowerOesophagus", "Oesophagitis", "LA Z", null, null), "rn")).Errors);
         Assert.Empty((await svc.SaveFindingAsync(p.Id, null, new FindingEdit("LowerOesophagus", "Oesophagitis", "LA B", null, null), "rn")).Errors);
+    }
+
+    [Theory]
+    [InlineData("t-lzw.tif", 3)]
+    [InlineData("t-pb.tif", 3)]
+    [InlineData("t-grey.tif", 1)]
+    public void Tiff_pictures_decode_exactly(string file, int channels)
+    {
+        var (w, h, ch, px) = Tiff.Decode(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", file)));
+        Assert.Equal((37, 23, channels), (w, h, ch));
+        int x = 30, y = 17;
+        if (ch == 3) Assert.Equal(new byte[] { (byte)(x * 7 % 256), (byte)(y * 11 % 256), (byte)((x + y) * 5 % 256) }, px.AsSpan((y * w + x) * 3, 3).ToArray());
+        else Assert.InRange(px[y * w + x], 1, 255);
+        var rgb = Enumerable.Range(0, 4 * 3 * 3).Select(i => (byte)(i * 9)).ToArray();
+        var round = Tiff.Decode(Tiff.Write(4, 3, rgb));
+        Assert.Equal(rgb, round.Pixels);
+    }
+
+    [Fact]
+    public async Task Tiff_upload_annotation_and_nbsp_dataset()
+    {
+        var (h, s, svc, p) = await NewAsync(ProcedureKind.Colonoscopy, "Colonoscopy");
+        await using var _ = h; await using var __ = s;
+        var tif = Tiff.Write(8, 6, Enumerable.Repeat((byte)200, 8 * 6 * 3).ToArray());
+        var (m, err) = await svc.AddImageAsync(p.Id, tif, MediaSource.Upload, "rn");
+        Assert.Null(err);
+        Assert.Equal("image/png", m!.ContentType);
+        Assert.Equal("image/tiff", m.OriginalContentType);
+        var store = s.ServiceProvider.GetRequiredService<MediaStore>();
+        Assert.Equal(tif, await File.ReadAllBytesAsync((await store.OriginalPathAsync(m))!));
+        Assert.NotNull(Tiff.ToPng([.. tif[..8], .. new byte[200]]).Error); // damaged/unsupported → plain error, no crash
+
+        await svc.UpdateMediaAsync(m.Id, new MediaEdit("Caecum", "Caecum", true, true, null, null, null), "rn");
+        Assert.NotNull((await svc.AnnotateAsync(m.Id, "nope"u8.ToArray(), "rn")).Error);
+        var (copy, aerr) = await svc.AnnotateAsync(m.Id, Imaging.DemoPicture(3, false, 16, 12), "dr");
+        Assert.Null(aerr);
+        var media = await svc.MediaAsync(p.Id);
+        var orig = media.Single(x => x.Id == m.Id);
+        var ann = media.Single(x => x.Id == copy!.Id);
+        Assert.Equal(m.Id, ann.AnnotatedFromId);
+        Assert.True(ann.InReport && ann.InPatientReport);
+        Assert.False(orig.InReport || orig.InPatientReport);
+        Assert.Equal("Caecum (annotated)", ann.Caption);
+
+        await svc.UpdateDetailsAsync(p.Id, Details(ProcedureKind.Colonoscopy, "PositiveFit") with { NbspScreening = true }, "rn");
+        var (polyp, _) = await svc.SavePolypAsync(p.Id, null, new PolypEdit("Sigmoid", 30, 12, "Is", "2", null, "HotSnare", null, "EnBloc", "Yes", "P1", "Yes", 0, false, null), "rn");
+        var row = Assert.Single(await svc.NbspAsync(new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30)));
+        Assert.Contains("NBSP participant number missing", row.Problems);
+        Assert.Contains(row.Problems, x => x.Contains("histology awaited for 1"));
+        await svc.HistologyAsync(polyp!.Id, new HistologyEdit("TubularAdenoma", "Low", null), "path");
+        row = Assert.Single(await svc.NbspAsync(new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30)));
+        Assert.Equal((1, 1, 12), (row.Adenomas, row.AdvancedAdenomas, row.LargestPolypMm!.Value)); // >= 10 mm = advanced
+        await svc.MarkNbspExportedAsync([p.Id], "dr");
+        Assert.NotNull((await svc.NbspAsync(new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30)))[0].ExportedAt);
     }
 }

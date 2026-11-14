@@ -38,4 +38,7 @@
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Messaging\BrightPAS.Modules.Messaging.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

@@ -77,6 +77,7 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         await Step("Virtual scanner", "Scan a letter to the patient record; text recognition finds a word in it", ScanAsync);
         await Step("Virtual barcode scanner", "Scan a patient label barcode into Find a patient", BarcodeAsync);
         await Step("Virtual HealthLink", "Send a letter to a GP by HealthLink and get the acknowledgement", HealthLinkAsync);
+        await EndoscopyGpStepsAsync();
         await Step("Virtual laboratory (MLLP)", "Laboratory sends a result over MLLP; it arrives in Lab results", LabAsync);
         await Step("Exports", "Payroll export for Xero is encrypted, and the timesheet file is in the expected shape", PayrollAsync);
         await Step("Exports", "Letter as a password-protected PDF", PdfAsync);

@@ -250,6 +250,34 @@ public sealed partial class LetterService(LettersDbContext db, PatientsDbContext
         return (letter, []);
     }
 
+    /// <summary>
+    /// A final letter to the patient's GP with a PDF attached (0.15.1: signed endoscopy report). Ready for HealthLink or print;
+    /// refused when the GP practice is not recorded.
+    /// </summary>
+    public async Task<(Letter? Letter, IReadOnlyList<string> Errors)> CreateGpReportAsync(Guid patientId, Guid? bookingId, string subject, string body, byte[] pdf, string fileName,
+        string user, string? author, CancellationToken ct = default)
+    {
+        var p = await patients.Patients.AsNoTracking().SingleOrDefaultAsync(x => x.Id == patientId, ct);
+        if (p is null) return (null, ["Patient not found."]);
+        var gp = p.GpPracticeHpiFacilityId is { } hpi ? await db.Practices.AsNoTracking().FirstOrDefaultAsync(x => x.HpiFacilityId == hpi, ct) : null;
+        if (gp is null) return (null, ["The patient's GP practice is not recorded (patient record › GP practice) or is not in Letter templates › GP practices."]);
+        if (pdf.Length == 0 || pdf.Length > 15 * 1024 * 1024) return (null, ["The report is empty or larger than 15 MB."]);
+        var settings = await SettingsAsync(ct);
+        var now = clock.GetUtcNow();
+        var letter = new Letter
+        {
+            Number = $"L{settings.NextLetterNumber:000000}", PatientId = p.Id, TemplateCode = "REPORT", TemplateVersion = 1, Kind = LetterKind.Custom, Recipient = RecipientType.Gp,
+            RecipientName = gp.Name, RecipientAddress = Lines(gp.AddressLine1, gp.AddressLine2, Join(gp.City, gp.Postcode)), GpPracticeId = gp.Id, Subject = subject.Trim(), Body = body.Replace("\r\n", "\n").Trim(),
+            BookingId = bookingId, Author = author, CreatedAt = now, CreatedBy = user, Status = LetterStatus.Final, FinalisedAt = now, FinalisedBy = user,
+        };
+        settings.NextLetterNumber++;
+        db.Letters.Add(letter);
+        db.Attachments.Add(new LetterAttachment { LetterId = letter.Id, FileName = fileName, Content = pdf });
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Create", "Letter", letter.Id.ToString(), p.Id.ToString(), reason: $"{letter.Number} report to GP {gp.Name} with {fileName}", ct: ct);
+        return (letter, []);
+    }
+
     public async Task<string?> UpdateDraftAsync(Guid id, DraftEdit d, string user, CancellationToken ct = default)
     {
         var l = await db.Letters.SingleOrDefaultAsync(x => x.Id == id, ct);

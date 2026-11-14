@@ -20,3 +20,10 @@ TDS uses Olympus EVIS X1 towers. Lance asked for EndoBASE-like documentation: pi
 - The tower's DICOM options (worklist, storage, MPPS, video send) and AE titles must be confirmed with Olympus NZ for the TDS CV-1500 units; without them, use a capture card (e.g. HDMI/SDI-to-USB) on the procedure-room PC.
 - Video needs disk space (≈ 50 MB per minute at 6 Mbit/s); set a retention period or plan storage.
 - Clinical wording and surveillance logic need TDS clinical governance sign-off before live use; NBSP reporting extracts are a later step.
+
+## Addendum 0.15.1
+- NBSP extract: dataset computed from the structured record (`EndoService.NbspAsync`), completeness problems listed, encrypted CSV via SecureExportService; `NbspExportedAt` marks exported procedures. Layout to be confirmed with the National Screening Unit.
+- GP report: `LetterService.CreateGpReportAsync` creates a final letter to the patient's GP practice with a `LetterAttachment`; HealthLink REF^I12 carries it as `OBX|2|ED|PDF^name^L||^AP^PDF^Base64^…`. `Procedure.GpLetterId` records it; Amend clears it so a corrected report can be sent.
+- Annotation: browser canvas editor; PNG of the drawn copy saved as new `Media` with `AnnotatedFromId`; report flags move to the copy.
+- Capture: resolution choice (720p/1080p/4K), MP4/H.264 preferred, bitrate by resolution; any UVC/DirectShow capture device appears as a camera.
+- TIFF: own baseline reader (`Tiff.cs`) → PNG; original kept (`OriginalFileName`, `OriginalContentType`).

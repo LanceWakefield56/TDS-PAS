@@ -151,6 +151,9 @@ namespace BrightPAS.Modules.Endoscopy.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("AnnotatedFromId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<long>("Bytes")
                         .HasColumnType("bigint");
 
@@ -220,6 +223,14 @@ namespace BrightPAS.Modules.Endoscopy.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<string>("OriginalContentType")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("OriginalFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
                     b.Property<Guid?>("PatientId")
                         .HasColumnType("uniqueidentifier");
 
@@ -255,6 +266,8 @@ namespace BrightPAS.Modules.Endoscopy.Migrations
                         .HasColumnType("nvarchar(10)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AnnotatedFromId");
 
                     b.HasIndex("FindingId");
 
@@ -456,6 +469,9 @@ namespace BrightPAS.Modules.Endoscopy.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<Guid?>("GpLetterId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<bool?>("IleocaecalValve")
                         .HasColumnType("bit");
 
@@ -481,6 +497,9 @@ namespace BrightPAS.Modules.Endoscopy.Migrations
                     b.Property<string>("MppsUid")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset?>("NbspExportedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("NbspNumber")
                         .HasMaxLength(30)
@@ -590,6 +609,8 @@ namespace BrightPAS.Modules.Endoscopy.Migrations
 
                     b.HasIndex("EndoscopistId");
 
+                    b.HasIndex("GpLetterId");
+
                     b.HasIndex("LowerScopeId");
 
                     b.HasIndex("PatientId");
@@ -687,6 +708,11 @@ namespace BrightPAS.Modules.Endoscopy.Migrations
 
             modelBuilder.Entity("BrightPAS.Modules.Endoscopy.Media", b =>
                 {
+                    b.HasOne("BrightPAS.Modules.Endoscopy.Media", null)
+                        .WithMany()
+                        .HasForeignKey("AnnotatedFromId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("BrightPAS.Modules.Endoscopy.Finding", null)
                         .WithMany()
                         .HasForeignKey("FindingId")

@@ -190,7 +190,7 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
         var p = await OpenAsync(id, ct, allowSigned: true);
         if (p.Status != ProcedureStatus.Signed) return "The report is not signed.";
         if (string.IsNullOrWhiteSpace(reason)) return "Give the reason for amending a signed report.";
-        p.Status = ProcedureStatus.Completed; p.UpdatedBy = user; p.UpdatedAt = clock.GetUtcNow();
+        p.Status = ProcedureStatus.Completed; p.UpdatedBy = user; p.UpdatedAt = clock.GetUtcNow(); p.GpLetterId = null; // the letter already sent stays in Letters; the corrected report can be sent again
         await db.SaveChangesAsync(ct);
         await Audit(user, "Amend", p, Clip(reason, 300), ct);
         return null;
@@ -356,8 +356,15 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
     /// <summary>Stores a picture from the capture station, an upload or the tower (DICOM). Unmatched DICOM pictures (no procedure) wait in a queue.</summary>
     public async Task<(Media? Row, string? Error)> AddImageAsync(Guid? procedureId, byte[] data, MediaSource source, string user, DicomImageInfo? dicom = null, CancellationToken ct = default)
     {
+        byte[]? original = null;
+        if (Tiff.IsTiff(data))
+        {
+            var (png, terr) = Tiff.ToPng(data);
+            if (png is null) return (null, terr);
+            original = data; data = png;
+        }
         var type = Imaging.Sniff(data);
-        if (type is not ("image/jpeg" or "image/png")) return (null, "Only JPEG or PNG pictures can be stored.");
+        if (type is not ("image/jpeg" or "image/png")) return (null, "Only JPEG, PNG or TIFF pictures can be stored.");
         if (data.Length > 30 * 1024 * 1024) return (null, "The picture is larger than 30 MB.");
         Procedure? p = null;
         if (procedureId is { } pid) p = await OpenAsync(pid, ct, allowSigned: true);
@@ -369,6 +376,7 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
             Sort = p is null ? 0 : await NextAsync(db.Media.Where(x => x.ProcedureId == p.Id).Select(x => x.Sort), ct),
         };
         await store.WriteAsync(m, data, ct);
+        if (original is not null) await store.WriteOriginalAsync(m, original, "image/tiff", ct);
         db.Media.Add(m);
         if (p is not null) Touch(p, user);
         await db.SaveChangesAsync(ct);
@@ -445,6 +453,31 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
         if (r.Sort is { } s) m.Sort = s;
         await db.SaveChangesAsync(ct);
         return null;
+    }
+
+    /// <summary>
+    /// Saves a drawn-on copy of a picture (arrows, circles, text). The original is never changed; the copy takes over the original's
+    /// report choices so the annotated version is what is printed.
+    /// </summary>
+    public async Task<(Media? Row, string? Error)> AnnotateAsync(Guid mediaId, byte[] png, string user, CancellationToken ct = default)
+    {
+        var o = await db.Media.SingleOrDefaultAsync(x => x.Id == mediaId && x.Status == MediaStatus.Ready && x.Kind == MediaKind.Image, ct);
+        if (o?.ProcedureId is null) return (null, "Picture not found.");
+        if (Imaging.Sniff(png) is not ("image/png" or "image/jpeg")) return (null, "The drawing must be saved as a PNG or JPEG.");
+        if (png.Length > 30 * 1024 * 1024) return (null, "The picture is larger than 30 MB.");
+        var p = await OpenAsync(o.ProcedureId.Value, ct, allowSigned: true);
+        var m = new Media
+        {
+            ProcedureId = o.ProcedureId, PatientId = o.PatientId, Kind = MediaKind.Image, Source = o.Source, ContentType = Imaging.Sniff(png)!, CapturedAt = clock.GetUtcNow(), CapturedBy = user,
+            Site = o.Site, Caption = Clip(((o.Caption ?? "Picture") + " (annotated)"), 200), InReport = o.InReport, InPatientReport = o.InPatientReport, FindingId = o.FindingId, PolypId = o.PolypId,
+            Sort = o.Sort, AnnotatedFromId = o.Id,
+        };
+        await store.WriteAsync(m, png, ct);
+        o.InReport = false; o.InPatientReport = false;
+        db.Media.Add(m);
+        await db.SaveChangesAsync(ct);
+        await Audit(user, "AnnotatePicture", p, $"{o.Id} → {m.Id}", ct);
+        return (m, null);
     }
 
     /// <summary>Deleting keeps the row (who, when, why) and removes the file.</summary>
@@ -554,6 +587,53 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
             Median(upper.Select(UpperMinutes).OfType<decimal>()), Pct(upper.Count(p => UpperMinutes(p) >= 7), upper.Count(p => UpperMinutes(p) is not null)),
             Pct(upper.Count(p => p.UpperPhotoDocumentation == true), upper.Count), upper.Count(p => p.Complication != "None" && p.Kind == ProcedureKind.Gastroscopy));
     }
+
+    // ------------------------------------------------------------------ National Bowel Screening Programme extract
+    public sealed record NbspRow(Guid ProcedureId, Guid PatientId, string Accession, string? NbspNumber, DateOnly Date, string Status, string? Endoscopist, Guid? EndoscopistId,
+        string Kind, string Indications, string Sedation, string? Extent, bool CaecumReached, bool? TerminalIleum, int? Bbps, bool AdequatePrep, decimal? WithdrawalMinutes, int? Comfort,
+        int PolypsSeen, int PolypsRemoved, int PolypsRetrieved, int? LargestPolypMm, int Adenomas, int AdvancedAdenomas, int Serrated, bool CancerSuspected, bool CancerConfirmed,
+        int HistologyAwaited, int Tattoos, string Complication, int? SurveillanceMonths, DateTimeOffset? ExportedAt, IReadOnlyList<string> Problems);
+
+    /// <summary>NBSP colonoscopies in the range with the screening dataset and a list of what is missing for each (NBSP number, signing, histology).</summary>
+    public async Task<IReadOnlyList<NbspRow>> NbspAsync(DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var procs = await db.Procedures.AsNoTracking().Include(p => p.Indications).Where(p => p.NbspScreening).ToListAsync(ct);
+        var start = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddDays(-1);
+        var end = new DateTimeOffset(to.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddDays(2);
+        procs = procs.Where(p => (p.InsertedAt ?? p.CreatedAt) is var d && d >= start && d < end).OrderBy(p => p.InsertedAt ?? p.CreatedAt).ToList();
+        var ids = procs.Select(p => p.Id).ToList();
+        var polyps = (await db.Polyps.AsNoTracking().Where(x => ids.Contains(x.ProcedureId)).ToListAsync(ct)).ToLookup(x => x.ProcedureId);
+        var findings = (await db.Findings.AsNoTracking().Where(x => ids.Contains(x.ProcedureId)).ToListAsync(ct)).ToLookup(x => x.ProcedureId);
+        var tattoos = (await db.Tattoos.AsNoTracking().Where(x => ids.Contains(x.ProcedureId)).ToListAsync(ct)).ToLookup(x => x.ProcedureId);
+        return procs.Select(p =>
+        {
+            var pl = polyps[p.Id].ToList();
+            var removed = pl.Where(x => x.Technique != "NotRemoved").ToList();
+            var adenomas = pl.Where(x => IsAdenoma(x.Histology) && x.Histology != "Adenocarcinoma").ToList();
+            var advanced = adenomas.Count(x => x.SizeMm >= 10 || x.Dysplasia == "High" || x.Histology is "TubulovillousAdenoma" or "VillousAdenoma");
+            var problems = new List<string>();
+            if (string.IsNullOrWhiteSpace(p.NbspNumber)) problems.Add("NBSP participant number missing");
+            if (p.Status != ProcedureStatus.Signed) problems.Add("report not signed");
+            var awaited = removed.Count(x => x.Retrieved == "Yes" && x.Histology is null);
+            if (awaited > 0) problems.Add($"histology awaited for {awaited} polyp(s)");
+            return new NbspRow(p.Id, p.PatientId, p.AccessionNumber, p.NbspNumber, DateOnly.FromDateTime((p.InsertedAt ?? p.CreatedAt).ToLocalTime().DateTime), p.Status.ToString(),
+                p.EndoscopistName, p.EndoscopistId, p.Kind.ToString(), string.Join("; ", p.Indications.Select(i => IndicationLabel(i.Code))), p.Sedation.ToString(), p.LowerExtent?.ToString(),
+                CaecumReached(p), p.TerminalIleum, BbpsTotal(p), AdequatePrep(p), WithdrawalMinutes(p), p.Comfort,
+                pl.Count, removed.Count, removed.Count(x => x.Retrieved == "Yes"), pl.Count == 0 ? null : pl.Max(x => x.SizeMm), adenomas.Count, advanced, pl.Count(x => IsSerrated(x.Histology)),
+                findings[p.Id].Any(f => f.Kind == "Mass"), pl.Any(x => x.Histology == "Adenocarcinoma"), awaited, tattoos[p.Id].Count(), p.Complication, p.SurveillanceMonths, p.NbspExportedAt, problems);
+        }).ToList();
+    }
+
+    public async Task MarkNbspExportedAsync(IEnumerable<Guid> ids, string user, CancellationToken ct = default)
+    {
+        var list = ids.ToList();
+        var now = clock.GetUtcNow();
+        await db.Procedures.Where(p => list.Contains(p.Id)).ExecuteUpdateAsync(s => s.SetProperty(p => p.NbspExportedAt, now), ct);
+        await audit.WriteAsync(user, "NbspExtract", "EndoscopyProcedure", $"{list.Count} procedure(s)", reason: string.Join(",", list.Take(50)), ct: ct);
+    }
+
+    public async Task SetGpLetterAsync(Guid procedureId, Guid letterId, CancellationToken ct = default) =>
+        await db.Procedures.Where(p => p.Id == procedureId).ExecuteUpdateAsync(s => s.SetProperty(p => p.GpLetterId, letterId), ct);
 
     // ------------------------------------------------------------------ patient report wording
     public async Task<IReadOnlyList<AdviceText>> AdviceAsync(CancellationToken ct = default)
