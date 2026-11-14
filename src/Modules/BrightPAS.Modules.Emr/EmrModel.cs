@@ -209,6 +209,10 @@ public sealed class MedicationGiven
     public string? Barcode { get; set; }
     public Guid? ControlledDrugId { get; set; }
     public string? Notes { get; set; }
+    /// <summary>"Manual" (charted in BrightPAS) or the system it was filed from, e.g. "SaferSleep" (0.17.0 – the anaesthetic record).</summary>
+    public string Source { get; set; } = "Manual";
+    /// <summary>For filed medicines: the external record they came from (replaced together when the record is corrected).</summary>
+    public string? ExternalRef { get; set; }
 }
 
 /// <summary>A controlled drug held at TDS (Misuse of Drugs Regulations 1977): one register per drug, strength and form.</summary>
@@ -391,7 +395,8 @@ public sealed class EmrDbContext(DbContextOptions<EmrDbContext> options) : DbCon
             e.ToTable("MedicationsGiven");
             e.Property(x => x.Medicine).HasMaxLength(150); e.Property(x => x.Dose).HasMaxLength(60); e.Property(x => x.Route).HasMaxLength(30);
             e.Property(x => x.GivenBy).HasMaxLength(100); e.Property(x => x.WitnessedBy).HasMaxLength(100); e.Property(x => x.Barcode).HasMaxLength(60); e.Property(x => x.Notes).HasMaxLength(300);
-            e.HasIndex(x => new { x.EpisodeId, x.GivenAt }); e.HasIndex(x => x.ControlledDrugId);
+            e.Property(x => x.Source).HasMaxLength(20).HasDefaultValue("Manual"); e.Property(x => x.ExternalRef).HasMaxLength(64);
+            e.HasIndex(x => new { x.EpisodeId, x.GivenAt }); e.HasIndex(x => x.ControlledDrugId); e.HasIndex(x => x.ExternalRef);
             e.HasOne<Episode>().WithMany().HasForeignKey(x => x.EpisodeId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<ControlledDrug>().WithMany().HasForeignKey(x => x.ControlledDrugId).OnDelete(DeleteBehavior.Restrict);
         });

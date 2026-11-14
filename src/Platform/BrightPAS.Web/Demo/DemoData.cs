@@ -16,6 +16,7 @@ using Cred = BrightPAS.Modules.Credentialing;
 using Emr = BrightPAS.Modules.Emr;
 using Endo = BrightPAS.Modules.Endoscopy;
 using Scr = BrightPAS.Modules.Scribe;
+using Dev = BrightPAS.Modules.Devices;
 using Let = BrightPAS.Modules.Letters;
 using Msg = BrightPAS.Modules.Messaging;
 using Por = BrightPAS.Modules.Portal;
@@ -118,6 +119,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await EndoscopyAsync(ct);
         await ScribeAsync(ct);
         await MessagingAsync(ct);
+        await DevicesAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
 
@@ -209,8 +211,21 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         ];
         foreach (var m in more)
             Ok((await org.SaveProcedureAsync(new ProcedureEdit(null, m.Code, m.Name, m.Service, m.Min, m.An, m.Side, null, true), Actor, ct)).Errors, "procedure " + m.Code);
-        var fees = new Dictionary<string, string> { ["COLON"] = "COLON", ["GASTRO"] = "GASTRO", ["CARPAL"] = "CTR", ["INGHERNIA"] = "HERNIA", ["POLYPECT"] = "COLON", ["GASTROCOL"] = "GASTROCOL",
-            ["LAPCHOLE"] = "LAPCHOLE", ["UMBHERNIA"] = "UMBHERNIA", ["SKINLES"] = "SKINLES", ["TRIGGER"] = "TRIGGER", ["BCC"] = "BCC", ["FLEXSIG"] = "FLEXSIG" };
+        var fees = new Dictionary<string, string>
+        {
+            ["COLON"] = "COLON",
+            ["GASTRO"] = "GASTRO",
+            ["CARPAL"] = "CTR",
+            ["INGHERNIA"] = "HERNIA",
+            ["POLYPECT"] = "COLON",
+            ["GASTROCOL"] = "GASTROCOL",
+            ["LAPCHOLE"] = "LAPCHOLE",
+            ["UMBHERNIA"] = "UMBHERNIA",
+            ["SKINLES"] = "SKINLES",
+            ["TRIGGER"] = "TRIGGER",
+            ["BCC"] = "BCC",
+            ["FLEXSIG"] = "FLEXSIG"
+        };
         foreach (var p in await core.Procedures.Where(p => fees.Keys.Contains(p.Code)).ToListAsync(ct)) p.FeeCode = fees[p.Code];
         await core.SaveChangesAsync(ct);
     }
@@ -959,8 +974,15 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
 
     private string _clinName(string key) => key switch
     {
-        "reid" => "Dr Hamish Reid", "natarajan" => "Dr Priya Natarajan", "whitaker" => "Dr Tom Whitaker", "tipene" => "Dr Mereana Tipene",
-        "lindqvist" => "Dr Sarah Lindqvist", "oconnor" => "Dr Liam O'Connor", "kowalski" => "Dr Ben Kowalski", "grant" => "Dr Fiona Grant", _ => "Dr Raj Mehta"
+        "reid" => "Dr Hamish Reid",
+        "natarajan" => "Dr Priya Natarajan",
+        "whitaker" => "Dr Tom Whitaker",
+        "tipene" => "Dr Mereana Tipene",
+        "lindqvist" => "Dr Sarah Lindqvist",
+        "oconnor" => "Dr Liam O'Connor",
+        "kowalski" => "Dr Ben Kowalski",
+        "grant" => "Dr Fiona Grant",
+        _ => "Dr Raj Mehta"
     };
 
     private async Task BookingsAsync(CancellationToken ct)
@@ -972,8 +994,15 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             .Select(x => (x.PatientId, x.Date)));
         var pool = Enumerable.Range(0, 60).ToList(); // referral patients (60+) are booked through the waitlist
         var next = 0;
-        var trays = new Dictionary<string, string> { ["reid"] = "General set; Lap chole set", ["natarajan"] = "Anorectal set; General set", ["whitaker"] = "Hand set", ["tipene"] = "Plastics fine set",
-            ["oconnor"] = "Minor set", ["lindqvist"] = "" };
+        var trays = new Dictionary<string, string>
+        {
+            ["reid"] = "General set; Lap chole set",
+            ["natarajan"] = "Anorectal set; General set",
+            ["whitaker"] = "Hand set",
+            ["tipene"] = "Plastics fine set",
+            ["oconnor"] = "Minor set",
+            ["lindqvist"] = ""
+        };
 
         foreach (var s in sessions)
         {
@@ -1024,8 +1053,14 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
 
     private static string FeeFor(string procedure) => procedure switch
     {
-        var p when p.StartsWith("Colonoscopy") => "COLON", "Gastroscopy" => "GASTRO", "Gastroscopy and colonoscopy" => "GASTROCOL", "Carpal tunnel release" => "CTR",
-        "Inguinal hernia repair" => "HERNIA", "Laparoscopic cholecystectomy" => "LAPCHOLE", "Excision of basal cell carcinoma with flap repair" => "BCC", _ => "FAC-TH30"
+        var p when p.StartsWith("Colonoscopy") => "COLON",
+        "Gastroscopy" => "GASTRO",
+        "Gastroscopy and colonoscopy" => "GASTROCOL",
+        "Carpal tunnel release" => "CTR",
+        "Inguinal hernia repair" => "HERNIA",
+        "Laparoscopic cholecystectomy" => "LAPCHOLE",
+        "Excision of basal cell carcinoma with flap repair" => "BCC",
+        _ => "FAC-TH30"
     };
 
     /// <summary>Moves each booking through the day like staff would: arrived, in theatre, recovery, discharged (with theatre times), or cancelled/DNA.</summary>
@@ -1116,11 +1151,34 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
     {
         var a = new Dictionary<string, string>
         {
-            ["height_cm"] = (155 + i % 30).ToString(), ["weight_kg"] = (58 + i * 3 % 40).ToString(), ["support_person"] = "Partner – 021 555 0199", ["lives_alone"] = i % 6 == 0 ? "Yes" : "No",
-            ["heart"] = "No", ["pacemaker"] = "No", ["high_bp"] = i % 3 == 0 ? "Yes" : "No", ["lung"] = "No", ["sleep_apnoea"] = "No", ["diabetes"] = i % 7 == 0 ? "Yes – tablets" : "No",
-            ["kidney_liver"] = "No", ["stroke"] = "No", ["bleeding"] = "No", ["infection"] = "No", ["pregnant"] = "Not applicable", ["blood_thinners"] = i % 5 == 0 ? "Yes" : "No",
-            ["herbal"] = "No", ["allergies"] = i % 4 == 0 ? "Yes" : "No", ["latex"] = "No", ["anaesthetic_problems"] = "No", ["family_mh"] = "No", ["teeth"] = "No", ["neck"] = "No",
-            ["smoking"] = i % 8 == 0 ? "Smoke" : "Never", ["alcohol"] = "1–10", ["mobility"] = "Independently", ["interpreter"] = "No", ["confirm"] = "Yes",
+            ["height_cm"] = (155 + i % 30).ToString(),
+            ["weight_kg"] = (58 + i * 3 % 40).ToString(),
+            ["support_person"] = "Partner – 021 555 0199",
+            ["lives_alone"] = i % 6 == 0 ? "Yes" : "No",
+            ["heart"] = "No",
+            ["pacemaker"] = "No",
+            ["high_bp"] = i % 3 == 0 ? "Yes" : "No",
+            ["lung"] = "No",
+            ["sleep_apnoea"] = "No",
+            ["diabetes"] = i % 7 == 0 ? "Yes – tablets" : "No",
+            ["kidney_liver"] = "No",
+            ["stroke"] = "No",
+            ["bleeding"] = "No",
+            ["infection"] = "No",
+            ["pregnant"] = "Not applicable",
+            ["blood_thinners"] = i % 5 == 0 ? "Yes" : "No",
+            ["herbal"] = "No",
+            ["allergies"] = i % 4 == 0 ? "Yes" : "No",
+            ["latex"] = "No",
+            ["anaesthetic_problems"] = "No",
+            ["family_mh"] = "No",
+            ["teeth"] = "No",
+            ["neck"] = "No",
+            ["smoking"] = i % 8 == 0 ? "Smoke" : "Never",
+            ["alcohol"] = "1–10",
+            ["mobility"] = "Independently",
+            ["interpreter"] = "No",
+            ["confirm"] = "Yes",
             ["medications"] = i % 3 == 0 ? "Cilazapril 2.5 mg daily" : "None",
         };
         if (a["blood_thinners"] == "Yes") a["blood_thinners_details"] = "Aspirin 100 mg daily";
@@ -1385,8 +1443,91 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         }
     }
 
-    // ------------------------------------------------------------------ messaging engine
+    // ------------------------------------------------------------------ Devices & SaferSleep (0.17.0)
+    private async Task DevicesAsync(CancellationToken ct)
+    {
+        var msg = S<Msg.MessagingService>();
+        Msg.Interface I((Msg.Interface? Interface, IReadOnlyList<string> Errors) r, string what) => Must(r.Interface, r.Errors, what);
+        I(await msg.SaveInterfaceAsync(new Msg.InterfaceEdit(null, "ge-monitors-in", "GE CARESCAPE Gateway – monitor results (MLLP)", Msg.InterfaceDirection.Inbound, Msg.Transport.MllpListen, Msg.MessageFormat.Hl7v2,
+            Msg.InboundHandler.DeviceObservations, null, 12580, null, null, null, null, [new Msg.ClientEdit("192.168.1.170", null, "GE CARESCAPE Gateway"), new Msg.ClientEdit("127.0.0.1", null, "This server (testing / test robot)")],
+            true, 5, null, "Vital signs from the B450 and B1x5 monitors (HL7 ORU, IEEE 11073 codes)."), "integration", ct), "monitor interface");
+        I(await msg.SaveInterfaceAsync(new Msg.InterfaceEdit(null, "safersleep-in", "SaferSleep anaesthetic records (MLLP)", Msg.InterfaceDirection.Inbound, Msg.Transport.MllpListen, Msg.MessageFormat.Hl7v2,
+            Msg.InboundHandler.AnaesthesiaRecord, null, 12581, null, null, null, null, [new Msg.ClientEdit("192.168.1.175", null, "SaferSleep server"), new Msg.ClientEdit("127.0.0.1", null, "This server (testing / test robot)")],
+            true, 3, null, "Completed anaesthetic record (drugs, events, vital signs, PDF)."), "integration", ct), "SaferSleep in");
+        I(await msg.SaveInterfaceAsync(new Msg.InterfaceEdit(null, "safersleep-out", "SaferSleep – patient and booking (ADT)", Msg.InterfaceDirection.Outbound, Msg.Transport.MllpSend, Msg.MessageFormat.Hl7v2,
+            Msg.InboundHandler.None, "127.0.0.1", 12582, null, null, null, null, null, true, 5, null, "Demo: points at this server, where the test robot's virtual SaferSleep listens. Change to the SaferSleep server."), "integration", ct), "SaferSleep out");
 
+        var dev = S<Dev.DeviceService>();
+        Ok(await dev.SaveSettingsAsync(new Dev.DeviceSettingsEdit(5, 5, 15, 30, 120, 24, 48, true, true, "safersleep-out", "SAFERSLEEP", "TDS", Dev.SendAdtOn.Admission, true), "integration", ct), "device settings");
+        var mons = await S<Ast.AssetsDbContext>().Equipment.AsNoTracking().Where(e => e.Category == Ast.EquipmentCategory.Monitor).OrderBy(e => e.AssetNumber).ToListAsync(ct);
+        var codes = new[] { "THEATRE1/OR1", "PACU/BAY1", "PACU/BAY2" };
+        var monitorIds = new List<Guid>();
+        for (var i = 0; i < mons.Count && i < codes.Length; i++)
+        {
+            var (m, err) = await dev.SaveMonitorAsync(null, mons[i].Id, codes[i], true, "integration", ct);
+            Ok(err, "monitor " + codes[i]);
+            monitorIds.Add(m!.Id);
+        }
+
+        // Anaesthetic records from SaferSleep for recent finished cases, and a recovery monitor trend for two of them.
+        var emr = S<Emr.EmrDbContext>();
+        var done = await emr.Episodes.AsNoTracking().Where(e => e.Stage == Emr.EpisodeStage.Discharged && e.SedationOrAnaesthesia).ToListAsync(ct);
+        var intra = await emr.Intraop.AsNoTracking().Where(x => x.AnaestheticStartAt != null).ToDictionaryAsync(x => x.EpisodeId, x => x.AnaestheticStartAt!.Value, ct);
+        var pdb = S<PatientsDbContext>();
+        var ana = S<Dev.AnaesthesiaService>();
+        var ddb = S<Dev.DevicesDbContext>();
+        var n = 0;
+        foreach (var e in done.Where(e => intra.ContainsKey(e.Id)).OrderBy(e => e.AdmittedAt))
+        {
+            var p = await pdb.Patients.AsNoTracking().SingleAsync(x => x.Id == e.PatientId, ct);
+            if (p.Nhi is null) continue;
+            var t0 = intra[e.Id];
+            n++;
+            var hl7 = Dev.SimplePdf.SaferSleepOru($"SSDEMO{n:D4}", $"SS-{t0:yyMMdd}-{n:D3}", e.Id.ToString("N"), p.Nhi, p.FamilyName, p.GivenNames, t0, false,
+                [(1, "Midazolam", "2", "mg", "IV"), (2, "Fentanyl", "100", "microgram", "IV"), (3, "Propofol", "200", "mg", "IV"), (8, "Cefazolin", "2", "g", "IV"), (30, "Ondansetron", "4", "mg", "IV"), (45, "Paracetamol", "1", "g", "IV")],
+                "6 mg/kg/h");
+            var r = await ana.IngestAsync(hl7, null, "safersleep-in:demo", ct);
+            if (!r.Accepted || !r.Filed) throw new InvalidOperationException($"Demo data – SaferSleep record: {r.Error ?? "not filed"}");
+            if (n <= 2 && monitorIds.Count > 1)
+            {
+                var start = t0.AddMinutes(62);
+                var a = new Dev.Association { MonitorId = monitorIds[1], EpisodeId = e.Id, PatientId = e.PatientId, StartedAt = start, StartedBy = "Ana Faleolo RN", EndedAt = start.AddMinutes(60), EndedBy = "Ana Faleolo RN" };
+                ddb.Associations.Add(a);
+                for (var m = 0; m <= 60; m++)
+                {
+                    var at = start.AddMinutes(m);
+                    ddb.Readings.Add(new Dev.Reading { MonitorId = a.MonitorId, AssociationId = a.Id, At = at, Code = "HR", Value = 78 - m / 6 + _rng.Next(-3, 4), Unit = "/min" });
+                    ddb.Readings.Add(new Dev.Reading { MonitorId = a.MonitorId, AssociationId = a.Id, At = at, Code = "SpO2", Value = Math.Min(100, 95 + m / 20 + _rng.Next(0, 2)), Unit = "%" });
+                    ddb.Readings.Add(new Dev.Reading { MonitorId = a.MonitorId, AssociationId = a.Id, At = at, Code = "RR", Value = 14 + _rng.Next(-2, 3), Unit = "/min" });
+                    if (m % 5 == 0)
+                    {
+                        ddb.Readings.Add(new Dev.Reading { MonitorId = a.MonitorId, AssociationId = a.Id, At = at, Code = "NIBP-S", Value = 128 - m / 4 + _rng.Next(-5, 6), Unit = "mmHg" });
+                        ddb.Readings.Add(new Dev.Reading { MonitorId = a.MonitorId, AssociationId = a.Id, At = at, Code = "NIBP-D", Value = 78 + _rng.Next(-4, 5), Unit = "mmHg" });
+                    }
+                }
+                ddb.Captures.Add(new Dev.Capture
+                {
+                    AssociationId = a.Id,
+                    EpisodeId = e.Id,
+                    MonitorId = a.MonitorId,
+                    At = start.AddMinutes(20),
+                    HeartRate = 44,
+                    SpO2 = 72,
+                    SystolicBp = 126,
+                    DiastolicBp = 80,
+                    RespiratoryRate = 14,
+                    Status = Dev.CaptureStatus.Rejected,
+                    DecidedBy = "Ana Faleolo RN",
+                    DecidedAt = start.AddMinutes(21),
+                    RejectReason = "Artefact – SpO2 probe slipped off finger"
+                });
+                await ddb.SaveChangesAsync(ct);
+            }
+            if (n >= 4) break;
+        }
+    }
+
+    // ------------------------------------------------------------------ messaging engine
     private async Task MessagingAsync(CancellationToken ct)
     {
         var svc = S<Msg.MessagingService>();
@@ -1457,7 +1598,13 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
 
         Msg.NodeEdit N(string k, Msg.NodeKind kind, int x, int y, Guid? iface = null, Guid? map = null, params Msg.FilterEdit[] c) => new(k, kind, k switch
         {
-            "in" => "Receive", "isOru" => "Result message?", "map" => "To JSON", "json" => "Archive", "hl7" => "Clinical feed", "img" => "To HL7", _ => k
+            "in" => "Receive",
+            "isOru" => "Result message?",
+            "map" => "To JSON",
+            "json" => "Archive",
+            "hl7" => "Clinical feed",
+            "img" => "To HL7",
+            _ => k
         }, x, y, iface, map, Msg.MatchMode.All, c);
         var (f1, e1) = await flows.SaveAsync(new Msg.FlowEdit(null, "Partner lab results", "REST results: archive as JSON, everything else to the clinical feed.", true,
             [N("in", Msg.NodeKind.Input, 40, 120, api.Id), N("isOru", Msg.NodeKind.Decision, 260, 120, c: new Msg.FilterEdit("MSH-9.1", Msg.ConditionOperator.Equals, "ORU")),

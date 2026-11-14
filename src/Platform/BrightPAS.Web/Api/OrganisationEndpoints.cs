@@ -36,11 +36,22 @@ public static class OrganisationEndpoints
             var site = o.Sites.Where(s => s.IsActive).OrderBy(s => s.Name).First();
             return Results.Ok(new
             {
-                organisationName = o.Name, o.HpiOrganisationId, siteName = site.Name, site.HpiFacilityId, site.AddressLine1, site.AddressLine2, site.Suburb, site.City,
-                site.Postcode, site.Phone, site.Email,
+                organisationName = o.Name,
+                o.HpiOrganisationId,
+                siteName = site.Name,
+                site.HpiFacilityId,
+                site.AddressLine1,
+                site.AddressLine2,
+                site.Suburb,
+                site.City,
+                site.Postcode,
+                site.Phone,
+                site.Email,
                 facilities = site.Facilities.OrderBy(f => f.Name).Select(f => new
                 {
-                    f.Id, f.Name, type = f.Type.ToString(),
+                    f.Id,
+                    f.Name,
+                    type = f.Type.ToString(),
                     locations = f.Locations.OrderBy(l => l.SortOrder).Select(l => new { l.Id, l.FacilityId, l.Code, l.Name, type = l.Type.ToString(), l.IsActive, l.SortOrder })
                 }),
                 locationTypes = Enum.GetNames<LocationType>()

@@ -35,6 +35,7 @@
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Emr\BrightPAS.Modules.Emr.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Endoscopy\BrightPAS.Modules.Endoscopy.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Scribe\BrightPAS.Modules.Scribe.csproj" />
+    <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Devices\BrightPAS.Modules.Devices.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Portal\BrightPAS.Modules.Portal.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Messaging\BrightPAS.Modules.Messaging.csproj" />
   </ItemGroup>

@@ -23,7 +23,12 @@ public sealed class MediaStore(SettingsService settings, Microsoft.Extensions.Co
 
     public static string Extension(string contentType) => contentType switch
     {
-        "image/jpeg" => ".jpg", "image/png" => ".png", "video/webm" => ".webm", "video/mp4" => ".mp4", "application/dicom" => ".dcm", _ => ".bin",
+        "image/jpeg" => ".jpg",
+        "image/png" => ".png",
+        "video/webm" => ".webm",
+        "video/mp4" => ".mp4",
+        "application/dicom" => ".dcm",
+        _ => ".bin",
     };
 
     public static string NewFileName(Media m) => Path.Combine(m.CapturedAt.UtcDateTime.ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture),

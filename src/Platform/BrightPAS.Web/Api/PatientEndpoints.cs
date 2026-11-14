@@ -50,14 +50,38 @@ public static class PatientEndpoints
 
     private static object Summary(Patient p) => new
     {
-        p.Id, p.Mrn, p.Nhi, p.FamilyName, p.GivenNames, p.PreferredName, p.DateOfBirth, sex = p.Sex.ToString(), p.IsTestPatient
+        p.Id,
+        p.Mrn,
+        p.Nhi,
+        p.FamilyName,
+        p.GivenNames,
+        p.PreferredName,
+        p.DateOfBirth,
+        sex = p.Sex.ToString(),
+        p.IsTestPatient
     };
 
     private static object Detail(Patient p) => new
     {
-        p.Id, p.Mrn, p.Nhi, p.FamilyName, p.GivenNames, p.PreferredName, p.DateOfBirth, sex = p.Sex.ToString(), p.Gender,
-        p.MobilePhone, p.HomePhone, p.Email, p.AddressLine1, p.AddressLine2, p.Suburb, p.City, p.Postcode,
-        p.GpPracticeHpiFacilityId, p.IsTestPatient,
+        p.Id,
+        p.Mrn,
+        p.Nhi,
+        p.FamilyName,
+        p.GivenNames,
+        p.PreferredName,
+        p.DateOfBirth,
+        sex = p.Sex.ToString(),
+        p.Gender,
+        p.MobilePhone,
+        p.HomePhone,
+        p.Email,
+        p.AddressLine1,
+        p.AddressLine2,
+        p.Suburb,
+        p.City,
+        p.Postcode,
+        p.GpPracticeHpiFacilityId,
+        p.IsTestPatient,
         ethnicities = p.Ethnicities.OrderBy(e => e.Order).Select(e => e.Code),
         alerts = p.Alerts.Where(a => a.IsActive).OrderByDescending(a => a.Severity).ThenByDescending(a => a.RecordedAt)
             .Select(a => new { a.Id, type = a.Type.ToString(), severity = a.Severity.ToString(), a.Description, a.RecordedBy, a.RecordedAt })

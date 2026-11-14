@@ -76,14 +76,16 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☐ Confirm CV-1500 DICOM options with Olympus NZ; confirm NBSP extract layout with the National Screening Unit
 - ☑ BrightPAS Scribe foundations – 0.16.0 (ADR 0028)
 - ☐ Scribe next: PAS-SPEECH server build and accuracy testing, NZMT dose checking, speaker diarisation, confirm Medow API
-- ☐ SaferSleep + GE device foundations – 0.17.0
+- ☑ Devices & SaferSleep foundations – 0.17.0 (ADR 0029)
+- ☐ Devices next: capture real CARESCAPE Gateway messages and adjust the mapping; agree the anaesthetic record profile with SaferSleep; clinical sign-off of chart intervals and plausibility limits; Olympus tower status on the Monitors page; overdue-validation prompt on the whiteboard
 - ☐ Messaging: workflow engine (human tasks, timers, escalation), MLLP/DICOM over TLS, DICOM MWL/MPPS (with endoscopy), drag lines in mapper, C# extension scripts
 - ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends
 - ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)
 - ☐ HealthLink: confirm message profile + EDI accounts with HealthLink; live test via the messaging client
 - ☐ Sandbox: verify reminders UI end-to-end on Windows; live Modica test (needs Modica account + DMZ callback path)
 - ☐ Modica REST v2 gateway; SMS delivery dashboards; te reo Māori templates (TDS to write/review)
-- ☐ Security: dependency vulnerability scan + SBOM in the build; DAST (OWASP ZAP baseline) against the sandbox; TDE + backups (spec 4.6)
+- ☑ Dependency vulnerability scan in the release build (0.17.0)
+- ☐ Security: SBOM in the build; DAST (OWASP ZAP baseline) against the sandbox; TDE + backups (spec 4.6)
 - ☐ Sandbox verification on Windows (IIS, PowerShell, MLLP) from Lance's logs
 - ☐ MLLP over TLS; HL7 ORM orders out; lab inbox per requesting clinician (HPI CPN on user accounts)
 - ☐ Xero export of invoices; ACC/insurer claim formats; refunds/credit notes

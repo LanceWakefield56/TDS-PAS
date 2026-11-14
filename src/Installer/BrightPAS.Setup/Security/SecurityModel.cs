@@ -41,7 +41,11 @@ public sealed class SecurityReport
 
     public static string Label(FindingStatus s) => s switch
     {
-        FindingStatus.Pass => "PASS", FindingStatus.Warn => "WARN", FindingStatus.Fail => "FAIL", FindingStatus.Info => "INFO", _ => "SKIP"
+        FindingStatus.Pass => "PASS",
+        FindingStatus.Warn => "WARN",
+        FindingStatus.Fail => "FAIL",
+        FindingStatus.Info => "INFO",
+        _ => "SKIP"
     };
 
     public string Verdict => Count(FindingStatus.Fail) > 0

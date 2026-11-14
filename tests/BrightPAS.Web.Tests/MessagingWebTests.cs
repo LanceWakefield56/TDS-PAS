@@ -49,8 +49,14 @@ public class MessagingWebTests(PasWebFactory factory) : IClassFixture<PasWebFact
         key.ImportFromPem(pem);
         var text = LicenceCodec.Sign(new LicenceDocument
         {
-            LicenceId = "BP-MSG-" + Guid.NewGuid().ToString("N")[..6], Customer = "Test", Edition = "Sandbox", IssuedAt = DateTimeOffset.UtcNow,
-            ExpiresOn = new DateOnly(2030, 1, 1), InstallationCode = svc.InstallationCode(await svc.StateAsync()), Modules = ["*"], GraceDays = 0
+            LicenceId = "BP-MSG-" + Guid.NewGuid().ToString("N")[..6],
+            Customer = "Test",
+            Edition = "Sandbox",
+            IssuedAt = DateTimeOffset.UtcNow,
+            ExpiresOn = new DateOnly(2030, 1, 1),
+            InstallationCode = svc.InstallationCode(await svc.StateAsync()),
+            Modules = ["*"],
+            GraceDays = 0
         }, key);
         Assert.True((await svc.InstallAsync(text, "admin", null)).Ok);
     }
@@ -63,8 +69,16 @@ public class MessagingWebTests(PasWebFactory factory) : IClassFixture<PasWebFact
         var key = (await (await ia.PostAsJsonAsync("/api/messaging/interfaces/generate-key", new { })).Json()).GetProperty("key").GetString()!;
         var save = await ia.PostAsJsonAsync("/api/messaging/interfaces", new
         {
-            code = "partner-in", name = "Partner REST", direction = "Inbound", transport = "HttpReceive", format = "Hl7v2", handler = "None", secret = key,
-            allowedClients = Array.Empty<object>(), isActive = true, alertAfterFailures = 3,
+            code = "partner-in",
+            name = "Partner REST",
+            direction = "Inbound",
+            transport = "HttpReceive",
+            format = "Hl7v2",
+            handler = "None",
+            secret = key,
+            allowedClients = Array.Empty<object>(),
+            isActive = true,
+            alertAfterFailures = 3,
         });
         Assert.Equal(HttpStatusCode.OK, save.StatusCode);
 

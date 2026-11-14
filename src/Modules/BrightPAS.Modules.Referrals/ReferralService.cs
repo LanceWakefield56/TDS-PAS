@@ -75,9 +75,20 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         var settings = await SettingsAsync(ct);
         var referral = new Referral
         {
-            Number = $"R{settings.NextReferralNumber:000000}", PatientId = r.PatientId, ReceivedOn = r.ReceivedOn, Source = r.Source, ReferrerName = r.ReferrerName.Trim(),
-            ReferrerOrganisation = Blank(r.ReferrerOrganisation), ReferrerHpi = Blank(r.ReferrerHpi)?.ToUpperInvariant(), SpecialistId = r.SpecialistId, Service = r.Service,
-            Funder = r.Funder, FunderReference = Blank(r.FunderReference), Reason = r.Reason.Trim(), CreatedAt = clock.GetUtcNow(), CreatedBy = user
+            Number = $"R{settings.NextReferralNumber:000000}",
+            PatientId = r.PatientId,
+            ReceivedOn = r.ReceivedOn,
+            Source = r.Source,
+            ReferrerName = r.ReferrerName.Trim(),
+            ReferrerOrganisation = Blank(r.ReferrerOrganisation),
+            ReferrerHpi = Blank(r.ReferrerHpi)?.ToUpperInvariant(),
+            SpecialistId = r.SpecialistId,
+            Service = r.Service,
+            Funder = r.Funder,
+            FunderReference = Blank(r.FunderReference),
+            Reason = r.Reason.Trim(),
+            CreatedAt = clock.GetUtcNow(),
+            CreatedBy = user
         };
         settings.NextReferralNumber++;
         db.Referrals.Add(referral);
@@ -164,9 +175,22 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         var now = clock.GetUtcNow();
         var e = new WaitlistEntry
         {
-            ReferralId = referralId, PatientId = n.PatientId, Procedure = n.Procedure.Trim(), Laterality = n.Laterality, Anaesthetic = n.Anaesthetic, DurationMinutes = n.DurationMinutes,
-            Service = n.Service, SpecialistId = n.SpecialistId, Funder = n.Funder, Priority = n.Priority, AddedOn = added, TargetDate = added.AddDays(TargetDays(settings, n.Priority)),
-            Notes = Blank(n.Notes), StatusAt = now, CreatedAt = now, CreatedBy = user
+            ReferralId = referralId,
+            PatientId = n.PatientId,
+            Procedure = n.Procedure.Trim(),
+            Laterality = n.Laterality,
+            Anaesthetic = n.Anaesthetic,
+            DurationMinutes = n.DurationMinutes,
+            Service = n.Service,
+            SpecialistId = n.SpecialistId,
+            Funder = n.Funder,
+            Priority = n.Priority,
+            AddedOn = added,
+            TargetDate = added.AddDays(TargetDays(settings, n.Priority)),
+            Notes = Blank(n.Notes),
+            StatusAt = now,
+            CreatedAt = now,
+            CreatedBy = user
         };
         db.Waitlist.Add(e);
         await db.SaveChangesAsync(ct);
@@ -389,7 +413,11 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
 
     public static string NbrsStatus(WaitlistStatus s) => s switch
     {
-        WaitlistStatus.Waiting => "WAITING", WaitlistStatus.OnHold => "DEFERRED", WaitlistStatus.Booked => "BOOKED", WaitlistStatus.Completed => "TREATED", _ => "REMOVED"
+        WaitlistStatus.Waiting => "WAITING",
+        WaitlistStatus.OnHold => "DEFERRED",
+        WaitlistStatus.Booked => "BOOKED",
+        WaitlistStatus.Completed => "TREATED",
+        _ => "REMOVED"
     };
 
     /// <summary>

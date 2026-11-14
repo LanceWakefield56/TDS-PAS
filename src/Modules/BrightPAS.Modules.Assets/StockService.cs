@@ -34,7 +34,8 @@ public sealed class StockService(AssetsDbContext db, EquipmentService equipment,
         var items = await db.StockItems.AsNoTracking().OrderBy(i => i.Name).ToListAsync(ct);
         if (!string.IsNullOrWhiteSpace(q)) { var t = q.Trim(); items = items.Where(i => i.Name.Contains(t, StringComparison.OrdinalIgnoreCase) || i.Code.Contains(t, StringComparison.OrdinalIgnoreCase)).ToList(); }
         var lots = await db.Lots.AsNoTracking().Where(l => l.OnHand > 0).ToListAsync(ct);
-        var onOrder = await (from l in db.OrderLines.AsNoTracking() join o in db.Orders.AsNoTracking() on l.PurchaseOrderId equals o.Id
+        var onOrder = await (from l in db.OrderLines.AsNoTracking()
+                             join o in db.Orders.AsNoTracking() on l.PurchaseOrderId equals o.Id
                              where o.Status == PoStatus.Draft || o.Status == PoStatus.Approved || o.Status == PoStatus.Sent || o.Status == PoStatus.PartReceived
                              select new { l.StockItemId, Open = l.Quantity - l.QuantityReceived }).ToListAsync(ct);
         var suppliers = await db.Suppliers.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name, ct);
@@ -92,8 +93,18 @@ public sealed class StockService(AssetsDbContext db, EquipmentService equipment,
             if (left == 0) break;
             var take = Math.Min(left, l.OnHand);
             l.OnHand -= take; left -= take;
-            db.Movements.Add(new StockMovement { StockItemId = item.Id, LotId = l.Id, Quantity = -take, Kind = MovementKind.Use, BookingId = r.BookingId, PatientId = r.PatientId,
-                Reason = EquipmentService.Clip(r.Reason, 300), At = clock.GetUtcNow(), By = user });
+            db.Movements.Add(new StockMovement
+            {
+                StockItemId = item.Id,
+                LotId = l.Id,
+                Quantity = -take,
+                Kind = MovementKind.Use,
+                BookingId = r.BookingId,
+                PatientId = r.PatientId,
+                Reason = EquipmentService.Clip(r.Reason, 300),
+                At = clock.GetUtcNow(),
+                By = user
+            });
         }
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "StockUse", "StockItem", item.Id.ToString(), r.PatientId?.ToString(), reason: $"{item.Code} x{r.Quantity} booking {r.BookingId}", ct: ct);
@@ -128,8 +139,17 @@ public sealed class StockService(AssetsDbContext db, EquipmentService equipment,
         if (lot is not null && lot.OnHand < 1) return (null, $"Lot {lot.Lot} shows none in stock – check the lot number.");
         var rec = new ImplantRecord
         {
-            PatientId = r.PatientId, BookingId = r.BookingId, StockItemId = item.Id, LotId = lot?.Id, Lot = lotText, SerialNumber = EquipmentService.Clip(r.SerialNumber, 60),
-            Manufacturer = EquipmentService.Clip(r.Manufacturer, 100), Site = EquipmentService.Clip(r.Site, 100), ImplantedOn = r.ImplantedOn ?? Today, RecordedBy = user, RecordedAt = clock.GetUtcNow(),
+            PatientId = r.PatientId,
+            BookingId = r.BookingId,
+            StockItemId = item.Id,
+            LotId = lot?.Id,
+            Lot = lotText,
+            SerialNumber = EquipmentService.Clip(r.SerialNumber, 60),
+            Manufacturer = EquipmentService.Clip(r.Manufacturer, 100),
+            Site = EquipmentService.Clip(r.Site, 100),
+            ImplantedOn = r.ImplantedOn ?? Today,
+            RecordedBy = user,
+            RecordedAt = clock.GetUtcNow(),
         };
         db.Implants.Add(rec);
         if (lot is not null)
@@ -212,8 +232,10 @@ public sealed class StockService(AssetsDbContext db, EquipmentService equipment,
         if (o is null) return "Order not found.";
         var ok = (o.Status, to) switch
         {
-            (PoStatus.Draft, PoStatus.Approved) => true, (PoStatus.Approved, PoStatus.Sent) => true,
-            (PoStatus.Draft or PoStatus.Approved or PoStatus.Sent, PoStatus.Cancelled) => true, _ => false,
+            (PoStatus.Draft, PoStatus.Approved) => true,
+            (PoStatus.Approved, PoStatus.Sent) => true,
+            (PoStatus.Draft or PoStatus.Approved or PoStatus.Sent, PoStatus.Cancelled) => true,
+            _ => false,
         };
         if (!ok) return $"An order that is {o.Status.ToString().ToLowerInvariant()} cannot become {to.ToString().ToLowerInvariant()}.";
         if (to == PoStatus.Approved) { o.ApprovedBy = user; o.ApprovedAt = clock.GetUtcNow(); }
@@ -273,9 +295,15 @@ public sealed class StockService(AssetsDbContext db, EquipmentService equipment,
         var matched = diff <= MatchToleranceDollars || (expected > 0 && diff / expected <= MatchTolerancePercent);
         var inv = new SupplierInvoice
         {
-            PurchaseOrderId = o.Id, InvoiceNumber = no, InvoiceDate = r.InvoiceDate, DueDate = r.DueDate, AmountExGst = r.AmountExGst, Matched = matched,
+            PurchaseOrderId = o.Id,
+            InvoiceNumber = no,
+            InvoiceDate = r.InvoiceDate,
+            DueDate = r.DueDate,
+            AmountExGst = r.AmountExGst,
+            Matched = matched,
             MatchNote = matched ? $"Matches goods received ({expected:C2} ex GST)." : $"Does not match goods received: invoice {r.AmountExGst:C2}, received {expected:C2} ex GST. Check with the supplier before paying.",
-            RecordedBy = user, RecordedAt = clock.GetUtcNow(),
+            RecordedBy = user,
+            RecordedAt = clock.GetUtcNow(),
         };
         db.Invoices.Add(inv);
         if (matched && o.Status == PoStatus.Received) o.Status = PoStatus.Invoiced;

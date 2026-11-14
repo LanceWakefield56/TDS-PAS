@@ -110,7 +110,9 @@ public static class Terminology
 
     public static string KindLabel(ProcedureKind k) => k switch
     {
-        ProcedureKind.Gastroscopy => "Gastroscopy", ProcedureKind.Colonoscopy => "Colonoscopy", ProcedureKind.FlexibleSigmoidoscopy => "Flexible sigmoidoscopy",
+        ProcedureKind.Gastroscopy => "Gastroscopy",
+        ProcedureKind.Colonoscopy => "Colonoscopy",
+        ProcedureKind.FlexibleSigmoidoscopy => "Flexible sigmoidoscopy",
         _ => "Gastroscopy and colonoscopy",
     };
 

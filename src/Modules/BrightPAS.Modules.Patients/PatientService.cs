@@ -52,14 +52,26 @@ public sealed class PatientService(PatientsDbContext db, AuditWriter audit, Time
         {
             Mrn = await NextMrnAsync(ct),
             Nhi = nhi,
-            FamilyName = r.FamilyName.Trim(), GivenNames = r.GivenNames.Trim(), PreferredName = Clean(r.PreferredName),
-            FamilyNameSearch = family, GivenNamesSearch = given,
-            DateOfBirth = r.DateOfBirth, Sex = r.Sex, Gender = Clean(r.Gender),
-            MobilePhone = Clean(r.MobilePhone), HomePhone = Clean(r.HomePhone), Email = Clean(r.Email),
-            AddressLine1 = Clean(r.AddressLine1), AddressLine2 = Clean(r.AddressLine2), Suburb = Clean(r.Suburb),
-            City = Clean(r.City), Postcode = Clean(r.Postcode), GpPracticeHpiFacilityId = Clean(r.GpPracticeHpiFacilityId),
+            FamilyName = r.FamilyName.Trim(),
+            GivenNames = r.GivenNames.Trim(),
+            PreferredName = Clean(r.PreferredName),
+            FamilyNameSearch = family,
+            GivenNamesSearch = given,
+            DateOfBirth = r.DateOfBirth,
+            Sex = r.Sex,
+            Gender = Clean(r.Gender),
+            MobilePhone = Clean(r.MobilePhone),
+            HomePhone = Clean(r.HomePhone),
+            Email = Clean(r.Email),
+            AddressLine1 = Clean(r.AddressLine1),
+            AddressLine2 = Clean(r.AddressLine2),
+            Suburb = Clean(r.Suburb),
+            City = Clean(r.City),
+            Postcode = Clean(r.Postcode),
+            GpPracticeHpiFacilityId = Clean(r.GpPracticeHpiFacilityId),
             IsTestPatient = nhi?.StartsWith('Z') == true,
-            CreatedAt = clock.GetUtcNow(), CreatedBy = userId
+            CreatedAt = clock.GetUtcNow(),
+            CreatedBy = userId
         };
         patient.Ethnicities.AddRange((r.EthnicityCodes ?? []).Select((c, i) => new PatientEthnicity { PatientId = patient.Id, Order = i + 1, Code = c.Trim() }));
 
@@ -151,8 +163,12 @@ public sealed class PatientService(PatientsDbContext db, AuditWriter audit, Time
         if (!await db.Patients.AnyAsync(p => p.Id == patientId, ct)) throw new KeyNotFoundException("Patient not found.");
         var alert = new PatientAlert
         {
-            PatientId = patientId, Type = type, Severity = severity, Description = description.Trim(),
-            RecordedBy = userId, RecordedAt = clock.GetUtcNow()
+            PatientId = patientId,
+            Type = type,
+            Severity = severity,
+            Description = description.Trim(),
+            RecordedBy = userId,
+            RecordedAt = clock.GetUtcNow()
         };
         db.Alerts.Add(alert);
         await db.SaveChangesAsync(ct);

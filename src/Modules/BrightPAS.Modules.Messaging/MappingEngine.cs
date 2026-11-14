@@ -34,7 +34,12 @@ public static class MessageDocs
 
     public static IReadOnlyList<DocNode> Tree(MessageFormat format, string text) => Parse(format, text) switch
     {
-        Hl7Doc h => h.Tree(), JsonDoc j => j.Tree(), DicomDoc d => d.Tree(), XmlDoc x => x.Tree(), X12Doc e => e.Tree(), var t => [new DocNode("text", "Text", t.Render(), [])],
+        Hl7Doc h => h.Tree(),
+        JsonDoc j => j.Tree(),
+        DicomDoc d => d.Tree(),
+        XmlDoc x => x.Tree(),
+        X12Doc e => e.Tree(),
+        var t => [new DocNode("text", "Text", t.Render(), [])],
     };
 
     public static IMessageDoc Empty(MessageFormat format) => format switch
@@ -454,42 +459,42 @@ public static class MappingEngine
             case RuleFunction.Default: return v.Length > 0 ? v : r.Argument ?? "";
             case RuleFunction.Join: return string.Join(r.Argument ?? " ", values.Where(x => x.Length > 0));
             case RuleFunction.Split:
-            {
-                var (sep, idx) = SplitArg(r.Argument);
-                var parts = v.Split(sep);
-                return idx >= 1 && idx <= parts.Length ? parts[idx - 1].Trim() : "";
-            }
-            case RuleFunction.Substring:
-            {
-                var a = (r.Argument ?? "0").Split(',');
-                var start = Math.Max(0, int.TryParse(a[0], out var s) ? s : 0);
-                if (start >= v.Length) return "";
-                var len = a.Length > 1 && int.TryParse(a[1], out var l) ? Math.Min(l, v.Length - start) : v.Length - start;
-                return v.Substring(start, len);
-            }
-            case RuleFunction.Date:
-            {
-                if (v.Length == 0) return "";
-                var a = (r.Argument ?? "").Split('>', 2);
-                if (a.Length != 2) throw new MappingException("Date needs \"from>to\" formats, e.g. yyyyMMdd>yyyy-MM-dd.");
-                var from = a[0].Trim();
-                var input = v.Length > from.Length ? v[..from.Length] : v;
-                if (!DateTime.TryParseExact(input, from, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
-                    throw new MappingException($"\"{v}\" does not match the date format {from}.");
-                return d.ToString(a[1].Trim(), CultureInfo.InvariantCulture);
-            }
-            case RuleFunction.Translate:
-            {
-                if (r.TranslationTableId is not { } tid || !tables.TryGetValue(tid, out var t)) throw new MappingException("Choose a translation table.");
-                if (t.Codes.TryGetValue(v, out var to)) return to;
-                switch (t.WhenMissing)
                 {
-                    case MissingCode.PassThrough: if (v.Length > 0) warnings.Add($"\"{v}\" is not in {t.Name} – passed through unchanged."); return v;
-                    case MissingCode.Blank: if (v.Length > 0) warnings.Add($"\"{v}\" is not in {t.Name} – left blank."); return "";
-                    case MissingCode.UseDefault: if (v.Length > 0) warnings.Add($"\"{v}\" is not in {t.Name} – default used."); return t.DefaultValue ?? "";
-                    default: throw new MappingException($"\"{v}\" is not in the translation table {t.Name}.");
+                    var (sep, idx) = SplitArg(r.Argument);
+                    var parts = v.Split(sep);
+                    return idx >= 1 && idx <= parts.Length ? parts[idx - 1].Trim() : "";
                 }
-            }
+            case RuleFunction.Substring:
+                {
+                    var a = (r.Argument ?? "0").Split(',');
+                    var start = Math.Max(0, int.TryParse(a[0], out var s) ? s : 0);
+                    if (start >= v.Length) return "";
+                    var len = a.Length > 1 && int.TryParse(a[1], out var l) ? Math.Min(l, v.Length - start) : v.Length - start;
+                    return v.Substring(start, len);
+                }
+            case RuleFunction.Date:
+                {
+                    if (v.Length == 0) return "";
+                    var a = (r.Argument ?? "").Split('>', 2);
+                    if (a.Length != 2) throw new MappingException("Date needs \"from>to\" formats, e.g. yyyyMMdd>yyyy-MM-dd.");
+                    var from = a[0].Trim();
+                    var input = v.Length > from.Length ? v[..from.Length] : v;
+                    if (!DateTime.TryParseExact(input, from, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                        throw new MappingException($"\"{v}\" does not match the date format {from}.");
+                    return d.ToString(a[1].Trim(), CultureInfo.InvariantCulture);
+                }
+            case RuleFunction.Translate:
+                {
+                    if (r.TranslationTableId is not { } tid || !tables.TryGetValue(tid, out var t)) throw new MappingException("Choose a translation table.");
+                    if (t.Codes.TryGetValue(v, out var to)) return to;
+                    switch (t.WhenMissing)
+                    {
+                        case MissingCode.PassThrough: if (v.Length > 0) warnings.Add($"\"{v}\" is not in {t.Name} – passed through unchanged."); return v;
+                        case MissingCode.Blank: if (v.Length > 0) warnings.Add($"\"{v}\" is not in {t.Name} – left blank."); return "";
+                        case MissingCode.UseDefault: if (v.Length > 0) warnings.Add($"\"{v}\" is not in {t.Name} – default used."); return t.DefaultValue ?? "";
+                        default: throw new MappingException($"\"{v}\" is not in the translation table {t.Name}.");
+                    }
+                }
             default: return v;
         }
     }
@@ -518,8 +523,10 @@ public static class MappingEngine
 
     private static string Describe(ConditionOperator op, string? v) => op switch
     {
-        ConditionOperator.IsEmpty => "empty", ConditionOperator.NotEmpty => "a value",
-        ConditionOperator.In => $"one of {v}", _ => $"{op.ToString().ToLowerInvariant()} \"{v}\"",
+        ConditionOperator.IsEmpty => "empty",
+        ConditionOperator.NotEmpty => "a value",
+        ConditionOperator.In => $"one of {v}",
+        _ => $"{op.ToString().ToLowerInvariant()} \"{v}\"",
     };
 
     /// <summary>Checks a path for the format before it is saved.</summary>
@@ -539,10 +546,25 @@ public static class Hl7Fields
 {
     private static readonly Dictionary<string, string> Segments = new()
     {
-        ["MSH"] = "Message header", ["EVN"] = "Event", ["PID"] = "Patient identification", ["PD1"] = "Additional demographics", ["NK1"] = "Next of kin",
-        ["PV1"] = "Patient visit", ["PV2"] = "Visit – additional", ["AL1"] = "Allergy", ["ORC"] = "Common order", ["OBR"] = "Observation request",
-        ["OBX"] = "Observation / result", ["NTE"] = "Notes and comments", ["MSA"] = "Message acknowledgement", ["ERR"] = "Error", ["RF1"] = "Referral information",
-        ["PRD"] = "Provider data", ["SCH"] = "Schedule activity", ["AIS"] = "Appointment – service", ["ZDS"] = "Additional data (local)",
+        ["MSH"] = "Message header",
+        ["EVN"] = "Event",
+        ["PID"] = "Patient identification",
+        ["PD1"] = "Additional demographics",
+        ["NK1"] = "Next of kin",
+        ["PV1"] = "Patient visit",
+        ["PV2"] = "Visit – additional",
+        ["AL1"] = "Allergy",
+        ["ORC"] = "Common order",
+        ["OBR"] = "Observation request",
+        ["OBX"] = "Observation / result",
+        ["NTE"] = "Notes and comments",
+        ["MSA"] = "Message acknowledgement",
+        ["ERR"] = "Error",
+        ["RF1"] = "Referral information",
+        ["PRD"] = "Provider data",
+        ["SCH"] = "Schedule activity",
+        ["AIS"] = "Appointment – service",
+        ["ZDS"] = "Additional data (local)",
     };
 
     private static readonly Dictionary<string, string[]> Fields = new()

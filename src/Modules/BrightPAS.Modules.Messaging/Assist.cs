@@ -140,8 +140,14 @@ public static class Explainer
         if (text.Contains("refused") || text.Contains("actively refused")) Add("error", "The other system refused the connection", $"Nothing is listening at {i.Host}:{i.Port}, or a firewall blocks it. Check the receiving system is running, the host and port are right, and the firewall allows BrightPAS's server. Retries continue automatically.");
         if (text.Contains("timed out") || text.Contains("timeout") || text.Contains("task was canceled")) Add("error", "No answer in time", "The other system did not reply within 30 seconds. It may be busy or offline, or a firewall drops the traffic. Retries continue automatically; if it keeps happening, contact the other system's support.");
         if (text.Contains("no such host") || text.Contains("name or service not known") || text.Contains("nodename nor servname")) Add("error", "Server name not found", "The host name does not resolve. Check the spelling or use the IP address, and check the server's DNS settings.");
-        if (m.AckCode is "AR" or "CR") Add("error", "The receiver rejected the message (AR)", "The other system read the message but will not accept it – usually a missing or wrong field. Read its reason above, fix the mapping, then resend.");
-        if (m.AckCode is "AE" or "CE") Add("error", "The receiver had an error (AE)", "The other system accepted the connection but could not process the message. Read its reason; it may be their problem (contact them) or a field we send.");
+        // For a message that came in, the acknowledgement is BrightPAS's own answer to the sender – the advice is different.
+        var inbound = m.Direction == "Inbound";
+        if (m.AckCode is "AR" or "CR") Add("error", inbound ? "BrightPAS refused this message (AR)" : "The receiver rejected the message (AR)", inbound
+            ? "BrightPAS read the message and told the sender it will not accept it – the reason is shown above. Nothing from it was filed. Have it corrected in the sending system and sent again."
+            : "The other system read the message but will not accept it – usually a missing or wrong field. Read its reason above, fix the mapping, then resend.");
+        if (m.AckCode is "AE" or "CE") Add("error", inbound ? "BrightPAS could not process this message (AE)" : "The receiver had an error (AE)", inbound
+            ? "BrightPAS accepted the connection but could not process the message – the reason is shown above. The sender has been told and will usually send it again."
+            : "The other system accepted the connection but could not process the message. Read its reason; it may be their problem (contact them) or a field we send.");
         if (text.Contains("http 401") || text.Contains("http 403")) Add("error", "Not authorised by the web service", "The key or token in the interface's Authorization setting is wrong, expired or lacks permission. Ask the partner for a new one and update the interface.");
         if (text.Contains("http 404")) Add("error", "Web address not found", "The URL is wrong or the partner moved the endpoint. Check the address in the interface.");
         if (Regex.IsMatch(text, @"http 5\d\d")) Add("warning", "The partner's web service had an error", "This is on their side. BrightPAS retries automatically; tell the partner if it continues.");

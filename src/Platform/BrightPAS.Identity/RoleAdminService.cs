@@ -38,6 +38,8 @@ public sealed class RoleAdminService(RoleManager<PasRole> roles, UserManager<Pas
         [Permissions.ScribeUse] = ("Scribe", "Use AI dictation and the ambient scribe (drafts only – the clinician signs)"),
         [Permissions.ScribeApprove] = ("Scribe", "Approve scribe templates for clinical use (clinical governance)"),
         [Permissions.ScribeManage] = ("Scribe", "Scribe settings (engines, Medow, retention), custom dictionary and templates"),
+        [Permissions.DevicesUse] = ("Devices", "Connect patients to bedside monitors, validate monitor readings into the chart, see the SaferSleep anaesthetic record"),
+        [Permissions.DevicesManage] = ("Devices", "Monitor register, chart intervals, SaferSleep interface settings, filing unmatched anaesthetic records"),
         [Permissions.EndoManage] = ("Endoscopy", "Endoscopy settings, tower connection, patient report wording, quality targets; delete media"),
         [Permissions.AssetsView] = ("Assets & CSSD", "See equipment, trays, loads, scopes and stock"),
         [Permissions.AssetsManage] = ("Assets & CSSD", "Equipment register, maintenance, lockout, tray catalogue, suppliers"),

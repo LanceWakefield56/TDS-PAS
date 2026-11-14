@@ -498,6 +498,10 @@ namespace BrightPAS.Modules.Emr.Migrations
                     b.Property<Guid>("EpisodeId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ExternalRef")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTimeOffset>("GivenAt")
                         .HasColumnType("datetimeoffset");
 
@@ -520,6 +524,13 @@ namespace BrightPAS.Modules.Emr.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Manual");
+
                     b.Property<string>("WitnessedBy")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -527,6 +538,8 @@ namespace BrightPAS.Modules.Emr.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ControlledDrugId");
+
+                    b.HasIndex("ExternalRef");
 
                     b.HasIndex("EpisodeId", "GivenAt");
 

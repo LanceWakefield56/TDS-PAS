@@ -57,13 +57,26 @@ public sealed class LabService(LabsDbContext db, PatientsDbContext patients, Aud
                 case "OBR":
                     current = new LabReport
                     {
-                        MessageId = stored.Id, PatientId = patientId, MatchStatus = patientId is null ? LabMatchStatus.Unmatched : LabMatchStatus.Matched, MatchNote = note,
-                        PatientNhi = nhi, PatientMrn = mrn, PatientFamilyName = Clip(family, 100), PatientGivenNames = Clip(given, 150), PatientDateOfBirth = dob,
-                        Laboratory = facility, PlacerOrderNumber = Clip(seg.Get(2, 1), 50), AccessionNumber = Clip(seg.Get(3, 1), 50),
-                        TestCode = Clip(seg.Get(4, 1), 50), TestName = Clip(Coalesce(seg.Get(4, 2), seg.Get(4, 1), "Result"), 200),
-                        RequestedBy = Clip(Name(seg.Get(16, 6), seg.Get(16, 3), seg.Get(16, 2)), 150), RequestedByCode = Clip(seg.Get(16, 1), 30),
-                        CollectedAt = Hl7Message.ParseTimestamp(seg.Get(7, 1), Nz), ReportedAt = Hl7Message.ParseTimestamp(seg.Get(22, 1), Nz),
-                        ResultStatus = Status(seg.Get(25)), ReceivedAt = now
+                        MessageId = stored.Id,
+                        PatientId = patientId,
+                        MatchStatus = patientId is null ? LabMatchStatus.Unmatched : LabMatchStatus.Matched,
+                        MatchNote = note,
+                        PatientNhi = nhi,
+                        PatientMrn = mrn,
+                        PatientFamilyName = Clip(family, 100),
+                        PatientGivenNames = Clip(given, 150),
+                        PatientDateOfBirth = dob,
+                        Laboratory = facility,
+                        PlacerOrderNumber = Clip(seg.Get(2, 1), 50),
+                        AccessionNumber = Clip(seg.Get(3, 1), 50),
+                        TestCode = Clip(seg.Get(4, 1), 50),
+                        TestName = Clip(Coalesce(seg.Get(4, 2), seg.Get(4, 1), "Result"), 200),
+                        RequestedBy = Clip(Name(seg.Get(16, 6), seg.Get(16, 3), seg.Get(16, 2)), 150),
+                        RequestedByCode = Clip(seg.Get(16, 1), 30),
+                        CollectedAt = Hl7Message.ParseTimestamp(seg.Get(7, 1), Nz),
+                        ReportedAt = Hl7Message.ParseTimestamp(seg.Get(22, 1), Nz),
+                        ResultStatus = Status(seg.Get(25)),
+                        ReceivedAt = now
                     };
                     reports.Add(current);
                     lastObs = null;
@@ -74,9 +87,14 @@ public sealed class LabService(LabsDbContext db, PatientsDbContext patients, Aud
                     if (seg.Get(2) is "CE" or "CWE") value = Coalesce(seg.Get(5, 2), seg.Get(5, 1));
                     lastObs = new LabObservation
                     {
-                        Sequence = current.Observations.Count + 1, ValueType = Clip(seg.Get(2), 5),
-                        Code = Clip(seg.Get(3, 1), 50), Name = Clip(Coalesce(seg.Get(3, 2), seg.Get(3, 1)), 200),
-                        Value = Clip(value, 4000), Units = Clip(Coalesce(seg.Get(6, 1)), 50), ReferenceRange = Clip(seg.Get(7), 60), Flag = Clip(seg.Get(8, 1), 5)
+                        Sequence = current.Observations.Count + 1,
+                        ValueType = Clip(seg.Get(2), 5),
+                        Code = Clip(seg.Get(3, 1), 50),
+                        Name = Clip(Coalesce(seg.Get(3, 2), seg.Get(3, 1)), 200),
+                        Value = Clip(value, 4000),
+                        Units = Clip(Coalesce(seg.Get(6, 1)), 50),
+                        ReferenceRange = Clip(seg.Get(7), 60),
+                        Flag = Clip(seg.Get(8, 1), 5)
                     };
                     current.Observations.Add(lastObs);
                     break;
@@ -119,9 +137,14 @@ public sealed class LabService(LabsDbContext db, PatientsDbContext patients, Aud
     {
         var m = new LabMessage
         {
-            ReceivedAt = clock.GetUtcNow(), Source = Clip(source, 20), Raw = raw.Length > MaxMessageLength ? raw[..MaxMessageLength] : raw, Outcome = outcome,
-            Error = error is null ? null : Clip(error, 1000), ReceivedBy = Clip(by, 100),
-            ControlId = msg is null ? null : Clip(msg.ControlId, 50), MessageType = msg is null ? null : Clip(msg.MessageType, 20),
+            ReceivedAt = clock.GetUtcNow(),
+            Source = Clip(source, 20),
+            Raw = raw.Length > MaxMessageLength ? raw[..MaxMessageLength] : raw,
+            Outcome = outcome,
+            Error = error is null ? null : Clip(error, 1000),
+            ReceivedBy = Clip(by, 100),
+            ControlId = msg is null ? null : Clip(msg.ControlId, 50),
+            MessageType = msg is null ? null : Clip(msg.MessageType, 20),
             SendingFacility = msg is null ? null : Clip(msg.SendingFacility.Length > 0 ? msg.SendingFacility : msg.SendingApplication, 100)
         };
         db.Messages.Add(m);
@@ -253,7 +276,11 @@ public sealed class LabService(LabsDbContext db, PatientsDbContext patients, Aud
 
     private static LabResultStatus Status(string s) => s switch
     {
-        "F" => LabResultStatus.Final, "C" => LabResultStatus.Corrected, "X" => LabResultStatus.Cancelled, "A" => LabResultStatus.Partial, _ => LabResultStatus.Preliminary
+        "F" => LabResultStatus.Final,
+        "C" => LabResultStatus.Corrected,
+        "X" => LabResultStatus.Cancelled,
+        "A" => LabResultStatus.Partial,
+        _ => LabResultStatus.Preliminary
     };
     private static string Name(string prefix, string given, string family) => string.Join(' ', new[] { prefix, given, family }.Where(x => x.Length > 0));
     private static string Coalesce(params string[] v) => v.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "";

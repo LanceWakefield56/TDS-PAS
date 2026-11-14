@@ -6,6 +6,17 @@ VERSION=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)
 OUT=$(realpath -m "${1:-artifacts/$VERSION}")
 rm -rf "$OUT" && mkdir -p "$OUT"
 
+echo "== Source style"
+dotnet restore BrightPAS.slnx --nologo -v q
+dotnet format whitespace BrightPAS.slnx --verify-no-changes --no-restore >/dev/null || { echo "Release stopped: run dotnet format whitespace BrightPAS.slnx" >&2; exit 1; }
+
+echo "== Dependency check (known vulnerabilities fail the release)"
+dotnet restore BrightPAS.slnx --nologo -v q
+if dotnet list BrightPAS.slnx package --vulnerable --include-transitive 2>&1 | grep -q "has the following vulnerable packages"; then
+  dotnet list BrightPAS.slnx package --vulnerable --include-transitive; echo "Release stopped: update the vulnerable NuGet packages above." >&2; exit 1
+fi
+(cd src/Platform/BrightPAS.Web/ClientApp && npm ci --silent && npm audit --omit=dev --audit-level=moderate) || { echo "Release stopped: npm audit found vulnerable packages." >&2; exit 1; }
+
 echo "== UI"
 (cd src/Platform/BrightPAS.Web/ClientApp && npm ci --silent && npm run build --silent)
 

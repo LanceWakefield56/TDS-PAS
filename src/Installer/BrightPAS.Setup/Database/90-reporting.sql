@@ -100,6 +100,17 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_scribe_Sessions_Note', N'[scribe]
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_scribe_Sessions_Document', N'[scribe].[Sessions]', N'DocumentId', N'[patients].[Documents]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_scribe_Consents_Patient', N'[scribe].[Consents]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_assets_LoanSets_Booking', N'[assets].[LoanSets]', N'BookingId', N'[theatre].[Bookings]';
+-- Devices & SaferSleep (0.17.0)
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_devices_Monitors_Equipment', N'[devices].[Monitors]', N'EquipmentId', N'[assets].[Equipment]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_devices_Associations_Episode', N'[devices].[Associations]', N'EpisodeId', N'[emr].[Episodes]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_devices_Associations_Patient', N'[devices].[Associations]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_devices_Captures_Episode', N'[devices].[Captures]', N'EpisodeId', N'[emr].[Episodes]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_devices_Captures_Observation', N'[devices].[Captures]', N'ObservationId', N'[emr].[Observations]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_devices_AnaestheticRecords_Episode', N'[devices].[AnaestheticRecords]', N'EpisodeId', N'[emr].[Episodes]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_devices_AnaestheticRecords_Patient', N'[devices].[AnaestheticRecords]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_devices_AnaestheticRecords_Document', N'[devices].[AnaestheticRecords]', N'DocumentId', N'[patients].[Documents]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_devices_AnaestheticRecords_Note', N'[devices].[AnaestheticRecords]', N'NoteId', N'[emr].[Notes]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_devices_AdtSends_Episode', N'[devices].[AdtSends]', N'EpisodeId', N'[emr].[Episodes]';
 GO
 
 -- ---------------------------------------------------------------------------------------------------------------
@@ -247,6 +258,18 @@ CREATE OR ALTER VIEW [reporting].[vScribeSession] AS
 SELECT s.Id AS SessionId, s.PatientId, s.BookingId, s.Context, s.Provider, s.Status, s.Clinician, s.CreatedAt, s.SignedAt, s.DurationSeconds, s.SpeechEngine, s.DraftEngine,
        s.DeIdentified, s.EditPercent, CASE WHEN s.ConsentId IS NULL THEN 0 ELSE 1 END AS ConsentLinked, s.AudioDeletedAt, t.Code AS TemplateCode, s.TemplateVersion
 FROM [scribe].[Sessions] s JOIN [scribe].[Templates] t ON t.Id = s.TemplateId;
+GO
+-- Monitor readings offered to the chart and what nurses did with them (validation rate, artefact reasons).
+CREATE OR ALTER VIEW [reporting].[vDeviceCapture] AS
+SELECT c.Id AS CaptureId, e.PatientId, c.EpisodeId, m.Code AS MonitorCode, q.AssetNumber, q.Model, c.At, c.HeartRate, c.SpO2, c.SystolicBp, c.DiastolicBp, c.RespiratoryRate, c.TemperatureC, c.EtCo2,
+       c.Status, c.DecidedBy, c.DecidedAt, DATEDIFF(minute, c.At, c.DecidedAt) AS MinutesToDecide, c.RejectReason, c.ObservationId
+FROM [devices].[Captures] c JOIN [devices].[Monitors] m ON m.Id = c.MonitorId JOIN [assets].[Equipment] q ON q.Id = m.EquipmentId JOIN [emr].[Episodes] e ON e.Id = c.EpisodeId;
+GO
+-- Drugs from current (not superseded) SaferSleep anaesthetic records.
+CREATE OR ALTER VIEW [reporting].[vAnaestheticDrug] AS
+SELECT d.Id AS DrugId, r.PatientId, r.EpisodeId, r.CaseNumber, r.Anaesthetist, d.[At], d.[Name], d.Dose, d.Unit, d.Route, d.Rate, d.Code
+FROM [devices].[AnaestheticDrugs] d JOIN [devices].[AnaestheticRecords] r ON r.Id = d.RecordId
+WHERE r.SupersededById IS NULL;
 GO
 CREATE OR ALTER VIEW [reporting].[vAuditDaily] AS
 SELECT CAST(a.[OccurredAt] AS date) AS [Day], a.[Action], a.[EntityType], COUNT_BIG(*) AS Events, COUNT(DISTINCT a.[UserId]) AS Users

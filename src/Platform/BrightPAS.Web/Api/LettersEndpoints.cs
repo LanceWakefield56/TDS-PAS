@@ -29,9 +29,32 @@ public static class LettersEndpoints
             var practice = practices.FirstOrDefault(p => p.Id == l.GpPracticeId);
             return Results.Ok(new
             {
-                l.Id, l.Number, l.PatientId, kind = l.Kind.ToString(), recipient = l.Recipient.ToString(), l.RecipientName, l.RecipientAddress, l.Subject, l.Body,
-                status = l.Status.ToString(), channel = l.Channel.ToString(), l.PrintCount, l.MessageControlId, l.AckCode, l.AckText, l.AckAt, l.VoidReason,
-                l.CreatedAt, l.CreatedBy, l.Author, l.FinalisedAt, l.FinalisedBy, l.SentAt, l.SentBy, l.BookingId, l.ReferralId,
+                l.Id,
+                l.Number,
+                l.PatientId,
+                kind = l.Kind.ToString(),
+                recipient = l.Recipient.ToString(),
+                l.RecipientName,
+                l.RecipientAddress,
+                l.Subject,
+                l.Body,
+                status = l.Status.ToString(),
+                channel = l.Channel.ToString(),
+                l.PrintCount,
+                l.MessageControlId,
+                l.AckCode,
+                l.AckText,
+                l.AckAt,
+                l.VoidReason,
+                l.CreatedAt,
+                l.CreatedBy,
+                l.Author,
+                l.FinalisedAt,
+                l.FinalisedBy,
+                l.SentAt,
+                l.SentBy,
+                l.BookingId,
+                l.ReferralId,
                 practice = practice is null ? null : new { practice.Name, practice.HealthLinkEdi, channel = practice.PreferredChannel.ToString() }
             });
         }).RequireAuthorization(Permissions.LettersView);

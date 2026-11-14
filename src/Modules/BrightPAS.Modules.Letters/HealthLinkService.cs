@@ -66,7 +66,7 @@ public sealed class HealthLinkService(LettersDbContext db, PatientsDbContext pat
             {
                 l.Status = LetterStatus.Failed; l.AckText = $"Could not write to the HealthLink outbox: {ex.Message}";
                 await db.SaveChangesAsync(ct);
-                await taps.RecordAllAsync(new(  "healthlink", false, "REF^I12", control, l.PatientId, message, false, l.AckText, l.Number, "Hl7v2"), ct);
+                await taps.RecordAllAsync(new("healthlink", false, "REF^I12", control, l.PatientId, message, false, l.AckText, l.Number, "Hl7v2"), ct);
                 await audit.WriteAsync(user, "SendFailed", "Letter", l.Id.ToString(), l.PatientId.ToString(), reason: $"{l.Number}: {ex.Message}", ct: ct);
                 return (false, l.AckText);
             }

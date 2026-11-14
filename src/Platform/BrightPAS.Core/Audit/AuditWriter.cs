@@ -23,9 +23,15 @@ public sealed class AuditWriter(PasDbContext db, TimeProvider clock)
                 {
                     // Millisecond precision: stored exactly by every supported database, so hashes re-verify after reload.
                     OccurredAt = TruncateToMilliseconds(clock.GetUtcNow()),
-                    UserId = Fit(userId, 100)!, Action = Fit(action, 50)!, EntityType = Fit(entityType, 100)!, EntityId = Fit(entityId, 100)!,
-                    PatientId = patientId, Reason = Fit(reason, 500), Workstation = Fit(workstation, 100),
-                    PreviousHash = string.Empty, Hash = string.Empty
+                    UserId = Fit(userId, 100)!,
+                    Action = Fit(action, 50)!,
+                    EntityType = Fit(entityType, 100)!,
+                    EntityId = Fit(entityId, 100)!,
+                    PatientId = patientId,
+                    Reason = Fit(reason, 500),
+                    Workstation = Fit(workstation, 100),
+                    PreviousHash = string.Empty,
+                    Hash = string.Empty
                 }, last);
                 db.AuditEvents.Add(e);
                 await db.SaveChangesAsync(token);

@@ -184,8 +184,15 @@ public sealed class EquipmentService(AssetsDbContext db, PasDbContext core, Audi
         if (errors.Count > 0) return (null, errors);
         var rec = new MaintenanceRecord
         {
-            EquipmentId = eq.Id, Kind = e.Kind, DoneOn = e.DoneOn, DoneBy = Clip(e.DoneBy, 100)!, Passed = e.Passed, TagNumber = Clip(e.TagNumber, 40), Notes = Clip(e.Notes, 1000),
-            RecordedBy = user, RecordedAt = clock.GetUtcNow(),
+            EquipmentId = eq.Id,
+            Kind = e.Kind,
+            DoneOn = e.DoneOn,
+            DoneBy = Clip(e.DoneBy, 100)!,
+            Passed = e.Passed,
+            TagNumber = Clip(e.TagNumber, 40),
+            Notes = Clip(e.Notes, 1000),
+            RecordedBy = user,
+            RecordedAt = clock.GetUtcNow(),
         };
         db.Maintenance.Add(rec);
         if (e.Passed && await db.Plans.SingleOrDefaultAsync(p => p.EquipmentId == eq.Id && p.Kind == e.Kind, ct) is { } plan && e.DoneOn.AddMonths(plan.IntervalMonths) > plan.NextDue)
@@ -201,8 +208,12 @@ public sealed class EquipmentService(AssetsDbContext db, PasDbContext core, Audi
 
     public static string Label(MaintenanceKind k) => k switch
     {
-        MaintenanceKind.Ppm => "planned maintenance", MaintenanceKind.Calibration => "calibration", MaintenanceKind.TestAndTag => "electrical test-and-tag",
-        MaintenanceKind.BiomedicalSafety => "biomedical safety check", MaintenanceKind.Validation => "validation", _ => "repair",
+        MaintenanceKind.Ppm => "planned maintenance",
+        MaintenanceKind.Calibration => "calibration",
+        MaintenanceKind.TestAndTag => "electrical test-and-tag",
+        MaintenanceKind.BiomedicalSafety => "biomedical safety check",
+        MaintenanceKind.Validation => "validation",
+        _ => "repair",
     };
 
     public async Task<IReadOnlyList<DueRow>> DueAsync(int days, CancellationToken ct = default)

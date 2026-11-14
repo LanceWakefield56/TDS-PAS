@@ -74,6 +74,7 @@ public static class Standards
         (["letter", "healthlink"], "Letters & documents"),
         (["roster", "shift", "leave", "payroll", "swap"], "Rostering"),
         (["credential"], "Credentialing"),
+        (["devices", "monitor", "safersleep", "anaesthetic record", "capture"], "Devices & SaferSleep"),
         (["scribe", "dictation", "transcri", "ai-assisted", "consent to ai"], "BrightPAS Scribe"),
         (["endoscopy", "polyp", "colonoscopy", "gastroscopy", "worklist"], "Endoscopy"),
         (["emr", "episode", "checklist", "controlled drug", "observation"], "Clinical record (eMR)"),
@@ -146,5 +147,8 @@ public static class ModuleSuites
              ("PUT", "api/endoscopy/settings", "{}")]),
         new("scribe", "BrightPAS Scribe", ["api/scribe/status", "api/scribe/sessions", "api/scribe/templates", $"api/scribe/sessions/{Guid.Empty}"],
             [("POST", "api/scribe/dictate", "{}"), ("POST", "api/scribe/sessions", "{}"), ("POST", $"api/scribe/sessions/{Guid.Empty}/sign", "{}"), ("PUT", "api/scribe/settings", "{}")]),
+        new("devices", "Devices & SaferSleep", ["api/devices/overview", $"api/devices/episodes/{Guid.Empty}", "api/devices/records"],
+            [("POST", $"api/devices/episodes/{Guid.Empty}/connect", "{}"), ("POST", $"api/devices/captures/{Guid.Empty}/validate", "{}"), ("POST", $"api/devices/records/{Guid.Empty}/file", "{}"),
+             ("PUT", "api/devices/settings", "{}")]),
     ];
 }

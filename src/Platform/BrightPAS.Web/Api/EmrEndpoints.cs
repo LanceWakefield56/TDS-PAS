@@ -50,8 +50,20 @@ public static class EmrEndpoints
                 var e = eps.GetValueOrDefault(b.Id);
                 return new
                 {
-                    bookingId = b.Id, b.PatientId, b.PatientName, b.Nhi, b.Mrn, b.Procedure, s.LocationName, start = b.PlannedStart, s.Surgeon, s.Anaesthetist, bookingStatus = b.Status,
-                    episodeId = e?.Id, stage = e?.Stage.ToString() ?? "NotStarted", ews = e is null ? null : lastObs.GetValueOrDefault(e.Id),
+                    bookingId = b.Id,
+                    b.PatientId,
+                    b.PatientName,
+                    b.Nhi,
+                    b.Mrn,
+                    b.Procedure,
+                    s.LocationName,
+                    start = b.PlannedStart,
+                    s.Surgeon,
+                    s.Anaesthetist,
+                    bookingStatus = b.Status,
+                    episodeId = e?.Id,
+                    stage = e?.Stage.ToString() ?? "NotStarted",
+                    ews = e is null ? null : lastObs.GetValueOrDefault(e.Id),
                     checks = e is null ? [] : checks.Where(c => c.EpisodeId == e.Id).Select(c => c.Phase.ToString()).ToList(),
                 };
             })).OrderBy(x => x.start));
@@ -159,9 +171,19 @@ public static class EmrEndpoints
         var svc = sp.GetRequiredService<EmrService>();
         var header = new
         {
-            bookingId = booking.Id, patientId = p.Id, name = $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}", p.Nhi, p.Mrn, p.DateOfBirth, sex = p.Sex.ToString(),
+            bookingId = booking.Id,
+            patientId = p.Id,
+            name = $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}",
+            p.Nhi,
+            p.Mrn,
+            p.DateOfBirth,
+            sex = p.Sex.ToString(),
             alerts = p.Alerts.Where(a => a.IsActive).Select(a => new { type = a.Type.ToString(), severity = a.Severity.ToString(), a.Description }),
-            booking.Procedure, laterality = booking.Laterality.ToString(), anaesthetic = booking.Anaesthetic.ToString(), date = session.Date, surgeon = clinicians.GetValueOrDefault(session.SurgeonId),
+            booking.Procedure,
+            laterality = booking.Laterality.ToString(),
+            anaesthetic = booking.Anaesthetic.ToString(),
+            date = session.Date,
+            surgeon = clinicians.GetValueOrDefault(session.SurgeonId),
             anaesthetist = session.AnaesthetistId is { } aid ? clinicians.GetValueOrDefault(aid) : null,
         };
         var checklist = EmrService.CheckItems.ToDictionary(k => k.Key.ToString(), k => new { items = k.Value.Select(i => new { key = i.Key, text = i.Text }), roles = EmrService.CheckRoles[k.Key] });
@@ -174,7 +196,8 @@ public static class EmrEndpoints
         var drugs = await db.ControlledDrugs.AsNoTracking().Where(d => d.IsActive).ToDictionaryAsync(d => d.Id);
         return new
         {
-            header, checklist,
+            header,
+            checklist,
             episode = new { e.Id, stage = e.Stage.ToString(), e.AdmittedAt, e.AdmittedBy, e.SedationOrAnaesthesia, e.EscortName, e.EscortPhone, e.OvernightCarer, e.EscortConfirmed, e.EscortOverrideReason, e.DischargedAt, e.DischargedBy, e.DischargeDestination, e.FollowUpCallOn },
             assessments = assessments.Select(a => new { a.Id, kind = a.Kind.ToString(), a.Score, a.Risk, a.Actions, a.RecordedBy, a.RecordedAt, answers = a.Answers.ToDictionary(x => x.Key, x => x.Value) }),
             checks = checks.Select(c => new { phase = c.Phase.ToString(), c.CompletedAt, c.LedBy, team = c.Team.Select(t => new { t.Role, t.Name }), c.Notes }),
@@ -184,7 +207,7 @@ public static class EmrEndpoints
             specimens = (await db.Specimens.AsNoTracking().Where(s => s.EpisodeId == id).OrderBy(s => s.Number).ToListAsync()).Select(s => new { s.Id, s.Number, s.Site, s.Test, s.Container, s.CollectedAt, s.CollectedBy, status = s.Status.ToString(), s.SentAt, s.SentBy, s.Courier, s.ReceivedAt }),
             observations = await db.Observations.AsNoTracking().Where(o => o.EpisodeId == id).OrderByDescending(o => o.At).Take(200).ToListAsync(),
             medications = (await db.Medications.AsNoTracking().Where(m => m.EpisodeId == id).OrderByDescending(m => m.GivenAt).ToListAsync())
-                .Select(m => new { m.Id, m.Medicine, m.Dose, m.Route, m.GivenAt, m.GivenBy, m.WitnessedBy, m.Barcode, m.Notes, controlled = m.ControlledDrugId is { } c && drugs.ContainsKey(c) }),
+                .Select(m => new { m.Id, m.Medicine, m.Dose, m.Route, m.GivenAt, m.GivenBy, m.WitnessedBy, m.Barcode, m.Notes, m.Source, controlled = m.ControlledDrugId is { } c && drugs.ContainsKey(c) }),
             fluids = new { entries = fluids, totalIn = fluids.Where(f => f.IsInput).Sum(f => f.Millilitres), totalOut = fluids.Where(f => !f.IsInput).Sum(f => f.Millilitres) },
             blood = await db.BloodUnits.AsNoTracking().Where(b => b.EpisodeId == id).OrderBy(b => b.ReceivedAt).ToListAsync(),
             notes = (await db.Notes.AsNoTracking().Where(n => n.EpisodeId == id).OrderByDescending(n => n.At).ToListAsync()).Select(n => new { n.Id, kind = n.Kind.ToString(), n.Text, n.Author, n.At, n.Signed, n.AmendsNoteId }),

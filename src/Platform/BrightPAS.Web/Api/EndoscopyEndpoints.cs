@@ -65,10 +65,24 @@ public static class EndoscopyEndpoints
 
         g.MapGet("/terminology", () => Results.Ok(new
         {
-            upperSites = UpperSites, lowerSites = LowerSites, upperIndications = UpperIndications, lowerIndications = LowerIndications,
+            upperSites = UpperSites,
+            lowerSites = LowerSites,
+            upperIndications = UpperIndications,
+            lowerIndications = LowerIndications,
             findings = FindingKinds.Select(f => new { f.Code, f.Label, f.Upper, f.Lower, f.GradeLabel, f.Grades }),
-            paris = Terminology.Paris, nice = Terminology.Nice, jnet = Terminology.Jnet, techniques = Techniques, resections = Resections, retrievals = Retrievals, completeness = Completeness,
-            histologies = Histologies, dysplasias = Dysplasias, tattooPositions = TattooPositions, interventions = InterventionKinds, biopsyPurposes = BiopsyPurposes, complications = Complications,
+            paris = Terminology.Paris,
+            nice = Terminology.Nice,
+            jnet = Terminology.Jnet,
+            techniques = Techniques,
+            resections = Resections,
+            retrievals = Retrievals,
+            completeness = Completeness,
+            histologies = Histologies,
+            dysplasias = Dysplasias,
+            tattooPositions = TattooPositions,
+            interventions = InterventionKinds,
+            biopsyPurposes = BiopsyPurposes,
+            complications = Complications,
         })).RequireAuthorization(Permissions.EndoView);
 
         // Today's endoscopy list (endoscopy/mixed sessions and any booking that reads as an endoscopy).
@@ -87,8 +101,20 @@ public static class EndoscopyEndpoints
                 var p = procs.GetValueOrDefault(x.b.Id);
                 return new
                 {
-                    bookingId = x.b.Id, x.b.PatientId, x.b.PatientName, x.b.Nhi, x.b.Mrn, x.b.Procedure, x.s.LocationName, start = x.b.PlannedStart, endoscopist = x.s.Surgeon, bookingStatus = x.b.Status,
-                    procedureId = p?.Id, kind = (p?.Kind ?? Guess(x.b.Procedure))?.ToString(), status = p?.Status.ToString() ?? "NotStarted", accession = p?.AccessionNumber,
+                    bookingId = x.b.Id,
+                    x.b.PatientId,
+                    x.b.PatientName,
+                    x.b.Nhi,
+                    x.b.Mrn,
+                    x.b.Procedure,
+                    x.s.LocationName,
+                    start = x.b.PlannedStart,
+                    endoscopist = x.s.Surgeon,
+                    bookingStatus = x.b.Status,
+                    procedureId = p?.Id,
+                    kind = (p?.Kind ?? Guess(x.b.Procedure))?.ToString(),
+                    status = p?.Status.ToString() ?? "NotStarted",
+                    accession = p?.AccessionNumber,
                     pictures = p is null ? 0 : counts.Where(c => c.ProcedureId == p.Id && c.Kind == MediaKind.Image).Sum(c => c.N),
                     videos = p is null ? 0 : counts.Where(c => c.ProcedureId == p.Id && c.Kind == MediaKind.Video).Sum(c => c.N),
                 };

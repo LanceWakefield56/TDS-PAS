@@ -47,8 +47,15 @@ public static class AssetsEndpoints
             var due = await eq.DueAsync(30);
             var low = await stock.ItemsAsync(null, true);
             var locked = (await eq.ListAsync(null, null, false)).Where(e => e.Status == "OutOfService").Select(e => new { e.Id, e.AssetNumber, e.Name, e.OutOfServiceReason }).ToList();
-            return Results.Ok(new { cssd = await cssd.DashboardAsync(), maintenanceOverdue = due.Count(d => d.State == "Overdue"), maintenanceDueSoon = due.Count(d => d.State == "DueSoon"),
-                lowStock = low.Count, lockedOut = locked, due = due.Take(10) });
+            return Results.Ok(new
+            {
+                cssd = await cssd.DashboardAsync(),
+                maintenanceOverdue = due.Count(d => d.State == "Overdue"),
+                maintenanceDueSoon = due.Count(d => d.State == "DueSoon"),
+                lowStock = low.Count,
+                lockedOut = locked,
+                due = due.Take(10)
+            });
         }).RequireAuthorization(Permissions.AssetsView);
 
         // ---------------------------------------------------------------- suppliers
@@ -310,11 +317,21 @@ public static class AssetsEndpoints
         var names = await PatientNamesAsync(sp, rows.Where(r => r.PatientId != null).Select(r => r.PatientId!.Value));
         var theatre = sp.GetRequiredService<TheatreDbContext>();
         var bookingIds = rows.Where(r => r.BookingId != null).Select(r => r.BookingId!.Value).Distinct().ToList();
-        var cases = await (from b in theatre.Bookings.AsNoTracking() join s in theatre.Sessions.AsNoTracking() on b.SessionId equals s.Id
-                           where bookingIds.Contains(b.Id) select new { b.Id, s.Date, b.Procedure }).ToDictionaryAsync(x => x.Id);
+        var cases = await (from b in theatre.Bookings.AsNoTracking()
+                           join s in theatre.Sessions.AsNoTracking() on b.SessionId equals s.Id
+                           where bookingIds.Contains(b.Id)
+                           select new { b.Id, s.Date, b.Procedure }).ToDictionaryAsync(x => x.Id);
         return rows.Select(r => (object)new
         {
-            r.Id, r.Barcode, r.Tray, r.LoadNumber, r.IssuedAt, r.IssuedBy, r.ReturnedAt, r.PatientId, r.BookingId,
+            r.Id,
+            r.Barcode,
+            r.Tray,
+            r.LoadNumber,
+            r.IssuedAt,
+            r.IssuedBy,
+            r.ReturnedAt,
+            r.PatientId,
+            r.BookingId,
             patient = r.PatientId is { } p ? names.GetValueOrDefault(p) : null,
             caseDate = r.BookingId is { } b && cases.TryGetValue(b, out var c) ? c.Date : (DateOnly?)null,
             procedure = r.BookingId is { } b2 && cases.TryGetValue(b2, out var c2) ? c2.Procedure : null,

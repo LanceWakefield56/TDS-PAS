@@ -34,8 +34,13 @@ public class PdfAndOcrTests
         Assert.True(t.PageCount >= 1);
         var pack = new Dictionary<string, object?>
         {
-            ["from"] = new { organisation = "TDS" }, ["patient"] = new { familyName = "Ngātai", givenNames = "Aroha", dateOfBirth = "1980-05-17", sex = "Female", nhi = "ZSC21TN", mrn = "TDS1", address = "", mobilePhone = "" },
-            ["alerts"] = new[] { new { type = "Allergy", severity = "Critical", description = "Penicillin" } }, ["bookings"] = Array.Empty<object>(), ["preAdmission"] = null, ["labs"] = Array.Empty<object>(), ["gp"] = null,
+            ["from"] = new { organisation = "TDS" },
+            ["patient"] = new { familyName = "Ngātai", givenNames = "Aroha", dateOfBirth = "1980-05-17", sex = "Female", nhi = "ZSC21TN", mrn = "TDS1", address = "", mobilePhone = "" },
+            ["alerts"] = new[] { new { type = "Allergy", severity = "Critical", description = "Penicillin" } },
+            ["bookings"] = Array.Empty<object>(),
+            ["preAdmission"] = null,
+            ["labs"] = Array.Empty<object>(),
+            ["gp"] = null,
         };
         Assert.True(PdfReports.TransferPack(pack, null, "Transfer-Pack-26").Length > 1000);
     }

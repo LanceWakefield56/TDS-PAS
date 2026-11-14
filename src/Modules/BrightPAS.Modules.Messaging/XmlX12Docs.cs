@@ -242,10 +242,28 @@ public sealed partial class X12Doc : IMessageDoc
 
     private static readonly Dictionary<string, string> X12Names = new()
     {
-        ["ISA"] = "Interchange header", ["GS"] = "Functional group", ["ST"] = "Transaction set header", ["BHT"] = "Beginning of hierarchical transaction",
-        ["NM1"] = "Name", ["N3"] = "Address", ["N4"] = "City/state/postcode", ["REF"] = "Reference", ["HL"] = "Hierarchical level", ["SBR"] = "Subscriber",
-        ["DMG"] = "Demographics", ["CLM"] = "Claim", ["DTP"] = "Date/time", ["HI"] = "Diagnosis codes", ["LX"] = "Service line number", ["SV1"] = "Professional service",
-        ["SV2"] = "Institutional service", ["CLP"] = "Claim payment", ["SVC"] = "Service payment", ["SE"] = "Transaction set trailer", ["GE"] = "Group trailer", ["IEA"] = "Interchange trailer",
+        ["ISA"] = "Interchange header",
+        ["GS"] = "Functional group",
+        ["ST"] = "Transaction set header",
+        ["BHT"] = "Beginning of hierarchical transaction",
+        ["NM1"] = "Name",
+        ["N3"] = "Address",
+        ["N4"] = "City/state/postcode",
+        ["REF"] = "Reference",
+        ["HL"] = "Hierarchical level",
+        ["SBR"] = "Subscriber",
+        ["DMG"] = "Demographics",
+        ["CLM"] = "Claim",
+        ["DTP"] = "Date/time",
+        ["HI"] = "Diagnosis codes",
+        ["LX"] = "Service line number",
+        ["SV1"] = "Professional service",
+        ["SV2"] = "Institutional service",
+        ["CLP"] = "Claim payment",
+        ["SVC"] = "Service payment",
+        ["SE"] = "Transaction set trailer",
+        ["GE"] = "Group trailer",
+        ["IEA"] = "Interchange trailer",
     };
 
     public static IReadOnlyList<string> Validate(string text)

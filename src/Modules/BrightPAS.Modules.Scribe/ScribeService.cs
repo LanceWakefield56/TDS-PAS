@@ -216,8 +216,18 @@ public sealed class ScribeService(ScribeDbContext db, PatientsDbContext patients
         if (t is null) return (null, ["Choose a template."]);
         if (t.Status != TemplateStatus.Approved) return (null, ["That template is not approved for clinical use yet."]);
         var standing = await StandingConsentAsync(n.PatientId, ct);
-        var sess = new ScribeSession { PatientId = n.PatientId, BookingId = n.BookingId, Context = n.Context, TemplateId = t.Id, TemplateVersion = t.Version, Provider = s.Provider, Clinician = user,
-            ConsentId = standing is { Given: true } ? standing.Id : null, CreatedAt = clock.GetUtcNow() };
+        var sess = new ScribeSession
+        {
+            PatientId = n.PatientId,
+            BookingId = n.BookingId,
+            Context = n.Context,
+            TemplateId = t.Id,
+            TemplateVersion = t.Version,
+            Provider = s.Provider,
+            Clinician = user,
+            ConsentId = standing is { Given: true } ? standing.Id : null,
+            CreatedAt = clock.GetUtcNow()
+        };
         db.Sessions.Add(sess);
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Start", "ScribeSession", sess.Id.ToString(), n.PatientId.ToString(), reason: $"{s.Provider} {t.Code} {n.Context}", ct: ct);

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { api, errText, fileToBase64, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
 import { DocNode, Errors, errs, FORMAT_LABEL, FORMATS, MsgNav, StatusBadge, TRANSPORT_LABEL, TreeView } from '../components/MsgShared';
+const HANDLER_LABEL: Record<string, string> = { LabResults: 'Lab results', DeviceObservations: 'Bedside monitors', AnaesthesiaRecord: 'SaferSleep record' };
 
 function Head({ title, sub }: { title: string; sub?: string }) {
   return (<><div className="page-head"><h1>{title}</h1>{sub && <p className="muted">{sub}</p>}</div><MsgNav /></>);
@@ -99,7 +100,7 @@ export function MessagingInterfaces() {
               {Object.entries(TRANSPORT_LABEL).filter(([k]) => k !== 'Monitored').map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
             <label>Message format<select value={edit.format} onChange={(e) => setEdit({ ...edit, format: e.target.value })}>{FORMATS.map((f) => <option key={f} value={f}>{FORMAT_LABEL[f]}</option>)}</select></label>
             {edit.direction === 'Inbound' && <label>Hand to BrightPAS module<select value={edit.handler} onChange={(e) => setEdit({ ...edit, handler: e.target.value })}>
-              <option value="None">None – only run flows</option><option value="LabResults">Lab results inbox (HL7 ORU)</option></select></label>}
+              <option value="None">None – only run flows</option><option value="LabResults">Lab results inbox (HL7 ORU)</option><option value="DeviceObservations">Bedside monitors (HL7 ORU vital signs)</option><option value="AnaesthesiaRecord">SaferSleep anaesthetic record (HL7 ORU)</option></select></label>}
             {['MllpListen', 'DicomListen', 'MllpSend'].includes(edit.transport) && <label>Port<input type="number" value={edit.port ?? ''} onChange={(e) => setEdit({ ...edit, port: e.target.value })} /></label>}
             {edit.transport === 'MllpSend' && <label>Receiving system (host name or IP)<input value={edit.host ?? ''} onChange={(e) => setEdit({ ...edit, host: e.target.value })} /></label>}
             {edit.transport === 'DicomListen' && <label>BrightPAS AE title<input value={edit.aeTitle ?? ''} onChange={(e) => setEdit({ ...edit, aeTitle: e.target.value.toUpperCase() })} maxLength={16} /></label>}
@@ -149,7 +150,7 @@ export function MessagingInterfaces() {
             <tr key={i.id}><td data-label="Name"><strong>{i.name}</strong><div className="small muted">{i.code}</div></td>
               <td data-label="Connection" className="small">{TRANSPORT_LABEL[i.transport]}<div className="muted">{i.port ? `port ${i.port}` : ''}{i.host ? ` ${i.host}` : ''}{i.aeTitle ? ` AE ${i.aeTitle}` : ''}{i.folderPath ?? ''}{i.url ?? ''}{i.transport === 'HttpReceive' ? `/api/integration/in/${i.code}` : ''}</div>
                 {i.allowedClients.length > 0 && <div className="muted">{i.allowedClients.map((c: any) => c.aeTitle ? `${c.aeTitle}@${c.address}` : c.address).join(', ')}</div>}</td>
-              <td data-label="Format">{FORMAT_LABEL[i.format]}{i.handler !== 'None' && <div className="small muted">→ {i.handler === 'LabResults' ? 'Lab results' : i.handler}</div>}</td>
+              <td data-label="Format">{FORMAT_LABEL[i.format]}{i.handler !== 'None' && <div className="small muted">→ {HANDLER_LABEL[i.handler] ?? i.handler}</div>}</td>
               <td data-label="Status">{i.isActive ? <span className="badge ok">On</span> : <span className="badge off">Off</span>}</td>
               <td className="actions">{can(Perm.Integration) && i.transport !== 'Monitored' && <>
                 <button className="btn btn-link" onClick={() => setEdit({ ...i, secret: null })}>Change</button>
@@ -203,7 +204,7 @@ export function MessagingMessage() {
     <div className="stack-lg">
       <Head title={`${m.messageType ?? 'Message'} ${m.controlId ?? ''}`} sub={`${m.direction === 'Inbound' ? 'Received on' : 'Sent on'} ${m.interface} · ${nzDateTime(m.createdAt)} · ${m.sizeBytes.toLocaleString()} bytes`} />
       <div className="row"><StatusBadge status={m.status} />{m.nhi && <span>NHI {m.nhi}</span>}{m.patientId && <Link to={`/patients/${m.patientId}`}>Open patient</Link>}{m.reference && <span>Ref {m.reference}</span>}{m.ackCode && <span>ACK {m.ackCode} {m.ackText}</span>}</div>
-      {m.lastError && <p className="error">{m.lastError}</p>}
+      {m.lastError && <p className="finding error"><strong>Why: </strong>{m.lastError}</p>}
       <div className="split">
         <section className="card stack"><h2>What happened</h2>
           <ol className="timeline">{d.events.map((e: any) => <li key={e.id}><span className="small muted">{nzDateTime(e.at)}</span> <strong>{e.step}</strong>{e.detail && <div className="small">{e.detail}</div>}</li>)}</ol>

@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import { api, errText, formatDate, nzDateTime, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import DictateButton from '../components/DictateButton';
+import EpisodeDevices from '../components/EpisodeDevices';
 
 const STAGE: Record<string, string> = { PreAdmission: 'Pre-admission', Admitted: 'Admitted', InTheatre: 'In theatre', Recovery: 'Recovery', ReadyForDischarge: 'Ready for discharge', Discharged: 'Discharged', Transferred: 'Transferred to hospital' };
 const RISK: Record<string, string> = { Low: 'pill green', Moderate: 'pill', High: 'pill bad' };
@@ -15,7 +16,7 @@ type Ctx = { r: any; reload: () => Promise<void>; act: (fn: () => Promise<any>, 
 /** The clinical record of one theatre/procedure booking. */
 export default function EmrEpisode() {
   const { bookingId } = useParams();
-  const { can } = useSession();
+  const { can, mod } = useSession();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'admission';
   const [r, setR] = useState<any>(null);
@@ -33,6 +34,8 @@ export default function EmrEpisode() {
   const write = can(Perm.EmrWrite) && !!r.episode && !closed;
   const ctx: Ctx = { r, reload, act, write };
   const tabs: [string, string][] = [['admission', 'Admission & risk'], ['checklist', 'Safety checklist'], ['theatre', 'Theatre record'], ['counts', 'Counts & specimens'], ['obs', 'Observations'], ['meds', 'Medicines & fluids'], ['notes', 'Notes'], ['discharge', 'Discharge']];
+  const devices = mod('devices') && (can(Perm.DevicesUse) || can(Perm.DevicesManage)) && !!r.episode;
+  if (devices) tabs.splice(5, 0, ['devices', 'Monitor & anaesthesia']);
   return (
     <div className="stack-lg">
       <div className="patient-banner"><div><h1>{h.name}</h1><p>NHI {h.nhi ?? '—'} · {h.mrn} · born {formatDate(h.dateOfBirth)} · {h.sex}</p>
@@ -51,6 +54,7 @@ export default function EmrEpisode() {
         {tab === 'theatre' && <Theatre {...ctx} />}
         {tab === 'counts' && <Counts {...ctx} />}
         {tab === 'obs' && <Obs {...ctx} />}
+        {tab === 'devices' && devices && <EpisodeDevices episodeId={r.episode.id} reloadEpisode={reload} />}
         {tab === 'meds' && <Meds {...ctx} />}
         {tab === 'notes' && <Notes {...ctx} />}
         {tab === 'discharge' && <Discharge {...ctx} />}
@@ -228,7 +232,7 @@ function Meds({ r, act, write }: Ctx) {
         {m.controlledDrugId && <label>Witness<input value={m.witnessedBy} onChange={(e) => setM({ ...m, witnessedBy: e.target.value })} /></label>}
         <div><button className="btn btn-primary" onClick={async () => { if (await act(() => api(`/api/emr/episodes/${r.episode.id}/medications`, { body: { ...m, givenAt: iso(m.givenAt), barcode: m.barcode || null, controlledDrugId: m.controlledDrugId || null, witnessedBy: m.witnessedBy || null, notes: m.notes || null } }), 'Recorded.')) setM({ ...m, medicine: '', dose: '', barcode: '', controlledDrugId: '', witnessedBy: '' }); }}>Record given</button></div></div>}
       {r.medications.length > 0 && <table className="results compact"><thead><tr><th>Time</th><th>Medicine</th><th>Dose / route</th><th>By</th></tr></thead>
-        <tbody>{r.medications.map((x: any) => <tr key={x.id}><td>{nzDateTime(x.givenAt)}</td><td>{x.medicine}{x.controlled && <span className="pill">CD</span>}</td><td>{x.dose} {x.route}</td><td className="small">{x.givenBy}{x.witnessedBy && ` / ${x.witnessedBy}`}</td></tr>)}</tbody></table>}
+        <tbody>{r.medications.map((x: any) => <tr key={x.id}><td>{nzDateTime(x.givenAt)}</td><td>{x.medicine}{x.controlled && <span className="pill">CD</span>}{x.source && x.source !== 'Manual' && <span className="pill" title={x.notes ?? ''}>{x.source}</span>}</td><td>{x.dose} {x.route}</td><td className="small">{x.givenBy}{x.witnessedBy && ` / ${x.witnessedBy}`}</td></tr>)}</tbody></table>}
       <h2>Fluid balance</h2>
       <p>In {r.fluids.totalIn} ml · out {r.fluids.totalOut} ml · balance {r.fluids.totalIn - r.fluids.totalOut} ml</p>
       {write && <div className="card subtle row">

@@ -146,8 +146,14 @@ public sealed class MappingService(MsgDbContext db, AuditWriter audit, TimeProvi
         var m = db.Mappings.Add(new Mapping { Name = name, SourceFormat = e.SourceFormat, TargetFormat = e.TargetFormat, Description = Blank(e.Description), CreatedAt = now, CreatedBy = user }).Entity;
         db.Versions.Add(new MappingVersion
         {
-            MappingId = m.Id, Number = 1, StartFrom = e.SourceFormat == e.TargetFormat ? StartFrom.CopySource : StartFrom.Template,
-            SampleInput = SampleFor(e.SourceFormat), Template = e.SourceFormat == e.TargetFormat ? null : TemplateFor(e.TargetFormat), EditedBy = user, EditedAt = now, ChangeNote = "First version",
+            MappingId = m.Id,
+            Number = 1,
+            StartFrom = e.SourceFormat == e.TargetFormat ? StartFrom.CopySource : StartFrom.Template,
+            SampleInput = SampleFor(e.SourceFormat),
+            Template = e.SourceFormat == e.TargetFormat ? null : TemplateFor(e.TargetFormat),
+            EditedBy = user,
+            EditedAt = now,
+            ChangeNote = "First version",
         });
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Create", "Mapping", m.Id.ToString(), reason: $"{m.Name} ({m.SourceFormat} → {m.TargetFormat})", ct: ct);
@@ -221,9 +227,16 @@ public sealed class MappingService(MsgDbContext db, AuditWriter audit, TimeProvi
         var seq = 0;
         db.Rules.AddRange((e.Rules ?? []).Select(r => new MappingRule
         {
-            VersionId = v.Id, Sequence = ++seq, Target = r.Target.Trim(), Source = Blank(r.Source), Function = r.Function, Argument = r.Argument,
-            TranslationTableId = r.Function == RuleFunction.Translate ? r.TranslationTableId : null, ConditionSource = Blank(r.ConditionSource),
-            ConditionOperator = Blank(r.ConditionSource) is null ? null : r.ConditionOperator, ConditionValue = Blank(r.ConditionSource) is null ? null : r.ConditionValue,
+            VersionId = v.Id,
+            Sequence = ++seq,
+            Target = r.Target.Trim(),
+            Source = Blank(r.Source),
+            Function = r.Function,
+            Argument = r.Argument,
+            TranslationTableId = r.Function == RuleFunction.Translate ? r.TranslationTableId : null,
+            ConditionSource = Blank(r.ConditionSource),
+            ConditionOperator = Blank(r.ConditionSource) is null ? null : r.ConditionOperator,
+            ConditionValue = Blank(r.ConditionSource) is null ? null : r.ConditionValue,
         }));
         seq = 0;
         db.Filters.AddRange((e.Filters ?? []).Select(f => new FilterRule { VersionId = v.Id, Sequence = ++seq, Source = f.Source.Trim(), Operator = f.Operator, Value = f.Value }));
@@ -241,13 +254,27 @@ public sealed class MappingService(MsgDbContext db, AuditWriter audit, TimeProvi
         var number = await db.Versions.Where(v => v.MappingId == mappingId).MaxAsync(v => v.Number, ct) + 1;
         var nv = db.Versions.Add(new MappingVersion
         {
-            MappingId = mappingId, Number = number, StartFrom = from.StartFrom, Template = from.Template, SampleInput = from.SampleInput,
-            ChangeNote = $"Copied from v{from.Number}", EditedBy = user, EditedAt = clock.GetUtcNow(),
+            MappingId = mappingId,
+            Number = number,
+            StartFrom = from.StartFrom,
+            Template = from.Template,
+            SampleInput = from.SampleInput,
+            ChangeNote = $"Copied from v{from.Number}",
+            EditedBy = user,
+            EditedAt = clock.GetUtcNow(),
         }).Entity;
         db.Rules.AddRange((await db.Rules.AsNoTracking().Where(r => r.VersionId == from.Id).ToListAsync(ct)).Select(r => new MappingRule
         {
-            VersionId = nv.Id, Sequence = r.Sequence, Target = r.Target, Source = r.Source, Function = r.Function, Argument = r.Argument, TranslationTableId = r.TranslationTableId,
-            ConditionSource = r.ConditionSource, ConditionOperator = r.ConditionOperator, ConditionValue = r.ConditionValue,
+            VersionId = nv.Id,
+            Sequence = r.Sequence,
+            Target = r.Target,
+            Source = r.Source,
+            Function = r.Function,
+            Argument = r.Argument,
+            TranslationTableId = r.TranslationTableId,
+            ConditionSource = r.ConditionSource,
+            ConditionOperator = r.ConditionOperator,
+            ConditionValue = r.ConditionValue,
         }));
         db.Filters.AddRange((await db.Filters.AsNoTracking().Where(f => f.VersionId == from.Id).ToListAsync(ct)).Select(f => new FilterRule { VersionId = nv.Id, Sequence = f.Sequence, Source = f.Source, Operator = f.Operator, Value = f.Value }));
         await db.SaveChangesAsync(ct);
@@ -348,8 +375,15 @@ public sealed class MappingService(MsgDbContext db, AuditWriter audit, TimeProvi
         var seq = 0;
         var rules = (e.Rules ?? []).Select(r => new MappingRule
         {
-            Sequence = ++seq, Target = r.Target.Trim(), Source = Blank(r.Source), Function = r.Function, Argument = r.Argument, TranslationTableId = r.TranslationTableId,
-            ConditionSource = Blank(r.ConditionSource), ConditionOperator = r.ConditionOperator, ConditionValue = r.ConditionValue,
+            Sequence = ++seq,
+            Target = r.Target.Trim(),
+            Source = Blank(r.Source),
+            Function = r.Function,
+            Argument = r.Argument,
+            TranslationTableId = r.TranslationTableId,
+            ConditionSource = Blank(r.ConditionSource),
+            ConditionOperator = r.ConditionOperator,
+            ConditionValue = r.ConditionValue,
         }).ToList();
         seq = 0;
         var filters = (e.Filters ?? []).Select(f => new FilterRule { Sequence = ++seq, Source = f.Source.Trim(), Operator = f.Operator, Value = f.Value }).ToList();

@@ -140,8 +140,12 @@ public sealed class CredentialingService(CredDbContext db, PasDbContext core, Au
     public static readonly string[] Services = ["Surgical", "Endoscopy", "Anaesthesia"];
     public static string Label(CredentialType t) => t switch
     {
-        CredentialType.Apc => "Annual practising certificate", CredentialType.VocationalScope => "Vocational scope (MCNZ)", CredentialType.Indemnity => "Indemnity insurance",
-        CredentialType.CredentialingApproval => "TDS credentialing approval", CredentialType.Resuscitation => "Resuscitation (CPR/ACLS)", _ => "Other",
+        CredentialType.Apc => "Annual practising certificate",
+        CredentialType.VocationalScope => "Vocational scope (MCNZ)",
+        CredentialType.Indemnity => "Indemnity insurance",
+        CredentialType.CredentialingApproval => "TDS credentialing approval",
+        CredentialType.Resuscitation => "Resuscitation (CPR/ACLS)",
+        _ => "Other",
     };
 
     private DateOnly Today => DateOnly.FromDateTime(clock.GetLocalNow().DateTime);

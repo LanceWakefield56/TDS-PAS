@@ -47,8 +47,13 @@ public sealed class OutOfProcessOcrEngine(IConfiguration config, ILogger<OutOfPr
             if (DateTimeOffset.UtcNow < _pausedUntil) throw new InvalidOperationException(Problem ?? "Text recognition is paused after a problem.");
             var psi = new System.Diagnostics.ProcessStartInfo(DotnetHost())
             {
-                RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8, WorkingDirectory = AppContext.BaseDirectory,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                WorkingDirectory = AppContext.BaseDirectory,
             };
             psi.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "BrightPAS.Web.dll"));
             psi.ArgumentList.Add("--ocr-worker");

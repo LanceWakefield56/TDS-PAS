@@ -29,11 +29,15 @@ public sealed class OffboardingService(UserManager<PasUser> users, UserAdminServ
         var delegates = await portal.Delegates.AsNoTracking().CountAsync(d => d.UserName == u.UserName);
         return new
         {
-            u.Id, u.UserName, u.DisplayName, u.IsActive,
+            u.Id,
+            u.UserName,
+            u.DisplayName,
+            u.IsActive,
             roles = await users.GetRolesAsync(u),
             staff = staff.Select(s => new { s.Id, s.Name, s.IsActive }),
             futureShifts = shifts.Select(s => new { s.Id, s.Date, s.Start, s.End, s.AllDay, s.Area }),
-            clinicians, portalLinks = delegates,
+            clinicians,
+            portalLinks = delegates,
         };
     }
 

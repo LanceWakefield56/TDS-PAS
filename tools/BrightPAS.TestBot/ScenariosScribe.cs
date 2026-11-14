@@ -31,9 +31,21 @@ public sealed partial class Scenarios
             string? S(string n) => o.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
             _restore.Add(async () => await (await As("admin")).PutAsync("/api/scribe/settings", new
             {
-                provider = S("provider"), speech = S("speech"), speechUrl = S("speechUrl"), speechModel = S("speechModel"), speechKey = (string?)null, draft = S("draft"), draftUrl = S("draftUrl"), draftModel = S("draftModel"),
-                draftKey = (string?)null, cloudPrivacyReference = S("cloudPrivacyReference"), medowPiaReference = S("medowPiaReference"), medowSupplierAssessment = S("medowSupplierAssessment"),
-                medowAgreementReference = S("medowAgreementReference"), medowLaunchUrl = S("medowLaunchUrl"), audioRetentionDays = o.GetProperty("audioRetentionDays").GetInt32(),
+                provider = S("provider"),
+                speech = S("speech"),
+                speechUrl = S("speechUrl"),
+                speechModel = S("speechModel"),
+                speechKey = (string?)null,
+                draft = S("draft"),
+                draftUrl = S("draftUrl"),
+                draftModel = S("draftModel"),
+                draftKey = (string?)null,
+                cloudPrivacyReference = S("cloudPrivacyReference"),
+                medowPiaReference = S("medowPiaReference"),
+                medowSupplierAssessment = S("medowSupplierAssessment"),
+                medowAgreementReference = S("medowAgreementReference"),
+                medowLaunchUrl = S("medowLaunchUrl"),
+                audioRetentionDays = o.GetProperty("audioRetentionDays").GetInt32(),
             }));
         }
         var r = await admin.PutAsync("/api/scribe/settings", body);
@@ -43,10 +55,21 @@ public sealed partial class Scenarios
 
     private object OnSite(string draft = "OnSite", string provider = "BrightPas") => new
     {
-        provider, speech = "OnSite", speechUrl = sims.AiUrl, speechModel = "large-v3", speechKey = (string?)null, draft, draftUrl = sims.AiUrl, draftModel = draft == "CloudClaude" ? "claude-test" : "llama-test",
-        draftKey = draft == "CloudClaude" ? "robot-key" : null, cloudPrivacyReference = draft == "CloudClaude" ? "ROBOT-PIA-1" : null,
-        medowPiaReference = provider == "Medow" ? "PIA-MEDOW" : null, medowSupplierAssessment = provider == "Medow" ? "HISF-MEDOW" : null, medowAgreementReference = provider == "Medow" ? "DPA-MEDOW" : null,
-        medowLaunchUrl = provider == "Medow" ? "https://example.invalid/medow" : null, audioRetentionDays = 0,
+        provider,
+        speech = "OnSite",
+        speechUrl = sims.AiUrl,
+        speechModel = "large-v3",
+        speechKey = (string?)null,
+        draft,
+        draftUrl = sims.AiUrl,
+        draftModel = draft == "CloudClaude" ? "claude-test" : "llama-test",
+        draftKey = draft == "CloudClaude" ? "robot-key" : null,
+        cloudPrivacyReference = draft == "CloudClaude" ? "ROBOT-PIA-1" : null,
+        medowPiaReference = provider == "Medow" ? "PIA-MEDOW" : null,
+        medowSupplierAssessment = provider == "Medow" ? "HISF-MEDOW" : null,
+        medowAgreementReference = provider == "Medow" ? "DPA-MEDOW" : null,
+        medowLaunchUrl = provider == "Medow" ? "https://example.invalid/medow" : null,
+        audioRetentionDays = 0,
     };
 
     private async Task<(Outcome, string)> ScribeSessionAsync()
@@ -166,8 +189,11 @@ public sealed partial class Scenarios
             if (payload.Contains(_patient.Family, StringComparison.OrdinalIgnoreCase)) return (Outcome.Fail, "Surname included in the data for Medow.");
             var anon = await bot.Pw.APIRequest.NewContextAsync(new() { IgnoreHTTPSErrors = true });
             var bad = await anon.PostAsync($"{bot.O.Url}/api/scribe/inbound", new() { Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer wrong" }, DataObject = new { sessionId = id, text = "x" } });
-            var ok = await anon.PostAsync($"{bot.O.Url}/api/scribe/inbound", new() { Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer " + token },
-                DataObject = new { sessionId = id, text = "History\nVirtual Medow draft.\n\nPlan\nReview in clinic.", product = "Medow Health (virtual)" } });
+            var ok = await anon.PostAsync($"{bot.O.Url}/api/scribe/inbound", new()
+            {
+                Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer " + token },
+                DataObject = new { sessionId = id, text = "History\nVirtual Medow draft.\n\nPlan\nReview in clinic.", product = "Medow Health (virtual)" }
+            });
             await anon.DisposeAsync();
             if (bad.Status != 401) return (Outcome.Fail, $"A wrong token was not refused ({bad.Status}).");
             if (ok.Status != 200) return (Outcome.Fail, $"Medow draft refused ({ok.Status}): {await ok.TextAsync()}");

@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'devices'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -61,6 +61,7 @@ export default function Shell() {
           {mod('emr') && can(Perm.EmrView) && <NavLink to="/emr">Clinical record</NavLink>}
           {mod('endoscopy') && can(Perm.EndoView) && <NavLink to="/endoscopy">Endoscopy</NavLink>}
           {mod('scribe') && (can(Perm.ScribeUse) || can(Perm.ScribeManage) || can(Perm.ScribeApprove)) && <NavLink to="/scribe">Scribe</NavLink>}
+          {mod('devices') && (can(Perm.DevicesUse) || can(Perm.DevicesManage)) && <NavLink to="/devices">Monitors &amp; SaferSleep</NavLink>}
           {mod('assets') && can(Perm.AssetsView) && <NavLink to="/cssd">Sterile services (CSSD)</NavLink>}
           {mod('assets') && can(Perm.AssetsView) && <NavLink to="/assets">Assets &amp; equipment</NavLink>}
           {mod('assets') && can(Perm.AssetsView) && <NavLink to="/stock">Stock &amp; purchasing</NavLink>}

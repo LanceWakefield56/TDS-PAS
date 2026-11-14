@@ -80,6 +80,7 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         await Step("Virtual HealthLink", "Send a letter to a GP by HealthLink and get the acknowledgement", HealthLinkAsync);
         await EndoscopyGpStepsAsync();
         await Step("Virtual laboratory (MLLP)", "Laboratory sends a result over MLLP; it arrives in Lab results", LabAsync);
+        await DevicesStepsAsync();
         await Step("Exports", "Payroll export for Xero is encrypted, and the timesheet file is in the expected shape", PayrollAsync);
         await Step("Exports", "Letter as a password-protected PDF", PdfAsync);
     }
@@ -146,15 +147,34 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
 
     private static object Settings(JsonElement o, string sms, string email, string? modicaUrl, string? modicaApp, string? modicaPassword, string? smtpHost, int smtpPort, bool startTls, string? from,
         string? quietStart = null, string? quietEnd = null) => new
-    {
-        smsProvider = sms, emailProvider = email,
-        sendBookingConfirmation = o.GetProperty("sendBookingConfirmation").GetBoolean(), sendDayBeforeReminder = o.GetProperty("sendDayBeforeReminder").GetBoolean(),
-        sendEmailCopies = o.GetProperty("sendEmailCopies").GetBoolean(), dayBeforeHour = o.GetProperty("dayBeforeHour").GetInt32(), arrivalLeadMinutes = o.GetProperty("arrivalLeadMinutes").GetInt32(),
-        quietStart = quietStart ?? Str(o, "quietStart"), quietEnd = quietEnd ?? Str(o, "quietEnd"), clinicName = Str(o, "clinicName") ?? "Tasman Day Surgery", clinicPhone = Str(o, "clinicPhone"),
-        modicaBaseUrl = modicaUrl, modicaApplication = modicaApp, modicaPassword, modicaMask = Str(o, "modicaMask"),
-        genericUrl = Str(o, "genericUrl"), genericAuthHeader = Str(o, "genericAuthHeader"), genericAuthValue = (string?)null, genericBodyTemplate = Str(o, "genericBodyTemplate"),
-        smtpHost, smtpPort, smtpStartTls = startTls, smtpUser = (string?)null, smtpPassword = (string?)null, fromAddress = from ?? "reception@tds-demo.example.nz", fromName = Str(o, "fromName") ?? "Tasman Day Surgery",
-    };
+        {
+            smsProvider = sms,
+            emailProvider = email,
+            sendBookingConfirmation = o.GetProperty("sendBookingConfirmation").GetBoolean(),
+            sendDayBeforeReminder = o.GetProperty("sendDayBeforeReminder").GetBoolean(),
+            sendEmailCopies = o.GetProperty("sendEmailCopies").GetBoolean(),
+            dayBeforeHour = o.GetProperty("dayBeforeHour").GetInt32(),
+            arrivalLeadMinutes = o.GetProperty("arrivalLeadMinutes").GetInt32(),
+            quietStart = quietStart ?? Str(o, "quietStart"),
+            quietEnd = quietEnd ?? Str(o, "quietEnd"),
+            clinicName = Str(o, "clinicName") ?? "Tasman Day Surgery",
+            clinicPhone = Str(o, "clinicPhone"),
+            modicaBaseUrl = modicaUrl,
+            modicaApplication = modicaApp,
+            modicaPassword,
+            modicaMask = Str(o, "modicaMask"),
+            genericUrl = Str(o, "genericUrl"),
+            genericAuthHeader = Str(o, "genericAuthHeader"),
+            genericAuthValue = (string?)null,
+            genericBodyTemplate = Str(o, "genericBodyTemplate"),
+            smtpHost,
+            smtpPort,
+            smtpStartTls = startTls,
+            smtpUser = (string?)null,
+            smtpPassword = (string?)null,
+            fromAddress = from ?? "reception@tds-demo.example.nz",
+            fromName = Str(o, "fromName") ?? "Tasman Day Surgery",
+        };
 
     private const string TestPhone = "021 555 0101";
     private string? _testSmsId;
@@ -294,9 +314,18 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
 
     private static object PrinterBody(JsonElement p, bool? isDefault = null, bool? isActive = null) => new
     {
-        id = Str(p, "id"), name = Str(p, "name"), kind = Str(p, "kind"), host = Str(p, "host") ?? "", port = p.TryGetProperty("port", out var po) && po.ValueKind == JsonValueKind.Number ? po.GetInt32() : 9100,
-        dpi = p.TryGetProperty("dpi", out var d) && d.ValueKind == JsonValueKind.Number ? d.GetInt32() : 203, widthMm = p.GetProperty("widthMm").GetInt32(), lengthMm = p.GetProperty("lengthMm").GetInt32(),
-        isDefault = isDefault ?? p.GetProperty("isDefault").GetBoolean(), isActive = isActive ?? p.GetProperty("isActive").GetBoolean(), language = Str(p, "language") ?? "Zpl", mediaCode = Str(p, "mediaCode"),
+        id = Str(p, "id"),
+        name = Str(p, "name"),
+        kind = Str(p, "kind"),
+        host = Str(p, "host") ?? "",
+        port = p.TryGetProperty("port", out var po) && po.ValueKind == JsonValueKind.Number ? po.GetInt32() : 9100,
+        dpi = p.TryGetProperty("dpi", out var d) && d.ValueKind == JsonValueKind.Number ? d.GetInt32() : 203,
+        widthMm = p.GetProperty("widthMm").GetInt32(),
+        lengthMm = p.GetProperty("lengthMm").GetInt32(),
+        isDefault = isDefault ?? p.GetProperty("isDefault").GetBoolean(),
+        isActive = isActive ?? p.GetProperty("isActive").GetBoolean(),
+        language = Str(p, "language") ?? "Zpl",
+        mediaCode = Str(p, "mediaCode"),
     };
 
     /// <summary>Adds a virtual printer, or updates it if an earlier robot run left it switched off.</summary>
@@ -450,8 +479,19 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         var barcode = Str(tray, "barcode")!;
         var log = $"BELIMED WD 290 IQ\nBatch no.: 77{Random.Shared.Next(100, 999)}\nProgram: Instruments Standard\nStart: {DateTime.Now.AddMinutes(-60):dd.MM.yyyy HH:mm:ss}\nEnd: {DateTime.Now.AddMinutes(-5):dd.MM.yyyy HH:mm:ss}\nDisinfection temp: 93.2 °C\nHolding time: 05:00\nA0 value: 3010\nResult: Cycle OK\n";
         R.Device("Virtual washer (Belimed log)", "Cycle log produced by the virtual washer", log);
-        var imp = await s.PostAsync("/api/assets/cycles/import", new { machineId = Str(w, "id"), kind = "Wash", fileName = "WD290-virtual.log", text = log, trayBarcodes = new[] { barcode }, otherItems = Array.Empty<object>(),
-            chemicalIndicator = "NotUsed", biologicalIndicator = "NotUsed", bowieDickTest = false, startedAt = (string?)null });
+        var imp = await s.PostAsync("/api/assets/cycles/import", new
+        {
+            machineId = Str(w, "id"),
+            kind = "Wash",
+            fileName = "WD290-virtual.log",
+            text = log,
+            trayBarcodes = new[] { barcode },
+            otherItems = Array.Empty<object>(),
+            chemicalIndicator = "NotUsed",
+            biologicalIndicator = "NotUsed",
+            bowieDickTest = false,
+            startedAt = (string?)null
+        });
         if (imp.Status != 200) return (Outcome.Fail, $"Log import refused ({imp.Status}): {imp.Text}");
         var parsed = imp.Json!.Value.GetProperty("parsed");
         if (parsed.GetProperty("notes").GetArrayLength() > 0 || Str(parsed, "a0") != "3010") return (Outcome.Fail, $"The log was not read fully: {parsed}");

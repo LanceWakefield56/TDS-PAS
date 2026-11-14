@@ -337,8 +337,10 @@ internal static class Ui
             if (o.Check.Category != last) { Colour(ConsoleColor.White, $"\n{o.Check.Category}"); last = o.Check.Category; }
             Console.ForegroundColor = o.Result.Status switch
             {
-                CheckStatus.Pass => ConsoleColor.Green, CheckStatus.Warning => ConsoleColor.Yellow,
-                CheckStatus.Fail => ConsoleColor.Red, _ => ConsoleColor.DarkGray
+                CheckStatus.Pass => ConsoleColor.Green,
+                CheckStatus.Warning => ConsoleColor.Yellow,
+                CheckStatus.Fail => ConsoleColor.Red,
+                _ => ConsoleColor.DarkGray
             };
             Console.Write($"  [{CheckReport.Label(o.Result.Status)}] ");
             Console.ResetColor();

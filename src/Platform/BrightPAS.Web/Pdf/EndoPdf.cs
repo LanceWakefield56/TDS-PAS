@@ -23,8 +23,11 @@ public static class EndoPdf
 
     private static string SedationLabel(SedationKind s) => s switch
     {
-        SedationKind.None => "None", SedationKind.ThroatSpray => "Throat spray only", SedationKind.Conscious => "Conscious sedation",
-        SedationKind.Propofol => "Propofol (anaesthetist)", _ => "General anaesthetic",
+        SedationKind.None => "None",
+        SedationKind.ThroatSpray => "Throat spray only",
+        SedationKind.Conscious => "Conscious sedation",
+        SedationKind.Propofol => "Propofol (anaesthetist)",
+        _ => "General anaesthetic",
     };
 
     private static void Letterhead(Section sec, EndoReportData d, string title)

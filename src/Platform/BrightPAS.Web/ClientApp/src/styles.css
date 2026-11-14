@@ -389,3 +389,13 @@ tr.strong td { font-weight: 600; }
 .scribe-sentence.linked { cursor: pointer; }
 .scribe-sentence.linked:hover, .scribe-sentence.linked:focus { background: #E3F2FD; outline: none; }
 .endo-rec-inline { color: #c62828; font-weight: 600; }
+/* Devices & SaferSleep (0.17.0) */
+.device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+.live-values { display: flex; flex-wrap: wrap; gap: .5rem; }
+.live-value { display: flex; flex-direction: column; align-items: center; min-width: 5.5rem; padding: .35rem .5rem; border: 1px solid #d0d7de; border-radius: 6px; background: #fff; }
+.live-value strong { font-size: 1.5rem; line-height: 1.2; }
+.trend { margin: 0; } .trend svg { width: 100%; max-width: 640px; height: auto; background: #fafbfc; border: 1px solid #e1e4e8; border-radius: 6px; }
+.trend polyline { fill: none; stroke-width: 2; }
+.trend-grid { stroke: #e1e4e8; stroke-width: 1; } .trend-axis { font-size: 10px; fill: #57606a; }
+polyline.trend-hr { stroke: #2e7d32; } polyline.trend-spo2 { stroke: #1565c0; } polyline.trend-bp { stroke: #c62828; } polyline.trend-rr { stroke: #6a1b9a; }
+.trend-key { font-weight: 600; } .trend-key.trend-hr { color: #2e7d32; } .trend-key.trend-spo2 { color: #1565c0; } .trend-key.trend-bp { color: #c62828; } .trend-key.trend-rr { color: #6a1b9a; }

@@ -156,7 +156,8 @@ public static class McpAndAiEndpoints
     {
         static JsonObject Tool(string name, string description, JsonObject? props = null, params string[] required) => new()
         {
-            ["name"] = name, ["description"] = description,
+            ["name"] = name,
+            ["description"] = description,
             ["inputSchema"] = new JsonObject { ["type"] = "object", ["properties"] = props ?? new JsonObject(), ["required"] = new JsonArray(required.Select(r => (JsonNode)r).ToArray()) },
             ["annotations"] = new JsonObject { ["readOnlyHint"] = true },
         };
@@ -199,8 +200,18 @@ public static class McpAndAiEndpoints
         var events = db.Events.Where(e => e.MessageId == id).OrderBy(e => e.At).ToList();
         return new
         {
-            row.Id, row.Interface, row.Direction, row.MessageType, row.Status, row.Attempts, error = Redactor.Text(row.LastError), ack = row.AckCode, ackText = Redactor.Text(row.AckText),
-            nhi = Redactor.Mask(row.Nhi), row.CreatedAt, row.CompletedAt,
+            row.Id,
+            row.Interface,
+            row.Direction,
+            row.MessageType,
+            row.Status,
+            row.Attempts,
+            error = Redactor.Text(row.LastError),
+            ack = row.AckCode,
+            ackText = Redactor.Text(row.AckText),
+            nhi = Redactor.Mask(row.Nhi),
+            row.CreatedAt,
+            row.CompletedAt,
             steps = events.Select(e => new { e.At, e.Step, detail = Redactor.Text(e.Detail) }),
             explanation = Explainer.Explain(row, i, events),
         };

@@ -64,7 +64,10 @@ app.MapPost("/api/activate", async (ActivateRequest req, ILogger<Program> log) =
     log.LogInformation("Activated {Licence} on {Code}", req.LicenceId, code);
     return Results.Text(LicenceCodec.Sign(new ActivationToken
     {
-        LicenceId = req.LicenceId, InstallationCode = req.InstallationCode.Trim().ToUpperInvariant(), IssuedAt = now, ValidUntil = now.AddDays(tokenDays)
+        LicenceId = req.LicenceId,
+        InstallationCode = req.InstallationCode.Trim().ToUpperInvariant(),
+        IssuedAt = now,
+        ValidUntil = now.AddDays(tokenDays)
     }, key), "text/plain");
 }).RequireRateLimiting("activate");
 

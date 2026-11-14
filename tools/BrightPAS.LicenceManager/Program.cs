@@ -94,13 +94,19 @@ int Issue(Args a)
     var doc = new LicenceDocument
     {
         LicenceId = $"BP-{DateTime.UtcNow:yyyyMMdd}-{RandomNumberGenerator.GetHexString(6)}",
-        Customer = customer!, Site = string.IsNullOrWhiteSpace(site) ? null : site, Edition = edition,
-        IssuedAt = DateTimeOffset.UtcNow, ExpiresOn = expires, InstallationCode = code?.ToUpperInvariant(),
-        MaxUsers = int.TryParse(maxUsersText, out var mu) ? mu : null, Modules = modules,
+        Customer = customer!,
+        Site = string.IsNullOrWhiteSpace(site) ? null : site,
+        Edition = edition,
+        IssuedAt = DateTimeOffset.UtcNow,
+        ExpiresOn = expires,
+        InstallationCode = code?.ToUpperInvariant(),
+        MaxUsers = int.TryParse(maxUsersText, out var mu) ? mu : null,
+        Modules = modules,
         GraceDays = int.TryParse(a.Get("grace-days"), out var g) ? g : 14,
         Activation = string.IsNullOrWhiteSpace(url) ? null : new ActivationSettings
         {
-            Url = url, CheckInDays = int.TryParse(a.Get("check-in-days"), out var c) ? c : 7,
+            Url = url,
+            CheckInDays = int.TryParse(a.Get("check-in-days"), out var c) ? c : 7,
             OfflineGraceDays = int.TryParse(a.Get("offline-grace-days"), out var o) ? o : 30
         }
     };

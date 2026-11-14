@@ -16,8 +16,13 @@ public class AuditChainTests
             last = AuditChain.Seal(new AuditEvent
             {
                 OccurredAt = new DateTimeOffset(2026, 11, 2, 9, 0, i, TimeSpan.Zero),
-                UserId = "nurse.a", Action = "View", EntityType = "Patient", EntityId = $"P{i}",
-                PatientId = $"P{i}", PreviousHash = "", Hash = ""
+                UserId = "nurse.a",
+                Action = "View",
+                EntityType = "Patient",
+                EntityId = $"P{i}",
+                PatientId = $"P{i}",
+                PreviousHash = "",
+                Hash = ""
             }, last);
             list.Add(last);
         }

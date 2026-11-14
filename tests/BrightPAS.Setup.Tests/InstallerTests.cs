@@ -35,7 +35,7 @@ public class InstallerTests
     public void Schema_scripts_are_embedded_in_order()
     {
         var names = SqlScripts.Embedded().Select(s => s.Name).ToList();
-        Assert.Equal(["01-core.sql", "02-identity.sql", "03-patients.sql", "04-labs.sql", "05-theatre.sql", "06-forms.sql", "07-billing.sql", "08-reminders.sql", "09-referrals.sql", "10-letters.sql", "11-roster.sql", "12-credentialing.sql", "13-portal.sql", "14-messaging.sql", "15-assets.sql", "16-emr.sql", "17-endoscopy.sql", "18-scribe.sql", "90-reporting.sql"], names);
+        Assert.Equal(["01-core.sql", "02-identity.sql", "03-patients.sql", "04-labs.sql", "05-theatre.sql", "06-forms.sql", "07-billing.sql", "08-reminders.sql", "09-referrals.sql", "10-letters.sql", "11-roster.sql", "12-credentialing.sql", "13-portal.sql", "14-messaging.sql", "15-assets.sql", "16-emr.sql", "17-endoscopy.sql", "18-scribe.sql", "19-devices.sql", "90-reporting.sql"], names);
     }
 
     [Fact]
@@ -221,8 +221,13 @@ public class InstallerDatabaseTests
         var dbName = "BrightPASSetup_" + Guid.NewGuid().ToString("N")[..10];
         var options = new InstallOptions
         {
-            SqlServer = src.DataSource.Replace(',', ':'), Database = dbName, IntegratedSecurity = false,
-            SqlUser = src.UserID, SqlPassword = src.Password, TrustServerCertificate = true, Version = "0.2.0"
+            SqlServer = src.DataSource.Replace(',', ':'),
+            Database = dbName,
+            IntegratedSecurity = false,
+            SqlUser = src.UserID,
+            SqlPassword = src.Password,
+            TrustServerCertificate = true,
+            Version = "0.2.0"
         };
         var steps = new IInstallStep[] { new CreateDatabaseStep(), new ApplySchemaStep(), new BootstrapCodeStep() };
         try

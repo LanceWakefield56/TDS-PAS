@@ -51,7 +51,9 @@ public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider 
 
     public static readonly IReadOnlyDictionary<CheckPhase, string[]> CheckRoles = new Dictionary<CheckPhase, string[]>
     {
-        [CheckPhase.SignIn] = ["Nurse", "Anaesthetist"], [CheckPhase.TimeOut] = ["Surgeon", "Anaesthetist", "Nurse"], [CheckPhase.SignOut] = ["Nurse", "Surgeon"],
+        [CheckPhase.SignIn] = ["Nurse", "Anaesthetist"],
+        [CheckPhase.TimeOut] = ["Surgeon", "Anaesthetist", "Nurse"],
+        [CheckPhase.SignOut] = ["Nurse", "Surgeon"],
     };
 
     // ---------------------------------------------------------------- episodes
@@ -116,38 +118,38 @@ public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider 
         switch (kind)
         {
             case AssessmentKind.Vte:
-            {
-                var age = A(a, "age");
-                var s = (age >= 75 ? 3 : age >= 61 ? 2 : age >= 41 ? 1 : 0) + (Y(a, "major_surgery") ? 2 : 1) + (Y(a, "bmi_over_25") ? 1 : 0) + (Y(a, "previous_vte") ? 3 : 0)
-                        + (Y(a, "cancer") ? 2 : 0) + (Y(a, "oestrogen") ? 1 : 0) + (Y(a, "immobile") ? 2 : 0) + (Y(a, "thrombophilia") ? 3 : 0);
-                return s >= 5 ? new(s, "High", "Mechanical and drug prophylaxis per policy; discuss with surgeon.") : s >= 3 ? new(s, "Moderate", "Mechanical prophylaxis (stockings/IPC); consider drug prophylaxis.")
-                    : new(s, "Low", "Early mobilisation.");
-            }
+                {
+                    var age = A(a, "age");
+                    var s = (age >= 75 ? 3 : age >= 61 ? 2 : age >= 41 ? 1 : 0) + (Y(a, "major_surgery") ? 2 : 1) + (Y(a, "bmi_over_25") ? 1 : 0) + (Y(a, "previous_vte") ? 3 : 0)
+                            + (Y(a, "cancer") ? 2 : 0) + (Y(a, "oestrogen") ? 1 : 0) + (Y(a, "immobile") ? 2 : 0) + (Y(a, "thrombophilia") ? 3 : 0);
+                    return s >= 5 ? new(s, "High", "Mechanical and drug prophylaxis per policy; discuss with surgeon.") : s >= 3 ? new(s, "Moderate", "Mechanical prophylaxis (stockings/IPC); consider drug prophylaxis.")
+                        : new(s, "Low", "Early mobilisation.");
+                }
             case AssessmentKind.Falls:
-            {
-                var s = (Y(a, "fallen_last_year") ? 2 : 0) + (Y(a, "mobility_aid") ? 1 : 0) + (Y(a, "sedation") ? 1 : 0) + (Y(a, "confused") ? 2 : 0) + (Y(a, "toileting") ? 1 : 0) + (A(a, "age") >= 65 ? 1 : 0)
-                        + (Y(a, "vision") ? 1 : 0);
-                return s >= 3 ? new(s, "High", "Bed low, call bell in reach, assist to mobilise, falls sign on.") : s >= 1 ? new(s, "Moderate", "Assist first mobilisation after anaesthesia.") : new(s, "Low", "Standard care.");
-            }
+                {
+                    var s = (Y(a, "fallen_last_year") ? 2 : 0) + (Y(a, "mobility_aid") ? 1 : 0) + (Y(a, "sedation") ? 1 : 0) + (Y(a, "confused") ? 2 : 0) + (Y(a, "toileting") ? 1 : 0) + (A(a, "age") >= 65 ? 1 : 0)
+                            + (Y(a, "vision") ? 1 : 0);
+                    return s >= 3 ? new(s, "High", "Bed low, call bell in reach, assist to mobilise, falls sign on.") : s >= 1 ? new(s, "Moderate", "Assist first mobilisation after anaesthesia.") : new(s, "Low", "Standard care.");
+                }
             case AssessmentKind.PressureInjury:
-            {
-                string[] keys = ["sensory", "moisture", "activity", "mobility", "nutrition", "friction"];
-                var s = keys.Sum(k => Math.Clamp(A(a, k), 1, k == "friction" ? 3 : 4));
-                return s <= 12 ? new(s, "High", "Pressure-relieving mattress/gel pads, reposition every 2 h, check heels and sacrum.")
-                    : s <= 14 ? new(s, "Moderate", "Gel pads in theatre, reposition, check skin after surgery.") : s <= 18 ? new(s, "Low", "Check pressure areas after surgery.") : new(s, "Low", "Standard care.");
-            }
+                {
+                    string[] keys = ["sensory", "moisture", "activity", "mobility", "nutrition", "friction"];
+                    var s = keys.Sum(k => Math.Clamp(A(a, k), 1, k == "friction" ? 3 : 4));
+                    return s <= 12 ? new(s, "High", "Pressure-relieving mattress/gel pads, reposition every 2 h, check heels and sacrum.")
+                        : s <= 14 ? new(s, "Moderate", "Gel pads in theatre, reposition, check skin after surgery.") : s <= 18 ? new(s, "Low", "Check pressure areas after surgery.") : new(s, "Low", "Standard care.");
+                }
             case AssessmentKind.Frailty:
-            {
-                var s = Math.Clamp(A(a, "cfs"), 1, 9);
-                return s >= 7 ? new(s, "High", "Severely frail: anaesthetist review, discharge planning, consider overnight care.") : s >= 5 ? new(s, "Moderate", "Frail: delirium prevention, early mobilisation, discharge support.")
-                    : new(s, "Low", "Not frail.");
-            }
+                {
+                    var s = Math.Clamp(A(a, "cfs"), 1, 9);
+                    return s >= 7 ? new(s, "High", "Severely frail: anaesthetist review, discharge planning, consider overnight care.") : s >= 5 ? new(s, "Moderate", "Frail: delirium prevention, early mobilisation, discharge support.")
+                        : new(s, "Low", "Not frail.");
+                }
             case AssessmentKind.Delirium:
-            {
-                var s = Math.Clamp(A(a, "alertness"), 0, 4) + Math.Clamp(A(a, "amt4"), 0, 2) + Math.Clamp(A(a, "attention"), 0, 2) + Math.Clamp(A(a, "acute_change"), 0, 4);
-                return s >= 4 ? new(s, "High", "Possible delirium: medical review, look for causes, do not discharge without review.") : s >= 1 ? new(s, "Moderate", "Possible cognitive impairment: re-check, involve family.")
-                    : new(s, "Low", "Delirium or severe cognitive impairment unlikely.");
-            }
+                {
+                    var s = Math.Clamp(A(a, "alertness"), 0, 4) + Math.Clamp(A(a, "amt4"), 0, 2) + Math.Clamp(A(a, "attention"), 0, 2) + Math.Clamp(A(a, "acute_change"), 0, 4);
+                    return s >= 4 ? new(s, "High", "Possible delirium: medical review, look for causes, do not discharge without review.") : s >= 1 ? new(s, "Moderate", "Possible cognitive impairment: re-check, involve family.")
+                        : new(s, "Low", "Delirium or severe cognitive impairment unlikely.");
+                }
             default:
                 return new(0, "", "");
         }
@@ -361,9 +363,24 @@ public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider 
         var (ews, three) = Ews(r);
         var row = new Observation
         {
-            EpisodeId = e.Id, At = r.At ?? clock.GetUtcNow(), RespiratoryRate = r.RespiratoryRate, SpO2 = r.SpO2, OnOxygen = r.OnOxygen, OxygenLitres = r.OxygenLitres, SystolicBp = r.SystolicBp,
-            DiastolicBp = r.DiastolicBp, HeartRate = r.HeartRate, TemperatureC = r.TemperatureC, Consciousness = r.Consciousness?.ToUpperInvariant(), Pain = r.Pain, Sedation = r.Sedation, Ews = ews,
-            Escalation = Escalation(ews, three), Source = r.Source == "Device" ? "Device" : "Manual", DeviceId = r.DeviceId, RecordedBy = user,
+            EpisodeId = e.Id,
+            At = r.At ?? clock.GetUtcNow(),
+            RespiratoryRate = r.RespiratoryRate,
+            SpO2 = r.SpO2,
+            OnOxygen = r.OnOxygen,
+            OxygenLitres = r.OxygenLitres,
+            SystolicBp = r.SystolicBp,
+            DiastolicBp = r.DiastolicBp,
+            HeartRate = r.HeartRate,
+            TemperatureC = r.TemperatureC,
+            Consciousness = r.Consciousness?.ToUpperInvariant(),
+            Pain = r.Pain,
+            Sedation = r.Sedation,
+            Ews = ews,
+            Escalation = Escalation(ews, three),
+            Source = r.Source == "Device" ? "Device" : "Manual",
+            DeviceId = r.DeviceId,
+            RecordedBy = user,
         };
         db.Observations.Add(row);
         await db.SaveChangesAsync(ct);
@@ -385,18 +402,67 @@ public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider 
             if (string.IsNullOrWhiteSpace(r.WitnessedBy) || string.Equals(r.WitnessedBy.Trim(), user, StringComparison.OrdinalIgnoreCase)) return (null, "Controlled drugs need a second person to witness – name them.");
             if (cd.Balance < 1) return (null, $"The register shows no {cd.Name} {cd.Strength} in stock – check the balance.");
         }
-        var row = new MedicationGiven { EpisodeId = e.Id, Medicine = Clip(r.Medicine, 150)!, Dose = Clip(r.Dose, 60)!, Route = Clip(r.Route, 30)!, GivenAt = r.GivenAt ?? clock.GetUtcNow(), GivenBy = user,
-            WitnessedBy = Clip(r.WitnessedBy, 100), Barcode = Clip(r.Barcode, 60), ControlledDrugId = cd?.Id, Notes = Clip(r.Notes, 300) };
+        var row = new MedicationGiven
+        {
+            EpisodeId = e.Id,
+            Medicine = Clip(r.Medicine, 150)!,
+            Dose = Clip(r.Dose, 60)!,
+            Route = Clip(r.Route, 30)!,
+            GivenAt = r.GivenAt ?? clock.GetUtcNow(),
+            GivenBy = user,
+            WitnessedBy = Clip(r.WitnessedBy, 100),
+            Barcode = Clip(r.Barcode, 60),
+            ControlledDrugId = cd?.Id,
+            Notes = Clip(r.Notes, 300)
+        };
         db.Medications.Add(row);
         if (cd is not null)
         {
             cd.Balance--;
-            db.CdRegister.Add(new ControlledDrugEntry { ControlledDrugId = cd.Id, Movement = CdMovement.Administered, Quantity = 1, BalanceAfter = cd.Balance, PatientId = e.PatientId, EpisodeId = e.Id,
-                By = user, WitnessedBy = Clip(r.WitnessedBy, 100)!, At = row.GivenAt, Reference = $"{row.Dose} {row.Route}" });
+            db.CdRegister.Add(new ControlledDrugEntry
+            {
+                ControlledDrugId = cd.Id,
+                Movement = CdMovement.Administered,
+                Quantity = 1,
+                BalanceAfter = cd.Balance,
+                PatientId = e.PatientId,
+                EpisodeId = e.Id,
+                By = user,
+                WitnessedBy = Clip(r.WitnessedBy, 100)!,
+                At = row.GivenAt,
+                Reference = $"{row.Dose} {row.Route}"
+            });
         }
         await db.SaveChangesAsync(ct);
         await Audit(user, "Medication", "Episode", e, $"{row.Medicine} {row.Dose} {row.Route}{(cd is null ? "" : " (CD, witnessed " + row.WitnessedBy + ")")}", ct);
         return (row, null);
+    }
+
+    /// <summary>
+    /// Files medicines recorded in another system (e.g. the SaferSleep anaesthetic record) so "medicines given today" is complete.
+    /// Replaces any earlier copy from the same external record (corrections). Allowed after discharge – it is filing, not charting.
+    /// Controlled drugs are not taken off the register here: the anaesthetist's register entry stays the record of truth.
+    /// </summary>
+    public async Task<int> FileExternalMedicationsAsync(Guid episodeId, string source, string externalRef, IReadOnlyList<(string Medicine, string Dose, string Route, DateTimeOffset At, string GivenBy, string? Notes)> items, string user, CancellationToken ct = default)
+    {
+        var e = await db.Episodes.SingleOrDefaultAsync(x => x.Id == episodeId, ct) ?? throw new KeyNotFoundException("Episode not found.");
+        db.Medications.RemoveRange(await db.Medications.Where(m => m.EpisodeId == e.Id && m.Source == source && m.ExternalRef == externalRef).ToListAsync(ct));
+        foreach (var i in items)
+            db.Medications.Add(new MedicationGiven
+            {
+                EpisodeId = e.Id,
+                Medicine = Clip(i.Medicine, 150)!,
+                Dose = Clip(i.Dose, 60) ?? "",
+                Route = Clip(i.Route, 30) ?? "",
+                GivenAt = i.At,
+                GivenBy = Clip(i.GivenBy, 100)!,
+                Notes = Clip(i.Notes, 300),
+                Source = Clip(source, 20)!,
+                ExternalRef = Clip(externalRef, 64)
+            });
+        await db.SaveChangesAsync(ct);
+        await Audit(user, "Medication", "Episode", e, $"{items.Count} medicine(s) filed from {source} ({externalRef})", ct);
+        return items.Count;
     }
 
     public async Task<IReadOnlyList<ControlledDrug>> ControlledDrugsAsync(CancellationToken ct = default) => await db.ControlledDrugs.AsNoTracking().OrderBy(x => x.Name).ThenBy(x => x.Strength).ToListAsync(ct);
@@ -452,8 +518,17 @@ public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider 
         if (string.IsNullOrWhiteSpace(r.CheckedBy1) || string.IsNullOrWhiteSpace(r.CheckedBy2) || string.Equals(r.CheckedBy1.Trim(), r.CheckedBy2.Trim(), StringComparison.OrdinalIgnoreCase))
             return (null, "The bedside check is done by two different people – name both.");
         if (!r.ColdChainOk) return (null, "Cold chain not confirmed – do not give the unit. Return it to the blood bank and raise an incident.");
-        var u = new BloodUnit { EpisodeId = e.Id, UnitNumber = Clip(r.UnitNumber, 40)!, Product = Clip(r.Product, 60)!, ReceivedAt = r.ReceivedAt, ColdChainOk = r.ColdChainOk,
-            CheckedBy1 = Clip(r.CheckedBy1, 100)!, CheckedBy2 = Clip(r.CheckedBy2, 100)!, RecordedBy = user };
+        var u = new BloodUnit
+        {
+            EpisodeId = e.Id,
+            UnitNumber = Clip(r.UnitNumber, 40)!,
+            Product = Clip(r.Product, 60)!,
+            ReceivedAt = r.ReceivedAt,
+            ColdChainOk = r.ColdChainOk,
+            CheckedBy1 = Clip(r.CheckedBy1, 100)!,
+            CheckedBy2 = Clip(r.CheckedBy2, 100)!,
+            RecordedBy = user
+        };
         db.BloodUnits.Add(u);
         await db.SaveChangesAsync(ct);
         await Audit(user, "BloodUnit", "Episode", e, $"{u.UnitNumber} {u.Product}", ct);

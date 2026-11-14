@@ -52,8 +52,12 @@ public sealed partial class Scenarios
     {
         if (_endoBooking is null || _endoProcedure is null) return (Outcome.Skip, "Needs the tower test's procedure.");
         var nurse = await As("nurse");
-        var up = await nurse.Ctx.APIRequest.PostAsync($"{bot.O.Url}/api/endoscopy/procedures/{_endoProcedure}/pictures", new() { IgnoreHTTPSErrors = true,
-            Headers = new Dictionary<string, string> { ["X-BrightPAS-Request"] = "1", ["Content-Type"] = "image/tiff" }, DataByte = RobotTiff(320, 240) });
+        var up = await nurse.Ctx.APIRequest.PostAsync($"{bot.O.Url}/api/endoscopy/procedures/{_endoProcedure}/pictures", new()
+        {
+            IgnoreHTTPSErrors = true,
+            Headers = new Dictionary<string, string> { ["X-BrightPAS-Request"] = "1", ["Content-Type"] = "image/tiff" },
+            DataByte = RobotTiff(320, 240)
+        });
         if (up.Status != 200) return (Outcome.Fail, $"TIFF refused ({up.Status}): {await up.TextAsync()}");
         var rec = (await nurse.GetAsync($"/api/endoscopy/bookings/{_endoBooking}")).Json!.Value;
         var tif = rec.GetProperty("media").EnumerateArray().FirstOrDefault(m => Str(m, "originalType") == "image/tiff");
@@ -115,8 +119,12 @@ public sealed partial class Scenarios
         var rows = list.Json!.Value.EnumerateArray().ToList();
         if (rows.Count == 0) return (Outcome.Skip, "No NBSP procedures in the last 120 days.");
         var complete = rows.Count(x => x.GetProperty("problems").GetArrayLength() == 0);
-        var res = await dr.Ctx.APIRequest.PostAsync($"{bot.O.Url}/api/endoscopy/nbsp/extract", new() { Headers = new Dictionary<string, string> { ["X-BrightPAS-Request"] = "1" }, IgnoreHTTPSErrors = true,
-            DataObject = new { from = DateTime.Today.AddDays(-120).ToString("yyyy-MM-dd"), to = DateTime.Today.ToString("yyyy-MM-dd"), onlyComplete = false, export = new { protect = true, password = "Robot-Nbsp-Pass-2026!", format = "zip" } } });
+        var res = await dr.Ctx.APIRequest.PostAsync($"{bot.O.Url}/api/endoscopy/nbsp/extract", new()
+        {
+            Headers = new Dictionary<string, string> { ["X-BrightPAS-Request"] = "1" },
+            IgnoreHTTPSErrors = true,
+            DataObject = new { from = DateTime.Today.AddDays(-120).ToString("yyyy-MM-dd"), to = DateTime.Today.ToString("yyyy-MM-dd"), onlyComplete = false, export = new { protect = true, password = "Robot-Nbsp-Pass-2026!", format = "zip" } }
+        });
         if (res.Status != 200) return (Outcome.Fail, $"Extract refused ({res.Status}): {await res.TextAsync()}");
         var b = await res.BodyAsync();
         await File.WriteAllBytesAsync(Path.Combine(R.DeviceFolder, "nbsp-extract.zip"), b);
@@ -149,7 +157,11 @@ public sealed partial class Scenarios
         var change = await admin.PutAsync("/api/endoscopy/settings", new
         {
             mediaPath = orig.TryGetProperty("mediaPath", out var mp) && mp.ValueKind == JsonValueKind.String ? mp.GetString() : null,
-            dicomEnabled = true, dicomPort = port, dicomAeTitle = "BRIGHTPAS_ES", dicomCallingAes = TowerAe, dicomAnyTower = false,
+            dicomEnabled = true,
+            dicomPort = port,
+            dicomAeTitle = "BRIGHTPAS_ES",
+            dicomCallingAes = TowerAe,
+            dicomAnyTower = false,
             videoRetentionDays = orig.TryGetProperty("videoRetentionDays", out var vr) && vr.ValueKind == JsonValueKind.Number ? vr.GetInt32() : (int?)null,
         });
         if (change.Status != 200) return (Outcome.Fail, $"Could not turn on the DICOM node: {change.Text}");
@@ -288,8 +300,12 @@ public sealed partial class Scenarios
         var notes = new List<string>();
         foreach (var kind in new[] { "clinical", "patient" })
         {
-            var res = await nurse.Ctx.APIRequest.PostAsync($"{bot.O.Url}/api/endoscopy/procedures/{_endoProcedure}/report-pdf", new() { Headers = new Dictionary<string, string> { ["X-BrightPAS-Request"] = "1" },
-                DataObject = new { kind, export = new { protect = true, password = "Robot-Endo-Pass-2026!", format = "pdf" } }, IgnoreHTTPSErrors = true });
+            var res = await nurse.Ctx.APIRequest.PostAsync($"{bot.O.Url}/api/endoscopy/procedures/{_endoProcedure}/report-pdf", new()
+            {
+                Headers = new Dictionary<string, string> { ["X-BrightPAS-Request"] = "1" },
+                DataObject = new { kind, export = new { protect = true, password = "Robot-Endo-Pass-2026!", format = "pdf" } },
+                IgnoreHTTPSErrors = true
+            });
             if (res.Status != 200) return (Outcome.Fail, $"{kind} report refused ({res.Status}): {await res.TextAsync()}");
             var b = await res.BodyAsync();
             await File.WriteAllBytesAsync(Path.Combine(R.DeviceFolder, $"endoscopy-{kind}-report.pdf"), b);

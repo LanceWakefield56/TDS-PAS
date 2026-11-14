@@ -17,9 +17,26 @@ public static class EndoRecord
 
     public static object MediaView(Media m) => new
     {
-        m.Id, kind = m.Kind.ToString(), m.ContentType, source = m.Source.ToString(), status = m.Status.ToString(), m.CapturedAt, m.CapturedBy, m.DurationSeconds, m.Bytes,
-        m.Site, m.Caption, m.InReport, m.InPatientReport, m.Sort, m.FindingId, m.PolypId, url = $"/api/endoscopy/media/{m.Id}",
-        m.AnnotatedFromId, original = m.OriginalFileName is null ? null : $"/api/endoscopy/media/{m.Id}/original", originalType = m.OriginalContentType,
+        m.Id,
+        kind = m.Kind.ToString(),
+        m.ContentType,
+        source = m.Source.ToString(),
+        status = m.Status.ToString(),
+        m.CapturedAt,
+        m.CapturedBy,
+        m.DurationSeconds,
+        m.Bytes,
+        m.Site,
+        m.Caption,
+        m.InReport,
+        m.InPatientReport,
+        m.Sort,
+        m.FindingId,
+        m.PolypId,
+        url = $"/api/endoscopy/media/{m.Id}",
+        m.AnnotatedFromId,
+        original = m.OriginalFileName is null ? null : $"/api/endoscopy/media/{m.Id}/original",
+        originalType = m.OriginalContentType,
     };
 
     public static async Task<object> BuildAsync(IServiceProvider sp, TheatreBooking booking, TheatreSession session, Procedure? p)
@@ -31,9 +48,19 @@ public static class EndoRecord
         var surgeon = await core.Clinicians.AsNoTracking().Where(c => c.Id == session.SurgeonId).Select(c => c.Name).SingleOrDefaultAsync();
         var header = new
         {
-            bookingId = booking.Id, patientId = pt.Id, name = $"{pt.FamilyName.ToUpperInvariant()}, {pt.GivenNames}", pt.Nhi, pt.Mrn, pt.DateOfBirth, sex = pt.Sex.ToString(),
+            bookingId = booking.Id,
+            patientId = pt.Id,
+            name = $"{pt.FamilyName.ToUpperInvariant()}, {pt.GivenNames}",
+            pt.Nhi,
+            pt.Mrn,
+            pt.DateOfBirth,
+            sex = pt.Sex.ToString(),
             alerts = pt.Alerts.Where(a => a.IsActive).Select(a => new { type = a.Type.ToString(), severity = a.Severity.ToString(), a.Description }),
-            booking.Procedure, date = session.Date, location, surgeon, anaesthetic = booking.Anaesthetic.ToString(),
+            booking.Procedure,
+            date = session.Date,
+            location,
+            surgeon,
+            anaesthetic = booking.Anaesthetic.ToString(),
         };
         if (p is null) return new { header, procedure = (object?)null };
         var db = sp.GetRequiredService<EndoDbContext>();
@@ -48,9 +75,18 @@ public static class EndoRecord
         if (Licensed(sp, "assets"))
         {
             var all = await sp.GetRequiredService<Ast.CssdService>().ScopesAsync();
-            scopes = all.Select(s => new { s.Id, s.AssetNumber, s.Name, s.Model, s.SerialNumber, s.State, s.StateText,
+            scopes = all.Select(s => new
+            {
+                s.Id,
+                s.AssetNumber,
+                s.Name,
+                s.Model,
+                s.SerialNumber,
+                s.State,
+                s.StateText,
                 upper = !(s.Model ?? "").StartsWith("CF", StringComparison.OrdinalIgnoreCase) && !(s.Model ?? "").StartsWith("PCF", StringComparison.OrdinalIgnoreCase),
-                lower = !(s.Model ?? "").StartsWith("GIF", StringComparison.OrdinalIgnoreCase) });
+                lower = !(s.Model ?? "").StartsWith("GIF", StringComparison.OrdinalIgnoreCase)
+            });
             towers = await sp.GetRequiredService<Ast.AssetsDbContext>().Equipment.AsNoTracking().Where(e => e.Category == Ast.EquipmentCategory.EndoscopyTower && e.Status != Ast.EquipmentStatus.Retired)
                 .OrderBy(e => e.AssetNumber).Select(e => new { e.Id, e.AssetNumber, e.Name, e.Model, e.NetworkAddress }).ToListAsync();
         }
@@ -69,10 +105,24 @@ public static class EndoRecord
         return new
         {
             header,
-            procedure = p, indications = p.Indications.Select(i => i.Code), findings, polyps, tattoos, therapy, media = media.Select(MediaView),
-            missing = await svc.MissingAsync(p), suggestion = EndoService.SuggestSurveillance(p, polyps),
-            withdrawalMinutes = EndoService.WithdrawalMinutes(p), upperMinutes = EndoService.UpperMinutes(p), bbps = EndoService.BbpsTotal(p), adequatePrep = EndoService.AdequatePrep(p),
-            scopes, towers, sedation, episodeId, gpLetter,
+            procedure = p,
+            indications = p.Indications.Select(i => i.Code),
+            findings,
+            polyps,
+            tattoos,
+            therapy,
+            media = media.Select(MediaView),
+            missing = await svc.MissingAsync(p),
+            suggestion = EndoService.SuggestSurveillance(p, polyps),
+            withdrawalMinutes = EndoService.WithdrawalMinutes(p),
+            upperMinutes = EndoService.UpperMinutes(p),
+            bbps = EndoService.BbpsTotal(p),
+            adequatePrep = EndoService.AdequatePrep(p),
+            scopes,
+            towers,
+            sedation,
+            episodeId,
+            gpLetter,
         };
     }
 

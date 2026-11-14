@@ -25,16 +25,38 @@ public sealed partial class LetterService(LettersDbContext db, PatientsDbContext
     /// <summary>Placeholders that templates may use. Unlike SMS, letters may include the procedure (they go to the patient or their clinicians).</summary>
     public static readonly IReadOnlyDictionary<string, string> Placeholders = new Dictionary<string, string>
     {
-        ["Today"] = "Today's date", ["PatientName"] = "Patient's full name", ["PatientFirstName"] = "Patient's first (or preferred) name",
-        ["PatientTitleName"] = "Name for the greeting line", ["Nhi"] = "NHI number", ["Mrn"] = "TDS record number", ["DateOfBirth"] = "Date of birth",
-        ["PatientAddress"] = "Patient's address (one line)", ["BookingDate"] = "Booked date (e.g. Tuesday 17 November 2026)", ["ArrivalTime"] = "Time to arrive",
-        ["StartTime"] = "Planned start time", ["Procedure"] = "Booked or waitlisted procedure", ["Side"] = "Side (left/right/both), blank if not applicable",
-        ["Surgeon"] = "Surgeon or endoscopist", ["Anaesthetist"] = "Anaesthetist", ["Theatre"] = "Theatre or room", ["Anaesthetic"] = "Type of anaesthetic",
-        ["FastingFrom"] = "Fasting start time (6 hours before arrival)", ["ReferralNumber"] = "Referral number", ["ReferralDate"] = "Date the referral was received",
-        ["Referrer"] = "Referring clinician", ["ReferrerPractice"] = "Referrer's practice", ["ReferralReason"] = "Reason for referral",
-        ["DeclineReason"] = "Reason the referral was declined", ["Priority"] = "Waitlist priority", ["TargetDate"] = "Waitlist target date",
-        ["GpPractice"] = "Patient's GP practice", ["ClinicName"] = "Clinic name", ["ClinicAddress"] = "Clinic address (one line)", ["ClinicPhone"] = "Clinic phone",
-        ["ClinicEmail"] = "Clinic email", ["Author"] = "Person signing the letter",
+        ["Today"] = "Today's date",
+        ["PatientName"] = "Patient's full name",
+        ["PatientFirstName"] = "Patient's first (or preferred) name",
+        ["PatientTitleName"] = "Name for the greeting line",
+        ["Nhi"] = "NHI number",
+        ["Mrn"] = "TDS record number",
+        ["DateOfBirth"] = "Date of birth",
+        ["PatientAddress"] = "Patient's address (one line)",
+        ["BookingDate"] = "Booked date (e.g. Tuesday 17 November 2026)",
+        ["ArrivalTime"] = "Time to arrive",
+        ["StartTime"] = "Planned start time",
+        ["Procedure"] = "Booked or waitlisted procedure",
+        ["Side"] = "Side (left/right/both), blank if not applicable",
+        ["Surgeon"] = "Surgeon or endoscopist",
+        ["Anaesthetist"] = "Anaesthetist",
+        ["Theatre"] = "Theatre or room",
+        ["Anaesthetic"] = "Type of anaesthetic",
+        ["FastingFrom"] = "Fasting start time (6 hours before arrival)",
+        ["ReferralNumber"] = "Referral number",
+        ["ReferralDate"] = "Date the referral was received",
+        ["Referrer"] = "Referring clinician",
+        ["ReferrerPractice"] = "Referrer's practice",
+        ["ReferralReason"] = "Reason for referral",
+        ["DeclineReason"] = "Reason the referral was declined",
+        ["Priority"] = "Waitlist priority",
+        ["TargetDate"] = "Waitlist target date",
+        ["GpPractice"] = "Patient's GP practice",
+        ["ClinicName"] = "Clinic name",
+        ["ClinicAddress"] = "Clinic address (one line)",
+        ["ClinicPhone"] = "Clinic phone",
+        ["ClinicEmail"] = "Clinic email",
+        ["Author"] = "Person signing the letter",
     };
 
     /// <summary>Minutes before the planned start that the patient should arrive.</summary>
@@ -239,9 +261,22 @@ public sealed partial class LetterService(LettersDbContext db, PatientsDbContext
         var settings = await SettingsAsync(ct);
         var letter = new Letter
         {
-            Number = $"L{settings.NextLetterNumber:000000}", PatientId = p.Id, TemplateCode = t.Code, TemplateVersion = t.Version, Kind = t.Kind, Recipient = t.Recipient,
-            RecipientName = name, RecipientAddress = address, GpPracticeId = practiceId, Subject = Render(t.Subject, values), Body = Render(t.Body, values),
-            BookingId = n.BookingId, ReferralId = n.ReferralId, Author = author, CreatedAt = clock.GetUtcNow(), CreatedBy = user
+            Number = $"L{settings.NextLetterNumber:000000}",
+            PatientId = p.Id,
+            TemplateCode = t.Code,
+            TemplateVersion = t.Version,
+            Kind = t.Kind,
+            Recipient = t.Recipient,
+            RecipientName = name,
+            RecipientAddress = address,
+            GpPracticeId = practiceId,
+            Subject = Render(t.Subject, values),
+            Body = Render(t.Body, values),
+            BookingId = n.BookingId,
+            ReferralId = n.ReferralId,
+            Author = author,
+            CreatedAt = clock.GetUtcNow(),
+            CreatedBy = user
         };
         settings.NextLetterNumber++;
         db.Letters.Add(letter);
@@ -266,9 +301,24 @@ public sealed partial class LetterService(LettersDbContext db, PatientsDbContext
         var now = clock.GetUtcNow();
         var letter = new Letter
         {
-            Number = $"L{settings.NextLetterNumber:000000}", PatientId = p.Id, TemplateCode = "REPORT", TemplateVersion = 1, Kind = LetterKind.Custom, Recipient = RecipientType.Gp,
-            RecipientName = gp.Name, RecipientAddress = Lines(gp.AddressLine1, gp.AddressLine2, Join(gp.City, gp.Postcode)), GpPracticeId = gp.Id, Subject = subject.Trim(), Body = body.Replace("\r\n", "\n").Trim(),
-            BookingId = bookingId, Author = author, CreatedAt = now, CreatedBy = user, Status = LetterStatus.Final, FinalisedAt = now, FinalisedBy = user,
+            Number = $"L{settings.NextLetterNumber:000000}",
+            PatientId = p.Id,
+            TemplateCode = "REPORT",
+            TemplateVersion = 1,
+            Kind = LetterKind.Custom,
+            Recipient = RecipientType.Gp,
+            RecipientName = gp.Name,
+            RecipientAddress = Lines(gp.AddressLine1, gp.AddressLine2, Join(gp.City, gp.Postcode)),
+            GpPracticeId = gp.Id,
+            Subject = subject.Trim(),
+            Body = body.Replace("\r\n", "\n").Trim(),
+            BookingId = bookingId,
+            Author = author,
+            CreatedAt = now,
+            CreatedBy = user,
+            Status = LetterStatus.Final,
+            FinalisedAt = now,
+            FinalisedBy = user,
         };
         settings.NextLetterNumber++;
         db.Letters.Add(letter);

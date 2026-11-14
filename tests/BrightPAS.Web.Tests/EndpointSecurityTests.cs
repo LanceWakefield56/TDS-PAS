@@ -60,7 +60,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
     private static readonly (string Prefix, string? Module)[] Areas =
     [
         ("/api/labs", "labs"), ("/api/theatre", "theatre"), ("/api/forms", "forms"), ("/api/q/", "forms"), ("/api/billing", "billing"),
-        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/mcp", "messaging"), ("/api/assets", "assets"), ("/api/emr", "emr"), ("/api/endoscopy", "endoscopy"), ("/api/scribe", "scribe"), ("/api/export-policy", null),
+        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/mcp", "messaging"), ("/api/assets", "assets"), ("/api/emr", "emr"), ("/api/endoscopy", "endoscopy"), ("/api/scribe", "scribe"), ("/api/devices", "devices"), ("/api/export-policy", null),
         ("/api/patients", null), ("/api/admin", null), ("/api/audit", null), ("/api/auth", null), ("/api/setup", null), ("/api/me", null),
         ("/api/organisation", null), ("/api/{**rest}", null), ("/health", null), ("/{*path", null),
     ];
@@ -195,8 +195,14 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         key.ImportFromPem(pem);
         var text = LicenceCodec.Sign(new LicenceDocument
         {
-            LicenceId = "BP-SEC-" + Guid.NewGuid().ToString("N")[..6], Customer = "Test", Edition = "Sandbox", IssuedAt = DateTimeOffset.UtcNow,
-            ExpiresOn = new DateOnly(2030, 1, 1), InstallationCode = svc.InstallationCode(await svc.StateAsync()), Modules = ["*"], GraceDays = 0
+            LicenceId = "BP-SEC-" + Guid.NewGuid().ToString("N")[..6],
+            Customer = "Test",
+            Edition = "Sandbox",
+            IssuedAt = DateTimeOffset.UtcNow,
+            ExpiresOn = new DateOnly(2030, 1, 1),
+            InstallationCode = svc.InstallationCode(await svc.StateAsync()),
+            Modules = ["*"],
+            GraceDays = 0
         }, key);
         var r = await svc.InstallAsync(text, "admin", null);
         Assert.True(r.Ok, r.Error);

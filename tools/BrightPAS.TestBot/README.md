@@ -20,6 +20,7 @@ It refuses to run against a database that is not a demonstration database (Setup
 | Area | What |
 |---|---|
 | devices (endoscopy) | Virtual Olympus tower over DICOM (echo, worklist, picture, MPPS, unmatched picture); virtual capture card (browser fake camera: pictures and a recorded video); clinical and patient endoscopy reports with pictures |
+| devices (monitors, SaferSleep) | Virtual GE CARESCAPE gateway (HL7 vital signs to port 12580): unknown monitor and impossible values refused, monitor connected on screen, nothing charted before validation, validated reading in the chart, wrong-NHI monitor refused. Virtual SaferSleep (listens on 12582, sends records to 12581): ADT received, record with PDF filed, correction, duplicate, wrong patient, unmatched record filed by hand |
 | devices (scribe) | Virtual speech server + language model: ambient scribe session with the browser's virtual microphone, de-identified cloud drafting, dictation, Medow draft by token |
 | signin | Every demo account signs in with password + authenticator code; wrong password refused; not signed in = sign-in page only, patient data refused |
 | pages | Every page in each account's menu, plus one of each record page linked from them (patient, letter, invoice, lab result…) opens without errors, refused server calls or script crashes |

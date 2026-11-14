@@ -52,7 +52,14 @@ public static class ModuleEndpoints
             var (row, rep) = r.Value;
             return Results.Ok(new
             {
-                row, rep.Comment, rep.AccessionNumber, rep.PlacerOrderNumber, rep.AcknowledgementComment, rep.PatientDateOfBirth, rep.PatientFamilyName, rep.PatientGivenNames,
+                row,
+                rep.Comment,
+                rep.AccessionNumber,
+                rep.PlacerOrderNumber,
+                rep.AcknowledgementComment,
+                rep.PatientDateOfBirth,
+                rep.PatientFamilyName,
+                rep.PatientGivenNames,
                 observations = rep.Observations.Select(o => new { o.Sequence, o.Code, o.Name, o.Value, o.Units, o.ReferenceRange, o.Flag, o.Comment, o.IsAbnormal })
             });
         }).RequireAuthorization(Permissions.LabsView);
@@ -204,8 +211,26 @@ public static class ModuleEndpoints
         var t = BillingService.Calculate(d);
         return new
         {
-            d.Id, kind = d.Kind.ToString(), d.Number, d.PatientId, d.BookingId, d.SourceEstimateId, payer = d.Payer.ToString(), d.PayerName, d.PayerReference,
-            d.Surgeon, d.Anaesthetist, status = d.Status.ToString(), d.GstPercent, d.CreatedAt, d.CreatedBy, d.IssuedOn, d.DueOn, d.Notes, d.VoidReason, totals = t,
+            d.Id,
+            kind = d.Kind.ToString(),
+            d.Number,
+            d.PatientId,
+            d.BookingId,
+            d.SourceEstimateId,
+            payer = d.Payer.ToString(),
+            d.PayerName,
+            d.PayerReference,
+            d.Surgeon,
+            d.Anaesthetist,
+            status = d.Status.ToString(),
+            d.GstPercent,
+            d.CreatedAt,
+            d.CreatedBy,
+            d.IssuedOn,
+            d.DueOn,
+            d.Notes,
+            d.VoidReason,
+            totals = t,
             lines = d.Lines.OrderBy(l => l.Sequence).Select(l => new { l.Sequence, l.Code, l.Description, l.Quantity, l.UnitPrice, l.GstApplicable, l.SurgeonPercent, l.AnaesthetistPercent, net = BillingService.Money(l.Quantity * l.UnitPrice) }),
             payments = d.Payments.OrderBy(p => p.PaidOn).Select(p => new { p.PaidOn, p.Amount, method = p.Method.ToString(), p.Reference, p.RecordedBy })
         };
@@ -228,8 +253,18 @@ public static class ModuleEndpoints
             var names = patients.Patients.Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.FamilyName, p.GivenNames, p.Mrn }).ToDictionary(p => p.Id);
             return Results.Ok(docs.Select(d => new
             {
-                d.Id, kind = d.Kind.ToString(), d.Number, d.PatientId, patientName = names.TryGetValue(d.PatientId, out var n) ? $"{n.FamilyName.ToUpperInvariant()}, {n.GivenNames}" : "",
-                mrn = names.TryGetValue(d.PatientId, out var m) ? m.Mrn : "", payer = d.Payer.ToString(), d.PayerName, status = d.Status.ToString(), d.CreatedAt, d.IssuedOn, d.DueOn,
+                d.Id,
+                kind = d.Kind.ToString(),
+                d.Number,
+                d.PatientId,
+                patientName = names.TryGetValue(d.PatientId, out var n) ? $"{n.FamilyName.ToUpperInvariant()}, {n.GivenNames}" : "",
+                mrn = names.TryGetValue(d.PatientId, out var m) ? m.Mrn : "",
+                payer = d.Payer.ToString(),
+                d.PayerName,
+                status = d.Status.ToString(),
+                d.CreatedAt,
+                d.IssuedOn,
+                d.DueOn,
                 totals = BillingService.Calculate(d)
             }));
         }).RequireAuthorization(Permissions.BillingView);

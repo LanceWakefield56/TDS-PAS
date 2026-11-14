@@ -156,7 +156,8 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
         {
             var fits = e.Kind switch
             {
-                CycleKind.Wash => machine.Category == EquipmentCategory.Washer, CycleKind.Aer => machine.Category == EquipmentCategory.Aer,
+                CycleKind.Wash => machine.Category == EquipmentCategory.Washer,
+                CycleKind.Aer => machine.Category == EquipmentCategory.Aer,
                 _ => machine.Category == EquipmentCategory.Steriliser,
             };
             if (!fits) errors.Add($"{machine.Name} is not a {(e.Kind == CycleKind.Wash ? "washer-disinfector" : e.Kind == CycleKind.Aer ? "endoscope reprocessor (AER)" : "steriliser")}.");
@@ -178,10 +179,24 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
         if (errors.Count > 0) return (null, errors);
         var c = new Cycle
         {
-            LoadNumber = await NextLoadNumberAsync(e.Kind, ct), MachineId = machine!.Id, Kind = e.Kind, MachineCycleNumber = EquipmentService.Clip(e.MachineCycleNumber, 40),
-            Program = EquipmentService.Clip(e.Program, 80), StartedAt = e.StartedAt, EndedAt = e.EndedAt, MaxTemperatureC = e.MaxTemperatureC, HoldSeconds = e.HoldSeconds,
-            PressureKpa = e.PressureKpa, A0 = e.A0, MachinePassed = e.MachinePassed, ChemicalIndicator = e.ChemicalIndicator, BiologicalIndicator = e.BiologicalIndicator,
-            BowieDickTest = e.BowieDickTest, Operator = user, Source = EquipmentService.Clip(source, 200) ?? "Manual", RawLog = rawLog is null ? null : rawLog.Length > 200_000 ? rawLog[..200_000] : rawLog,
+            LoadNumber = await NextLoadNumberAsync(e.Kind, ct),
+            MachineId = machine!.Id,
+            Kind = e.Kind,
+            MachineCycleNumber = EquipmentService.Clip(e.MachineCycleNumber, 40),
+            Program = EquipmentService.Clip(e.Program, 80),
+            StartedAt = e.StartedAt,
+            EndedAt = e.EndedAt,
+            MaxTemperatureC = e.MaxTemperatureC,
+            HoldSeconds = e.HoldSeconds,
+            PressureKpa = e.PressureKpa,
+            A0 = e.A0,
+            MachinePassed = e.MachinePassed,
+            ChemicalIndicator = e.ChemicalIndicator,
+            BiologicalIndicator = e.BiologicalIndicator,
+            BowieDickTest = e.BowieDickTest,
+            Operator = user,
+            Source = EquipmentService.Clip(source, 200) ?? "Manual",
+            RawLog = rawLog is null ? null : rawLog.Length > 200_000 ? rawLog[..200_000] : rawLog,
         };
         c.Items = trays.Select(t => new CycleItem { CycleId = c.Id, TrayInstanceId = t.Id }).Concat(others.Select(o => new CycleItem { CycleId = c.Id, Description = EquipmentService.Clip(o.Description, 200), Quantity = o.Quantity })).ToList();
         db.Cycles.Add(c);
@@ -407,8 +422,10 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
         if (lastBad is not null && (lastAer is null || lastAer < lastBad.At))
             return ("Quarantined", lastBad.Kind switch
             {
-                ScopeEventKind.LeakTest => "Failed leak test – send for repair", ScopeEventKind.MicroSample => "Microbiology sample failed – quarantined",
-                ScopeEventKind.Repair => "Back from repair – leak test and reprocess before use", _ => $"Quarantined: {lastBad.Notes}",
+                ScopeEventKind.LeakTest => "Failed leak test – send for repair",
+                ScopeEventKind.MicroSample => "Microbiology sample failed – quarantined",
+                ScopeEventKind.Repair => "Back from repair – leak test and reprocess before use",
+                _ => $"Quarantined: {lastBad.Notes}",
             }, lastAer, lastUse);
         if (lastAer is null || (lastUse is { } u && u >= lastAer)) return ("NeedsReprocessing", "Used – needs leak test, manual clean and AER", lastAer, lastUse);
         var leakSinceUse = history.Any(e => e.Kind == ScopeEventKind.LeakTest && e.Passed == true && (lastUse is null || e.At > lastUse) && e.At <= lastAer);
@@ -481,8 +498,12 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
         if (l is null) return "Loan set not found.";
         var allowed = l.Status switch
         {
-            LoanStatus.Expected => [LoanStatus.Received], LoanStatus.Received => [LoanStatus.Checked], LoanStatus.Checked => [LoanStatus.Reprocessed],
-            LoanStatus.Reprocessed => [LoanStatus.Used, LoanStatus.Returned], LoanStatus.Used => new[] { LoanStatus.Reprocessed, LoanStatus.Returned }, _ => [],
+            LoanStatus.Expected => [LoanStatus.Received],
+            LoanStatus.Received => [LoanStatus.Checked],
+            LoanStatus.Checked => [LoanStatus.Reprocessed],
+            LoanStatus.Reprocessed => [LoanStatus.Used, LoanStatus.Returned],
+            LoanStatus.Used => new[] { LoanStatus.Reprocessed, LoanStatus.Returned },
+            _ => [],
         };
         if (!allowed.Contains(to)) return $"A loan set that is {l.Status.ToString().ToLowerInvariant()} cannot go to {to.ToString().ToLowerInvariant()}.";
         if (to == LoanStatus.Checked && string.IsNullOrWhiteSpace(notes)) return "Record the check (items counted against the supplier's list, condition).";

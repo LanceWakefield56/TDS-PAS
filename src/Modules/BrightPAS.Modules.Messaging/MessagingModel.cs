@@ -41,7 +41,8 @@ public enum Transport { MllpListen = 1, MllpSend = 2, FolderWatch = 3, FolderWri
 public enum MessageFormat { Hl7v2 = 1, Json = 2, Fhir = 3, Text = 4, Dicom = 5, Xml = 6, X12 = 7 }
 
 /// <summary>What BrightPAS does with an inbound message before routing it on.</summary>
-public enum InboundHandler { None = 0, LabResults = 1 }
+/// <summary>DeviceObservations: bedside monitor vital signs (Devices module); AnaesthesiaRecord: the SaferSleep anaesthetic record (0.17.0).</summary>
+public enum InboundHandler { None = 0, LabResults = 1, DeviceObservations = 2, AnaesthesiaRecord = 3 }
 
 /// <summary>A connection to or from another system.</summary>
 public sealed class Interface

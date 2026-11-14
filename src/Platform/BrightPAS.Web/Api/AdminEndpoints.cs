@@ -41,13 +41,28 @@ public static class AdminEndpoints
             return Results.Ok(new
             {
                 installationCode = cache.InstallationCode,
-                health = st.Health.ToString(), messages = st.Messages, developmentKey = st.SignedWithDevelopmentKey,
+                health = st.Health.ToString(),
+                messages = st.Messages,
+                developmentKey = st.SignedWithDevelopmentKey,
                 productionKeyBuiltIn = BrightPAS.Licensing.VendorKeys.HasProductionKey,
                 testBuild = !svc.Enforced,
-                licence = d is null ? null : new { d.LicenceId, d.Customer, d.Site, d.Edition, d.IssuedAt, d.ExpiresOn, d.InstallationCode, d.MaxUsers, d.GraceDays,
-                    activation = d.Activation is null ? null : new { d.Activation.Url, d.Activation.CheckInDays, d.Activation.OfflineGraceDays } },
-                installedAt = state.LicenceInstalledAt, installedBy = state.LicenceInstalledBy,
-                activationCheckedAt = state.ActivationCheckedAt, activationError = state.ActivationError,
+                licence = d is null ? null : new
+                {
+                    d.LicenceId,
+                    d.Customer,
+                    d.Site,
+                    d.Edition,
+                    d.IssuedAt,
+                    d.ExpiresOn,
+                    d.InstallationCode,
+                    d.MaxUsers,
+                    d.GraceDays,
+                    activation = d.Activation is null ? null : new { d.Activation.Url, d.Activation.CheckInDays, d.Activation.OfflineGraceDays }
+                },
+                installedAt = state.LicenceInstalledAt,
+                installedBy = state.LicenceInstalledBy,
+                activationCheckedAt = state.ActivationCheckedAt,
+                activationError = state.ActivationError,
                 modules = BrightPAS.Licensing.ProductModules.All.Select(m => new { m.Id, m.Name, m.Description, m.Available, access = st.AccessTo(m.Id).ToString() })
             });
         });

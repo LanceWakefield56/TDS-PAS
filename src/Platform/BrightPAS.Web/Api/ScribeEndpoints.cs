@@ -120,9 +120,17 @@ public static class ScribeEndpoints
             await sp.GetRequiredService<BrightPAS.Core.Audit.AuditWriter>().WriteAsync(Me(u), "View", "ScribeSession", id.ToString(), s.PatientId.ToString());
             return Results.Ok(new
             {
-                session = s, template = t, consented, consent, standing, settings = new { provider = settings.Provider.ToString(), speech = settings.Speech.ToString(), draft = settings.Draft.ToString(), settings.MedowLaunchUrl },
+                session = s,
+                template = t,
+                consented,
+                consent,
+                standing,
+                settings = new { provider = settings.Provider.ToString(), speech = settings.Speech.ToString(), draft = settings.Draft.ToString(), settings.MedowLaunchUrl },
                 patient = new { pt.Id, name = $"{pt.FamilyName.ToUpperInvariant()}, {pt.GivenNames}", pt.Nhi, pt.Mrn, pt.DateOfBirth, sex = pt.Sex.ToString(), alerts = pt.Alerts.Where(a => a.IsActive).Select(a => new { type = a.Type.ToString(), severity = a.Severity.ToString(), a.Description }) },
-                procedure, segments = await svc.SegmentsAsync(id), sentences = await svc.SentencesAsync(id), highlights = draftHighlights,
+                procedure,
+                segments = await svc.SegmentsAsync(id),
+                sentences = await svc.SentencesAsync(id),
+                highlights = draftHighlights,
                 // What an external scribe receives (minimum necessary, spec 7.17.1): first name, age, sex, procedure, alert types – no NHI, address or contact details.
                 externalPayload = s.Provider == ScribeProvider.Medow ? new { reference = s.Id, firstName = pt.PreferredName ?? pt.GivenNames.Split(' ')[0], age, sex = pt.Sex.ToString(), procedure, template = t.Name, alerts = pt.Alerts.Where(a => a.IsActive).Select(a => a.Type.ToString()) } : null,
                 mine = string.Equals(s.Clinician, Me(u), StringComparison.OrdinalIgnoreCase),
@@ -214,8 +222,10 @@ public static class ScribeEndpoints
             var e = await emr.EpisodeAsync(bid, s.PatientId, user);
             var kind = s.Context switch
             {
-                ScribeContext.PreAnaesthetic => BrightPAS.Modules.Emr.NoteKind.Anaesthetic, ScribeContext.Discharge => BrightPAS.Modules.Emr.NoteKind.Discharge,
-                ScribeContext.Consultation or ScribeContext.PostOpReview => BrightPAS.Modules.Emr.NoteKind.Medical, _ => BrightPAS.Modules.Emr.NoteKind.Nursing,
+                ScribeContext.PreAnaesthetic => BrightPAS.Modules.Emr.NoteKind.Anaesthetic,
+                ScribeContext.Discharge => BrightPAS.Modules.Emr.NoteKind.Discharge,
+                ScribeContext.Consultation or ScribeContext.PostOpReview => BrightPAS.Modules.Emr.NoteKind.Medical,
+                _ => BrightPAS.Modules.Emr.NoteKind.Nursing,
             };
             var (note, err) = await emr.NoteAsync(e.Id, new BrightPAS.Modules.Emr.NoteRequest(kind, label + "\n\n" + s.SignedText, true, null), user);
             if (note is not null) { noteId = note.Id; notes.Add("signed note in the clinical record"); } else if (err is not null) notes.Add("clinical record note not made: " + err);

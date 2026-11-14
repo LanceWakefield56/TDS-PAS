@@ -294,9 +294,14 @@ public sealed class BillingService(BillingDbContext db, PatientsDbContext patien
                 if (!f.IsActive) { errors.Add($"Line {i + 1}: {code} is no longer used."); continue; }
                 lines.Add(new BillingLine
                 {
-                    Sequence = i + 1, Code = f.Code, Description = string.IsNullOrWhiteSpace(l.Description) ? f.Description : l.Description.Trim(), Quantity = l.Quantity,
-                    UnitPrice = Money(l.UnitPrice ?? f.Price), GstApplicable = f.GstApplicable,
-                    SurgeonPercent = f.Split ? f.SurgeonPercent ?? s.SurgeonPercent : 0, AnaesthetistPercent = f.Split ? f.AnaesthetistPercent ?? s.AnaesthetistPercent : 0
+                    Sequence = i + 1,
+                    Code = f.Code,
+                    Description = string.IsNullOrWhiteSpace(l.Description) ? f.Description : l.Description.Trim(),
+                    Quantity = l.Quantity,
+                    UnitPrice = Money(l.UnitPrice ?? f.Price),
+                    GstApplicable = f.GstApplicable,
+                    SurgeonPercent = f.Split ? f.SurgeonPercent ?? s.SurgeonPercent : 0,
+                    AnaesthetistPercent = f.Split ? f.AnaesthetistPercent ?? s.AnaesthetistPercent : 0
                 });
             }
             else if (code.Length == 0 && !string.IsNullOrWhiteSpace(l.Description) && l.UnitPrice is not null)
@@ -318,9 +323,19 @@ public sealed class BillingService(BillingDbContext db, PatientsDbContext patien
         var today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
         var d = new BillingDocument
         {
-            Kind = kind, PatientId = r.PatientId, BookingId = r.BookingId, Payer = r.Payer, PayerName = Blank(r.PayerName), PayerReference = Blank(r.PayerReference),
-            Surgeon = Blank(r.Surgeon), Anaesthetist = Blank(r.Anaesthetist), Notes = Blank(r.Notes), GstPercent = s.GstPercent,
-            CreatedAt = clock.GetUtcNow(), CreatedBy = user, Lines = lines
+            Kind = kind,
+            PatientId = r.PatientId,
+            BookingId = r.BookingId,
+            Payer = r.Payer,
+            PayerName = Blank(r.PayerName),
+            PayerReference = Blank(r.PayerReference),
+            Surgeon = Blank(r.Surgeon),
+            Anaesthetist = Blank(r.Anaesthetist),
+            Notes = Blank(r.Notes),
+            GstPercent = s.GstPercent,
+            CreatedAt = clock.GetUtcNow(),
+            CreatedBy = user,
+            Lines = lines
         };
         if (kind == DocumentKind.Estimate) { d.Number = $"EST-{s.NextEstimateNumber++:D6}"; d.DueOn = today.AddDays(s.EstimateValidDays); }
         db.Documents.Add(d);
@@ -336,13 +351,29 @@ public sealed class BillingService(BillingDbContext db, PatientsDbContext patien
         if (e.Status is DocumentStatus.Invoiced or DocumentStatus.Declined) return (null, $"This estimate is {e.Status.ToString().ToLowerInvariant()}.");
         var inv = new BillingDocument
         {
-            Kind = DocumentKind.Invoice, PatientId = e.PatientId, BookingId = e.BookingId, SourceEstimateId = e.Id, Payer = e.Payer, PayerName = e.PayerName,
-            PayerReference = e.PayerReference, Surgeon = e.Surgeon, Anaesthetist = e.Anaesthetist, GstPercent = e.GstPercent, Notes = e.Notes,
-            CreatedAt = clock.GetUtcNow(), CreatedBy = user,
+            Kind = DocumentKind.Invoice,
+            PatientId = e.PatientId,
+            BookingId = e.BookingId,
+            SourceEstimateId = e.Id,
+            Payer = e.Payer,
+            PayerName = e.PayerName,
+            PayerReference = e.PayerReference,
+            Surgeon = e.Surgeon,
+            Anaesthetist = e.Anaesthetist,
+            GstPercent = e.GstPercent,
+            Notes = e.Notes,
+            CreatedAt = clock.GetUtcNow(),
+            CreatedBy = user,
             Lines = e.Lines.OrderBy(l => l.Sequence).Select(l => new BillingLine
             {
-                Sequence = l.Sequence, Code = l.Code, Description = l.Description, Quantity = l.Quantity, UnitPrice = l.UnitPrice, GstApplicable = l.GstApplicable,
-                SurgeonPercent = l.SurgeonPercent, AnaesthetistPercent = l.AnaesthetistPercent
+                Sequence = l.Sequence,
+                Code = l.Code,
+                Description = l.Description,
+                Quantity = l.Quantity,
+                UnitPrice = l.UnitPrice,
+                GstApplicable = l.GstApplicable,
+                SurgeonPercent = l.SurgeonPercent,
+                AnaesthetistPercent = l.AnaesthetistPercent
             }).ToList()
         };
         e.Status = DocumentStatus.Invoiced;

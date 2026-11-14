@@ -73,8 +73,14 @@ public static class PortalEndpoints
         g.MapGet("/settings", async (CredentialingService svc) =>
         {
             var s = await svc.SettingsAsync();
-            return Results.Ok(new { requiredTypes = (await svc.RequiredAsync()).Select(t => t.ToString()), s.WarningDays, s.CheckPrivileges,
-                types = Enum.GetValues<CredentialType>().Select(t => new { id = t.ToString(), label = CredentialingService.Label(t) }), services = CredentialingService.Services });
+            return Results.Ok(new
+            {
+                requiredTypes = (await svc.RequiredAsync()).Select(t => t.ToString()),
+                s.WarningDays,
+                s.CheckPrivileges,
+                types = Enum.GetValues<CredentialType>().Select(t => new { id = t.ToString(), label = CredentialingService.Label(t) }),
+                services = CredentialingService.Services
+            });
         }).RequireAuthorization(Permissions.CredentialingView);
         g.MapPut("/settings", async (CredSettingsEdit e, ClaimsPrincipal u, CredentialingService svc) => Errors(await svc.UpdateSettingsAsync(e, Me(u))))
             .RequireAuthorization(Permissions.CredentialingManage);
@@ -138,12 +144,47 @@ public static class PortalEndpoints
             return Results.Ok(new
             {
                 clinicians = mine.Select(id => names.GetValueOrDefault(id, "?")).ToList(),
-                cases = cases.OrderBy(c => c.s.Date).ThenBy(c => c.b.Order).Select(c => new { c.b.Id, c.b.PatientId, patient = N(c.b.PatientId), nhi = people.GetValueOrDefault(c.b.PatientId)?.Nhi,
-                    c.s.Date, c.s.StartTime, location = rooms.GetValueOrDefault(c.s.LocationId, "?"), surgeon = C(c.s.SurgeonId), anaesthetist = c.s.AnaesthetistId is null ? null : C(c.s.AnaesthetistId), c.b.Procedure, status = c.b.Status.ToString(), c.b.IsTentative, c.b.Order }),
-                appointments = appts.OrderBy(a => a.Date).ThenBy(a => a.StartTime).Select(a => new { a.Id, a.PatientId, patient = N(a.PatientId), a.Date, a.StartTime, kind = a.Kind.ToString(),
-                    clinician = C(a.ClinicianId), status = a.Status.ToString() }),
-                waitlist = waits.OrderBy(w => w.TargetDate).Select(w => new { w.Id, w.PatientId, patient = N(w.PatientId), specialist = C(w.SpecialistId), w.Procedure, priority = w.Priority.ToString(), w.AddedOn, w.TargetDate,
-                    status = w.Status.ToString(), w.BookedFor, overdue = w.Status == WaitlistStatus.Waiting && w.TargetDate < today }),
+                cases = cases.OrderBy(c => c.s.Date).ThenBy(c => c.b.Order).Select(c => new
+                {
+                    c.b.Id,
+                    c.b.PatientId,
+                    patient = N(c.b.PatientId),
+                    nhi = people.GetValueOrDefault(c.b.PatientId)?.Nhi,
+                    c.s.Date,
+                    c.s.StartTime,
+                    location = rooms.GetValueOrDefault(c.s.LocationId, "?"),
+                    surgeon = C(c.s.SurgeonId),
+                    anaesthetist = c.s.AnaesthetistId is null ? null : C(c.s.AnaesthetistId),
+                    c.b.Procedure,
+                    status = c.b.Status.ToString(),
+                    c.b.IsTentative,
+                    c.b.Order
+                }),
+                appointments = appts.OrderBy(a => a.Date).ThenBy(a => a.StartTime).Select(a => new
+                {
+                    a.Id,
+                    a.PatientId,
+                    patient = N(a.PatientId),
+                    a.Date,
+                    a.StartTime,
+                    kind = a.Kind.ToString(),
+                    clinician = C(a.ClinicianId),
+                    status = a.Status.ToString()
+                }),
+                waitlist = waits.OrderBy(w => w.TargetDate).Select(w => new
+                {
+                    w.Id,
+                    w.PatientId,
+                    patient = N(w.PatientId),
+                    specialist = C(w.SpecialistId),
+                    w.Procedure,
+                    priority = w.Priority.ToString(),
+                    w.AddedOn,
+                    w.TargetDate,
+                    status = w.Status.ToString(),
+                    w.BookedFor,
+                    overdue = w.Status == WaitlistStatus.Waiting && w.TargetDate < today
+                }),
             });
         }).RequireAuthorization(Permissions.PortalSpecialist);
         g.MapGet("/specialist/patients/{id:guid}", async (Guid id, ClaimsPrincipal u, HttpContext http, PasDbContext core, PortalService portal, TheatreDbContext theatre,
@@ -154,7 +195,15 @@ public static class PortalEndpoints
             if (p is null) return Results.NotFound();
             return Results.Ok(new
             {
-                p.Id, p.Mrn, p.Nhi, p.FamilyName, p.GivenNames, p.PreferredName, p.DateOfBirth, sex = p.Sex.ToString(), p.MobilePhone,
+                p.Id,
+                p.Mrn,
+                p.Nhi,
+                p.FamilyName,
+                p.GivenNames,
+                p.PreferredName,
+                p.DateOfBirth,
+                sex = p.Sex.ToString(),
+                p.MobilePhone,
                 alerts = p.Alerts.Where(a => a.IsActive).Select(a => new { type = a.Type.ToString(), severity = a.Severity.ToString(), a.Description }),
                 documents = await docs.ListAsync(id),
             });
@@ -307,9 +356,17 @@ public static class PortalEndpoints
         var t = BrightPAS.Modules.Billing.BillingService.Calculate(d);
         return new
         {
-            d.Id, d.Number, d.IssuedOn, validUntil = d.DueOn, status = d.Status.ToString(), payer = d.Payer.ToString(), d.PayerName,
+            d.Id,
+            d.Number,
+            d.IssuedOn,
+            validUntil = d.DueOn,
+            status = d.Status.ToString(),
+            payer = d.Payer.ToString(),
+            d.PayerName,
             lines = d.Lines.OrderBy(l => l.Sequence).Select(l => new { l.Description, amount = BrightPAS.Modules.Billing.BillingService.Money(l.Quantity * l.UnitPrice) }),
-            t.Subtotal, t.Gst, t.Total,
+            t.Subtotal,
+            t.Gst,
+            t.Total,
         };
     }
 

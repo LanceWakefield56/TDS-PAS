@@ -344,7 +344,7 @@ Sensitivity: **R** restricted (patient data), **I** internal, **S** secret (encr
 |---|---|
 | msg.Interfaces | Id, Code (unique), Name, Direction (Inbound/Outbound), Transport (MllpListen, MllpSend, FolderWatch, FolderWrite, HttpPost, HttpReceive, DicomListen, SqlQuery, SqlWrite, Monitored), Format (Hl7v2, Fhir, Json, Dicom, Xml, X12, Text), Handler (None, LabResults), Host, Port, FolderPath, Url, AeTitle, SqlText, PollSeconds, WatermarkColumn, **Secret** (S – auth header / REST key / SQL connection string, encrypted), SystemKey (monitored modules), IsActive, AlertAfterFailures, SilentAlertHours, Notes, Created/Updated At/By. **I** |
 | msg.AllowedClients | InterfaceId → Interfaces; Address (IP), AeTitle (DICOM devices), Description. **I** |
-| msg.InterfaceStates | InterfaceId (PK/FK); Watermark, LastPolledAt, LastRows, LastError (SQL polling). **I** |
+| msg.States | InterfaceId (PK/FK); Watermark, LastPolledAt, LastRows, LastError (SQL polling). **I** |
 | msg.Messages | Id, InterfaceId, Direction, Status (Received, Processed, Queued, Sending, Sent, Failed, DeadLetter, Filtered, Recorded, Rejected), MessageType, ControlId, Reference (accession/order/letter), PatientId → patients.Patients, Nhi, **Content** (R, encrypted), Sha256, SizeBytes, Attempts, NextAttemptAt, LastError, AckCode, AckText, ParentId → Messages (routed/replayed from), FlowId → Flows, CreatedAt/By, CompletedAt. **R** |
 | msg.Events | MessageId → Messages (cascade); At, Step, Detail – each step a message went through. **R** (details may name codes) |
 | msg.Flows | Id, Name (unique), Description, IsActive, UpdatedAt/By. **I** |
@@ -390,13 +390,13 @@ Cross-schema keys (90-reporting.sql): Episodes.BookingId → theatre.Bookings, E
 - **emr.Episodes**: BookingId (unique), PatientId, Stage, SedationOrAnaesthesia, AdmittedAt/By, EscortName, EscortPhone, OvernightCarer, EscortConfirmed, EscortOverrideReason, DischargedAt/By, DischargeDestination, FollowUpCallOn.
 - **emr.Assessments** / **emr.AssessmentAnswers**: Kind (NursingAdmission, Vte, Falls, PressureInjury, Frailty, Delirium), Score, Risk (Low/Moderate/High), Actions, RecordedBy/At; answers as Key/Value.
 - **emr.SafetyChecks** / **SafetyCheckItems** / **SafetyCheckTeam**: Phase (SignIn, TimeOut, SignOut), CompletedAt/By, Notes; confirmed item keys; Role + Name of each team member.
-- **emr.Intraop**: one per episode – theatre times, position, positioning aids, skin prep, diathermy unit/pad site/skin after, tourniquet site/pressure/on/off, smoke evacuation, wound class, drains, dressings, notes, UpdatedBy/At.
+- **emr.IntraopRecords**: one per episode – theatre times, position, positioning aids, skin prep, diathermy unit/pad site/skin after, tourniquet site/pressure/on/off, smoke evacuation, wound class, drains, dressings, notes, UpdatedBy/At.
 - **emr.Counts**: Stage (Initial, Additional, Closing, Final), Item, Expected, Counted, CountedBy, CheckedBy, At, Resolved, ResolutionNote.
 - **emr.Specimens**: Number (per episode), Site, Test, Container, Status (Collected, Sent, ReceivedByLab), Courier, CollectedBy/At.
 - **emr.Observations**: At, RespiratoryRate, SpO2, OnOxygen, OxygenLitres, SystolicBp, DiastolicBp, HeartRate, TemperatureC, Consciousness (ACVPU), Pain, Sedation, Ews, Escalation, Source (Manual/Device), DeviceId → assets.Equipment, RecordedBy.
-- **emr.Medications**: Medicine, Dose, Route, GivenAt, GivenBy, Barcode, ControlledDrugId, WitnessedBy, Notes.
-- **emr.ControlledDrugs** (Name, Strength, Form, Balance, IsActive) / **emr.CdRegister** (Movement: Received, Administered, Wasted, Returned, Correction; Quantity, BalanceAfter, By, WitnessedBy, Reference, MedicationId/PatientId when administered). I/R
-- **emr.Fluids**: At, IsInput, Kind, Millilitres, RecordedBy.
+- **emr.MedicationsGiven**: Medicine, Dose, Route, GivenAt, GivenBy, Barcode, ControlledDrugId, WitnessedBy, Notes.
+- **emr.ControlledDrugs** (Name, Strength, Form, Balance, IsActive) / **emr.ControlledDrugRegister** (Movement: Received, Administered, Wasted, Returned, Correction; Quantity, BalanceAfter, By, WitnessedBy, Reference, MedicationId/PatientId when administered). I/R
+- **emr.FluidBalance**: At, IsInput, Kind, Millilitres, RecordedBy.
 - **emr.BloodUnits**: UnitNumber, Product, ReceivedAt, ColdChainOk, CheckedBy1/2, StartedAt, StoppedAt, Reaction, ReactionDetails, Returned.
 - **emr.Notes**: Kind (Nursing, Medical, OperationNote, Anaesthetic, Discharge, PatientInstructions), Text, Author, At, Signed, AmendsNoteId.
 - **emr.Templates**: Name, Kind, Body (placeholders {procedure}, {surgeon}, {anaesthetist}, {date}, {clinic_phone}). P
@@ -430,3 +430,17 @@ Cross-schema keys (90-reporting.sql): Sessions.PatientId → patients.Patients, 
 - **scribe.TranscriptSegments** (SessionId, Seq): Speaker, StartSeconds, EndSeconds, Text, Confidence.
 - **scribe.DraftSentences** (SessionId, Seq): Section, Text, Sources (segment numbers).
 - View: reporting.vScribeSession. Audio files: <data>\scribe\<session>\nnnnn.part (encrypted).
+
+## 0.17.0 – Devices & SaferSleep (schema devices)
+Cross-schema keys (90-reporting.sql): Monitors.EquipmentId → assets.Equipment; Associations.EpisodeId → emr.Episodes, PatientId → patients.Patients; Captures.EpisodeId → emr.Episodes, ObservationId → emr.Observations; AnaestheticRecords.EpisodeId → emr.Episodes, PatientId → patients.Patients, DocumentId → patients.Documents, NoteId → emr.Notes; AdtSends.EpisodeId → emr.Episodes. All tables R unless marked.
+- **devices.Settings** (single row): TheatreChartMinutes, RecoveryChartMinutes, WardChartMinutes, StoreEverySeconds, OfflineAfterSeconds, UnassociatedKeepHours, KeepMonitorMessagesHours, AutoConnectByNhi, SaferSleepEnabled, SaferSleepOutCode (messaging interface), SaferSleepApplication, SaferSleepFacility, SendOn (Admission, InTheatre), FileDrugsToEmr, UpdatedAt/By. P
+- **devices.Monitors**: EquipmentId (unique), Code (unique – the gateway's bed label or equipment id, upper case, "/" separated), IsActive, LastSeenAt, LastNhi (the NHI the monitor last sent), CreatedAt/By.
+- **devices.Associations** (a patient connected to a monitor): MonitorId, EpisodeId, PatientId, StartedAt/By, Method (Manual, Monitor NHI), EndedAt/By. Unique filtered indexes UX_Associations_OpenMonitor and UX_Associations_OpenEpisode (WHERE EndedAt IS NULL): one open connection per monitor and per episode.
+- **devices.Readings** (bigint identity; downsampled monitor values): MonitorId, AssociationId (null = no patient connected; deleted after UnassociatedKeepHours), At, Code (HR, PR, SpO2, NIBP-S/D/M, ART-S/D/M, RR, Temp, EtCO2), Value, Unit.
+- **devices.Captures** (a reading offered to the chart): AssociationId, EpisodeId, MonitorId, At, HeartRate, SpO2, SystolicBp, DiastolicBp, MeanBp, RespiratoryRate, TemperatureC, EtCo2 (mmHg), Status (Pending, Validated, Rejected), ObservationId (the eMR observation created on validation), DecidedBy/At, RejectReason.
+- **devices.AnaestheticRecords**: EpisodeId and PatientId (null = unmatched), CaseNumber (SaferSleep's, same across corrections), ControlId (unique – duplicate detection), IsCorrection, SupersededById (self), Nhi (as sent), Anaesthetist, StartAt, EndAt, Asa, Technique, Airway, Comments, DocumentId, NoteId, MessageId (messaging store), ReceivedAt.
+- **devices.AnaestheticDrugs** (RecordId): At, Name, Dose, Unit, Route, Rate (infusions), Code. **devices.AnaestheticEvents** (RecordId): At, Text. **devices.AnaestheticVitals** (RecordId): At, Code, Value, Unit.
+- **devices.AdtSends**: EpisodeId, Event (A01, A08, A03), At, By, MessageId, Error.
+- **emr.MedicationsGiven** (new columns): Source (Manual, SaferSleep), ExternalRef (the external record's case number – replaced as a set on correction).
+- **msg.Interfaces.Handler**: new values DeviceObservations and AnaesthesiaRecord.
+- Views: reporting.vDeviceCapture (what was offered and what nurses did with it), reporting.vAnaestheticDrug (drugs from current records).

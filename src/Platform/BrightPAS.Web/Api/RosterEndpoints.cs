@@ -23,9 +23,19 @@ public static class RosterEndpoints
         g.MapGet("/me", async (ClaimsPrincipal u, RosterService svc) => Results.Ok(new { staff = await svc.StaffForUserAsync(Me(u)), manager = Manager(u) }))
             .RequireAuthorization(Permissions.RosterView);
         g.MapGet("/staff", async (bool? all, ClaimsPrincipal u, RosterService svc) =>
-            Results.Ok((await svc.StaffAsync(activeOnly: all != true || !Manager(u))).Select(s => new { s.Id, s.Name, role = s.Role.ToString(), s.Colour, s.IsActive,
-                userName = Manager(u) ? s.UserName : null, contractedHours = Manager(u) ? s.ContractedHours : null, phone = Manager(u) ? s.Phone : null,
-                payrollCode = Manager(u) ? s.PayrollCode : null, earningsRate = Manager(u) ? s.EarningsRate : null })))
+            Results.Ok((await svc.StaffAsync(activeOnly: all != true || !Manager(u))).Select(s => new
+            {
+                s.Id,
+                s.Name,
+                role = s.Role.ToString(),
+                s.Colour,
+                s.IsActive,
+                userName = Manager(u) ? s.UserName : null,
+                contractedHours = Manager(u) ? s.ContractedHours : null,
+                phone = Manager(u) ? s.Phone : null,
+                payrollCode = Manager(u) ? s.PayrollCode : null,
+                earningsRate = Manager(u) ? s.EarningsRate : null
+            })))
             .RequireAuthorization(Permissions.RosterView);
         g.MapPost("/staff", async (StaffEdit e, ClaimsPrincipal u, RosterService svc) =>
         {
@@ -70,7 +80,7 @@ public static class RosterEndpoints
             var (error, affected) = await svc.DecideLeaveAsync(id, r.Decision, Me(u));
             return error is null ? Results.Ok(new { shiftsNeedingCover = affected }) : Results.BadRequest(new { errors = new[] { error } });
         }).RequireAuthorization(Permissions.RosterManage);
-    // Shift swaps: staff offer their own shifts; a colleague accepts; the roster manager approves.
+        // Shift swaps: staff offer their own shifts; a colleague accepts; the roster manager approves.
         g.MapGet("/swaps", async (bool? all, ClaimsPrincipal u, RosterService svc) =>
         {
             if (Manager(u)) return Results.Ok(await svc.SwapsAsync(all != true, null));

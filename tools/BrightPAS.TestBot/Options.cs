@@ -24,6 +24,8 @@ public sealed class Options
     public int AiPort { get; set; } = 9460;
     public int SmtpPort { get; set; } = 2525;
     public int ZebraPort { get; set; } = 9150;
+    /// <summary>Virtual SaferSleep listens here for ADT from BrightPAS (the demonstration interface 'safersleep-out' points at it).</summary>
+    public int SaferSleepPort { get; set; } = 12582;
     public bool Full => Depth.Equals("full", StringComparison.OrdinalIgnoreCase);
     public bool Wants(string area) => (Only.Count == 0 || Only.Contains(area)) && !Skip.Contains(area);
 

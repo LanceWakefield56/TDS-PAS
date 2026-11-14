@@ -43,8 +43,14 @@ public class ModuleSetupWebTests(PasWebFactory factory) : IClassFixture<PasWebFa
         key.ImportFromPem(pem);
         var text = LicenceCodec.Sign(new LicenceDocument
         {
-            LicenceId = "BP-MOD-" + Guid.NewGuid().ToString("N")[..6], Customer = "Test", Edition = "Sandbox", IssuedAt = DateTimeOffset.UtcNow,
-            ExpiresOn = new DateOnly(2030, 1, 1), InstallationCode = svc.InstallationCode(await svc.StateAsync()), Modules = modules, GraceDays = 0
+            LicenceId = "BP-MOD-" + Guid.NewGuid().ToString("N")[..6],
+            Customer = "Test",
+            Edition = "Sandbox",
+            IssuedAt = DateTimeOffset.UtcNow,
+            ExpiresOn = new DateOnly(2030, 1, 1),
+            InstallationCode = svc.InstallationCode(await svc.StateAsync()),
+            Modules = modules,
+            GraceDays = 0
         }, key);
         var r = await svc.InstallAsync(text, "admin", null);
         Assert.True(r.Ok, r.Error);

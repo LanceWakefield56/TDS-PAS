@@ -46,8 +46,15 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
         var n = await db.Procedures.CountAsync(x => x.AccessionNumber.StartsWith(prefix), ct);
         p = new Procedure
         {
-            BookingId = bookingId, PatientId = patientId, Kind = Guess(procedureText) ?? ProcedureKind.Gastroscopy, EndoscopistId = endoscopistId, EndoscopistName = endoscopistName,
-            AccessionNumber = prefix + (n + 1).ToString("D4", CultureInfo.InvariantCulture), StudyInstanceUid = Uid(), CreatedBy = user, CreatedAt = clock.GetUtcNow(),
+            BookingId = bookingId,
+            PatientId = patientId,
+            Kind = Guess(procedureText) ?? ProcedureKind.Gastroscopy,
+            EndoscopistId = endoscopistId,
+            EndoscopistName = endoscopistName,
+            AccessionNumber = prefix + (n + 1).ToString("D4", CultureInfo.InvariantCulture),
+            StudyInstanceUid = Uid(),
+            CreatedBy = user,
+            CreatedAt = clock.GetUtcNow(),
         };
         if (p.Kind == ProcedureKind.Gastroscopy) p.Sedation = SedationKind.ThroatSpray;
         db.Procedures.Add(p);
@@ -371,8 +378,17 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
         if (dicom?.SopInstanceUid is { Length: > 0 } sop && await db.Media.AnyAsync(m => m.SopInstanceUid == sop, ct)) return (await db.Media.SingleAsync(m => m.SopInstanceUid == sop, ct), null);
         var m = new Media
         {
-            ProcedureId = p?.Id, PatientId = p?.PatientId, Kind = MediaKind.Image, Source = source, ContentType = type, CapturedAt = clock.GetUtcNow(), CapturedBy = user,
-            SopInstanceUid = Clip(dicom?.SopInstanceUid, 64), DicomPatientId = Clip(dicom?.PatientId, 64), DicomPatientName = Clip(dicom?.PatientName, 100), DicomAccession = Clip(dicom?.Accession, 16),
+            ProcedureId = p?.Id,
+            PatientId = p?.PatientId,
+            Kind = MediaKind.Image,
+            Source = source,
+            ContentType = type,
+            CapturedAt = clock.GetUtcNow(),
+            CapturedBy = user,
+            SopInstanceUid = Clip(dicom?.SopInstanceUid, 64),
+            DicomPatientId = Clip(dicom?.PatientId, 64),
+            DicomPatientName = Clip(dicom?.PatientName, 100),
+            DicomAccession = Clip(dicom?.Accession, 16),
             Sort = p is null ? 0 : await NextAsync(db.Media.Where(x => x.ProcedureId == p.Id).Select(x => x.Sort), ct),
         };
         await store.WriteAsync(m, data, ct);
@@ -389,8 +405,18 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
         var type = Imaging.Sniff(data);
         if (type is not ("video/mp4" or "video/webm")) return (null, "Only MP4 or WebM video can be stored.");
         var p = await OpenAsync(procedureId, ct, allowSigned: true);
-        var m = new Media { ProcedureId = p.Id, PatientId = p.PatientId, Kind = MediaKind.Video, Source = source, ContentType = type, CapturedAt = clock.GetUtcNow(), CapturedBy = user,
-            SopInstanceUid = Clip(dicom?.SopInstanceUid, 64), Sort = await NextAsync(db.Media.Where(x => x.ProcedureId == p.Id).Select(x => x.Sort), ct) };
+        var m = new Media
+        {
+            ProcedureId = p.Id,
+            PatientId = p.PatientId,
+            Kind = MediaKind.Video,
+            Source = source,
+            ContentType = type,
+            CapturedAt = clock.GetUtcNow(),
+            CapturedBy = user,
+            SopInstanceUid = Clip(dicom?.SopInstanceUid, 64),
+            Sort = await NextAsync(db.Media.Where(x => x.ProcedureId == p.Id).Select(x => x.Sort), ct)
+        };
         await store.WriteAsync(m, data, ct);
         db.Media.Add(m);
         await db.SaveChangesAsync(ct);
@@ -404,8 +430,18 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
         var type = contentType.Split(';')[0].Trim().ToLowerInvariant();
         if (type is not ("video/webm" or "video/mp4")) return (null, "The browser must record WebM or MP4 video.");
         var p = await OpenAsync(procedureId, ct, allowSigned: true);
-        var m = new Media { ProcedureId = p.Id, PatientId = p.PatientId, Kind = MediaKind.Video, Source = MediaSource.CaptureStation, Status = MediaStatus.Recording, ContentType = type,
-            CapturedAt = clock.GetUtcNow(), CapturedBy = user, Sort = await NextAsync(db.Media.Where(x => x.ProcedureId == p.Id).Select(x => x.Sort), ct) };
+        var m = new Media
+        {
+            ProcedureId = p.Id,
+            PatientId = p.PatientId,
+            Kind = MediaKind.Video,
+            Source = MediaSource.CaptureStation,
+            Status = MediaStatus.Recording,
+            ContentType = type,
+            CapturedAt = clock.GetUtcNow(),
+            CapturedBy = user,
+            Sort = await NextAsync(db.Media.Where(x => x.ProcedureId == p.Id).Select(x => x.Sort), ct)
+        };
         m.FileName = MediaStore.NewFileName(m);
         db.Media.Add(m);
         Touch(p, user);
@@ -468,9 +504,21 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
         var p = await OpenAsync(o.ProcedureId.Value, ct, allowSigned: true);
         var m = new Media
         {
-            ProcedureId = o.ProcedureId, PatientId = o.PatientId, Kind = MediaKind.Image, Source = o.Source, ContentType = Imaging.Sniff(png)!, CapturedAt = clock.GetUtcNow(), CapturedBy = user,
-            Site = o.Site, Caption = Clip(((o.Caption ?? "Picture") + " (annotated)"), 200), InReport = o.InReport, InPatientReport = o.InPatientReport, FindingId = o.FindingId, PolypId = o.PolypId,
-            Sort = o.Sort, AnnotatedFromId = o.Id,
+            ProcedureId = o.ProcedureId,
+            PatientId = o.PatientId,
+            Kind = MediaKind.Image,
+            Source = o.Source,
+            ContentType = Imaging.Sniff(png)!,
+            CapturedAt = clock.GetUtcNow(),
+            CapturedBy = user,
+            Site = o.Site,
+            Caption = Clip(((o.Caption ?? "Picture") + " (annotated)"), 200),
+            InReport = o.InReport,
+            InPatientReport = o.InPatientReport,
+            FindingId = o.FindingId,
+            PolypId = o.PolypId,
+            Sort = o.Sort,
+            AnnotatedFromId = o.Id,
         };
         await store.WriteAsync(m, png, ct);
         o.InReport = false; o.InPatientReport = false;

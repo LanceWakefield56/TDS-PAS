@@ -63,14 +63,37 @@ public static class RemindersEndpoints
             var root = $"{http.Request.Scheme}://{http.Request.Host}/api/hooks/sms/{key}";
             return Results.Ok(new
             {
-                smsProvider = s.SmsProvider.ToString(), emailProvider = s.EmailProvider.ToString(), s.SendBookingConfirmation, s.SendDayBeforeReminder, s.SendEmailCopies,
-                s.DayBeforeHour, s.ArrivalLeadMinutes, quietStart = s.QuietStart.ToString("HH\\:mm"), quietEnd = s.QuietEnd.ToString("HH\\:mm"), s.ClinicName, s.ClinicPhone,
-                s.ModicaBaseUrl, s.ModicaApplication, modicaPasswordSet = s.ModicaPasswordProtected is not null, s.ModicaMask,
-                s.GenericUrl, s.GenericAuthHeader, genericAuthValueSet = s.GenericAuthValueProtected is not null, s.GenericBodyTemplate,
-                s.SmtpHost, s.SmtpPort, s.SmtpStartTls, s.SmtpUser, smtpPasswordSet = s.SmtpPasswordProtected is not null, s.FromAddress, s.FromName,
+                smsProvider = s.SmsProvider.ToString(),
+                emailProvider = s.EmailProvider.ToString(),
+                s.SendBookingConfirmation,
+                s.SendDayBeforeReminder,
+                s.SendEmailCopies,
+                s.DayBeforeHour,
+                s.ArrivalLeadMinutes,
+                quietStart = s.QuietStart.ToString("HH\\:mm"),
+                quietEnd = s.QuietEnd.ToString("HH\\:mm"),
+                s.ClinicName,
+                s.ClinicPhone,
+                s.ModicaBaseUrl,
+                s.ModicaApplication,
+                modicaPasswordSet = s.ModicaPasswordProtected is not null,
+                s.ModicaMask,
+                s.GenericUrl,
+                s.GenericAuthHeader,
+                genericAuthValueSet = s.GenericAuthValueProtected is not null,
+                s.GenericBodyTemplate,
+                s.SmtpHost,
+                s.SmtpPort,
+                s.SmtpStartTls,
+                s.SmtpUser,
+                smtpPasswordSet = s.SmtpPasswordProtected is not null,
+                s.FromAddress,
+                s.FromName,
                 callbacks = new { replies = root + "/inbound", deliveryReceipts = root + "/status" },
-                s.UpdatedAt, s.UpdatedBy,
-                smsProviders = Enum.GetNames<SmsProvider>(), emailProviders = Enum.GetNames<EmailProvider>()
+                s.UpdatedAt,
+                s.UpdatedBy,
+                smsProviders = Enum.GetNames<SmsProvider>(),
+                emailProviders = Enum.GetNames<EmailProvider>()
             });
         }).RequireAuthorization(Permissions.RemindersManage);
         g.MapPut("/settings", async (ReminderService.SettingsUpdate r, ClaimsPrincipal u, ReminderService svc) =>

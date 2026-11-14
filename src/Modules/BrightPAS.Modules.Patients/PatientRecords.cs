@@ -111,9 +111,18 @@ public sealed class DocumentService(PatientsDbContext db, IDocumentCipher cipher
         var name = SafeFileName(d.FileName);
         var row = new PatientDocument
         {
-            PatientId = d.PatientId, BookingId = d.BookingId, Category = d.Category, Title = Trunc(string.IsNullOrWhiteSpace(d.Title) ? Path.GetFileNameWithoutExtension(name) : d.Title.Trim(), 150),
-            FileName = name, ContentType = type!, SizeBytes = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)), Content = cipher.Protect(bytes),
-            Source = d.Source, UploadedAt = clock.GetUtcNow(), UploadedBy = user,
+            PatientId = d.PatientId,
+            BookingId = d.BookingId,
+            Category = d.Category,
+            Title = Trunc(string.IsNullOrWhiteSpace(d.Title) ? Path.GetFileNameWithoutExtension(name) : d.Title.Trim(), 150),
+            FileName = name,
+            ContentType = type!,
+            SizeBytes = bytes.Length,
+            Sha256 = Convert.ToHexString(SHA256.HashData(bytes)),
+            Content = cipher.Protect(bytes),
+            Source = d.Source,
+            UploadedAt = clock.GetUtcNow(),
+            UploadedBy = user,
         };
         db.Documents.Add(row);
         db.DocumentTexts.Add(new DocumentText { DocumentId = row.Id });
@@ -313,9 +322,18 @@ public sealed class IdentityService(PatientsDbContext db, AuditWriter audit, Tim
         if (errors.Count > 0) return (null, errors);
         var row = new IdentityCorrection
         {
-            PatientId = p.Id, NewFamilyName = family, NewGivenNames = given, NewDateOfBirth = r.DateOfBirth, NewSex = r.Sex, NewNhi = nhi, ClearNhi = r.ClearNhi && nhi is null,
-            Before = Describe(p), Reason = DocumentService.Trunc(r.Reason.Trim(), 500), Evidence = Blank(r.Evidence) is { } ev ? DocumentService.Trunc(ev, 200) : null,
-            RequestedAt = clock.GetUtcNow(), RequestedBy = user,
+            PatientId = p.Id,
+            NewFamilyName = family,
+            NewGivenNames = given,
+            NewDateOfBirth = r.DateOfBirth,
+            NewSex = r.Sex,
+            NewNhi = nhi,
+            ClearNhi = r.ClearNhi && nhi is null,
+            Before = Describe(p),
+            Reason = DocumentService.Trunc(r.Reason.Trim(), 500),
+            Evidence = Blank(r.Evidence) is { } ev ? DocumentService.Trunc(ev, 200) : null,
+            RequestedAt = clock.GetUtcNow(),
+            RequestedBy = user,
         };
         db.Corrections.Add(row);
         await db.SaveChangesAsync(ct);
@@ -534,9 +552,16 @@ public sealed class LabelService(PatientsDbContext db, AuditWriter audit)
         await audit.WriteAsync(user, "Print", "PatientLabel", patientId.ToString(), patientId.ToString(), reason: $"{copies} label(s) on {printer.Name} (DYMO {printer.MediaCode}, from the browser)", ct: ct);
         return (null, new
         {
-            media = printer.MediaCode, printer = printer.Name, copies,
-            name = $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}", dateOfBirth = p.DateOfBirth, sex = p.Sex.ToString(), p.Nhi, p.Mrn,
-            allergy = p.Alerts.Any(a => a.IsActive && a.Type == AlertType.Allergy), barcode = new { bars, width, text = p.Nhi ?? p.Mrn },
+            media = printer.MediaCode,
+            printer = printer.Name,
+            copies,
+            name = $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}",
+            dateOfBirth = p.DateOfBirth,
+            sex = p.Sex.ToString(),
+            p.Nhi,
+            p.Mrn,
+            allergy = p.Alerts.Any(a => a.IsActive && a.Type == AlertType.Allergy),
+            barcode = new { bars, width, text = p.Nhi ?? p.Mrn },
         });
     }
 

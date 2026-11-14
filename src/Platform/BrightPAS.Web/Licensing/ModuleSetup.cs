@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -68,6 +68,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "emr" => await EmrChecksAsync(ct),
         "endoscopy" => await EndoChecksAsync(ct),
         "scribe" => await ScribeChecksAsync(ct),
+        "devices" => await DevicesChecksAsync(ct),
         _ => []
     };
 
@@ -259,6 +260,31 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
             new("privacy", "Privacy approval for cloud processing", "Cloud speech or drafting needs the PIA addendum / supplier assessment reference (identifiers are removed before drafting).",
                 !cloud || s.CloudPrivacyReference is not null, cloud ? s.CloudPrivacyReference ?? "Missing" : "No cloud processing.", false, "Open scribe settings", "/scribe?tab=settings", Permissions.ScribeManage),
             new("dictionary", "TDS custom dictionary", "Clinician, place, medicine and te reo Māori terms (starter list supplied – add TDS names).", terms > 0, $"{terms} term(s).", true, "Open dictionary", "/scribe?tab=dictionary", Permissions.ScribeManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> DevicesChecksAsync(CancellationToken ct)
+    {
+        var svc = Svc<BrightPAS.Modules.Devices.DeviceService>();
+        var s = await svc.SettingsAsync(ct);
+        var monitors = (await svc.MonitorsAsync(ct)).Count(m => m.IsActive);
+        var ifaces = licence.Status.AccessTo("messaging") != ModuleAccess.None ? await Svc<BrightPAS.Modules.Messaging.MsgDbContext>().Interfaces.AsNoTracking().Where(i => i.IsActive).ToListAsync(ct) : [];
+        var monIn = ifaces.Any(i => i.Handler == BrightPAS.Modules.Messaging.InboundHandler.DeviceObservations);
+        var ssIn = ifaces.Any(i => i.Handler == BrightPAS.Modules.Messaging.InboundHandler.AnaesthesiaRecord);
+        var ssOut = ifaces.Any(i => i.Code == s.SaferSleepOutCode && i.Direction == BrightPAS.Modules.Messaging.InterfaceDirection.Outbound);
+        var users = await UsersWithAsync(Permissions.DevicesUse, ct);
+        return
+        [
+            new("engine", "Messaging engine", "Monitor results and SaferSleep messages arrive through the messaging engine (Messaging & integration module).",
+                licence.Status.AccessTo("messaging") == ModuleAccess.Full, licence.Status.AccessTo("messaging") == ModuleAccess.Full ? "Licensed." : "Not licensed – devices cannot connect.", false, "Open modules", "/admin/modules", Permissions.ModulesManage),
+            new("monitor-in", "Monitor gateway interface", "An inbound MLLP interface with the handler 'Bedside monitors' that the GE CARESCAPE Gateway sends HL7 results to (allow only the gateway's IP address).",
+                monIn, monIn ? "Set up." : "Not set up.", false, "Open interfaces", "/messaging/interfaces", Permissions.IntegrationManage),
+            new("monitors", "Monitors registered", "Each monitor from the equipment register, with the bed label or id the gateway sends.",
+                monitors > 0, $"{monitors} monitor(s).", false, "Open devices", "/devices?tab=monitors", Permissions.DevicesManage),
+            new("users", "Nurses can validate readings", "Nurses and anaesthetists get 'Connect patients to bedside monitors, validate readings…' by default.",
+                users > 0, $"{users} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("safersleep", "SaferSleep interface", "Optional: switch on SaferSleep, with an outbound MLLP interface (patient and booking to SaferSleep) and an inbound one with the handler 'SaferSleep anaesthetic record'. Confirm the message profile with SaferSleep.",
+                s.SaferSleepEnabled && ssIn && ssOut, !s.SaferSleepEnabled ? "Off." : $"Out: {(ssOut ? s.SaferSleepOutCode : "missing")}; in: {(ssIn ? "set up" : "missing")}.", true, "Open device settings", "/devices?tab=settings", Permissions.DevicesManage),
         ];
     }
 

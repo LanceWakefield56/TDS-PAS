@@ -32,8 +32,11 @@ public sealed class BreakGlassService(PasIdentityDbContext db, AuditWriter audit
         var now = clock.GetUtcNow();
         var grant = new BreakGlassGrant
         {
-            UserId = user.Id, PatientId = patientId, Reason = reason.Trim(),
-            GrantedAt = now, ExpiresAt = now + GrantDuration
+            UserId = user.Id,
+            PatientId = patientId,
+            Reason = reason.Trim(),
+            GrantedAt = now,
+            ExpiresAt = now + GrantDuration
         };
         db.BreakGlassGrants.Add(grant);
         await db.SaveChangesAsync(ct);

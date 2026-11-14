@@ -162,9 +162,14 @@ public sealed class FlowService(MsgDbContext db, MappingService mappings, Messag
         {
             var node = new FlowNode
             {
-                FlowId = f.Id, Kind = n.Kind, Label = string.IsNullOrWhiteSpace(n.Label) ? n.Kind.ToString() : n.Label.Trim()[..Math.Min(60, n.Label.Trim().Length)],
-                X = Math.Clamp(n.X, 0, 5000), Y = Math.Clamp(n.Y, 0, 5000), Match = n.Match,
-                InterfaceId = n.Kind is NodeKind.Input or NodeKind.Output ? n.InterfaceId : null, MappingId = n.Kind == NodeKind.Mapper ? n.MappingId : null,
+                FlowId = f.Id,
+                Kind = n.Kind,
+                Label = string.IsNullOrWhiteSpace(n.Label) ? n.Kind.ToString() : n.Label.Trim()[..Math.Min(60, n.Label.Trim().Length)],
+                X = Math.Clamp(n.X, 0, 5000),
+                Y = Math.Clamp(n.Y, 0, 5000),
+                Match = n.Match,
+                InterfaceId = n.Kind is NodeKind.Input or NodeKind.Output ? n.InterfaceId : null,
+                MappingId = n.Kind == NodeKind.Mapper ? n.MappingId : null,
             };
             keyToId[n.Key] = node.Id;
             db.Nodes.Add(node);
@@ -251,52 +256,52 @@ public sealed class FlowService(MsgDbContext db, MappingService mappings, Messag
             {
                 case NodeKind.Filter:
                 case NodeKind.Decision:
-                {
-                    bool result;
-                    string detail;
-                    try { (result, detail) = Evaluate(n, msg, fmt); }
-                    catch (MappingException ex) { steps.Add(new(key, label, n.Kind.ToString(), "Failed", ex.Message, fmt.ToString(), null)); continue; }
-                    if (n.Kind == NodeKind.Filter)
                     {
-                        steps.Add(new(key, label, "Filter", result ? "Passed" : "Stopped", detail, fmt.ToString(), null));
-                        if (result) foreach (var e in g.Edges.Where(e => e.From == key)) queue.Enqueue((e.To, msg, fmt));
+                        bool result;
+                        string detail;
+                        try { (result, detail) = Evaluate(n, msg, fmt); }
+                        catch (MappingException ex) { steps.Add(new(key, label, n.Kind.ToString(), "Failed", ex.Message, fmt.ToString(), null)); continue; }
+                        if (n.Kind == NodeKind.Filter)
+                        {
+                            steps.Add(new(key, label, "Filter", result ? "Passed" : "Stopped", detail, fmt.ToString(), null));
+                            if (result) foreach (var e in g.Edges.Where(e => e.From == key)) queue.Enqueue((e.To, msg, fmt));
+                        }
+                        else
+                        {
+                            steps.Add(new(key, label, "Decision", result ? "Yes" : "No", detail, fmt.ToString(), null));
+                            var branch = result ? EdgeBranch.Yes : EdgeBranch.No;
+                            foreach (var e in g.Edges.Where(e => e.From == key && e.Branch == branch)) queue.Enqueue((e.To, msg, fmt));
+                        }
+                        break;
                     }
-                    else
-                    {
-                        steps.Add(new(key, label, "Decision", result ? "Yes" : "No", detail, fmt.ToString(), null));
-                        var branch = result ? EdgeBranch.Yes : EdgeBranch.No;
-                        foreach (var e in g.Edges.Where(e => e.From == key && e.Branch == branch)) queue.Enqueue((e.To, msg, fmt));
-                    }
-                    break;
-                }
                 case NodeKind.Mapper:
-                {
-                    var live = await MappingForRunAsync(n.MappingId!.Value, useDrafts, ct);
-                    if (live is null) { steps.Add(new(key, label, "Mapper", "Failed", "The mapping has no live version yet (approve it first, or tick 'use drafts' to test).", fmt.ToString(), null)); continue; }
-                    var res = MappingEngine.Run(live.Mapping.SourceFormat, live.Mapping.TargetFormat, msg, live.Version.StartFrom, live.Version.Template, live.Filters, live.Rules, live.Tables);
-                    var ver = $"{live.Mapping.Name} v{live.Version.Number}{(live.Version.Status == VersionStatus.Live ? "" : $" ({live.Version.Status})")}";
-                    if (res.FilteredOut) { steps.Add(new(key, label, "Mapper", "Stopped", $"{ver}: {string.Join(" ", res.Steps)}", fmt.ToString(), null)); continue; }
-                    if (res.Errors.Count > 0 || res.Output is null)
                     {
-                        steps.Add(new(key, label, "Mapper", "Failed", $"{ver}: {string.Join(" ", res.Errors)}", fmt.ToString(), null));
-                        foreach (var e in g.Edges.Where(e => e.From == key))
-                            if (byKey[e.To].Kind == NodeKind.Output && byKey[e.To].InterfaceId is { } oid)
-                                outputs.Add(new(e.To, oid, "", live.Mapping.TargetFormat.ToString(), msg, [$"Mapping failed: {string.Join(" ", res.Errors)}"]));
-                        continue;
+                        var live = await MappingForRunAsync(n.MappingId!.Value, useDrafts, ct);
+                        if (live is null) { steps.Add(new(key, label, "Mapper", "Failed", "The mapping has no live version yet (approve it first, or tick 'use drafts' to test).", fmt.ToString(), null)); continue; }
+                        var res = MappingEngine.Run(live.Mapping.SourceFormat, live.Mapping.TargetFormat, msg, live.Version.StartFrom, live.Version.Template, live.Filters, live.Rules, live.Tables);
+                        var ver = $"{live.Mapping.Name} v{live.Version.Number}{(live.Version.Status == VersionStatus.Live ? "" : $" ({live.Version.Status})")}";
+                        if (res.FilteredOut) { steps.Add(new(key, label, "Mapper", "Stopped", $"{ver}: {string.Join(" ", res.Steps)}", fmt.ToString(), null)); continue; }
+                        if (res.Errors.Count > 0 || res.Output is null)
+                        {
+                            steps.Add(new(key, label, "Mapper", "Failed", $"{ver}: {string.Join(" ", res.Errors)}", fmt.ToString(), null));
+                            foreach (var e in g.Edges.Where(e => e.From == key))
+                                if (byKey[e.To].Kind == NodeKind.Output && byKey[e.To].InterfaceId is { } oid)
+                                    outputs.Add(new(e.To, oid, "", live.Mapping.TargetFormat.ToString(), msg, [$"Mapping failed: {string.Join(" ", res.Errors)}"]));
+                            continue;
+                        }
+                        steps.Add(new(key, label, "Mapper", res.Warnings.Count > 0 ? "Warning" : "Passed", $"{ver}: {res.Steps.Count} rule(s) applied{(res.Warnings.Count > 0 ? ". " + string.Join(" ", res.Warnings) : "")}", live.Mapping.TargetFormat.ToString(), Clip(res.Output)));
+                        foreach (var e in g.Edges.Where(e => e.From == key)) queue.Enqueue((e.To, res.Output, live.Mapping.TargetFormat));
+                        break;
                     }
-                    steps.Add(new(key, label, "Mapper", res.Warnings.Count > 0 ? "Warning" : "Passed", $"{ver}: {res.Steps.Count} rule(s) applied{(res.Warnings.Count > 0 ? ". " + string.Join(" ", res.Warnings) : "")}", live.Mapping.TargetFormat.ToString(), Clip(res.Output)));
-                    foreach (var e in g.Edges.Where(e => e.From == key)) queue.Enqueue((e.To, res.Output, live.Mapping.TargetFormat));
-                    break;
-                }
                 case NodeKind.Output:
-                {
-                    var o = await db.Interfaces.AsNoTracking().SingleOrDefaultAsync(i => i.Id == n.InterfaceId, ct);
-                    if (o is null) { steps.Add(new(key, label, "Output", "Failed", "The interface no longer exists.", fmt.ToString(), null)); continue; }
-                    var p = MessageDocs.Validate(o.Format, msg);
-                    steps.Add(new(key, label, "Output", p.Count == 0 ? (o.IsActive ? "Would send" : "Interface off") : "Failed", p.Count == 0 ? $"To {o.Name}" : string.Join(" ", p), o.Format.ToString(), Clip(msg)));
-                    outputs.Add(new(key, o.Id, o.Name, o.Format.ToString(), msg, p));
-                    break;
-                }
+                    {
+                        var o = await db.Interfaces.AsNoTracking().SingleOrDefaultAsync(i => i.Id == n.InterfaceId, ct);
+                        if (o is null) { steps.Add(new(key, label, "Output", "Failed", "The interface no longer exists.", fmt.ToString(), null)); continue; }
+                        var p = MessageDocs.Validate(o.Format, msg);
+                        steps.Add(new(key, label, "Output", p.Count == 0 ? (o.IsActive ? "Would send" : "Interface off") : "Failed", p.Count == 0 ? $"To {o.Name}" : string.Join(" ", p), o.Format.ToString(), Clip(msg)));
+                        outputs.Add(new(key, o.Id, o.Name, o.Format.ToString(), msg, p));
+                        break;
+                    }
             }
         }
         foreach (var o in outputs.Where(o => o.Interface.Length == 0).ToList())

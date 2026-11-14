@@ -142,7 +142,11 @@ public sealed class SmtpEmailGateway(ISecretProtector secrets) : IEmailGateway
         {
             using var msg = new MailMessage(new MailAddress(s.FromAddress!, s.FromName), new MailAddress(to))
             {
-                Subject = subject, Body = body, IsBodyHtml = false, BodyEncoding = Encoding.UTF8, SubjectEncoding = Encoding.UTF8
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = false,
+                BodyEncoding = Encoding.UTF8,
+                SubjectEncoding = Encoding.UTF8
             };
             var id = $"<{Guid.NewGuid():N}@brightpas>";
             msg.Headers.Add("Message-ID", id);

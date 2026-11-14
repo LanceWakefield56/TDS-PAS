@@ -28,7 +28,7 @@ public sealed class Sims : IAsyncDisposable
     private readonly Report _r;
     private readonly CancellationTokenSource _stop = new();
     private WebApplication? _http;
-    private TcpListener? _smtp, _zebra;
+    private TcpListener? _smtp, _zebra, _saferSleep;
     private readonly List<Task> _loops = [];
     public X509Certificate2? Certificate { get; private set; }
     public bool CertificateTrusted { get; private set; }
@@ -36,6 +36,8 @@ public sealed class Sims : IAsyncDisposable
     public ConcurrentQueue<Email> Mail { get; } = new();
     public ConcurrentQueue<Label> Labels { get; } = new();
     public ConcurrentQueue<HlFile> HealthLink { get; } = new();
+    /// <summary>HL7 messages BrightPAS sent to the virtual SaferSleep (ADT: patient and booking).</summary>
+    public ConcurrentQueue<string> SaferSleepIn { get; } = new();
     public string ModicaApp => "tds-testbot";
     public string ModicaPassword { get; } = "Sim-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6));
     public string ModicaUrl => $"https://localhost:{_o.ModicaPort}/rest/gateway";
@@ -133,6 +135,9 @@ public sealed class Sims : IAsyncDisposable
         // Virtual Zebra printer.
         _zebra = new TcpListener(IPAddress.Loopback, _o.ZebraPort); _zebra.Start();
         _loops.Add(Task.Run(() => AcceptLoop(_zebra, HandleZebraAsync)));
+        // Virtual SaferSleep (anaesthesia system): receives ADT over MLLP and acknowledges.
+        _saferSleep = new TcpListener(IPAddress.Loopback, _o.SaferSleepPort); _saferSleep.Start();
+        _loops.Add(Task.Run(() => AcceptLoop(_saferSleep, HandleSaferSleepAsync)));
         // Virtual HealthLink client.
         Directory.CreateDirectory(HealthLinkOut); Directory.CreateDirectory(HealthLinkIn);
         GrantAppPool(Path.Combine(_o.WorkFolder, "HealthLink"));
@@ -207,6 +212,32 @@ public sealed class Sims : IAsyncDisposable
             TcpClient c;
             try { c = await l.AcceptTcpClientAsync(_stop.Token); } catch (Exception) when (_stop.IsCancellationRequested) { return; } catch (SocketException) { continue; }
             _ = Task.Run(async () => { using (c) { try { await handle(c); } catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException) { } } });
+        }
+    }
+
+    /// <summary>MLLP server: reads framed HL7 messages, keeps them and answers each with an application accept (MSA|AA).</summary>
+    private async Task HandleSaferSleepAsync(TcpClient c)
+    {
+        var s = c.GetStream();
+        var buf = new byte[65536];
+        var pending = new List<byte>();
+        while (!_stop.IsCancellationRequested)
+        {
+            var n = await s.ReadAsync(buf, _stop.Token);
+            if (n == 0) return;
+            pending.AddRange(buf.AsSpan(0, n).ToArray());
+            int end;
+            while ((end = pending.IndexOf(0x1c)) >= 0)
+            {
+                var hl7 = Encoding.UTF8.GetString(pending.GetRange(0, end).ToArray()).TrimStart('\x0b');
+                pending.RemoveRange(0, Math.Min(pending.Count, end + 2));
+                var msh = hl7.Split('\r')[0].Split('|');
+                var control = msh.Length > 9 ? msh[9] : "";
+                SaferSleepIn.Enqueue(hl7);
+                _r.Device("Virtual SaferSleep", $"Received {(msh.Length > 8 ? msh[8] : "message")} {control}", hl7.Replace("\r", "\n"));
+                var ack = $"MSH|^~\\&|SAFERSLEEP|TDS|BrightPAS|TDS|{DateTime.Now:yyyyMMddHHmmss}||ACK|SS{control}|P|2.4\rMSA|AA|{control}\r";
+                await s.WriteAsync(new byte[] { 0x0b }.Concat(Encoding.UTF8.GetBytes(ack)).Concat(new byte[] { 0x1c, 0x0d }).ToArray(), _stop.Token);
+            }
         }
     }
 
@@ -407,7 +438,7 @@ public sealed class Sims : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await _stop.CancelAsync();
-        _smtp?.Stop(); _zebra?.Stop();
+        _smtp?.Stop(); _zebra?.Stop(); _saferSleep?.Stop();
         if (_http is not null) await _http.DisposeAsync();
         if (_ai is not null) await _ai.DisposeAsync();
         if (CertificateTrusted && Certificate is not null) TrustCertificate(Certificate, false);

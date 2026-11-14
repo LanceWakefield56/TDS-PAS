@@ -132,6 +132,7 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
         if (e.Transport == Transport.DicomListen && e.Format != MessageFormat.Dicom) errors.Add("A DICOM listener receives DICOM – choose the DICOM format.");
         if (e.Handler != InboundHandler.None && e.Direction != InterfaceDirection.Inbound) errors.Add("Only inbound interfaces can hand messages to a BrightPAS module.");
         if (e.Handler == InboundHandler.LabResults && e.Format != MessageFormat.Hl7v2) errors.Add("Lab results are received as HL7 v2.");
+        if (e.Handler is InboundHandler.DeviceObservations or InboundHandler.AnaesthesiaRecord && e.Format != MessageFormat.Hl7v2) errors.Add("Monitor results and the SaferSleep record are received as HL7 v2.");
         var clients = (e.AllowedClients ?? []).Where(c => !string.IsNullOrWhiteSpace(c.Address))
             .Select(c => new ClientEdit(c.Address.Trim(), Blank(c.AeTitle)?.ToUpperInvariant(), Blank(c.Description))).DistinctBy(c => (c.Address, c.AeTitle)).ToList();
         var ae = Blank(e.AeTitle)?.ToUpperInvariant();
@@ -211,9 +212,15 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
 
     private static string Describe(Interface i) => i.Transport switch
     {
-        Transport.SqlQuery => $"SELECT every {i.PollSeconds}s", Transport.SqlWrite => "database write",
-        Transport.MllpListen => $"port {i.Port}", Transport.DicomListen => $"{i.AeTitle} on port {i.Port}", Transport.HttpReceive => $"/api/integration/in/{i.Code}", Transport.MllpSend => $"{i.Host}:{i.Port}",
-        Transport.FolderWatch or Transport.FolderWrite => i.FolderPath ?? "", Transport.HttpPost => i.Url ?? "", _ => i.SystemKey ?? "",
+        Transport.SqlQuery => $"SELECT every {i.PollSeconds}s",
+        Transport.SqlWrite => "database write",
+        Transport.MllpListen => $"port {i.Port}",
+        Transport.DicomListen => $"{i.AeTitle} on port {i.Port}",
+        Transport.HttpReceive => $"/api/integration/in/{i.Code}",
+        Transport.MllpSend => $"{i.Host}:{i.Port}",
+        Transport.FolderWatch or Transport.FolderWrite => i.FolderPath ?? "",
+        Transport.HttpPost => i.Url ?? "",
+        _ => i.SystemKey ?? "",
     };
 
     /// <summary>Monitored interface for a module that sends its own messages (created on first use).</summary>
@@ -232,8 +239,17 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
         };
         i = db.Interfaces.Add(new Interface
         {
-            Code = $"{key}-monitor", Name = name, Direction = InterfaceDirection.Outbound, Transport = Transport.Monitored, Format = format, SystemKey = key,
-            CreatedAt = now, CreatedBy = "system", UpdatedAt = now, UpdatedBy = "system", AlertAfterFailures = 5,
+            Code = $"{key}-monitor",
+            Name = name,
+            Direction = InterfaceDirection.Outbound,
+            Transport = Transport.Monitored,
+            Format = format,
+            SystemKey = key,
+            CreatedAt = now,
+            CreatedBy = "system",
+            UpdatedAt = now,
+            UpdatedBy = "system",
+            AlertAfterFailures = 5,
         }).Entity;
         await db.SaveChangesAsync(ct);
         return i;
@@ -246,8 +262,15 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
         if (bytes.Length > MaxContentBytes) throw new InvalidOperationException($"Message is larger than {MaxContentBytes / 1_000_000} MB.");
         var m = new Message
         {
-            InterfaceId = i.Id, Direction = dir, Content = cipher.Protect(bytes), Sha256 = Convert.ToHexString(SHA256.HashData(bytes)), SizeBytes = bytes.Length,
-            CreatedAt = clock.GetUtcNow(), CreatedBy = by, ParentId = parentId, FlowId = flowId,
+            InterfaceId = i.Id,
+            Direction = dir,
+            Content = cipher.Protect(bytes),
+            Sha256 = Convert.ToHexString(SHA256.HashData(bytes)),
+            SizeBytes = bytes.Length,
+            CreatedAt = clock.GetUtcNow(),
+            CreatedBy = by,
+            ParentId = parentId,
+            FlowId = flowId,
         };
         Describe(m, i.Format, content);
         return m;

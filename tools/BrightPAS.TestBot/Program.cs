@@ -53,7 +53,7 @@ try
     if (o.Simulators && o.Wants("devices"))
     {
         sims = new Sims(o, report);
-        try { await sims.StartAsync(); report.Facts["virtual devices"] = $"SMS company https://localhost:{o.ModicaPort}, email localhost:{o.SmtpPort}, Zebra localhost:{o.ZebraPort}, HealthLink {sims.HealthLinkOut}"; }
+        try { await sims.StartAsync(); report.Facts["virtual devices"] = $"SMS company https://localhost:{o.ModicaPort}, email localhost:{o.SmtpPort}, Zebra localhost:{o.ZebraPort}, HealthLink {sims.HealthLinkOut}, SaferSleep localhost:{o.SaferSleepPort} (the GE monitor gateway and SaferSleep records are sent to ports 12580 and 12581)"; }
         catch (Exception ex) when (ex is System.Net.Sockets.SocketException or IOException or UnauthorizedAccessException)
         {
             report.Add("devices", "robot", "virtual devices", "Start the virtual devices", Outcome.Fail, ex.Message);

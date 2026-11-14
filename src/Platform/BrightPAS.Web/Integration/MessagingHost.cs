@@ -63,6 +63,27 @@ public sealed class MessagingPipeline(MessagingService messages, FlowService flo
                     ackCode = r.Outcome == LabMessageOutcome.Rejected ? "AR" : "AA";
                     if (r.Outcome == LabMessageOutcome.Duplicate) error = "Duplicate – already received (acknowledged again).";
                     break;
+                case InboundHandler.DeviceObservations:
+                case InboundHandler.AnaesthesiaRecord:
+                    if (licence.Status.AccessTo(BrightPAS.Modules.Devices.DevicesModule.Id) != ModuleAccess.Full)
+                    {
+                        status = MsgStatus.Rejected; error = "Devices & SaferSleep module not licensed or read-only."; ack = TryAck(content, "AR", error); ackCode = "AR";
+                        break;
+                    }
+                    if (i.Handler == InboundHandler.DeviceObservations)
+                    {
+                        var d = await sp.GetRequiredService<BrightPAS.Modules.Devices.DeviceService>().IngestAsync(content, ct);
+                        status = d.Accepted ? MsgStatus.Processed : MsgStatus.Rejected; error = d.Error; patientId = d.PatientId;
+                    }
+                    else
+                    {
+                        var a = await sp.GetRequiredService<BrightPAS.Modules.Devices.AnaesthesiaService>().IngestAsync(content, m.Id, $"{i.Code}:{m.CreatedBy}", ct);
+                        status = a.Accepted ? MsgStatus.Processed : MsgStatus.Rejected; patientId = a.PatientId;
+                        error = a.Error ?? (a.Duplicate ? "Duplicate – already received (acknowledged again)." : a.Accepted && !a.Filed ? "Received but not matched to an episode – file it under Devices › SaferSleep." : null);
+                    }
+                    ackCode = status == MsgStatus.Processed ? "AA" : "AR";
+                    ack = TryAck(content, ackCode, status == MsgStatus.Processed ? null : error);
+                    break;
                 default:
                     var problems = MessageDocs.Validate(i.Format, content);
                     status = problems.Count == 0 ? MsgStatus.Processed : MsgStatus.Rejected;
@@ -265,8 +286,13 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
     // ------------------------------------------------------------------ folders
     private static readonly Dictionary<MsgFormat, string[]> Extensions = new()
     {
-        [MsgFormat.Hl7v2] = [".hl7", ".txt", ".msg"], [MsgFormat.Json] = [".json"], [MsgFormat.Fhir] = [".json"], [MsgFormat.Xml] = [".xml", ".cda"],
-        [MsgFormat.X12] = [".x12", ".edi", ".txt"], [MsgFormat.Dicom] = [".dcm", ".dicom", ""], [MsgFormat.Text] = [".txt"],
+        [MsgFormat.Hl7v2] = [".hl7", ".txt", ".msg"],
+        [MsgFormat.Json] = [".json"],
+        [MsgFormat.Fhir] = [".json"],
+        [MsgFormat.Xml] = [".xml", ".cda"],
+        [MsgFormat.X12] = [".x12", ".edi", ".txt"],
+        [MsgFormat.Dicom] = [".dcm", ".dicom", ""],
+        [MsgFormat.Text] = [".txt"],
     };
 
     private async Task WatchFoldersAsync(MessagingService svc, CancellationToken ct)
@@ -347,44 +373,44 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
                 switch (i.Transport)
                 {
                     case Transport.MllpSend:
-                    {
-                        var (code, text) = await SendMllpAsync(i, content, ct);
-                        await svc.SentAsync(m.Id, code, text, ct);
-                        break;
-                    }
+                        {
+                            var (code, text) = await SendMllpAsync(i, content, ct);
+                            await svc.SentAsync(m.Id, code, text, ct);
+                            break;
+                        }
                     case Transport.FolderWrite:
-                    {
-                        if (i.FolderPath is not { } dir || !Directory.Exists(dir)) { await svc.FailedAsync(m.Id, $"Folder {i.FolderPath} not found.", false, ct); break; }
-                        var ext = Extensions[i.Format][0] is { Length: > 0 } e ? e : ".dcm";
-                        var name = $"{(m.ControlId ?? m.Id.ToString("N"))}".Replace('/', '_').Replace('\\', '_');
-                        var tmp = Path.Combine(dir, name + ".tmp");
-                        if (i.Format == MsgFormat.Dicom) await File.WriteAllBytesAsync(tmp, DicomConvert.ToFile(content), ct);
-                        else await File.WriteAllTextAsync(tmp, content, new UTF8Encoding(false), ct);
-                        // Never overwrite a file the other system has not collected yet (control IDs can repeat, e.g. after a database rebuild): add a suffix.
-                        var dest = Path.Combine(dir, name + ext);
-                        if (File.Exists(dest)) dest = Path.Combine(dir, $"{name}-{m.Id.ToString("N")[..8]}{ext}");
-                        File.Move(tmp, dest, overwrite: false);
-                        await svc.SentAsync(m.Id, null, null, ct);
-                        break;
-                    }
+                        {
+                            if (i.FolderPath is not { } dir || !Directory.Exists(dir)) { await svc.FailedAsync(m.Id, $"Folder {i.FolderPath} not found.", false, ct); break; }
+                            var ext = Extensions[i.Format][0] is { Length: > 0 } e ? e : ".dcm";
+                            var name = $"{(m.ControlId ?? m.Id.ToString("N"))}".Replace('/', '_').Replace('\\', '_');
+                            var tmp = Path.Combine(dir, name + ".tmp");
+                            if (i.Format == MsgFormat.Dicom) await File.WriteAllBytesAsync(tmp, DicomConvert.ToFile(content), ct);
+                            else await File.WriteAllTextAsync(tmp, content, new UTF8Encoding(false), ct);
+                            // Never overwrite a file the other system has not collected yet (control IDs can repeat, e.g. after a database rebuild): add a suffix.
+                            var dest = Path.Combine(dir, name + ext);
+                            if (File.Exists(dest)) dest = Path.Combine(dir, $"{name}-{m.Id.ToString("N")[..8]}{ext}");
+                            File.Move(tmp, dest, overwrite: false);
+                            await svc.SentAsync(m.Id, null, null, ct);
+                            break;
+                        }
                     case Transport.HttpPost:
-                    {
-                        var client = http.CreateClient("messaging");
-                        using var req = new HttpRequestMessage(HttpMethod.Post, i.Url) { Content = new StringContent(content, Encoding.UTF8, MediaType(i.Format)) };
-                        if (svc.SecretOf(i) is { Length: > 0 } auth) req.Headers.TryAddWithoutValidation("Authorization", auth);
-                        using var res = await client.SendAsync(req, ct);
-                        var code = (int)res.StatusCode;
-                        if (res.IsSuccessStatusCode) await svc.SentAsync(m.Id, null, $"HTTP {code}", ct);
-                        else await svc.FailedAsync(m.Id, $"HTTP {code} {res.ReasonPhrase}", code is >= 400 and < 500 and not 408 and not 429, ct);
-                        break;
-                    }
+                        {
+                            var client = http.CreateClient("messaging");
+                            using var req = new HttpRequestMessage(HttpMethod.Post, i.Url) { Content = new StringContent(content, Encoding.UTF8, MediaType(i.Format)) };
+                            if (svc.SecretOf(i) is { Length: > 0 } auth) req.Headers.TryAddWithoutValidation("Authorization", auth);
+                            using var res = await client.SendAsync(req, ct);
+                            var code = (int)res.StatusCode;
+                            if (res.IsSuccessStatusCode) await svc.SentAsync(m.Id, null, $"HTTP {code}", ct);
+                            else await svc.FailedAsync(m.Id, $"HTTP {code} {res.ReasonPhrase}", code is >= 400 and < 500 and not 408 and not 429, ct);
+                            break;
+                        }
                     case Transport.SqlWrite:
-                    {
-                        try { await svc.SentAsync(m.Id, null, $"{await SqlConnector.WriteAsync(svc.SecretOf(i)!, i.SqlText!, content, ct)} row(s) written", ct); }
-                        catch (SqlException ex) { await svc.FailedAsync(m.Id, $"Database: {ex.Message}", PermanentSqlErrors.Contains(ex.Number), ct); }
-                        catch (System.Text.Json.JsonException ex) { await svc.FailedAsync(m.Id, $"Not valid JSON: {ex.Message}", true, ct); }
-                        break;
-                    }
+                        {
+                            try { await svc.SentAsync(m.Id, null, $"{await SqlConnector.WriteAsync(svc.SecretOf(i)!, i.SqlText!, content, ct)} row(s) written", ct); }
+                            catch (SqlException ex) { await svc.FailedAsync(m.Id, $"Database: {ex.Message}", PermanentSqlErrors.Contains(ex.Number), ct); }
+                            catch (System.Text.Json.JsonException ex) { await svc.FailedAsync(m.Id, $"Not valid JSON: {ex.Message}", true, ct); }
+                            break;
+                        }
                     default:
                         await svc.FailedAsync(m.Id, $"{i.Transport} interfaces cannot send.", true, ct);
                         break;
@@ -399,8 +425,13 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
 
     public static string MediaType(MsgFormat f) => f switch
     {
-        MsgFormat.Hl7v2 => "application/hl7-v2", MsgFormat.Fhir => "application/fhir+json", MsgFormat.Json => "application/json", MsgFormat.Xml => "application/xml",
-        MsgFormat.X12 => "application/edi-x12", MsgFormat.Dicom => "application/dicom+json", _ => "text/plain",
+        MsgFormat.Hl7v2 => "application/hl7-v2",
+        MsgFormat.Fhir => "application/fhir+json",
+        MsgFormat.Json => "application/json",
+        MsgFormat.Xml => "application/xml",
+        MsgFormat.X12 => "application/edi-x12",
+        MsgFormat.Dicom => "application/dicom+json",
+        _ => "text/plain",
     };
 
     public static async Task<(string? Code, string? Text)> SendMllpAsync(Interface i, string content, CancellationToken ct)
@@ -460,8 +491,15 @@ public static class SqlConnector
                 var name = reader.GetName(f);
                 row[name] = v switch
                 {
-                    null => null, DateTime d => JsonValue.Create(d.ToString("o")), DateTimeOffset o => JsonValue.Create(o.ToString("o")), byte[] => null,
-                    bool b => JsonValue.Create(b), int n => JsonValue.Create(n), long n => JsonValue.Create(n), decimal n => JsonValue.Create(n), double n => JsonValue.Create(n),
+                    null => null,
+                    DateTime d => JsonValue.Create(d.ToString("o")),
+                    DateTimeOffset o => JsonValue.Create(o.ToString("o")),
+                    byte[] => null,
+                    bool b => JsonValue.Create(b),
+                    int n => JsonValue.Create(n),
+                    long n => JsonValue.Create(n),
+                    decimal n => JsonValue.Create(n),
+                    double n => JsonValue.Create(n),
                     _ => JsonValue.Create(Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture)),
                 };
                 if (watermarkColumn is { } wc && string.Equals(name, wc, StringComparison.OrdinalIgnoreCase) && v is not null)

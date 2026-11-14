@@ -561,3 +561,40 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [emr].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114094203_MedicationSource'
+)
+BEGIN
+    ALTER TABLE [emr].[MedicationsGiven] ADD [ExternalRef] nvarchar(64) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [emr].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114094203_MedicationSource'
+)
+BEGIN
+    ALTER TABLE [emr].[MedicationsGiven] ADD [Source] nvarchar(20) NOT NULL DEFAULT N'Manual';
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [emr].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114094203_MedicationSource'
+)
+BEGIN
+    CREATE INDEX [IX_MedicationsGiven_ExternalRef] ON [emr].[MedicationsGiven] ([ExternalRef]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [emr].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261114094203_MedicationSource'
+)
+BEGIN
+    INSERT INTO [emr].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261114094203_MedicationSource', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

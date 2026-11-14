@@ -233,7 +233,7 @@ public class TheatreTests
         Assert.NotNull(await svc.SetStatusAsync(b.Id, BookingStatus.Cancelled, null, "rn"));
         foreach (var st in new[] { BookingStatus.Arrived, BookingStatus.InTheatre, BookingStatus.Recovery, BookingStatus.Discharged })
             Assert.Null(await svc.SetStatusAsync(b.Id, st, null, "rn"));
-        Assert.Contains("Move or cancel", await svc.CancelSessionAsync(list.Id, "rec") ?? "") ;
+        Assert.Contains("Move or cancel", await svc.CancelSessionAsync(list.Id, "rec") ?? "");
     }
 }
 
@@ -243,11 +243,34 @@ public class FormTests
     {
         var a = new Dictionary<string, string>
         {
-            ["height_cm"] = "165", ["weight_kg"] = "70", ["support_person"] = "Mere 021 555 0100", ["lives_alone"] = "No", ["heart"] = "No", ["pacemaker"] = "No",
-            ["high_bp"] = "No", ["lung"] = "No", ["sleep_apnoea"] = "No", ["diabetes"] = "No", ["kidney_liver"] = "No", ["stroke"] = "No", ["bleeding"] = "No",
-            ["infection"] = "No", ["pregnant"] = "No", ["blood_thinners"] = "No", ["herbal"] = "No", ["allergies"] = "No", ["latex"] = "No",
-            ["anaesthetic_problems"] = "No", ["family_mh"] = "No", ["teeth"] = "No", ["neck"] = "No", ["smoking"] = "Never", ["alcohol"] = "1–10",
-            ["mobility"] = "Independently", ["interpreter"] = "No", ["confirm"] = "Yes"
+            ["height_cm"] = "165",
+            ["weight_kg"] = "70",
+            ["support_person"] = "Mere 021 555 0100",
+            ["lives_alone"] = "No",
+            ["heart"] = "No",
+            ["pacemaker"] = "No",
+            ["high_bp"] = "No",
+            ["lung"] = "No",
+            ["sleep_apnoea"] = "No",
+            ["diabetes"] = "No",
+            ["kidney_liver"] = "No",
+            ["stroke"] = "No",
+            ["bleeding"] = "No",
+            ["infection"] = "No",
+            ["pregnant"] = "No",
+            ["blood_thinners"] = "No",
+            ["herbal"] = "No",
+            ["allergies"] = "No",
+            ["latex"] = "No",
+            ["anaesthetic_problems"] = "No",
+            ["family_mh"] = "No",
+            ["teeth"] = "No",
+            ["neck"] = "No",
+            ["smoking"] = "Never",
+            ["alcohol"] = "1–10",
+            ["mobility"] = "Independently",
+            ["interpreter"] = "No",
+            ["confirm"] = "Yes"
         };
         change?.Invoke(a);
         return a;

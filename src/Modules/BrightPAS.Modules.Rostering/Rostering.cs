@@ -368,8 +368,18 @@ public sealed class RosterService(RosterDbContext db, AuditWriter audit, TimePro
                 if (leave.Any(l => l.StaffId == t.StaffId && l.From <= d && l.To >= d)) { skipped.Add($"{d:ddd d MMM}: {s.Name} is on leave."); continue; }
                 var clash = existing.Any(x => x.StaffId == t.StaffId && x.Date == d && (x.AllDay == t.AllDay && (t.AllDay || (x.Start < t.End && t.Start < x.End))));
                 if (clash) { skipped.Add($"{d:ddd d MMM}: {s.Name} already rostered."); continue; }
-                var shift = new Shift { StaffId = t.StaffId, Date = d, AllDay = t.AllDay, Start = t.Start, End = t.End, BreakMinutes = t.BreakMinutes, Area = t.Area,
-                    CreatedAt = clock.GetUtcNow(), CreatedBy = user };
+                var shift = new Shift
+                {
+                    StaffId = t.StaffId,
+                    Date = d,
+                    AllDay = t.AllDay,
+                    Start = t.Start,
+                    End = t.End,
+                    BreakMinutes = t.BreakMinutes,
+                    Area = t.Area,
+                    CreatedAt = clock.GetUtcNow(),
+                    CreatedBy = user
+                };
                 db.Shifts.Add(shift);
                 existing.Add(shift);
                 created++;
@@ -463,8 +473,16 @@ public sealed class RosterService(RosterDbContext db, AuditWriter audit, TimePro
         }
         if (r.ToStaffId is { } to && await AvailableAsync(to, shift, offered?.Id, ct) is { } e1) return (null, [e1]);
         if (offered is not null && await AvailableAsync(shift.StaffId, offered, shift.Id, ct) is { } e2) return (null, [e2]);
-        var row = new SwapRequest { ShiftId = shift.Id, FromStaffId = shift.StaffId, ToStaffId = r.ToStaffId, OfferedShiftId = r.OfferedShiftId,
-            Note = string.IsNullOrWhiteSpace(r.Note) ? null : r.Note.Trim(), RequestedAt = clock.GetUtcNow(), RequestedBy = user };
+        var row = new SwapRequest
+        {
+            ShiftId = shift.Id,
+            FromStaffId = shift.StaffId,
+            ToStaffId = r.ToStaffId,
+            OfferedShiftId = r.OfferedShiftId,
+            Note = string.IsNullOrWhiteSpace(r.Note) ? null : r.Note.Trim(),
+            RequestedAt = clock.GetUtcNow(),
+            RequestedBy = user
+        };
         db.Swaps.Add(row);
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "SwapRequested", "Shift", shift.Id.ToString(), reason: $"{ShiftText(shift)}{(offered is null ? "" : " for " + ShiftText(offered))}", ct: ct);

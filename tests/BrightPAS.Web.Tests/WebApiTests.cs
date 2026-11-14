@@ -242,8 +242,14 @@ public class WebApiTests(PasWebFactory factory) : IClassFixture<PasWebFactory>
         key.ImportFromPem(pem);
         return BrightPAS.Licensing.LicenceCodec.Sign(new BrightPAS.Licensing.LicenceDocument
         {
-            LicenceId = "BP-TEST-" + Guid.NewGuid().ToString("N")[..6], Customer = "Test", Edition = "Sandbox", IssuedAt = DateTimeOffset.UtcNow,
-            ExpiresOn = expires, InstallationCode = installationCode, Modules = modules, GraceDays = 0
+            LicenceId = "BP-TEST-" + Guid.NewGuid().ToString("N")[..6],
+            Customer = "Test",
+            Edition = "Sandbox",
+            IssuedAt = DateTimeOffset.UtcNow,
+            ExpiresOn = expires,
+            InstallationCode = installationCode,
+            Modules = modules,
+            GraceDays = 0
         }, key);
     }
 

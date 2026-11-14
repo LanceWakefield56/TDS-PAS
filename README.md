@@ -2,9 +2,10 @@
 
 Tasman Day Surgery's locally hosted patient administration system, with eMR, billing, rostering, assets/CSSD, quality management, endoscopy, and a TDS-developed messaging and workflow engine.
 
-- **Specification:** `docs/spec/TDS-PAS-Specification-v1.6.docx` (TDS-PAS-1.0)
-- **Status:** Phase 0/1 in progress (v0.5.0). Specification v1.6 approved.
+- **Specification:** v1.9 (BrightPAS). The master copy is kept as section files in the TDS-PAS OneDrive folder (`Specification\v1.9\`); Appendix C there records what each release has built. Earlier Word versions are in `docs/spec/`.
+- **Status:** release 0.17.0 – a test build on demonstration data. **Nothing is live.** Every module still needs sandbox testing on Windows, an independent security review and clinical sign-off before real patient data (see "Before production" below).
 - **Owner:** Tasman Day Surgery. Product owner: Lance Wakefield.
+- **What is built:** see `CHANGELOG.md` (one entry per release) and `docs/adr/` (one decision record per module or design decision).
 
 ## Structure
 
@@ -17,13 +18,37 @@ Tasman Day Surgery's locally hosted patient administration system, with eMR, bil
 | `src/Platform/BrightPAS.Web` | Web host (IIS / ASP.NET Core) |
 | `src/Modules/` | One self-contained project per module |
 | `src/Installer/BrightPAS.Setup` | Guided platform and module installers |
+| `tools/` | Test robot (virtual devices), Licence Manager, developer end-to-end helpers |
 | `tests/` | Automated tests (SQL Server integration tests run when `PAS_TEST_SQLSERVER` is set) |
 | `scripts/` | Build helpers (e.g. regenerate installer schema scripts) |
 | `docs/` | Specification, developer guide, data dictionary, decision records (ADRs), backlog |
 
 ## Technology
 
-C# / .NET 10 (LTS), ASP.NET Core on IIS, SQL Server 2022 Standard, React + TypeScript UI, fo-dicom, NHapi, Firely SDK. See the specification, section 4.3.
+C# / .NET 10 (LTS), ASP.NET Core minimal APIs on IIS, EF Core with one database schema per module, SQL Server 2022, React + TypeScript (Vite). HL7 v2 (own parser, MLLP), DICOM (fo-dicom 5.2.6), PDFs (PDFsharp-MigraDoc 6.2.0, pinned). No third-party integration engine.
+
+## Build, test, release
+
+| Step | Command |
+|---|---|
+| Build | `dotnet build BrightPAS.slnx` (0 warnings expected); UI: `npm ci && npm run build` in `src/Platform/BrightPAS.Web/ClientApp` |
+| Tests | `dotnet test BrightPAS.slnx` – set `PAS_TEST_SQLSERVER` to also run the SQL Server tests (required before a release) |
+| Source style | `dotnet format whitespace BrightPAS.slnx --verify-no-changes` (rules in `.editorconfig`) |
+| Database scripts | `scripts/generate-db-scripts.sh` after any EF migration (idempotent scripts the installer runs) |
+| Test robot | `tools/BrightPAS.TestBot` against a fresh demonstration database – every page, role, form and virtual device (README there) |
+| Release | `scripts/build-release.sh` – stops if any dependency has a known vulnerability or the source style check fails |
+
+New module: follow the checklist in `docs/developer-guide.md` (licence gate, named permissions, set-up wizard, patient merge, demonstration data, standards self-test, tests, test robot).
+
+## Before production
+
+The automated tests and the test robot prove the build behaves as designed on demonstration data. They do not replace:
+
+- Installation and the test robot run on the Windows sandbox, then a restore-tested backup and TDE (spec 4.6).
+- An independent penetration test and code signing of the installer (spec Appendix C.2).
+- Real-device checks: Olympus CV-1500 DICOM options, GE CARESCAPE Gateway and SaferSleep message layouts, Zebra/DYMO stock, HealthLink, Modica, the laboratory.
+- Clinical governance sign-off: early warning score bands, checklists, monitor chart intervals, scribe templates, endoscopy wording.
+- Privacy impact assessment for each module that handles health information, and the production licence key pair.
 
 ## Interim source control (until Azure DevOps)
 

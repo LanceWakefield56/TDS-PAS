@@ -68,8 +68,27 @@ public static class PatientRecordsEndpoints
             var rows = await svc.CorrectionsAsync(all != true);
             var ids = rows.Select(r => r.PatientId).Distinct().ToList();
             var mrn = await db.Patients.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Mrn);
-            return Results.Ok(rows.Select(c => new { c.Id, c.PatientId, mrn = mrn.GetValueOrDefault(c.PatientId), c.Before, c.NewFamilyName, c.NewGivenNames, c.NewDateOfBirth,
-                newSex = c.NewSex?.ToString(), c.NewNhi, c.ClearNhi, c.Reason, c.Evidence, status = c.Status.ToString(), c.RequestedAt, c.RequestedBy, c.DecidedAt, c.DecidedBy, c.DecisionNote }));
+            return Results.Ok(rows.Select(c => new
+            {
+                c.Id,
+                c.PatientId,
+                mrn = mrn.GetValueOrDefault(c.PatientId),
+                c.Before,
+                c.NewFamilyName,
+                c.NewGivenNames,
+                c.NewDateOfBirth,
+                newSex = c.NewSex?.ToString(),
+                c.NewNhi,
+                c.ClearNhi,
+                c.Reason,
+                c.Evidence,
+                status = c.Status.ToString(),
+                c.RequestedAt,
+                c.RequestedBy,
+                c.DecidedAt,
+                c.DecidedBy,
+                c.DecisionNote
+            }));
         }).RequireAuthorization(Permissions.PatientMerge);
         g.MapPost("/identity-corrections/{cid:guid}/decide", async (Guid cid, Decision d, ClaimsPrincipal u, IdentityService svc) => Done(await svc.DecideCorrectionAsync(cid, d, Me(u))))
             .RequireAuthorization(Permissions.PatientMerge);
@@ -83,8 +102,21 @@ public static class PatientRecordsEndpoints
             var rows = await svc.MergesAsync(all != true);
             var ids = rows.Select(r => r.SurvivorId).Distinct().ToList();
             var people = await db.Patients.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
-            return Results.Ok(rows.Select(m => new { m.Id, m.SurvivorId, survivor = people.TryGetValue(m.SurvivorId, out var p) ? $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}; DOB {p.DateOfBirth:yyyy-MM-dd}; NHI {p.Nhi ?? "none"}; MRN {p.Mrn}" : "?",
-                m.DuplicateId, duplicate = m.DuplicateSummary, m.Reason, status = m.Status.ToString(), m.RequestedAt, m.RequestedBy, m.DecidedBy, m.CompletedAt, m.Result }));
+            return Results.Ok(rows.Select(m => new
+            {
+                m.Id,
+                m.SurvivorId,
+                survivor = people.TryGetValue(m.SurvivorId, out var p) ? $"{p.FamilyName.ToUpperInvariant()}, {p.GivenNames}; DOB {p.DateOfBirth:yyyy-MM-dd}; NHI {p.Nhi ?? "none"}; MRN {p.Mrn}" : "?",
+                m.DuplicateId,
+                duplicate = m.DuplicateSummary,
+                m.Reason,
+                status = m.Status.ToString(),
+                m.RequestedAt,
+                m.RequestedBy,
+                m.DecidedBy,
+                m.CompletedAt,
+                m.Result
+            }));
         }).RequireAuthorization(Permissions.PatientMerge);
         g.MapPost("/merges/{mid:guid}/decide", async (Guid mid, Decision d, ClaimsPrincipal u, IdentityService svc) =>
         {
@@ -172,8 +204,18 @@ public static class PatientRecordsEndpoints
         static string? C(string? s, int n) => string.IsNullOrWhiteSpace(s) ? null : s.Trim().Length <= n ? s.Trim() : s.Trim()[..n];
         var row = new TransferRecord
         {
-            PatientId = id, BookingId = t.BookingId, ReceivingFacility = C(t.ReceivingFacility, 150)!, Reason = C(t.Reason, 500)!, Situation = C(t.Situation, 1000), Background = C(t.Background, 2000),
-            Assessment = C(t.Assessment, 2000), Recommendation = C(t.Recommendation, 1000), Escort = C(t.Escort, 150), TransportMode = C(t.TransportMode, 50), CreatedAt = clock.GetUtcNow(), CreatedBy = user,
+            PatientId = id,
+            BookingId = t.BookingId,
+            ReceivingFacility = C(t.ReceivingFacility, 150)!,
+            Reason = C(t.Reason, 500)!,
+            Situation = C(t.Situation, 1000),
+            Background = C(t.Background, 2000),
+            Assessment = C(t.Assessment, 2000),
+            Recommendation = C(t.Recommendation, 1000),
+            Escort = C(t.Escort, 150),
+            TransportMode = C(t.TransportMode, 50),
+            CreatedAt = clock.GetUtcNow(),
+            CreatedBy = user,
         };
         db.Transfers.Add(row);
         await db.SaveChangesAsync();
@@ -192,7 +234,17 @@ public static class PatientRecordsEndpoints
         pack["from"] = site is { } s ? new { organisation = s.Org.Name, s.Site.AddressLine1, s.Site.City, s.Site.Phone } : null;
         pack["patient"] = new
         {
-            p.Id, p.Mrn, p.Nhi, p.FamilyName, p.GivenNames, p.PreferredName, p.DateOfBirth, sex = p.Sex.ToString(), p.Gender, p.MobilePhone, p.HomePhone,
+            p.Id,
+            p.Mrn,
+            p.Nhi,
+            p.FamilyName,
+            p.GivenNames,
+            p.PreferredName,
+            p.DateOfBirth,
+            sex = p.Sex.ToString(),
+            p.Gender,
+            p.MobilePhone,
+            p.HomePhone,
             address = string.Join(", ", new[] { p.AddressLine1, p.AddressLine2, p.Suburb, p.City, p.Postcode }.Where(x => !string.IsNullOrWhiteSpace(x))),
         };
         pack["alerts"] = p.Alerts.Where(a => a.IsActive).OrderByDescending(a => a.Type == AlertType.Allergy).ThenByDescending(a => a.Severity)
@@ -208,15 +260,29 @@ public static class PatientRecordsEndpoints
         var rooms = await org.LocationNamesAsync();
         pack["bookings"] = bookings.OrderByDescending(x => x.s.Date).Take(3).Select(x => new
         {
-            x.b.Id, x.s.Date, location = rooms.GetValueOrDefault(x.s.LocationId, ""), surgeon = people.GetValueOrDefault(x.s.SurgeonId, ""),
-            anaesthetist = x.s.AnaesthetistId is { } an ? people.GetValueOrDefault(an) : null, x.b.Procedure, laterality = x.b.Laterality.ToString(), anaesthetic = x.b.Anaesthetic.ToString(),
-            status = x.b.Status.ToString(), x.b.TheatreIn, x.b.TheatreOut, x.b.Notes, x.b.LoanItems, x.b.ScopeId,
+            x.b.Id,
+            x.s.Date,
+            location = rooms.GetValueOrDefault(x.s.LocationId, ""),
+            surgeon = people.GetValueOrDefault(x.s.SurgeonId, ""),
+            anaesthetist = x.s.AnaesthetistId is { } an ? people.GetValueOrDefault(an) : null,
+            x.b.Procedure,
+            laterality = x.b.Laterality.ToString(),
+            anaesthetic = x.b.Anaesthetic.ToString(),
+            status = x.b.Status.ToString(),
+            x.b.TheatreIn,
+            x.b.TheatreOut,
+            x.b.Notes,
+            x.b.LoanItems,
+            x.b.ScopeId,
         }).ToList();
         var forms = sp.GetRequiredService<BrightPAS.Modules.Forms.FormsDbContext>();
         var form = (await forms.Requests.AsNoTracking().Where(f => f.PatientId == id && f.SubmittedAt != null).ToListAsync()).OrderByDescending(f => f.SubmittedAt).FirstOrDefault();
         pack["preAdmission"] = form is null ? null : new
         {
-            form.SubmittedAt, triage = form.TriageCategory?.ToString(), form.TriageOutcome, form.TriageNotes,
+            form.SubmittedAt,
+            triage = form.TriageCategory?.ToString(),
+            form.TriageOutcome,
+            form.TriageNotes,
             flags = BrightPAS.Modules.Forms.FormService.FlagsOf(form),
         };
         var labs = sp.GetRequiredService<BrightPAS.Modules.Labs.LabsDbContext>();

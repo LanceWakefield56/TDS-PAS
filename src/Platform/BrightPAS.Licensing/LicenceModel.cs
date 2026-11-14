@@ -81,6 +81,7 @@ public static class ProductModules
         new("quality", "Quality management", "Incidents, surveys, SSI, falls and quality reporting.", false),
         new("endoscopy", "Endoscopy", "Endoscopy reporting like EndoBASE: pictures and video from the Olympus tower (DICOM worklist or capture card), gastroscopy and colonoscopy terminology, polyps, tattoos, biopsies, histology, clinical and patient reports with pictures, quality indicators.", true),
         new("scribe", "BrightPAS Scribe", "AI dictation in every note field and an ambient scribe (with consent) that drafts notes from TDS templates; on-site or cloud engines; Medow Health option.", true),
+        new("devices", "Devices & SaferSleep", "Bedside monitors (GE CARESCAPE) feeding vital signs for nurse validation into the chart, and the SaferSleep anaesthesia interface: patient and booking out, anaesthetic record (drugs, events, vital signs, PDF) back into the episode.", true),
         new("messaging", "Messaging & integration engine", "TDS's own integration engine: HL7, FHIR, DICOM, CDA/XML, X12 and REST interfaces; visual message flows, mappings and translation tables with a test harness; message store, retries, monitoring and alerts.", true),
         new("reminders", "SMS & email reminders", "Booking confirmations, reminders, questionnaire links and two-way SMS replies.", true),
         new("portal", "Specialist, PA & patient portals", "Read-only portal for specialists and their practice assistants; secure patient portal (appointments, requests, document upload).", true),

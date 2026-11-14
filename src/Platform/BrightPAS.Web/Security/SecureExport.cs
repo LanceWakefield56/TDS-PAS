@@ -105,7 +105,12 @@ public sealed class SecureExportService(SettingsService settings, AuditWriter au
 
     private static string ContentType(string name) => Path.GetExtension(name).ToLowerInvariant() switch
     {
-        ".csv" => "text/csv", ".html" => "text/html", ".pdf" => "application/pdf", ".txt" => "text/plain", ".zpl" => "text/plain", _ => "application/octet-stream",
+        ".csv" => "text/csv",
+        ".html" => "text/html",
+        ".pdf" => "application/pdf",
+        ".txt" => "text/plain",
+        ".zpl" => "text/plain",
+        _ => "application/octet-stream",
     };
 }
 

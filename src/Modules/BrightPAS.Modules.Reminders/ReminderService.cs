@@ -37,8 +37,12 @@ public sealed class ReminderService(
         if (s is not null) return s;
         s = new ReminderSettings
         {
-            SmsProvider = defaults.SmsProvider, EmailProvider = defaults.EmailProvider, ConfirmationsFrom = clock.GetUtcNow(),
-            WebhookKeyProtected = secrets.Protect(NewKey()), UpdatedAt = clock.GetUtcNow(), UpdatedBy = SystemUser
+            SmsProvider = defaults.SmsProvider,
+            EmailProvider = defaults.EmailProvider,
+            ConfirmationsFrom = clock.GetUtcNow(),
+            WebhookKeyProtected = secrets.Protect(NewKey()),
+            UpdatedAt = clock.GetUtcNow(),
+            UpdatedBy = SystemUser
         };
         db.Settings.Add(s);
         await db.SaveChangesAsync(ct);
@@ -258,10 +262,14 @@ public sealed class ReminderService(
 
     private Dictionary<string, string?> Values(ReminderSettings s, Patient p, Appointment? a, string? link) => new()
     {
-        ["FirstName"] = FirstName(p), ["ClinicName"] = s.ClinicName, ["ClinicPhone"] = s.ClinicPhone,
+        ["FirstName"] = FirstName(p),
+        ["ClinicName"] = s.ClinicName,
+        ["ClinicPhone"] = s.ClinicPhone,
         ["Date"] = a is null ? null : Addresses.FormatDate(a.Date),
         ["ArrivalTime"] = a is null ? null : Addresses.FormatTime(a.PlannedStart.AddMinutes(-s.ArrivalLeadMinutes)),
-        ["Location"] = a?.Location, ["Surgeon"] = a?.Surgeon, ["Link"] = link
+        ["Location"] = a?.Location,
+        ["Surgeon"] = a?.Surgeon,
+        ["Link"] = link
     };
 
     private async Task<MessageTemplate?> TemplateAsync(MessageKind kind, Channel channel, string language, CancellationToken ct)
@@ -294,10 +302,22 @@ public sealed class ReminderService(
             var values = Values(s, p, a, link is null ? null : "{Link}");
             var m = new OutboundMessage
             {
-                PatientId = p.Id, BookingId = a?.BookingId, AppointmentDate = a?.Date, Kind = kind, Channel = channel, Address = address ?? "(none)",
-                Subject = tpl?.Subject is null ? null : Render(tpl.Subject, values), Body = tpl is null ? "" : Render(tpl.Body, values).Replace("{Link}", LinkPlaceholder(kind)),
-                SecretLink = link, Status = suppressed is null ? MessageStatus.Queued : MessageStatus.Suppressed, LastError = suppressed,
-                IgnoreQuietHours = ignoreQuiet, NextAttemptAt = now, DedupeKey = dedupe, CreatedAt = now, CreatedBy = user
+                PatientId = p.Id,
+                BookingId = a?.BookingId,
+                AppointmentDate = a?.Date,
+                Kind = kind,
+                Channel = channel,
+                Address = address ?? "(none)",
+                Subject = tpl?.Subject is null ? null : Render(tpl.Subject, values),
+                Body = tpl is null ? "" : Render(tpl.Body, values).Replace("{Link}", LinkPlaceholder(kind)),
+                SecretLink = link,
+                Status = suppressed is null ? MessageStatus.Queued : MessageStatus.Suppressed,
+                LastError = suppressed,
+                IgnoreQuietHours = ignoreQuiet,
+                NextAttemptAt = now,
+                DedupeKey = dedupe,
+                CreatedAt = now,
+                CreatedBy = user
             };
             db.Messages.Add(m);
             created.Add(m);
@@ -342,8 +362,16 @@ public sealed class ReminderService(
         var values = new Dictionary<string, string?> { ["ClinicName"] = s.ClinicName };
         var m = new OutboundMessage
         {
-            PatientId = null, Kind = MessageKind.Test, Channel = channel, Address = address, Subject = tpl?.Subject is null ? null : Render(tpl.Subject, values),
-            Body = Render(tpl?.Body ?? "Test from {ClinicName}", values), IgnoreQuietHours = true, NextAttemptAt = clock.GetUtcNow(), CreatedAt = clock.GetUtcNow(), CreatedBy = user
+            PatientId = null,
+            Kind = MessageKind.Test,
+            Channel = channel,
+            Address = address,
+            Subject = tpl?.Subject is null ? null : Render(tpl.Subject, values),
+            Body = Render(tpl?.Body ?? "Test from {ClinicName}", values),
+            IgnoreQuietHours = true,
+            NextAttemptAt = clock.GetUtcNow(),
+            CreatedAt = clock.GetUtcNow(),
+            CreatedBy = user
         };
         db.Messages.Add(m);
         await db.SaveChangesAsync(ct);
@@ -500,8 +528,13 @@ public sealed class ReminderService(
         var number = Addresses.ToE164(from) ?? from.Trim();
         var reply = new InboundMessage
         {
-            From = number, Body = body.Length > 2000 ? body[..2000] : body, ReceivedAt = now, Provider = provider, ProviderMessageId = providerMessageId,
-            ReplyToProviderId = replyToProviderId, Meaning = Interpret(body)
+            From = number,
+            Body = body.Length > 2000 ? body[..2000] : body,
+            ReceivedAt = now,
+            Provider = provider,
+            ProviderMessageId = providerMessageId,
+            ReplyToProviderId = replyToProviderId,
+            Meaning = Interpret(body)
         };
         OutboundMessage? original = null;
         if (!string.IsNullOrEmpty(replyToProviderId)) original = await db.Messages.AsNoTracking().FirstOrDefaultAsync(m => m.ProviderMessageId == replyToProviderId, ct);

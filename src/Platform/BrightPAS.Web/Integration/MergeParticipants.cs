@@ -118,3 +118,11 @@ public sealed class ScribeMerge(BrightPAS.Modules.Scribe.ScribeDbContext db) : I
         await db.Sessions.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
         + await db.Consents.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
 }
+
+public sealed class DevicesMerge(BrightPAS.Modules.Devices.DevicesDbContext db) : IPatientMergeParticipant
+{
+    public string Name => "Devices & SaferSleep (monitor connections, anaesthetic records)";
+    public async Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) =>
+        await db.Associations.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
+        + await db.Records.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
+}
