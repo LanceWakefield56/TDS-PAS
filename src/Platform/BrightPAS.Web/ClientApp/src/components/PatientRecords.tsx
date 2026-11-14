@@ -65,10 +65,10 @@ function Documents({ patientId }: { patientId: string }) {
         <button className="btn btn-light">Search</button>{hits && <button type="button" className="btn btn-link" onClick={() => { setQ(''); setHits(null); }}>Clear</button>}
       </form>}
       {hits && (hits.length === 0 ? <p className="muted">No documents contain “{q}”. Scans still being read are not searched yet.</p> : (
-        <table className="results compact"><tbody>{hits.map((h) => (
+        <table className="results compact"><thead><tr><th>Matching documents</th></tr></thead><tbody>{hits.map((h) => (
           <tr key={h.id}><td><a href={`/api/patients/documents/${h.id}`} target="_blank" rel="noopener noreferrer">{h.title}</a><div className="small muted">{h.category} · {h.matches} match{h.matches === 1 ? '' : 'es'}</div><div className="small">…{h.snippet}…</div></td></tr>))}</tbody></table>))}
       {docs === null ? <p>Loading…</p> : docs.length === 0 ? <p className="muted">No documents attached.</p> : (
-        <table className="results compact"><tbody>{docs.map((d) => (
+        <table className="results compact"><thead><tr><th>Document</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{docs.map((d) => (
           <tr key={d.id}><td><a href={`/api/patients/documents/${d.id}`} target="_blank" rel="noopener noreferrer">{d.title}</a><div className="small muted">{d.category} · {d.source} · {Math.round(d.sizeBytes / 1024)} KB · <span className={`badge ${d.textStatus === 'Done' ? 'ok' : d.textStatus === 'Failed' ? 'warn' : ''}`}>{textLabel[d.textStatus] ?? d.textStatus}</span></div><div className="small muted">{nzDateTime(d.uploadedAt)} · {d.uploadedBy}</div></td>
             <td>{can(Perm.PatientEdit) && <button className="btn btn-link" onClick={() => setDel({ id: d.id, reason: '' })}>Remove</button>}</td></tr>))}</tbody></table>
       )}

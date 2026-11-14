@@ -11,6 +11,14 @@
   - **Not included, on purpose:** waveforms and alarms. BrightPAS is a record; the monitor and central station remain the alarm system.
 - The HL7 layouts are BrightPAS interface profiles built from the standards. **Before go-live** capture real messages from TDS's CARESCAPE Gateway and agree the record layout with SaferSleep (mapping changes only).
 - Release build now **fails if any dependency has a known vulnerability** (NuGet and npm audit).
+- **Hardening and review (before release):**
+  - **.NET code analysis is part of the build:** recommended rules plus every security and reliability rule; any finding fails the build. Rules turned off on purpose are listed with the reason in `.editorconfig`. All findings were fixed: culture-safe string comparisons, the security self-test's deliberate old-TLS probe scoped and documented, a certificate leak in the self-test fixed.
+  - **Every process runs in New Zealand English** (web, Setup, test robot, licence tools), so the server's regional settings cannot change number or date formats in HL7, CSV or JSON.
+  - **Listeners that file clinical data now fail closed:** an MLLP interface that hands messages to a module (lab results, monitors, SaferSleep) must list the systems allowed to connect, and with no list it refuses everyone (previously anyone could connect). The old Labs:Mllp listener does the same. A lab interface created from settings at upgrade with no allowed address is created switched off.
+  - **Licences signed with the development key are refused by a build that contains the production key** (the development private key is in the source). Licensing:AllowDevelopmentKey can still switch it on for a test server.
+  - Patch updates: Microsoft.Data.SqlClient 7.1.2, Microsoft.Extensions.Http 10.0.14, test SDK 18.12.
+  - **Accessibility clean-up of older pages** (the robot's remaining warnings): column headings on the printer, document and totals tables; the referral list opens a row with a real button; calendar and roster entries at least 24 px and no longer cut off; better contrast on switched-off interfaces and roster entries; larger expand/collapse buttons in the message and mapping trees.
+  - **Specification aligned with the build:** bedside monitors added to spec 4.7, section 6 and 7.6; Appendix C updated; new `docs/spec-traceability.md` links every specification section to its code, decision record and tests, and lists where the build differs.
 - Test robot: **virtual GE monitor gateway and virtual SaferSleep** – admits a demonstration patient, connects a monitor on screen, checks nothing is charted before validation, validates, wrong-NHI monitor refused, unknown monitor and impossible values refused, ADT received by SaferSleep, record with PDF filed, correction, duplicate, wrong patient, and an unmatched record filed by hand.
 
 ## 0.16.0 – 2026-11-14 – **BrightPAS Scribe: AI dictation and ambient documentation (foundations)**

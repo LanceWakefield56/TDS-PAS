@@ -104,8 +104,8 @@ public static partial class ScribeText
         foreach (Match m in DoseRx().Matches(text))
         {
             var unit = m.Groups[2].Value.ToLowerInvariant();
-            var msg = unit.StartsWith("unit") || unit == "iu" ? "Dose in units – check the number and that 'units' (not mL) is meant; write 'units' in full." : "Dose – check the number, unit and medicine.";
-            if (m.Groups[1].Value.Contains('.') && m.Groups[1].Value.EndsWith(".0")) msg = "Trailing zero (e.g. 5.0) – can be misread as ten times the dose.";
+            var msg = unit.StartsWith("unit", StringComparison.Ordinal) || unit == "iu" ? "Dose in units – check the number and that 'units' (not mL) is meant; write 'units' in full." : "Dose – check the number, unit and medicine.";
+            if (m.Groups[1].Value.Contains('.') && m.Groups[1].Value.EndsWith(".0", StringComparison.Ordinal)) msg = "Trailing zero (e.g. 5.0) – can be misread as ten times the dose.";
             h.Add(new(m.Index, m.Length, "dose", msg));
         }
         foreach (var (a, b) in LookAlike)

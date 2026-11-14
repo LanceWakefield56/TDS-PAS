@@ -4,6 +4,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- .NET code analysis is part of the build (0.17.0): recommended rules, plus every security and reliability rule.
+         Any finding fails the build. Rules turned off on purpose are listed, with the reason, in .editorconfig. -->
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <AnalysisModeSecurity>All</AnalysisModeSecurity>
+    <AnalysisModeReliability>All</AnalysisModeReliability>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
     <Company>Tasman Day Surgery</Company>
     <Product>BrightPAS</Product>
     <Copyright>Copyright © Tasman Day Surgery</Copyright>

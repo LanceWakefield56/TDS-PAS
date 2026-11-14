@@ -202,8 +202,8 @@ public class LettersTests
         var segs = hl7.Split('\r', StringSplitOptions.RemoveEmptyEntries);
         Assert.StartsWith("MSH|^~\\&|BrightPAS|tdsurg|HealthLink|stokemed|", segs[0]);
         Assert.Contains("REF^I12^REF_I12", segs[0]);
-        Assert.Contains("ZSC21TN^^^NHI^NHI", segs.Single(x => x.StartsWith("PID|")));
-        var obx = segs.Single(x => x.StartsWith("OBX|"));
+        Assert.Contains("ZSC21TN^^^NHI^NHI", segs.Single(x => x.StartsWith("PID|", StringComparison.Ordinal)));
+        var obx = segs.Single(x => x.StartsWith("OBX|", StringComparison.Ordinal));
         Assert.Contains(@"pipes \F\ carets \S\ \T\ tildes \R\", obx);
         Assert.Equal(12, obx.Split('|').Length - 3); // OBX-5 is one field: the escaping kept the segment structure (15 fields)
     }

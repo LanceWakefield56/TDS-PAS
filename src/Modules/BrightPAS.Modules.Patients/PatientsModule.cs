@@ -3,6 +3,7 @@ using BrightPAS.Core.Modules;
 
 namespace BrightPAS.Modules.Patients;
 
+/// <summary>Base patients module: demographics, NHI, alerts, documents and patient merge (always licensed – part of the base system).</summary>
 public sealed class PatientsModule : IPasModule
 {
     public ModuleManifest Manifest { get; } = new(

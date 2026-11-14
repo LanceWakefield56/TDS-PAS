@@ -3,6 +3,7 @@ using BrightPAS.Setup.Checks;
 
 namespace BrightPAS.Setup.Install;
 
+/// <summary>Re-runs the prerequisite checks before anything is changed; problems that later steps fix (IIS, hosting bundle) are allowed.</summary>
 public sealed class CheckPrerequisitesStep : IInstallStep
 {
     public string Name => "Check this server";
@@ -28,6 +29,7 @@ public sealed class CheckPrerequisitesStep : IInstallStep
     }
 }
 
+/// <summary>Runs one embedded PowerShell script (from a temporary .ps1 file) and logs its ERROR/WHERE lines when it fails.</summary>
 public abstract class PowerShellStep(string script) : IInstallStep
 {
     public abstract string Name { get; }
@@ -47,7 +49,7 @@ public abstract class PowerShellStep(string script) : IInstallStep
         c.Log.Block("PowerShell output", r.Output);
         if (r.ExitCode != 0)
         {
-            foreach (var l in r.Output.Split('\n').Where(l => l.StartsWith("ERROR:") || l.StartsWith("WHERE:") || l.StartsWith("CATEGORY:"))) c.Log.Detail(l.Trim());
+            foreach (var l in r.Output.Split('\n').Where(l => l.StartsWith("ERROR:", StringComparison.Ordinal) || l.StartsWith("WHERE:", StringComparison.Ordinal) || l.StartsWith("CATEGORY:", StringComparison.Ordinal))) c.Log.Detail(l.Trim());
             return StepResult.Fail($"PowerShell reported an error (exit code {r.ExitCode}). The full output is in the log file.");
         }
         AfterSuccess(c, r.Output);
@@ -55,6 +57,7 @@ public abstract class PowerShellStep(string script) : IInstallStep
     }
 }
 
+/// <summary>Installs only the IIS features BrightPAS needs and removes risky ones.</summary>
 public sealed class InstallIisStep() : PowerShellStep(PowerShellScripts.InstallIis)
 {
     public override string Name => "Install IIS (web server)";
@@ -63,6 +66,7 @@ public sealed class InstallIisStep() : PowerShellStep(PowerShellScripts.InstallI
     protected override void AfterSuccess(InstallContext c, string output) { if (output.Contains("RestartNeeded=Yes", StringComparison.OrdinalIgnoreCase)) c.RebootRequired = true; }
 }
 
+/// <summary>Turns off old TLS versions and weak ciphers (TLS 1.2+ only).</summary>
 public sealed class HardenTlsStep() : PowerShellStep(PowerShellScripts.HardenTls)
 {
     public override string Name => "Secure network encryption (TLS)";
@@ -70,6 +74,7 @@ public sealed class HardenTlsStep() : PowerShellStep(PowerShellScripts.HardenTls
     protected override void AfterSuccess(InstallContext c, string output) => c.RebootRequired = true;
 }
 
+/// <summary>Removes the default site, hides server details, blocks unsafe requests and turns off detailed errors.</summary>
 public sealed class HardenIisStep() : PowerShellStep(PowerShellScripts.HardenIis)
 {
     public override string Name => "Harden IIS";
@@ -77,6 +82,7 @@ public sealed class HardenIisStep() : PowerShellStep(PowerShellScripts.HardenIis
     protected override bool ShouldSkip(InstallContext c, out string reason) { reason = "Skipped by option --skip-iis."; return c.Options.SkipIis; }
 }
 
+/// <summary>Creates the BrightPAS database if it does not exist.</summary>
 public sealed class CreateDatabaseStep : IInstallStep
 {
     public string Name => "Create the PAS database";
@@ -115,6 +121,7 @@ public sealed class CreateDatabaseStep : IInstallStep
     }
 }
 
+/// <summary>Turns SQL Server connection errors into plain advice for the installer.</summary>
 internal static class SqlHelp
 {
     public static string For(SqlException ex) => ex.Number switch
@@ -126,6 +133,7 @@ internal static class SqlHelp
     };
 }
 
+/// <summary>Runs the idempotent schema scripts in order (safe to run again on upgrade).</summary>
 public sealed class ApplySchemaStep : IInstallStep
 {
     public string Name => "Create or upgrade the database tables";
@@ -167,6 +175,7 @@ public sealed class ApplySchemaStep : IInstallStep
     }
 }
 
+/// <summary>Creates the one-time first-administrator set-up code.</summary>
 public sealed class BootstrapCodeStep : IInstallStep
 {
     public string Name => "Prepare first administrator set-up";

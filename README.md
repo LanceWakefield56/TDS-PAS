@@ -5,7 +5,7 @@ Tasman Day Surgery's locally hosted patient administration system, with eMR, bil
 - **Specification:** v1.9 (BrightPAS). The master copy is kept as section files in the TDS-PAS OneDrive folder (`Specification\v1.9\`); Appendix C there records what each release has built. Earlier Word versions are in `docs/spec/`.
 - **Status:** release 0.17.0 – a test build on demonstration data. **Nothing is live.** Every module still needs sandbox testing on Windows, an independent security review and clinical sign-off before real patient data (see "Before production" below).
 - **Owner:** Tasman Day Surgery. Product owner: Lance Wakefield.
-- **What is built:** see `CHANGELOG.md` (one entry per release) and `docs/adr/` (one decision record per module or design decision).
+- **What is built:** see `CHANGELOG.md` (one entry per release), `docs/adr/` (one decision record per module or design decision) and `docs/spec-traceability.md` (every specification section → code → tests, and where the build differs from the specification).
 
 ## Structure
 
@@ -31,7 +31,7 @@ C# / .NET 10 (LTS), ASP.NET Core minimal APIs on IIS, EF Core with one database 
 
 | Step | Command |
 |---|---|
-| Build | `dotnet build BrightPAS.slnx` (0 warnings expected); UI: `npm ci && npm run build` in `src/Platform/BrightPAS.Web/ClientApp` |
+| Build | `dotnet build BrightPAS.slnx` (0 warnings; .NET code analysis with all security and reliability rules fails the build on any finding); UI: `npm ci && npm run build` in `src/Platform/BrightPAS.Web/ClientApp` |
 | Tests | `dotnet test BrightPAS.slnx` – set `PAS_TEST_SQLSERVER` to also run the SQL Server tests (required before a release) |
 | Source style | `dotnet format whitespace BrightPAS.slnx --verify-no-changes` (rules in `.editorconfig`) |
 | Database scripts | `scripts/generate-db-scripts.sh` after any EF migration (idempotent scripts the installer runs) |

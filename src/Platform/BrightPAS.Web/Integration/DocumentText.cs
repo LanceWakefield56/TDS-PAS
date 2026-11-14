@@ -185,7 +185,7 @@ public sealed class DocumentTextExtractor(IOcrEngine ocr, ILogger<DocumentTextEx
             catch (Exception ex) { problem = $"Some pages could not be read: {ex.GetBaseException().Message}"; }
         }
         var text = sb.ToString();
-        return (text.Count(char.IsLetterOrDigit) == 0 ? null : text, "ocr", problem);
+        return (!text.Any(char.IsLetterOrDigit) ? null : text, "ocr", problem);
     }
 
     /// <summary>Text-showing operators (Tj, TJ, ', ") from the page content; good for PDFs made by software, not perfect for every font encoding.</summary>

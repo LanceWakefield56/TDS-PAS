@@ -87,7 +87,7 @@ public class PatientServiceTests
         Assert.False(r.Succeeded);
         Assert.Contains(r.Errors, e => e.Contains("Family name"));
         Assert.Contains(r.Errors, e => e.Contains("future"));
-        Assert.Contains(r.Errors, e => e.StartsWith("NHI"));
+        Assert.Contains(r.Errors, e => e.StartsWith("NHI", StringComparison.Ordinal));
         Assert.Contains(r.Errors, e => e.Contains("6 ethnicities"));
         Assert.Contains(r.Errors, e => e.Contains("Email"));
     }

@@ -112,13 +112,15 @@ public sealed record TrustedKey(string Name, ECDsa Key, bool IsDevelopment)
 /// <summary>The vendor public keys built into this copy of BrightPAS.</summary>
 public static class VendorKeys
 {
-    public static IReadOnlyList<TrustedKey> BuiltIn(bool allowDevelopmentKey = true)
+    /// <param name="allowDevelopmentKey">Trust the development key (sandbox licences). Null = only when no production key is built in,
+    /// so a release built with the production key never accepts a licence signed with the development key (whose private half is in the source).</param>
+    public static IReadOnlyList<TrustedKey> BuiltIn(bool? allowDevelopmentKey = null)
     {
         var list = new List<TrustedKey>();
         var asm = typeof(VendorKeys).Assembly;
         foreach (var (res, name, dev) in new[] { ("keys.production.pem", "BrightPAS production key", false), ("keys.dev.pem", "BrightPAS DEVELOPMENT key", true) })
         {
-            if (dev && !allowDevelopmentKey) continue;
+            if (dev && !(allowDevelopmentKey ?? !HasProductionKey)) continue;
             using var s = asm.GetManifestResourceStream(res);
             if (s is null) continue;
             using var r = new StreamReader(s);

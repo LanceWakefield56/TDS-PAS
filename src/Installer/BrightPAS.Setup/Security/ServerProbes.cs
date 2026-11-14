@@ -81,7 +81,7 @@ public sealed class ServerProbes(SecurityTestOptions o, SecurityReport r, IProce
         else r.Fail(Os, "TLS 1.2 enabled", "TLS 1.2 is disabled.", "Run Setup's install (TLS step).");
 
         var fwOff = f.Where(kv => kv.Key.StartsWith("fw.", StringComparison.OrdinalIgnoreCase) && kv.Key != "fw.error" && !kv.Value.Equals("True", StringComparison.OrdinalIgnoreCase)).Select(kv => kv.Key[3..]).ToList();
-        if (f.Keys.Any(k => k.StartsWith("fw.") && k != "fw.error") && fwOff.Count == 0) r.Pass(Os, "Windows Firewall on", "Firewall enabled for Domain, Private and Public networks.");
+        if (f.Keys.Any(k => k.StartsWith("fw.", StringComparison.Ordinal) && k != "fw.error") && fwOff.Count == 0) r.Pass(Os, "Windows Firewall on", "Firewall enabled for Domain, Private and Public networks.");
         else r.Fail(Os, "Windows Firewall on", $"Firewall off for: {(fwOff.Count > 0 ? string.Join(", ", fwOff) : "unknown")}.", "Turn the firewall on: Windows Security → Firewall & network protection.");
 
         if (V("smb1").Equals("False", StringComparison.OrdinalIgnoreCase)) r.Pass(Os, "SMBv1 disabled", "The obsolete SMBv1 file-sharing protocol (used by WannaCry) is off.");

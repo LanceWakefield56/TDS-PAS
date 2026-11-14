@@ -20,7 +20,7 @@ public sealed class LicenceCache
 public sealed class LicensingService(PasDbContext db, LicenceCache cache, TimeProvider clock, IConfiguration config,
     IHttpClientFactory httpFactory, AuditWriter audit, ILogger<LicensingService> log)
 {
-    private IReadOnlyList<TrustedKey> Keys => VendorKeys.BuiltIn(config.GetValue("Licensing:AllowDevelopmentKey", true));
+    private IReadOnlyList<TrustedKey> Keys => VendorKeys.BuiltIn(config.GetValue<bool?>("Licensing:AllowDevelopmentKey"));
 
     public async Task<LicenceState> StateAsync(CancellationToken ct = default)
     {
@@ -80,7 +80,7 @@ public sealed class LicensingService(PasDbContext db, LicenceCache cache, TimePr
         if (!check.Ok) return (false, check.Error, cache.Status);
         var trial = Evaluate(s, code, clock.GetUtcNow(), text);
         if (trial.Health is LicenceHealth.WrongInstallation or LicenceHealth.Expired)
-            return (false, trial.Messages.Last(), cache.Status);
+            return (false, trial.Messages[^1], cache.Status);
 
         s.LicenceText = text;
         s.LicenceInstalledAt = clock.GetUtcNow();
@@ -177,7 +177,7 @@ public static class LicensingEndpointExtensions
             {
                 ModuleAccess.None => Results.Json(new { error = "module_not_licensed", module = moduleId, message = $"The {name} module is not licensed on this system." }, statusCode: 403),
                 ModuleAccess.ReadOnly when !HttpMethods.IsGet(ctx.HttpContext.Request.Method) && !HttpMethods.IsHead(ctx.HttpContext.Request.Method) =>
-                    Results.Json(new { error = "licence_read_only", module = moduleId, message = $"The {name} module is read-only: {status.Messages.LastOrDefault()}" }, statusCode: 403),
+                    Results.Json(new { error = "licence_read_only", module = moduleId, message = $"The {name} module is read-only: {(status.Messages.Count > 0 ? status.Messages[^1] : "")}" }, statusCode: 403),
                 _ => await next(ctx)
             };
         });

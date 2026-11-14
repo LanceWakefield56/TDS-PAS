@@ -234,7 +234,7 @@ public class DevicesTests
         var segs = none.Split('\r');
         Assert.Contains("O\\F\\Brien\\S\\Smith^Mary \\T\\ Jo", none);
         Assert.Contains("PR1|1||^Excision \\F\\ lesion|", none);
-        Assert.Equal(d.EpisodeId.ToString("N"), segs.Single(x => x.StartsWith("PV1|")).Split('|')[19]);
+        Assert.Equal(d.EpisodeId.ToString("N"), segs.Single(x => x.StartsWith("PV1|", StringComparison.Ordinal)).Split('|')[19]);
         var with = DeviceHl7.BuildAdt("A08", d with { Allergies = ["Penicillin – rash", "Latex"] }, "SAFERSLEEP", "TDS", now);
         Assert.Contains("AL1|1|DA|^Penicillin – rash\rAL1|2|DA|^Latex\r", with);
         Assert.Contains("ADT^A08", with);

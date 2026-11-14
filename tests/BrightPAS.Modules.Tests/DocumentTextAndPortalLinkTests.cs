@@ -27,7 +27,7 @@ public class DocumentTextAndPortalLinkTests
         var (doc, _) = await svc.AddAsync(new(p.Id, null, DocumentCategory.Consent, "Consent", "c.pdf", Convert.ToBase64String(Pdf), DocumentSource.Scan), "rn");
         var (doc2, _) = await svc.AddAsync(new(p.Id, null, DocumentCategory.Referral, "Referral", "r.pdf", Convert.ToBase64String(Pdf), DocumentSource.Scan), "rn");
         Assert.Equal(2, (await svc.PendingTextAsync(10)).Count);
-        Assert.Equal("Pending", (await svc.ListAsync(p.Id)).First().TextStatus);
+        Assert.Equal("Pending", (await svc.ListAsync(p.Id))[0].TextStatus);
 
         Assert.Equal(TextStatus.Done, await svc.ProcessTextAsync(doc!.Id, new FakeExtractor("Allergy: PENICILLIN anaphylaxis. Consent signed.")));
         var db = s.ServiceProvider.GetRequiredService<PatientsDbContext>();

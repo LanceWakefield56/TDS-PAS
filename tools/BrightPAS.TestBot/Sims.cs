@@ -97,7 +97,7 @@ public sealed class Sims : IAsyncDisposable
         ai.MapPost("/v1/audio/transcriptions", async (HttpRequest req) =>
         {
             var form = await req.ReadFormAsync();
-            var bytes = form.Files.FirstOrDefault()?.Length ?? 0;
+            var bytes = (form.Files.Count > 0 ? form.Files[0].Length : 0);
             Interlocked.Increment(ref Transcriptions);
             var who = HeardName is null ? "" : $" {HeardName}, NHI {HeardNhi},";
             var segs = new object[]

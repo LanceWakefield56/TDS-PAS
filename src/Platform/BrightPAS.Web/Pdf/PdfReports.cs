@@ -167,7 +167,7 @@ public static class PdfReports
     /// <summary>The emergency transfer pack (same content as the printable page).</summary>
     public static byte[] TransferPack(Dictionary<string, object?> pack, BrightPAS.Modules.Patients.TransferEdit? t, string? password)
     {
-        var json = JsonSerializer.SerializeToElement(pack, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var json = JsonSerializer.SerializeToElement(pack, JsonSerializerOptions.Web);
         static string V(JsonElement e, string n) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(n, out var v) && v.ValueKind != JsonValueKind.Null ? v.ToString() : "";
         var p = json.GetProperty("patient");
         var d = NewDocument("Emergency transfer pack");

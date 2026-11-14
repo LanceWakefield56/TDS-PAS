@@ -10,6 +10,10 @@
 using System.Security.Cryptography;
 using BrightPAS.Licensing;
 
+// Pin the process culture to New Zealand English so the server's regional settings never change number/date formats (HL7, CSV, JSON).
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("en-NZ");
+System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("en-NZ");
+
 var a = Args.Parse(args);
 var interactive = a.Command is null;
 Console.WriteLine("BrightPAS Licence Manager\n");

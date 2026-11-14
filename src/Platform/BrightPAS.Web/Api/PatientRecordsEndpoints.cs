@@ -299,7 +299,7 @@ public static class PatientRecordsEndpoints
     /// <summary>Self-contained printable HTML (no scripts, no external resources) for the exported pack.</summary>
     public static string TransferHtml(Dictionary<string, object?> pack, TransferEdit? t)
     {
-        var json = JsonSerializer.SerializeToElement(pack, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var json = JsonSerializer.SerializeToElement(pack, JsonSerializerOptions.Web);
         string V(JsonElement e, string n) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(n, out var v) && v.ValueKind != JsonValueKind.Null ? v.ToString() : "";
         var p = json.GetProperty("patient");
         var sb = new StringBuilder();

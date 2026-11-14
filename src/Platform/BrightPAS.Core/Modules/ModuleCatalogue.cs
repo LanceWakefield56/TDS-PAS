@@ -43,7 +43,7 @@ public sealed class ModuleCatalogue
 
         void Visit(string id, Stack<string> path)
         {
-            if (!_modules.ContainsKey(id))
+            if (!_modules.TryGetValue(id, out var manifest))
             {
                 var by = path.Count > 0 ? $" (required by '{path.Peek()}')" : string.Empty;
                 throw new ModuleDependencyException($"Missing module '{id}'{by}.");
@@ -61,7 +61,7 @@ public sealed class ModuleCatalogue
                 Visit(dep, path);
             path.Pop();
             state[id] = true;
-            ordered.Add(_modules[id]);
+            ordered.Add(manifest);
         }
 
         foreach (var id in requestedIds)

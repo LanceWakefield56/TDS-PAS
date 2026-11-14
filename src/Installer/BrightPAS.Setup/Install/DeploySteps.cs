@@ -409,7 +409,7 @@ public sealed class ConfigureIisSiteStep : IInstallStep
         c.Log.Block("PowerShell output", r.Output);
         if (r.ExitCode != 0)
         {
-            foreach (var l in r.Output.Split('\n').Where(l => l.StartsWith("ERROR:") || l.StartsWith("WHERE:"))) c.Log.Detail(l.Trim());
+            foreach (var l in r.Output.Split('\n').Where(l => l.StartsWith("ERROR:", StringComparison.Ordinal) || l.StartsWith("WHERE:", StringComparison.Ordinal))) c.Log.Detail(l.Trim());
             return StepResult.Fail("IIS site set-up failed. The exact error is shown above and in the log file.");
         }
         c.SiteUrl = w.HttpsPort == 443 ? $"https://{host}/" : $"https://{host}:{w.HttpsPort}/";

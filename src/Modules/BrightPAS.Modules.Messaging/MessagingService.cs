@@ -143,6 +143,9 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
                 if (e.Port is not (>= 1024 and <= 65535)) errors.Add("Listening port must be between 1024 and 65535.");
                 else if (e.IsActive && await db.Interfaces.AnyAsync(i => i.IsActive && (i.Transport == Transport.MllpListen || i.Transport == Transport.DicomListen) && i.Port == e.Port && i.Id != (e.Id ?? Guid.Empty), ct))
                     errors.Add($"Another active interface already listens on port {e.Port}.");
+                // Clinical data must only come from known systems: a listener that hands messages to a module needs its allowed list (0.17.0).
+                if (e.Transport == Transport.MllpListen && e.Handler != InboundHandler.None && e.IsActive && clients.Count == 0)
+                    errors.Add("List the IP address of every system allowed to send to this interface (it files clinical data).");
                 foreach (var c in clients)
                 {
                     if (!System.Net.IPAddress.TryParse(c.Address, out _)) errors.Add($"\"{c.Address}\" is not an IP address.");

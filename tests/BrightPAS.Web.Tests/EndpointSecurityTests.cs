@@ -115,7 +115,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         m.Groups[2].Value.Contains("guid") ? Guid.NewGuid().ToString() : m.Groups[2].Value.Contains("int") ? "1" : "zz" + Guid.NewGuid().ToString("N"));
 
     private IEnumerable<(string Method, string Url, RouteEndpoint E)> Probeable() =>
-        Endpoints().Where(e => Route(e).StartsWith("/api/") && !Route(e).Contains("**")).SelectMany(e => Methods(e).Select(m => (m, Fill(Route(e)), e)));
+        Endpoints().Where(e => Route(e).StartsWith("/api/", StringComparison.Ordinal) && !Route(e).Contains("**")).SelectMany(e => Methods(e).Select(m => (m, Fill(Route(e)), e)));
 
     [SqlServerFact]
     public async Task Anonymous_attacker_gets_nothing_from_any_endpoint()
@@ -125,7 +125,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         var problems = new List<string>();
         foreach (var (method, url, e) in Probeable())
         {
-            if (url.StartsWith("/api/auth/") || url.StartsWith("/api/setup/")) continue; // covered by the sign-in tests
+            if (url.StartsWith("/api/auth/", StringComparison.Ordinal) || url.StartsWith("/api/setup/", StringComparison.Ordinal)) continue; // covered by the sign-in tests
             using var req = new HttpRequestMessage(new HttpMethod(method), url) { Content = method == "GET" ? null : new StringContent("{}", Encoding.UTF8, "application/json") };
             var res = await c.SendAsync(req);
             var ok = IsPublic(e) ? res.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest or HttpStatusCode.TooManyRequests or HttpStatusCode.UnsupportedMediaType or HttpStatusCode.Unauthorized
@@ -143,7 +143,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         c.DefaultRequestHeaders.Remove("X-BrightPAS-Request");
         var problems = new List<string>();
         // Machine-to-machine endpoints ignore cookies and authenticate with their own keys, so CSRF does not apply to them.
-        foreach (var (method, url, _) in Probeable().Where(p => p.Method != "GET" && !p.Url.StartsWith("/api/hooks/") && !p.Url.StartsWith("/api/integration/in/") && p.Url != "/api/mcp" && p.Url != "/api/scribe/inbound"))
+        foreach (var (method, url, _) in Probeable().Where(p => p.Method != "GET" && !p.Url.StartsWith("/api/hooks/", StringComparison.Ordinal) && !p.Url.StartsWith("/api/integration/in/", StringComparison.Ordinal) && p.Url != "/api/mcp" && p.Url != "/api/scribe/inbound"))
         {
             var res = await c.SendAsync(new HttpRequestMessage(new HttpMethod(method), url) { Content = new StringContent("{}", Encoding.UTF8, "application/json") });
             if (res.StatusCode != HttpStatusCode.BadRequest) problems.Add($"{method} {url} -> {(int)res.StatusCode}");

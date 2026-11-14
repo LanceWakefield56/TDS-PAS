@@ -4,6 +4,7 @@ using BrightPAS.Identity;
 
 namespace BrightPAS.Web.Api;
 
+/// <summary>System administration API: users, roles and permissions, organisation settings and the audit log (administrator permissions only).</summary>
 public static class AdminEndpoints
 {
     public sealed record CreateUserRequest(string UserName, string DisplayName, string[] Roles, string Password);

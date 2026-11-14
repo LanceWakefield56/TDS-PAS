@@ -25,6 +25,10 @@ var folder = cfg["DataFolder"] ?? Path.Combine(AppContext.BaseDirectory, "data")
 Directory.CreateDirectory(Path.Combine(folder, "issued"));
 var tokenDays = cfg.GetValue("TokenDays", 14);
 using var key = ECDsa.Create();
+
+// Pin the process culture to New Zealand English so the server's regional settings never change number/date formats (HL7, CSV, JSON).
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("en-NZ");
+System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("en-NZ");
 var pem = File.ReadAllText(cfg["PrivateKeyPath"] ?? throw new InvalidOperationException("LicenceServer:PrivateKeyPath is not set."));
 if (pem.Contains("ENCRYPTED", StringComparison.Ordinal)) key.ImportFromEncryptedPem(pem, Environment.GetEnvironmentVariable("BRIGHTPAS_KEY_PASSWORD") ?? "");
 else key.ImportFromPem(pem);

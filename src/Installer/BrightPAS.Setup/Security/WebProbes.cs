@@ -14,10 +14,12 @@ namespace BrightPAS.Setup.Security;
 /// brute-force limits, injection, file disclosure, unsafe methods and error leakage.
 /// These are safe, non-destructive tests (they only send requests an attacker could send).
 /// </summary>
-public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallLog log)
+public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallLog log) : IDisposable
 {
     private const string Area = "Website (penetration probes)";
     private X509Certificate2? _cert;
+
+    public void Dispose() => _cert?.Dispose();
 
     public async Task RunAsync(CancellationToken ct)
     {
@@ -233,9 +235,8 @@ public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallL
 
     private async Task CheckOldTlsAsync(Uri baseUri, CancellationToken ct)
     {
-#pragma warning disable SYSLIB0039 // deliberately testing that obsolete protocols are refused
+#pragma warning disable SYSLIB0039, CA5397, CA5359 // deliberately offering obsolete protocols (and not validating) to prove the server refuses them
         foreach (var (name, proto) in new[] { ("TLS 1.0", SslProtocols.Tls), ("TLS 1.1", SslProtocols.Tls11) })
-#pragma warning restore SYSLIB0039
         {
             try
             {
@@ -256,6 +257,7 @@ public sealed class WebProbes(SecurityTestOptions o, SecurityReport r, IInstallL
                 r.Info(Area, $"{name} refused", $"Could not test ({ex.GetType().Name}); the server registry check below covers this.");
             }
         }
+#pragma warning restore SYSLIB0039, CA5397, CA5359
     }
 
     private async Task CheckPlainHttpAsync(Uri baseUri, CancellationToken ct)

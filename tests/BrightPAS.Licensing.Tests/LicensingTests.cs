@@ -31,10 +31,19 @@ public class LicensingTests
     }
 
     [Fact]
+    public void Development_key_is_trusted_only_in_builds_without_a_production_key_unless_set_explicitly()
+    {
+        Assert.DoesNotContain(VendorKeys.BuiltIn(allowDevelopmentKey: false), k => k.IsDevelopment);
+        Assert.Contains(VendorKeys.BuiltIn(allowDevelopmentKey: true), k => k.IsDevelopment);
+        // Default: the development key's private half is in the source, so a build with the production key must not trust it.
+        Assert.Equal(!VendorKeys.HasProductionKey, VendorKeys.BuiltIn().Any(k => k.IsDevelopment));
+    }
+
+    [Fact]
     public void Edited_licence_is_rejected()
     {
         var text = LicenceCodec.Sign(Doc(), Vendor);
-        var body = text.Split('\n').First(l => l.StartsWith("eyJ"));
+        var body = text.Split('\n').First(l => l.StartsWith("eyJ", StringComparison.Ordinal));
         var tampered = text.Replace(body, body[..10] + (body[10] == 'A' ? 'B' : 'A') + body[11..]);
         var s = Eval(tampered);
         Assert.Equal(LicenceHealth.Invalid, s.Health);
@@ -47,8 +56,8 @@ public class LicensingTests
         // Re-encode the payload with an extra module but keep the original signature.
         var text = LicenceCodec.Sign(Doc(), Vendor);
         var forged = LicenceCodec.Sign(Doc(d => d with { Modules = ["*"] }), Pirate);
-        var origSig = string.Concat(text.Split('\n').Where(l => !l.StartsWith('#') && !l.StartsWith("-----"))).Split('.')[1];
-        var forgedPayload = string.Concat(forged.Split('\n').Where(l => !l.StartsWith('#') && !l.StartsWith("-----"))).Split('.')[0];
+        var origSig = string.Concat(text.Split('\n').Where(l => !l.StartsWith('#') && !l.StartsWith("-----", StringComparison.Ordinal))).Split('.')[1];
+        var forgedPayload = string.Concat(forged.Split('\n').Where(l => !l.StartsWith('#') && !l.StartsWith("-----", StringComparison.Ordinal))).Split('.')[0];
         var franken = $"-----BEGIN BRIGHTPAS LICENCE-----\n{forgedPayload}.{origSig}\n-----END BRIGHTPAS LICENCE-----\n";
         Assert.Equal(LicenceHealth.Invalid, Eval(franken).Health);
     }

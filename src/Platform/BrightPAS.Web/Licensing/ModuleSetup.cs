@@ -394,7 +394,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         return
         [
             new("mllp", "Laboratory connection (HL7 over MLLP)", "Results arrive automatically when the lab's interface engine sends to this server. The port is set by Setup (--mllp-port). Optional: results can also be imported by hand.",
-                port > 0, port > 0 ? $"Listening on port {port}{(string.IsNullOrWhiteSpace(allowed) ? " – WARNING: any computer may connect; restrict with --mllp-allowed" : $" (allowed: {allowed})")}." : "Not switched on.", true, null, null, null, "IT – re-run Setup with --mllp-port"),
+                port > 0, port > 0 ? $"Listening on port {port}{(string.IsNullOrWhiteSpace(allowed) ? " – WARNING: no allowed laboratory address, so every connection is refused; set it with --mllp-allowed" : $" (allowed: {allowed})")}." : "Not switched on.", true, null, null, null, "IT – re-run Setup with --mllp-port"),
             new("test", "Import a test result", "Import a synthetic test message to check results file to the right patient.",
                 received > 0, received > 0 ? $"{received} message(s) received." : "No messages yet.", true, "Open Interfaces", "/admin/interfaces", Permissions.IntegrationManage, "Integration Administrator"),
             new("viewers", "Clinicians who see results", "Nurses, anaesthetists and surgeons see the results inbox.",
@@ -435,8 +435,8 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         var s = await svc.SettingsAsync(ct);
         var problems = await svc.ProblemsAsync(ct);
         var smsProblem = problems.FirstOrDefault(p => p.Contains("SMS", StringComparison.OrdinalIgnoreCase) || p.Contains("Modica", StringComparison.OrdinalIgnoreCase));
-        var emailProblem = problems.FirstOrDefault(p => (p.Contains("mail", StringComparison.OrdinalIgnoreCase) || p.Contains("SMTP", StringComparison.OrdinalIgnoreCase)) && !p.StartsWith("TEST MODE"));
-        var smsOk = s.SmsProvider != BrightPAS.Modules.Reminders.SmsProvider.Off && (smsProblem is null || smsProblem.StartsWith("TEST MODE"));
+        var emailProblem = problems.FirstOrDefault(p => (p.Contains("mail", StringComparison.OrdinalIgnoreCase) || p.Contains("SMTP", StringComparison.OrdinalIgnoreCase)) && !p.StartsWith("TEST MODE", StringComparison.Ordinal));
+        var smsOk = s.SmsProvider != BrightPAS.Modules.Reminders.SmsProvider.Off && (smsProblem is null || smsProblem.StartsWith("TEST MODE", StringComparison.Ordinal));
         var emailOk = s.EmailProvider != BrightPAS.Modules.Reminders.EmailProvider.Off && emailProblem is null;
         var testMode = s.SmsProvider == BrightPAS.Modules.Reminders.SmsProvider.TestOutbox || s.EmailProvider == BrightPAS.Modules.Reminders.EmailProvider.TestOutbox;
         var tested = await db.Messages.AsNoTracking().AnyAsync(m => m.Kind == BrightPAS.Modules.Reminders.MessageKind.Test
@@ -448,7 +448,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 !string.IsNullOrWhiteSpace(s.ClinicName) && !string.IsNullOrWhiteSpace(s.ClinicPhone),
                 string.IsNullOrWhiteSpace(s.ClinicPhone) ? "Clinic phone number not entered." : $"{s.ClinicName}, {s.ClinicPhone}.", false, "Open settings", link, Permissions.RemindersManage),
             new("sms", "SMS vendor", "Choose the SMS vendor (Modica by default) and enter the account details from the vendor. 'Test outbox' records messages without sending them.",
-                smsOk, s.SmsProvider == BrightPAS.Modules.Reminders.SmsProvider.Off ? "SMS is switched off." : smsProblem is { } sp2 && !sp2.StartsWith("TEST MODE") ? sp2 : $"{s.SmsProvider} configured.",
+                smsOk, s.SmsProvider == BrightPAS.Modules.Reminders.SmsProvider.Off ? "SMS is switched off." : smsProblem is { } sp2 && !sp2.StartsWith("TEST MODE", StringComparison.Ordinal) ? sp2 : $"{s.SmsProvider} configured.",
                 s.SmsProvider == BrightPAS.Modules.Reminders.SmsProvider.Off, "Open settings", link, Permissions.RemindersManage),
             new("email", "Email (SMTP)", "Email copies of reminders and questionnaire links go through TDS's mail server (Microsoft 365 / Exchange). Optional if TDS only uses SMS.",
                 emailOk, s.EmailProvider == BrightPAS.Modules.Reminders.EmailProvider.Off ? "Email is switched off." : emailProblem ?? $"{s.EmailProvider} configured.", true, "Open settings", link, Permissions.RemindersManage),

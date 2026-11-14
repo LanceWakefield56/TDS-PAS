@@ -158,7 +158,7 @@ public class EndoscopyTests
         var missing = await svc.MissingAsync(x);
         Assert.Contains("Gastroscopy: extent reached", missing);
         Assert.Contains("Gastroscopy: retroflexion (J-manoeuvre)", missing);
-        Assert.DoesNotContain(missing, m => m.StartsWith("Colonoscopy"));
+        Assert.DoesNotContain(missing, m => m.StartsWith("Colonoscopy", StringComparison.Ordinal));
         Assert.NotEmpty((await svc.SaveFindingAsync(p.Id, null, new FindingEdit("LowerOesophagus", "Oesophagitis", "LA Z", null, null), "rn")).Errors);
         Assert.Empty((await svc.SaveFindingAsync(p.Id, null, new FindingEdit("LowerOesophagus", "Oesophagitis", "LA B", null, null), "rn")).Errors);
     }

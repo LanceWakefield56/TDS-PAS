@@ -331,7 +331,7 @@ public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider 
         int tp = o.TemperatureC.Value switch { <= 35.0m => 3, <= 36.0m => 1, <= 38.0m => 0, <= 39.0m => 1, _ => 2 };
         int bp = o.SystolicBp.Value switch { <= 90 => 3, <= 100 => 2, <= 110 => 1, <= 219 => 0, _ => 3 };
         int hr = o.HeartRate.Value switch { <= 40 => 3, <= 50 => 1, <= 90 => 0, <= 110 => 1, <= 130 => 2, _ => 3 };
-        int lc = o.Consciousness.ToUpperInvariant() == "A" ? 0 : 3;
+        int lc = string.Equals(o.Consciousness, "A", StringComparison.OrdinalIgnoreCase) ? 0 : 3;
         var parts = new[] { rr, sp, ox, tp, bp, hr, lc };
         return (parts.Sum(), parts.Any(p => p == 3));
     }

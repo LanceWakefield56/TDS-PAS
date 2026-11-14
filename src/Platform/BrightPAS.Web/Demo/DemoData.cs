@@ -459,7 +459,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         {
             var to = from.AddDays(55) > _today.AddDays(42) ? _today.AddDays(42) : from.AddDays(55);
             var (c, skipped) = await svc.GenerateAsync(from, to, Actor, ct);
-            if (c == 0 && skipped.Count > 0 && skipped[0].StartsWith("Choose")) throw new InvalidOperationException("Demo data – roster: " + skipped[0]);
+            if (c == 0 && skipped.Count > 0 && skipped[0].StartsWith("Choose", StringComparison.Ordinal)) throw new InvalidOperationException("Demo data – roster: " + skipped[0]);
             created += c;
         }
         if (created == 0) throw new InvalidOperationException("Demo data – roster: no shifts were created.");
@@ -648,7 +648,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
                         x.SizeMm >= 20 ? "Low" : "None", null), "pathology", ct), "histology");
             var diagnosis = string.Join("; ", findings.Concat(polyps.Count > 0 ? [$"{polyps.Count} polyp(s) removed"] : []).DefaultIfEmpty("Normal examination")) + ".";
             Ok(await svc.UpdateReportAsync(p.Id, new Endo.ReportEdit("None", null, diagnosis, polyps.Count > 0 ? "Await histology. Surveillance as per the result." : "No further endoscopic follow-up needed for this indication.",
-                up && findings.Any(f => f.StartsWith("Barrett")) ? "Repeat gastroscopy for Barrett's surveillance in 3 years." : null, polyps.Any(x => x.SizeMm >= 20) ? 6 : null,
+                up && findings.Any(f => f.StartsWith("Barrett", StringComparison.Ordinal)) ? "Repeat gastroscopy for Barrett's surveillance in 3 years." : null, polyps.Any(x => x.SizeMm >= 20) ? 6 : null,
                 polyps.Count > 0 ? "We will write to you and your GP with the laboratory results." : null), Actor, ct), "endoscopy report");
             if (n != 0) Ok(await svc.SignAsync(p.Id, Actor, ct), "sign endoscopy");
             n++;
@@ -796,7 +796,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         var hernia = _done.FirstOrDefault(d => d.Booking.Procedure.Contains("hernia", StringComparison.OrdinalIgnoreCase));
         if (hernia.Booking is not null)
         {
-            var lot = (await stock.LotsAsync(mesh.Id, ct)).First();
+            var lot = (await stock.LotsAsync(mesh.Id, ct))[0];
             Ok((await stock.RecordImplantAsync(new Ast.ImplantRequest(mesh.Id, lot.Id, null, "SN-" + _rng.Next(100000, 999999), "Demo Medical", "Left inguinal", hernia.Booking.PatientId, hernia.Booking.Id,
                 hernia.Session.Date), "nurse2", ct)).Error, "implant");
         }
@@ -1053,7 +1053,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
 
     private static string FeeFor(string procedure) => procedure switch
     {
-        var p when p.StartsWith("Colonoscopy") => "COLON",
+        var p when p.StartsWith("Colonoscopy", StringComparison.Ordinal) => "COLON",
         "Gastroscopy" => "GASTRO",
         "Gastroscopy and colonoscopy" => "GASTROCOL",
         "Carpal tunnel release" => "CTR",
@@ -1075,7 +1075,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             if (b.Payment is PaymentType.Insurer or PaymentType.Acc) checks.Add("approval");
             if (b.Payment == PaymentType.SelfFunded) checks.Add("estimate");
             if (b.Anaesthetic == AnaestheticType.General) checks.Add("anaesthetic");
-            var scope = s.Type == SessionType.Endoscopy ? (b.Procedure.StartsWith("Gastro") ? "GIF-H190-0" : "CF-HQ190L-") + (1 + i % 3) : null;
+            var scope = s.Type == SessionType.Endoscopy ? (b.Procedure.StartsWith("Gastro", StringComparison.Ordinal) ? "GIF-H190-0" : "CF-HQ190L-") + (1 + i % 3) : null;
 
             if (daysAhead > 0)
             {
@@ -1210,7 +1210,8 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
                 if (!ok) Ok(errors, "submit questionnaire");
             }
             if (s.Date > _today.AddDays(6) || i == 9) continue; // still to triage
-            var row = (await svc.ListAsync("to-triage", patient.Id, ct)).FirstOrDefault();
+            var rows = await svc.ListAsync("to-triage", patient.Id, ct);
+            var row = rows.Count > 0 ? rows[0] : null;
             if (row is null) continue;
             using (At(s.Date.AddDays(-6) < _today ? s.Date.AddDays(-6) : _today, 11))
                 Ok(await svc.TriageAsync(row.Id, Enum.Parse<TriageCategory>(row.Suggested ?? "Green"), row.Suggested == "Green" ? "Fit for day surgery" : "Discussed with anaesthetist – proceed",

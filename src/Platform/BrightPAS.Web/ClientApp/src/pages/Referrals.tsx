@@ -57,8 +57,8 @@ export default function Referrals() {
             <thead><tr><th>Received</th><th>Patient</th><th>From</th><th>To</th><th>Reason</th><th>Status</th></tr></thead>
             <tbody>{rows.map((r) => (
               <Fragment key={r.id}>
-                <tr tabIndex={0} onClick={() => setOpen(open === r.id ? null : r.id)} onKeyDown={(e) => e.key === 'Enter' && setOpen(open === r.id ? null : r.id)} aria-expanded={open === r.id}>
-                  <td data-label="Received">{formatDate(r.receivedOn)}<div className="muted small">{r.number} · {r.daysSinceReceived} day{r.daysSinceReceived === 1 ? '' : 's'} ago</div></td>
+                <tr className="clickable" onClick={() => setOpen(open === r.id ? null : r.id)}>
+                  <td data-label="Received"><button type="button" className="btn btn-link row-toggle" aria-expanded={open === r.id} onClick={(e) => { e.stopPropagation(); setOpen(open === r.id ? null : r.id); }}>{formatDate(r.receivedOn)}</button><div className="muted small">{r.number} · {r.daysSinceReceived} day{r.daysSinceReceived === 1 ? '' : 's'} ago</div></td>
                   <td data-label="Patient"><strong>{r.patientName}</strong><div className="muted small">{r.nhi ?? '—'} · {r.mrn}</div></td>
                   <td data-label="From">{r.referrerName}<div className="muted small">{r.referrerOrganisation ?? label(SOURCES, r.source)}</div></td>
                   <td data-label="To">{r.specialist}<div className="muted small">{r.service} · {label(FUNDERS, r.funder)}</div></td>

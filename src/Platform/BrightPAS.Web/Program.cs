@@ -15,6 +15,10 @@ using BrightPAS.Web.Security;
 // Child process for text recognition (see OutOfProcessOcrEngine): keeps native OCR crashes away from the website.
 if (args.Length > 0 && args[0] == "--ocr-worker") { Environment.Exit(BrightPAS.Web.Integration.OutOfProcessOcrEngine.RunWorker(args)); }
 
+// Pin the process culture to New Zealand English so the server's regional settings never change number/date formats (HL7, CSV, JSON).
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("en-NZ");
+System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("en-NZ");
+
 var builder = WebApplication.CreateBuilder(args);
 BrightPAS.Web.Security.PasLogging.Configure(builder); // log files, error references, crash capture (0.12.2)
 builder.WebHost.ConfigureKestrel(k => k.AddServerHeader = false);

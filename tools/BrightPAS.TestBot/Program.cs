@@ -2,6 +2,10 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BrightPAS.TestBot;
 
+// Pin the process culture to New Zealand English so the server's regional settings never change number/date formats (HL7, CSV, JSON).
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("en-NZ");
+System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("en-NZ");
+
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 Options o;
 try { o = Options.Parse(args); }
@@ -108,7 +112,7 @@ return exit != 0 ? exit : fail > 0 ? 1 : 0;
 
 static async Task SignInRefusalsAsync(Bot bot, DemoInfo demo)
 {
-    var user = demo.Accounts.First().UserName;
+    var user = demo.Accounts[0].UserName;
     await using var s = await bot.NewContextAsync("(nobody)");
     var p = s.Page;
     await p.GotoAsync(bot.O.Url + "/signin");

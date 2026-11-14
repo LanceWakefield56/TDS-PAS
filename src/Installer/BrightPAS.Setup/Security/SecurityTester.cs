@@ -12,7 +12,7 @@ public static class SecurityTester
         try { await new ServerProbes(o, report, processes, log).RunAsync(ct); }
         catch (Exception ex) { log.Error($"Server checks failed: {ex.Message}", ex); report.Fail("Server (Windows)", "Server checks", ex.Message, "See the log file."); }
         log.Info("Running website penetration probes…");
-        try { await new WebProbes(o, report, log).RunAsync(ct); }
+        try { using var probes = new WebProbes(o, report, log); await probes.RunAsync(ct); }
         catch (Exception ex) { log.Error($"Website probes failed: {ex.Message}", ex); report.Fail("Website (penetration probes)", "Website probes", ex.Message, "See the log file."); }
         log.Info("Running database and audit checks…");
         try { await new DatabaseProbes(o, report, log).RunAsync(ct); }

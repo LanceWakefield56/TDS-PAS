@@ -165,7 +165,8 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
         if (port <= 0 || (await svc.ActiveAsync(Transport.MllpListen)).Any(i => i.Port == port) || await svc.InterfaceByCodeAsync("labs-in", ct) is not null) return;
         var clients = (config["Labs:Mllp:AllowedClients"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(a => new ClientEdit(a, null, "From appsettings")).ToList();
         var (_, errors) = await svc.SaveInterfaceAsync(new InterfaceEdit(null, "labs-in", "Lab results (MLLP)", InterfaceDirection.Inbound, Transport.MllpListen, MsgFormat.Hl7v2,
-            InboundHandler.LabResults, null, port, null, null, null, null, clients, true, 3, null, "Created from Labs:Mllp settings at upgrade."), "system", ct);
+            InboundHandler.LabResults, null, port, null, null, null, null, clients, clients.Count > 0, 3, null,
+            clients.Count > 0 ? "Created from Labs:Mllp settings at upgrade." : "Created from Labs:Mllp settings at upgrade – SWITCHED OFF because no allowed laboratory IP address was set. Add it and switch on."), "system", ct);
         if (errors.Count > 0) log.LogWarning("Could not create the labs-in interface from settings: {Errors}", string.Join(" ", errors));
     }
 
@@ -222,7 +223,8 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
             {
                 var client = await listener.AcceptTcpClientAsync(ct);
                 var ip = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.MapToIPv4();
-                if (allowed.Count > 0 && (ip is null || !allowed.Contains(ip)))
+                // Fail closed: a listener that files clinical data and has no allowed list accepts nobody.
+                if ((allowed.Count > 0 || i.Handler != InboundHandler.None) && (ip is null || !allowed.Contains(ip)))
                 {
                     log.LogWarning("Refused MLLP connection to {Code} from {Ip} (not on the allowed list).", i.Code, ip);
                     client.Dispose();

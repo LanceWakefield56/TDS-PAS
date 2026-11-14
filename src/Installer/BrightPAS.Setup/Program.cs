@@ -39,6 +39,10 @@ if (command is null && interactive)
 command ??= "check";
 
 using var log = new InstallLog(InstallLog.DefaultPath(command switch { "install" => cli.Install.WhatIf ? "Preview" : "Install", "security-test" => "SecurityTest", "diagnostics" => "Diagnostics", _ => "Check" }), cli.Verbose);
+
+// Pin the process culture to New Zealand English so the server's regional settings never change number/date formats (HL7, CSV, JSON).
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("en-NZ");
+System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("en-NZ");
 log.AddSecret(cli.Install.SqlPassword);
 WriteHeader(log, command, args);
 

@@ -51,7 +51,7 @@ public class EmrTests
         // Time Out before Sign In, or with items/team missing, is refused.
         Assert.Contains((await emr.CompleteCheckAsync(e.Id, new(CheckPhase.TimeOut, EmrService.CheckItems[CheckPhase.TimeOut].Select(i => i.Key).ToList(), Team3, null), "rn")).Errors, x => x.Contains("Sign In must"));
         var partial = await emr.CompleteCheckAsync(e.Id, new(CheckPhase.SignIn, ["identity"], new Dictionary<string, string> { ["Nurse"] = "RN Kim" }, null), "rn");
-        Assert.Contains(partial.Errors, x => x.StartsWith("Not yet confirmed"));
+        Assert.Contains(partial.Errors, x => x.StartsWith("Not yet confirmed", StringComparison.Ordinal));
         Assert.Contains(partial.Errors, x => x.Contains("anaesthetist"));
         Assert.Empty((await emr.CompleteCheckAsync(e.Id, new(CheckPhase.SignIn, EmrService.CheckItems[CheckPhase.SignIn].Select(i => i.Key).ToList(), Team3, null), "rn")).Errors);
         Assert.Contains("Time Out", (await emr.SaveIntraopAsync(e.Id, new(DateTimeOffset.Now.AddMinutes(-30), null, DateTimeOffset.Now, null, null, "Supine", null, null, null, null, null, null, null, null, null, false, null, null, null, null), "rn")).Errors.Single());

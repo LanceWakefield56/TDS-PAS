@@ -79,12 +79,12 @@ export default function BillingNew() {
         })}
         <div><button type="button" className="btn btn-light" onClick={() => setLines([...lines, { code: '', description: '', quantity: 1, unitPrice: null }])}>Add item</button></div>
         <table className="totals"><tbody>
-          <tr><td>Subtotal</td><td className="money">{money(preview.sub)}</td></tr>
-          <tr><td>GST</td><td className="money">{money(preview.gst)}</td></tr>
-          <tr className="grand"><td>Total</td><td className="money">{money(preview.total)}</td></tr>
-          <tr><td className="muted">Surgeon share</td><td className="money muted">{money(preview.sur)}</td></tr>
-          <tr><td className="muted">Anaesthetist share</td><td className="money muted">{money(preview.an)}</td></tr>
-          <tr><td className="muted">Facility share</td><td className="money muted">{money(preview.fac)}</td></tr>
+          <tr><th scope="row">Subtotal</th><td className="money">{money(preview.sub)}</td></tr>
+          <tr><th scope="row">GST</th><td className="money">{money(preview.gst)}</td></tr>
+          <tr className="grand"><th scope="row">Total</th><td className="money">{money(preview.total)}</td></tr>
+          <tr><th scope="row" className="muted">Surgeon share</th><td className="money muted">{money(preview.sur)}</td></tr>
+          <tr><th scope="row" className="muted">Anaesthetist share</th><td className="money muted">{money(preview.an)}</td></tr>
+          <tr><th scope="row" className="muted">Facility share</th><td className="money muted">{money(preview.fac)}</td></tr>
         </tbody></table>
         <label>Notes (printed)<textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></label>
         {errors.length > 0 && <div className="error"><ul>{errors.map((e) => <li key={e}>{e}</li>)}</ul></div>}

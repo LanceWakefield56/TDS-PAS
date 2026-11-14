@@ -4,6 +4,7 @@ using BrightPAS.Modules.Patients;
 
 namespace BrightPAS.Web.Api;
 
+/// <summary>Patient API: search, register, view and update demographics, alerts and merge – every read and change is audit-logged.</summary>
 public static class PatientEndpoints
 {
     public sealed record AlertRequest(AlertType Type, AlertSeverity Severity, string Description);

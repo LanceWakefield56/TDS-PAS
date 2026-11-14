@@ -9,7 +9,7 @@ namespace BrightPAS.Web.Integration;
 
 /// <summary>
 /// Receives HL7 lab results over MLLP (TCP). Off unless Labs:Mllp:Port is set.
-/// Labs:Mllp:AllowedClients limits which IP addresses may connect (comma-separated; strongly recommended).
+/// Labs:Mllp:AllowedClients lists the IP addresses that may connect (comma-separated). Required: with none, every connection is refused.
 /// Run it on the internal network/VPN only; MLLP over TLS is on the backlog.
 /// </summary>
 public sealed class MllpListener(IServiceScopeFactory scopes, IConfiguration config, LicenceCache licence, ILogger<MllpListener> log) : BackgroundService
@@ -30,14 +30,14 @@ public sealed class MllpListener(IServiceScopeFactory scopes, IConfiguration con
             .Select(IPAddress.Parse).ToHashSet();
         var listener = new TcpListener(IPAddress.Any, port);
         listener.Start();
-        log.LogInformation("HL7 MLLP listener on port {Port} (allowed clients: {Allowed}).", port, allowed.Count == 0 ? "any" : string.Join(", ", allowed));
+        log.LogInformation("HL7 MLLP listener on port {Port} (allowed clients: {Allowed}).", port, allowed.Count == 0 ? "NONE – set Labs:Mllp:AllowedClients (re-run Setup with --mllp-allowed)" : string.Join(", ", allowed));
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
                 var client = await listener.AcceptTcpClientAsync(stoppingToken);
                 var ip = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.MapToIPv4();
-                if (allowed.Count > 0 && (ip is null || !allowed.Contains(ip)))
+                if (ip is null || !allowed.Contains(ip)) // fail closed: no allowed list = nobody (0.17.0)
                 {
                     log.LogWarning("Refused MLLP connection from {Ip}.", ip);
                     client.Dispose();

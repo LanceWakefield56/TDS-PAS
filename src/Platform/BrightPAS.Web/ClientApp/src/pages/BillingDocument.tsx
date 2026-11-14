@@ -60,11 +60,11 @@ export default function BillingDocument() {
           ))}</tbody>
         </table>
         <table className="totals"><tbody>
-          <tr><td>Subtotal</td><td className="money">{money(d.totals.subtotal)}</td></tr>
-          <tr><td>GST {d.gstPercent}%</td><td className="money">{money(d.totals.gst)}</td></tr>
-          <tr className="grand"><td>Total{isInv ? '' : ' (estimate)'}</td><td className="money">{money(d.totals.total)}</td></tr>
-          {isInv && <tr><td>Paid</td><td className="money">{money(d.totals.paid)}</td></tr>}
-          {isInv && <tr className="grand"><td>Balance owing</td><td className="money">{money(d.totals.balance)}</td></tr>}
+          <tr><th scope="row">Subtotal</th><td className="money">{money(d.totals.subtotal)}</td></tr>
+          <tr><th scope="row">GST {d.gstPercent}%</th><td className="money">{money(d.totals.gst)}</td></tr>
+          <tr className="grand"><th scope="row">Total{isInv ? '' : ' (estimate)'}</th><td className="money">{money(d.totals.total)}</td></tr>
+          {isInv && <tr><th scope="row">Paid</th><td className="money">{money(d.totals.paid)}</td></tr>}
+          {isInv && <tr className="grand"><th scope="row">Balance owing</th><td className="money">{money(d.totals.balance)}</td></tr>}
         </tbody></table>
         {d.notes && <p>{d.notes}</p>}
         {isInv && settings?.bankAccount && <p className="small">Pay by internet banking to {settings.bankAccount}, reference {d.number ?? ''}.</p>}

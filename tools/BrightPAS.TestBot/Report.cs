@@ -15,6 +15,7 @@ public sealed record DeviceItem(string Device, string Title, string Body, string
 
 public sealed class Report
 {
+    private static readonly JsonSerializerOptions JsonOut = new() { WriteIndented = true, Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
     private readonly object _gate = new();
     private readonly List<Finding> _findings = [];
     private readonly List<DeviceItem> _devices = [];
@@ -75,7 +76,7 @@ public sealed class Report
 
     public string Write()
     {
-        var json = JsonSerializer.Serialize(new { started = Started, finished = DateTimeOffset.Now, facts = Facts, findings = Findings, devices = Devices }, new JsonSerializerOptions { WriteIndented = true, Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } });
+        var json = JsonSerializer.Serialize(new { started = Started, finished = DateTimeOffset.Now, facts = Facts, findings = Findings, devices = Devices }, JsonOut);
         File.WriteAllText(Path.Combine(Folder, "results.json"), json, new UTF8Encoding(false));
         File.WriteAllText(Path.Combine(Folder, "report.html"), Html(), new UTF8Encoding(false));
         var zip = Folder.TrimEnd(Path.DirectorySeparatorChar) + ".zip";

@@ -157,6 +157,24 @@ public class MessagingTests
     }
 
     [Fact]
+    public async Task Listener_that_files_clinical_data_must_list_the_systems_allowed_to_connect()
+    {
+        await using var h = new ModulesHost();
+        await using var s = h.Scope();
+        var svc = s.ServiceProvider.GetRequiredService<MessagingService>();
+        foreach (var handler in new[] { InboundHandler.LabResults, InboundHandler.DeviceObservations, InboundHandler.AnaesthesiaRecord })
+        {
+            var (none, errors) = await svc.SaveInterfaceAsync(new InterfaceEdit(null, "open-" + (int)handler, "Open listener", InterfaceDirection.Inbound, Transport.MllpListen, MessageFormat.Hl7v2,
+                handler, null, 13000 + (int)handler, null, null, null, null, [], true, 3, null, null), "ia");
+            Assert.Null(none);
+            Assert.Contains(errors, e => e.Contains("allowed", StringComparison.OrdinalIgnoreCase));
+            var (ok, e2) = await svc.SaveInterfaceAsync(new InterfaceEdit(null, "closed-" + (int)handler, "Known sender", InterfaceDirection.Inbound, Transport.MllpListen, MessageFormat.Hl7v2,
+                handler, null, 13100 + (int)handler, null, null, null, null, [new ClientEdit("10.0.0.5", null, "Sender")], true, 3, null, null), "ia");
+            Assert.True(ok is not null, string.Join(" ", e2));
+        }
+    }
+
+    [Fact]
     public async Task Interface_rules_refuse_unsafe_or_inconsistent_settings()
     {
         await using var h = new ModulesHost();
@@ -308,7 +326,7 @@ public class MessagingTests
         var sms = Assert.Single(await svc.InterfacesAsync(), i => i.SystemKey == "sms");
         Assert.Equal("Monitored", sms.Transport);
         Assert.Equal(1, sms.Failed24h);
-        var (_, error) = await svc.ReplayAsync((await svc.SearchAsync(new MessageQuery(sms.Id))).First().Id, "ia", "try again please");
+        var (_, error) = await svc.ReplayAsync((await svc.SearchAsync(new MessageQuery(sms.Id)))[0].Id, "ia", "try again please");
         Assert.Contains("resent from that module", error);
     }
 }

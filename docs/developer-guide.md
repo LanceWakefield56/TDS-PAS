@@ -28,6 +28,7 @@ Filled in as the system is built.
 6. `scripts/generate-db-scripts.sh` (new numbered script) + `InstallerTests` expected list; data dictionary; guide test section; CHANGELOG.
 7. Demonstration data (ADR 0023): add the module's data to `Web/Demo/DemoData.cs` through the module's own services so a demo system shows it already set up; `DemoDataTests` checks every module in `WithWizard` passes its set-up wizard.
 8. Test robot (ADR 0024): menu entry for the right roles (the robot follows the menu) and a route guard in `App.tsx` (`allowed(...)`) matching it; add the module's pages to `Crawler.AllPages`, any button the explorer must never press to `Crawler.Dangerous`, and a scenario in `Scenarios.cs` for any new device or outside system. Run the robot against a fresh demo database before release.
+9. Specification: update `docs/spec-traceability.md` and spec Appendix C (and the spec section itself if the build adds or changes a requirement, with a line in the spec CHANGELOG).
 
 
 ## Demonstration data (0.12.3, ADR 0023)

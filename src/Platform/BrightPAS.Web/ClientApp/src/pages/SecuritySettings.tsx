@@ -62,7 +62,7 @@ function Printers() {
     <section className="card stack">
       <h2>Label and wristband printers</h2>
       {!list ? <p>Loading…</p> : list.length === 0 ? <p className="muted">No printers yet.</p> : (
-        <table className="results compact"><tbody>{list.map((p) => <tr key={p.id}><td>{p.name}<div className="small muted">{p.kind}{p.isDefault ? ' · default' : ''}{p.isActive ? '' : ' · off'}</div></td><td>{p.language === 'Dymo' ? 'DYMO (this computer)' : `Zebra ${p.host}:${p.port}`}</td><td>{p.language === 'Dymo' ? `DYMO ${p.mediaCode}` : `${p.dpi} dpi`} · {p.widthMm}×{p.lengthMm} mm</td>
+        <table className="results compact"><thead><tr><th>Printer</th><th>Connection</th><th>Stock</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{list.map((p) => <tr key={p.id}><td>{p.name}<div className="small muted">{p.kind}{p.isDefault ? ' · default' : ''}{p.isActive ? '' : ' · off'}</div></td><td>{p.language === 'Dymo' ? 'DYMO (this computer)' : `Zebra ${p.host}:${p.port}`}</td><td>{p.language === 'Dymo' ? `DYMO ${p.mediaCode}` : `${p.dpi} dpi`} · {p.widthMm}×{p.lengthMm} mm</td>
           <td><button className="btn btn-link" onClick={() => setE(p)}>Edit</button></td></tr>)}</tbody></table>)}
       {!e && <div className="row"><button className="btn btn-light" onClick={() => setE(blank('Wristband'))}>Add wristband printer</button><button className="btn btn-light" onClick={() => setE(blank('Label'))}>Add Zebra label printer</button><button className="btn btn-light" onClick={() => setE(blank('Label', 'Dymo'))}>Add DYMO label printer</button></div>}
       {e && <div className="card subtle stack"><div className="form-grid">
