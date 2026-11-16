@@ -27,3 +27,7 @@ TDS uses Olympus EVIS X1 towers. Lance asked for EndoBASE-like documentation: pi
 - Annotation: browser canvas editor; PNG of the drawn copy saved as new `Media` with `AnnotatedFromId`; report flags move to the copy.
 - Capture: resolution choice (720p/1080p/4K), MP4/H.264 preferred, bitrate by resolution; any UVC/DirectShow capture device appears as a camera.
 - TIFF: own baseline reader (`Tiff.cs`) → PNG; original kept (`OriginalFileName`, `OriginalContentType`).
+
+## Addendum 0.20.0 – video retention and archive
+- TDS decision (Nov 2026): videos are kept on the server **30 days** by default ("never" keeps them), then deleted.
+- Before deletion each video is written to an **archive folder** (network share or a USB drive on the server) as an **AES-256 encrypted ZIP** (streamed, written as .partial then renamed), named date_MRN_mediaid. The archive password is stored encrypted with ASP.NET Core Data Protection. If the folder or password is missing or the copy fails, the video is kept and the settings page shows how many are waiting. Staff with endoscopy.write can archive a single video at any time. Media rows record ArchivedAt and ArchivedTo; every archive and failure is audited.

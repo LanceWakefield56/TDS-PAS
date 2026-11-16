@@ -76,6 +76,7 @@ public static class Standards
         (["credential"], "Credentialing"),
         (["devices", "monitor", "safersleep", "anaesthetic record", "capture"], "Devices & SaferSleep"),
         (["quality", "incident", "complaint", "risk register", "corrective action"], "Quality management"),
+        (["coding", "nmds", "nbrs", "clinical code", "statutory"], "Coding & statutory reporting"),
         (["scribe", "dictation", "transcri", "ai-assisted", "consent to ai"], "BrightPAS Scribe"),
         (["endoscopy", "polyp", "colonoscopy", "gastroscopy", "worklist"], "Endoscopy"),
         (["emr", "episode", "checklist", "controlled drug", "observation"], "Clinical record (eMR)"),
@@ -154,5 +155,8 @@ public static class ModuleSuites
         new("quality", "Quality management", ["api/quality/summary", "api/quality/incidents", $"api/quality/incidents/{Guid.Empty}", "api/quality/complaints", "api/quality/risks"],
             [("POST", "api/quality/incidents", "{}"), ("POST", $"api/quality/incidents/{Guid.Empty}/triage", "{}"), ("POST", "api/quality/complaints", "{}"), ("POST", "api/quality/pack", "{}"),
              ("PUT", "api/quality/settings", "{}")]),
+        new("reporting", "Coding & statutory reporting", ["api/coding/summary", "api/coding/queue", $"api/coding/events/{Guid.Empty}", "api/coding/nmds/files", "api/coding/nbrs/entries"],
+            [("PUT", $"api/coding/events/{Guid.Empty}", "{}"), ("POST", "api/coding/nmds/files", "{}"), ("POST", "api/coding/codes/import", "{}"), ("POST", "api/coding/nbrs/batches", "{}"),
+             ("PUT", "api/coding/settings", "{}")]),
     ];
 }

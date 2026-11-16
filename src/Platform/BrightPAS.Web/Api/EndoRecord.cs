@@ -37,6 +37,7 @@ public static class EndoRecord
         m.AnnotatedFromId,
         original = m.OriginalFileName is null ? null : $"/api/endoscopy/media/{m.Id}/original",
         originalType = m.OriginalContentType,
+        m.ArchivedAt,
     };
 
     public static async Task<object> BuildAsync(IServiceProvider sp, TheatreBooking booking, TheatreSession session, Procedure? p)

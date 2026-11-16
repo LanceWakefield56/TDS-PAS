@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -70,6 +70,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "scribe" => await ScribeChecksAsync(ct),
         "devices" => await DevicesChecksAsync(ct),
         "quality" => await QualityChecksAsync(ct),
+        "reporting" => await CodingChecksAsync(ct),
         _ => []
     };
 
@@ -310,6 +311,35 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 indicators > 0, $"{indicators} indicator(s) with a target.", false, "Open indicators", "/quality?tab=indicators", Permissions.QualityManage),
             new("risks", "Risk register", "Enter TDS's current risks (or import them from the existing register).", risks > 0, $"{risks} risk(s).", true, "Open risks", "/quality?tab=risks", Permissions.QualityManage),
             new("policies", "Policy register", "List the policies and procedures (with their SharePoint links) and mark those staff must read and acknowledge.", policies > 0, $"{policies} document(s).", true, "Open policies", "/quality?tab=policies", Permissions.QualityManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> CodingChecksAsync(CancellationToken ct)
+    {
+        var coding = Svc<BrightPAS.Modules.Coding.CodingService>();
+        var s = await coding.SettingsAsync(ct);
+        var codes = await coding.CodeCountAsync(ct);
+        var coders = await UsersWithAsync(Permissions.CodingCode, ct);
+        var submitters = await UsersWithAsync(Permissions.CodingSubmit, ct);
+        var db = Svc<BrightPAS.Modules.Coding.CodingDbContext>();
+        var picklist = await db.ProcedureMaps.CountAsync(ct);
+        var advice = await db.Advice.CountAsync(ct);
+        var regs = await db.Registrations.CountAsync(ct);
+        return
+        [
+            new("codes", "Clinical code table", $"Import the {s.EditionName} code table Health NZ supplies (the classification is licensed – BrightPAS does not include it).",
+                codes > 0, $"{codes} active code(s) for system {s.CodingSystem}.", false, "Open code tables", "/coding?tab=tables", Permissions.CodingManage),
+            new("identifiers", "Health NZ identifiers", "Health agency, health agency facility (HAF) code and the three-letter file acronym, allocated by Health NZ.",
+                s.HealthAgencyCode is not null && s.FacilityCode is not null && s.FileAcronym is not null, s.HealthAgencyCode is null ? "Not set." : $"{s.HealthAgencyCode} / {s.FacilityCode} / {s.FileAcronym}",
+                false, "Open coding settings", "/coding?tab=settings", Permissions.CodingManage),
+            new("purchasers", "Purchaser codes and contracted events", "Confirm the purchaser code for each payment type and whether TDS or the District reports Health NZ contracted events (the contract says).",
+                s.UpdatedBy.Length > 0, s.UpdatedBy.Length > 0 ? $"Confirmed by {s.UpdatedBy}." : "Not confirmed.", false, "Open coding settings", "/coding?tab=settings", Permissions.CodingManage),
+            new("coders", "Coder and submitter", "At least one person who codes (Clinical Coder role) and one who can send files to Health NZ.",
+                coders > 0 && submitters > 0, $"{coders} coder(s), {submitters} submitter(s).", false, "Open users", "/admin/users", Permissions.UsersManage),
+            new("picklist", "Procedure picklist", "Map TDS's common procedures to ACHI codes so the workbench offers them.", picklist > 0, $"{picklist} entr(ies).", true, "Open picklist", "/coding?tab=tables", Permissions.CodingManage),
+            new("advice", "Coding advice library", "NZ conventions and reviewed IHACPA rules relevant to TDS – shown to the coder when a linked code is used.", advice > 0, $"{advice} item(s).", true, "Open advice", "/coding?tab=advice", Permissions.CodingManage),
+            new("registrations", "Clinician registrations (NBRS)", "Medical Council numbers for surgeons, needed for NBRS clinical responsibility codes (only if TDS reports to NBRS).",
+                regs > 0, $"{regs} clinician(s).", true, "Open clinicians", "/coding?tab=nbrs", Permissions.CodingManage),
         ];
     }
 

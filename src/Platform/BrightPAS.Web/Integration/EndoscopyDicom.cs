@@ -146,13 +146,10 @@ public sealed class EndoscopyDicomHost(IServiceScopeFactory scopes, ILogger<Endo
     {
         await using var scope = scopes.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        if (!int.TryParse(await sp.GetRequiredService<SettingsService>().GetAsync(EndoscopyEndpoints.RetentionKey, ct), out var days) || days < 30) return;
-        var cutoff = clock.GetUtcNow().AddDays(-days);
-        var db = sp.GetRequiredService<EndoDbContext>();
-        var old = await db.Media.Where(m => m.Kind == MediaKind.Video && m.Status == MediaStatus.Ready && m.CapturedAt < cutoff).Select(m => m.Id).Take(200).ToListAsync(ct);
-        var svc = sp.GetRequiredService<EndoService>();
-        foreach (var id in old) await svc.DeleteMediaAsync(id, $"Video retention ({days} days)", "system", ct);
-        if (old.Count > 0) log.LogInformation("Endoscopy: deleted {Count} video(s) older than {Days} days.", old.Count, days);
+        // 0.20.0: 30 days by default; an AES-256 encrypted copy goes to the archive folder first (videos are kept if that fails).
+        var (deleted, kept) = await sp.GetRequiredService<VideoArchive>().RunAsync(ct);
+        if (deleted > 0) log.LogInformation("Endoscopy: deleted {Count} video(s) past the retention period.", deleted);
+        if (kept > 0) log.LogWarning("Endoscopy: {Count} video(s) past the retention period kept – the archive folder or password is not set, or the copy failed.", kept);
     }
 
     /// <summary>Scribe audio housekeeping (0.16.0) runs on the same 6-hourly timer.</summary>

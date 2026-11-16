@@ -28,6 +28,8 @@ public static class EndoscopyEndpoints
     public sealed record ReportRequest(string Kind, BrightPAS.Web.Security.ExportOptions? Export);
     public sealed record SaveRequest(string Kind);
     public sealed record NbspExtract(DateOnly From, DateOnly To, bool OnlyComplete, BrightPAS.Web.Security.ExportOptions? Export);
+    public sealed record RetentionRequest(string? Days, bool ArchiveFirst, string? Folder, string? NewPassword);
+    public sealed record ArchiveRequest(string? Folder);
     public sealed record EndoSettings(string? MediaPath, bool DicomEnabled, int DicomPort, string DicomAeTitle, string? DicomCallingAes, bool DicomAnyTower, int? VideoRetentionDays, string? ImportFolder = null);
 
     public const string DicomEnabledKey = "endo.dicom.enabled", DicomPortKey = "endo.dicom.port", DicomAeKey = "endo.dicom.aeTitle",
@@ -221,6 +223,18 @@ public static class EndoscopyEndpoints
             var (m, error) = await svc.AnnotateAsync(mediaId, await Body(req, 30L * 1024 * 1024), Me(u));
             return error is not null ? Done(error) : Results.Ok(new { m!.Id });
         })).RequireAuthorization(Permissions.EndoWrite);
+        // Video retention and archive (0.20.0).
+        g.MapGet("/retention", async (BrightPAS.Web.Integration.VideoArchive a) => Results.Ok(await a.StatusAsync())).RequireAuthorization(Permissions.EndoManage);
+        g.MapPut("/retention", async (RetentionRequest r, ClaimsPrincipal u, BrightPAS.Web.Integration.VideoArchive a) =>
+        {
+            var errors = await a.SaveAsync(r.Days, r.ArchiveFirst, r.Folder, r.NewPassword, Me(u));
+            return errors.Count == 0 ? Results.Ok() : Results.BadRequest(new { errors });
+        }).RequireAuthorization(Permissions.EndoManage);
+        g.MapPost("/media/{mediaId:guid}/archive", (Guid mediaId, ArchiveRequest r, ClaimsPrincipal u, BrightPAS.Web.Integration.VideoArchive a) => Guard(async () =>
+        {
+            var (path, error) = await a.ArchiveAsync(mediaId, r.Folder, Me(u));
+            return error is not null ? Results.BadRequest(new { errors = new[] { error } }) : Results.Ok(new { path });
+        })).RequireAuthorization(Permissions.EndoWrite);
         g.MapGet("/media/{mediaId:guid}/original", async (Guid mediaId, EndoService svc, MediaStore store) =>
         {
             var m = await svc.MediaRowAsync(mediaId);
@@ -347,7 +361,6 @@ public static class EndoscopyEndpoints
             var errors = new List<string>();
             if (r.DicomPort is < 104 or > 65535) errors.Add("DICOM port is 104–65535 (11112 is usual).");
             if (string.IsNullOrWhiteSpace(r.DicomAeTitle) || r.DicomAeTitle.Length > 16 || r.DicomAeTitle.Any(c => c < 32 || c > 126 || c == '\\')) errors.Add("AE title is 1–16 plain characters.");
-            if (r.VideoRetentionDays is < 30) errors.Add("Keep videos for at least 30 days (or leave blank to keep them).");
             if (r.MediaPath is { Length: > 0 } mp && !Path.IsPathFullyQualified(mp)) errors.Add("The media folder must be a full path, e.g. D:\\BrightPAS\\Endoscopy.");
             if (r.ImportFolder is { Length: > 0 } inf && !Path.IsPathFullyQualified(inf)) errors.Add("The import folder must be a full path or network share, e.g. \\\\server\\endoscopy-export.");
             if (errors.Count > 0) return Errors(errors);
@@ -357,7 +370,7 @@ public static class EndoscopyEndpoints
             await s.SetAsync(DicomAeKey, r.DicomAeTitle.Trim().ToUpperInvariant(), Me(u));
             await s.SetAsync(DicomCallingKey, r.DicomCallingAes?.Trim() ?? "", Me(u));
             await s.SetAsync(DicomAnyKey, r.DicomAnyTower ? "true" : "false", Me(u));
-            await s.SetAsync(RetentionKey, r.VideoRetentionDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "", Me(u));
+            // Video retention moved to its own settings (0.20.0: /retention) – VideoRetentionDays here is ignored.
             await s.SetAsync(ImportFolderKey, r.ImportFolder?.Trim() ?? "", Me(u));
             host.Reload();
             return Results.Ok();

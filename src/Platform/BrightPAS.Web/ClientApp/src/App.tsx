@@ -52,6 +52,7 @@ import PortalRequests from './pages/PortalRequests';
 import MyPortal from './pages/MyPortal';
 import SecuritySettings from './pages/SecuritySettings';
 import Nbrs from './pages/Nbrs';
+import Coding, { CodingWorkbench } from './pages/Coding';
 import DymoLabels from './pages/DymoLabels';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
 import { FlowEditor, MessagingFlows } from './pages/FlowDesigner';
@@ -170,6 +171,8 @@ export default function App() {
           <Route path="/quality/incidents/:id" element={allowed(mod('quality') && (can(Perm.QualityView) || can(Perm.QualityManage)), <QualityIncident />)} />
           <Route path="/quality/complaints/:id" element={allowed(mod('quality') && (can(Perm.QualityView) || can(Perm.QualityManage)), <QualityComplaint />)} />
           <Route path="/quality/report" element={allowed(mod('quality') && can(Perm.QualityReport), <ReportIncident />)} />
+          <Route path="/coding" element={allowed(mod('reporting') && (can(Perm.CodingCode) || can(Perm.CodingSubmit) || can(Perm.CodingManage)), <Coding />)} />
+          <Route path="/coding/events/:id" element={allowed(mod('reporting') && (can(Perm.CodingCode) || can(Perm.CodingSubmit) || can(Perm.CodingManage)), <CodingWorkbench />)} />
           <Route path="/quality/mine" element={allowed(mod('quality') && can(Perm.QualityReport), <QualityMine />)} />
           <Route path="/scribe/:id" element={allowed(mod('scribe') && can(Perm.ScribeUse), <ScribeSession />)} />
           <Route path="/endoscopy" element={allowed(mod('endoscopy') && can(Perm.EndoView), <Endoscopy />)} />

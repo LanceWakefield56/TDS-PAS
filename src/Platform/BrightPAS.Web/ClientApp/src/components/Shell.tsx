@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -67,6 +67,7 @@ export default function Shell() {
           {mod('assets') && can(Perm.AssetsView) && <NavLink to="/stock">Stock &amp; purchasing</NavLink>}
           {mod('credentialing') && can(Perm.CredentialingView) && <NavLink to="/credentialing">Credentialing</NavLink>}
           {mod('quality') && (can(Perm.QualityView) || can(Perm.QualityManage)) && <NavLink to="/quality" end>Quality</NavLink>}
+          {mod('reporting') && (can(Perm.CodingCode) || can(Perm.CodingSubmit) || can(Perm.CodingManage)) && <NavLink to="/coding">Coding &amp; reporting</NavLink>}
           {mod('quality') && can(Perm.QualityReport) && <NavLink to="/quality/report">Report an incident</NavLink>}
           {mod('quality') && can(Perm.QualityReport) && <NavLink to="/quality/mine">Policies &amp; my reports</NavLink>}
           {can(Perm.PatientMerge) && <NavLink to="/admin/identity">Identity checks</NavLink>}

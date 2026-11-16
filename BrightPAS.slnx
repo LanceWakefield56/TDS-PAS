@@ -12,6 +12,7 @@
     <Project Path="src/Modules/BrightPAS.Modules.Scribe/BrightPAS.Modules.Scribe.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Devices/BrightPAS.Modules.Devices.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Quality/BrightPAS.Modules.Quality.csproj" />
+    <Project Path="src/Modules/BrightPAS.Modules.Coding/BrightPAS.Modules.Coding.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Forms/BrightPAS.Modules.Forms.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Labs/BrightPAS.Modules.Labs.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Letters/BrightPAS.Modules.Letters.csproj" />

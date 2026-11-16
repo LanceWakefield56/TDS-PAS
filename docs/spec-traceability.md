@@ -53,7 +53,7 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 | 7.8 | Rostering | Built | Rostering (ADR 0017) | CalendarAndRosterTests |
 | 7.9 | Assets, CSSD, scopes, inventory | Built | Assets (ADR 0025) | AssetsTests, robot virtual washer |
 | 7.10 | Communications and reminders | Built | Reminders (ADR 0012) | RemindersTests, robot |
-| 7.11, 7.15 | Coding and statutory reporting | Partial | NBRS draft extract (Referrals), NBSP (Endoscopy) | ReferralsTests, EndoscopyTests |
+| 7.11, 7.15 | Coding and statutory reporting | Built (0.20.0; ACC/insurer claims in "claims", AR-DRG/WIES, NBSP extract and NNPAC not yet) | Modules/BrightPAS.Modules.Coding, Web/Api/CodingEndpoints.cs, pages/Coding.tsx; ADR 0033 | CodingTests, robot Coding & statutory reporting |
 | 7.12, 7.14 | Audit, certification, QMS; incidents, complaints, risk | Built (0.19.0; surveys, SSI, M&M, PDSA, audit forms with the form designer) | Modules/BrightPAS.Modules.Quality, Web/Api/QualityEndpoints.cs, pages/Quality.tsx; ADR 0031 | QualityTests, robot Quality |
 | 7.13 | Credentialing | Built | Credentialing | ModuleTests |
 | 7.16 | Letters and transfer pack | Built | Letters (ADR 0016) | AdminAndLettersTests |

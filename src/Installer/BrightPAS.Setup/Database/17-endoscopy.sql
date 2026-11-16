@@ -499,3 +499,32 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261116101418_VideoArchive'
+)
+BEGIN
+    ALTER TABLE [endo].[Media] ADD [ArchivedAt] datetimeoffset NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261116101418_VideoArchive'
+)
+BEGIN
+    ALTER TABLE [endo].[Media] ADD [ArchivedTo] nvarchar(400) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [endo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261116101418_VideoArchive'
+)
+BEGIN
+    INSERT INTO [endo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261116101418_VideoArchive', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

@@ -213,6 +213,9 @@ public sealed class Media
     public string? DeletedBy { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
     public string? DeleteReason { get; set; }
+    /// <summary>When a copy was written as an AES-256 encrypted ZIP to the archive folder (network share or USB drive) – 0.20.0.</summary>
+    public DateTimeOffset? ArchivedAt { get; set; }
+    public string? ArchivedTo { get; set; }
 }
 
 /// <summary>Patient-friendly wording used in the patient report (editable by administrators).</summary>
@@ -306,7 +309,7 @@ public sealed class EndoDbContext(DbContextOptions<EndoDbContext> options) : DbC
             e.Property(x => x.CapturedBy).HasMaxLength(100); e.Property(x => x.DurationSeconds).HasPrecision(9, 1);
             e.Property(x => x.Site).HasMaxLength(40); e.Property(x => x.Caption).HasMaxLength(200);
             e.Property(x => x.SopInstanceUid).HasMaxLength(64); e.Property(x => x.DicomPatientId).HasMaxLength(64); e.Property(x => x.DicomPatientName).HasMaxLength(100); e.Property(x => x.DicomAccession).HasMaxLength(16);
-            e.Property(x => x.DeletedBy).HasMaxLength(100); e.Property(x => x.DeleteReason).HasMaxLength(300);
+            e.Property(x => x.DeletedBy).HasMaxLength(100); e.Property(x => x.DeleteReason).HasMaxLength(300); e.Property(x => x.ArchivedTo).HasMaxLength(400);
             e.Property(x => x.OriginalFileName).HasMaxLength(260); e.Property(x => x.OriginalContentType).HasMaxLength(60); e.HasIndex(x => x.AnnotatedFromId); e.HasOne<Media>().WithMany().HasForeignKey(x => x.AnnotatedFromId).OnDelete(DeleteBehavior.NoAction);
             e.HasIndex(x => new { x.ProcedureId, x.Sort }); e.HasIndex(x => x.PatientId); e.HasIndex(x => x.Status);
             e.HasIndex(x => x.SopInstanceUid).IsUnique().HasFilter("[SopInstanceUid] IS NOT NULL");

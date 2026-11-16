@@ -444,7 +444,9 @@ function MediaCard({ m, all, r, act, canEdit, canDelete }: { m: any; all: Item[]
     <figure className="endo-thumb">
       {m.kind === 'Image' ? <a href={m.url} target="_blank" rel="noreferrer"><img src={m.url} alt={m.caption ?? `Picture ${m.sort}`} /></a> : <video src={m.url} controls preload="metadata" aria-label={m.caption ?? 'Video'} />}
       <figcaption className="small stack">
-        {m.annotatedFromId && <span className="pill blue">Annotated copy</span>}{m.original && <a href={m.original}>Original {m.originalType === 'image/tiff' ? 'TIFF' : 'file'}</a>}
+        {m.annotatedFromId && <span className="pill blue">Annotated copy</span>}
+        {m.kind === 'Video' && (m.archivedAt ? <span className="pill green">Archived {nzDateTime(m.archivedAt)}</span>
+          : canEdit && <button type="button" className="btn btn-link" onClick={() => act(() => api(`/api/endoscopy/media/${m.id}/archive`, { body: { folder: null } }), 'Encrypted copy written to the archive folder.')}>Archive (encrypted copy)</button>)}{m.original && <a href={m.original}>Original {m.originalType === 'image/tiff' ? 'TIFF' : 'file'}</a>}
         <span className="muted">{nzDateTime(m.capturedAt)} · {m.source === 'Dicom' ? 'tower' : m.source === 'CaptureStation' ? 'capture' : 'upload'}{m.durationSeconds ? ` · ${Math.round(m.durationSeconds)} s` : ''}{m.bytes > 1048576 ? ` · ${Math.round(m.bytes / 1048576)} MB` : ''}</span>
         {canEdit ? <>
           <select aria-label="Site" value={f.site} onChange={(e) => setF({ ...f, site: e.target.value })}><option value="">Site…</option>{all.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}</select>

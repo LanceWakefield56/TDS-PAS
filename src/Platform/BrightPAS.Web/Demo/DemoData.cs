@@ -19,6 +19,7 @@ using Endo = BrightPAS.Modules.Endoscopy;
 using Scr = BrightPAS.Modules.Scribe;
 using Dev = BrightPAS.Modules.Devices;
 using Qm = BrightPAS.Modules.Quality;
+using Cod = BrightPAS.Modules.Coding;
 using Let = BrightPAS.Modules.Letters;
 using Msg = BrightPAS.Modules.Messaging;
 using Por = BrightPAS.Modules.Portal;
@@ -63,6 +64,7 @@ public static class DemoAccounts
         new("roster", "Julie Martin", [DefaultRoles.RosterManager, DefaultRoles.Nurse], "Nurse manager – writes the roster"),
         new("loconnor", "Dr Liam O'Connor", [DefaultRoles.SpecialistPortal], "Visiting urologist (portal only)"),
         new("quality", "Morgan Hayes (Quality Manager)", [DefaultRoles.QualityManager], "Incidents, complaints, risks, actions, policies, indicators"),
+        new("coder", "Ana Fale (Clinical Coder)", [DefaultRoles.ClinicalCoder], "Clinical coding, NMDS and NBRS files"),
     ];
 }
 
@@ -124,6 +126,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await MessagingAsync(ct);
         await DevicesAsync(ct);
         await QualityAsync(ct);
+        await CodingAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
 
@@ -1769,6 +1772,46 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
     }
 
     // ------------------------------------------------------------------ module set-up
+
+    // ------------------------------------------------------------------ Coding & statutory reporting (0.20.0)
+    private async Task CodingAsync(CancellationToken ct)
+    {
+        var coding = S<Cod.CodingService>();
+        // Demonstration identifiers (not Health NZ allocations) and the NZ purchaser codes.
+        Ok(await coding.SaveSettingsAsync(new Cod.CodingSettingsEdit("D001", "D001", "DMO", "06", "06", "A0", "35", "06", false, 21, "D001", "CMPL", "16", "ICD-10-AM/ACHI/ACS Twelfth Edition"), "coder", ct), "coding settings");
+        // A small DEMONSTRATION sample of codes with BrightPAS's own short descriptions – the real code table is licensed and imported from Health NZ.
+        var sample = "clinical_code_system,clinical_code,clinical_code_type,clinical_code_description,sex_flag\r\n" + string.Join("\r\n", new[]
+        {
+            "16,K635,A,Polyp of colon (demo),", "16,Z121,V,Screening for neoplasm of intestinal tract (demo),", "16,D509,A,Iron deficiency anaemia unspecified (demo),",
+            "16,R195,A,Other faecal abnormalities (demo),", "16,K802,A,Calculus of gallbladder without cholecystitis (demo),", "16,K4090,A,Unilateral inguinal hernia (demo),",
+            "16,G560,A,Carpal tunnel syndrome (demo),", "16,C443,A,Malignant neoplasm of skin of face (demo),", "16,N800,A,Endometriosis of uterus (demo),F",
+            "16,3209000,O,Colonoscopy to caecum (demo),", "16,3209300,O,Colonoscopy with polypectomy (demo),", "16,3047300,O,Panendoscopy to duodenum (demo),",
+            "16,3044500,O,Laparoscopic cholecystectomy (demo),", "16,3933100,O,Release of carpal tunnel (demo),", "16,9251529,O,Sedation (demo),", "16,9251429,O,General anaesthesia (demo),",
+            "16,W19,E,Unspecified fall (demo),", "16,Y9209,E,Home (demo),", "16,U739,E,Unspecified activity (demo),",
+        }) + "\r\n";
+        await coding.ImportCodesAsync(sample, "admin", ct);
+        foreach (var (term, label, codes, dx) in new[]
+        {
+            ("COLON", "Colonoscopy", "32090-00 92515-29", "Z12.1"), ("POLYPECT", "Colonoscopy with polypectomy", "32093-00 92515-29", "K63.5"),
+            ("GASTRO", "Gastroscopy", "30473-00 92515-29", "D50.9"), ("GASTROCOL", "Gastroscopy and colonoscopy", "30473-00 32090-00 92515-29", "D50.9"),
+            ("LAPCHOLE", "Laparoscopic cholecystectomy", "30445-00 92514-29", "K80.2"), ("CARPAL", "Carpal tunnel release", "39331-00", "G56.0"),
+        })
+            Ok((await coding.SaveProcedureMapAsync(new Cod.ProcedureMapEdit(null, term, label, codes, dx), "admin", ct)).Errors, "picklist " + term);
+        foreach (var a in Cod.CodingService.StarterAdvice()) Ok((await coding.SaveAdviceAsync(a, "admin", ct)).Errors, "advice " + a.Reference);
+        var n = 10000;
+        foreach (var c in await S<PasDbContext>().Clinicians.AsNoTracking().Where(c => c.Type == ClinicianType.Surgeon).ToListAsync(ct))
+            Ok(await coding.SaveRegistrationAsync(c.Id, "MC", (n++).ToString(System.Globalization.CultureInfo.InvariantCulture), "admin", ct), "registration");
+        // The discharged demo events: the first is coded, the next started.
+        var queue = await coding.QueueAsync("open", ct);
+        foreach (var (row, i) in queue.OrderByDescending(r => r.Procedure.Contains("olonoscopy", StringComparison.OrdinalIgnoreCase)).Take(2).Select((r, i) => (r, i)))
+        {
+            var w = await coding.WorkbenchAsync(row.Id, ct);
+            var on = w.Episode.DischargeDate;
+            var items = new List<Cod.ItemEdit> { new("A", "K63.5", "Sigmoid polyp 6 mm (demo)", null), new("O", "32093-00", "Colonoscopy to caecum, cold snare polypectomy", on), new("O", "92515-29", "IV sedation", on) };
+            var (e, _, errors) = await coding.SaveAsync(row.Id, new Cod.CodingSave(w.Episode.Version, w.Episode.PurchaserCode, "R", "DR", "Demonstration coding", i == 0 ? items : items.Take(1).ToList(), i == 0), "coder", ct);
+            if (e is null) throw new InvalidOperationException("Demo data – coding: " + string.Join(" ", errors));
+        }
+    }
 
     private async Task CompleteModuleSetupAsync(CancellationToken ct)
     {

@@ -87,7 +87,8 @@ public static class ProductModules
         new("portal", "Specialist, PA & patient portals", "Read-only portal for specialists and their practice assistants; secure patient portal (appointments, requests, document upload).", true),
         new("credentialing", "Credentialing", "Clinician credentials and scope of practice, expiry alerts, and checks when booking theatre.", true),
         new("letters", "Letters & documents", "Letter templates, letters to patients, GPs and referrers, printing, and GP messaging via HealthLink.", true),
-        new("reporting", "Coding & statutory reporting", "Clinical coding, ACC, Health NZ and MoH reporting.", false),
+        new("reporting", "Coding & statutory reporting", "Clinical coding (ICD-10-AM/ACHI/ACS, NZ edition) with edit checks and advice, NMDS private hospital load file and NBRS batches to Health NZ with submission log and resubmission.", true),
+        new("claims", "Claims & payments", "ACC and health insurer claims, Xero sync, EFTPOS and live NHI/HPI lookups (planned).", false),
     ];
 
     public static ProductModule? Find(string id) => All.FirstOrDefault(m => m.Id.Equals(id, StringComparison.OrdinalIgnoreCase));

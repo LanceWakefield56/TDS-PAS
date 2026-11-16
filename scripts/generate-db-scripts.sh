@@ -24,4 +24,5 @@ dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Scribe -o "$out/18-scribe.sql"
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Devices -o "$out/19-devices.sql"
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Quality -o "$out/20-quality.sql"
+dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Coding -o "$out/21-coding.sql"
 echo "Schema scripts written to $out"

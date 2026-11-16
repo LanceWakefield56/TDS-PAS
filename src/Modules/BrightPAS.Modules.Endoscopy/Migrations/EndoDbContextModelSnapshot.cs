@@ -154,6 +154,13 @@ namespace BrightPAS.Modules.Endoscopy.Migrations
                     b.Property<Guid?>("AnnotatedFromId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ArchivedTo")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
                     b.Property<long>("Bytes")
                         .HasColumnType("bigint");
 

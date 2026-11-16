@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Playwright" Version="1.63.0" />
     <PackageReference Include="fo-dicom" Version="5.2.6" />
+    <PackageReference Include="SharpZipLib" Version="1.4.2" />
     <EmbeddedResource Include="Assets\**\*" />
   </ItemGroup>
 </Project>

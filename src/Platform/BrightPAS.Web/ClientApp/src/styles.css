@@ -417,3 +417,4 @@ a.tile.tile-bad strong { color: #A02B1F; }
 .band-low { background: #E3F4E5; color: #1B5E20; } .band-moderate { background: #FFF1CC; color: #7A4B00; } .band-high { background: #FFE0B2; color: #7A3100; } .band-extreme { background: #FBE0DC; color: #8E2318; }
 .prewrap { white-space: pre-wrap; }
 svg.spc { width: 100%; max-width: 760px; height: auto; background: #fff; }
+.row-warn td { background: var(--warn-bg); }

@@ -46,6 +46,7 @@ export const Perm = {
   ScribeUse: 'scribe.use', ScribeApprove: 'scribe.approve', ScribeManage: 'scribe.manage',
   DevicesUse: 'devices.use', DevicesManage: 'devices.manage',
   QualityReport: 'quality.report', QualityView: 'quality.view', QualityManage: 'quality.manage',
+  CodingCode: 'coding.code', CodingSubmit: 'coding.submit', CodingManage: 'coding.manage',
   EndoView: 'endoscopy.view', EndoWrite: 'endoscopy.write', EndoSign: 'endoscopy.sign', EndoManage: 'endoscopy.manage',
   EmrView: 'emr.view', EmrWrite: 'emr.write', EmrControlledDrugs: 'emr.controlled-drugs',
   TheatreView: 'theatre.view', TheatreBook: 'theatre.book', TheatreManage: 'theatre.manage',

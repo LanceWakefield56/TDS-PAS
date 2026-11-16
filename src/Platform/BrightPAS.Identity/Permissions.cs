@@ -87,17 +87,23 @@ public static class Permissions
     public const string QualityReport = "quality.report";
     public const string QualityView = "quality.view";
     public const string QualityManage = "quality.manage";
+    // Coding & statutory reporting (0.20.0)
+    public const string CodingCode = "coding.code";
+    public const string CodingSubmit = "coding.submit";
+    public const string CodingManage = "coding.manage";
 
     /// <summary>Policy name allowing ANY of the given permissions (0.12.4), e.g. forms listed for staff who send OR triage them. Registered in <see cref="AnyOfPolicies"/>.</summary>
     public static string AnyOf(params string[] permissions) => string.Join('|', permissions);
 
     /// <summary>Every "any of" policy used by an endpoint; each part must be a real permission (checked by the endpoint security test).</summary>
-    public static readonly IReadOnlyList<string> AnyOfPolicies = [AnyOf(FormsSend, FormsTriage), AnyOf(ScribeUse, ScribeApprove, ScribeManage), AnyOf(DevicesUse, DevicesManage), AnyOf(QualityView, QualityManage)];
+    public static readonly IReadOnlyList<string> AnyOfPolicies = [AnyOf(FormsSend, FormsTriage), AnyOf(ScribeUse, ScribeApprove, ScribeManage), AnyOf(DevicesUse, DevicesManage), AnyOf(QualityView, QualityManage), AnyOf(CodingCode, CodingSubmit, CodingManage)];
     /// <summary>Scribe templates and dictionary can be read by clinicians, approvers and scribe administrators.</summary>
     public static string ScribeAny => AnyOf(ScribeUse, ScribeApprove, ScribeManage);
     /// <summary>Monitor status and the anaesthetic record can be read by clinicians using devices and by device administrators.</summary>
     public static string DevicesAny => AnyOf(DevicesUse, DevicesManage);
     public static string QualityAny => AnyOf(QualityView, QualityManage);
+    /// <summary>The coding queue, code search and advice can be read by coders, by staff who submit files and by coding administrators.</summary>
+    public static string CodingAny => AnyOf(CodingCode, CodingSubmit, CodingManage);
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -107,7 +113,7 @@ public static class Permissions
         BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage,
         CredentialingView, CredentialingManage, PortalSpecialist, PortalManage, MessagingView,
         AssetsView, AssetsManage, CssdProcess, CssdRelease, StockManage, PurchasingApprove, EmrView, EmrWrite, EmrControlledDrugs,
-        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage
+        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage
     ];
 }
 
@@ -127,6 +133,7 @@ public static class DefaultRoles
     public const string RosterManager = "Roster Manager";
     public const string SpecialistPortal = "Specialist (portal only)";
     public const string QualityManager = "Quality Manager";
+    public const string ClinicalCoder = "Clinical Coder";
 
     private static readonly string[] Clinical =
         [Permissions.QualityReport, Permissions.PatientView, Permissions.PatientEdit, Permissions.PatientAlertsManage, Permissions.BreakGlass,
@@ -137,7 +144,7 @@ public static class DefaultRoles
         {
             [SystemAdministrator] = ("Manages users, organisation set-up and modules. No routine clinical access.",
                 [Permissions.UsersManage, Permissions.OrganisationManage, Permissions.ModulesManage, Permissions.TheatreManage, Permissions.RemindersView, Permissions.RemindersManage,
-                 Permissions.LettersTemplates, Permissions.CredentialingView, Permissions.CredentialingManage, Permissions.AssetsView, Permissions.AssetsManage, Permissions.EndoManage, Permissions.ScribeManage, Permissions.DevicesManage, Permissions.QualityReport]),
+                 Permissions.LettersTemplates, Permissions.CredentialingView, Permissions.CredentialingManage, Permissions.AssetsView, Permissions.AssetsManage, Permissions.EndoManage, Permissions.ScribeManage, Permissions.DevicesManage, Permissions.QualityReport, Permissions.CodingManage]),
             [PrivacyOfficer] = ("Reviews break-glass use and audit reports; handles privacy requests; second-person check for identity corrections and merges.",
                 [Permissions.AuditView, Permissions.BreakGlassReview, Permissions.PatientView, Permissions.PatientMerge, Permissions.QualityReport, Permissions.QualityView]),
             [Reception] = ("Registers patients and manages bookings.",
@@ -164,5 +171,7 @@ public static class DefaultRoles
                 [Permissions.PortalSpecialist]),
             [QualityManager] = ("Runs the quality system: triages and investigates incidents, handles complaints, keeps the risk, hazard, action and policy registers and the quality indicators.",
                 [Permissions.QualityReport, Permissions.QualityView, Permissions.QualityManage, Permissions.PatientView, Permissions.AssetsView]),
+            [ClinicalCoder] = ("Codes discharged events in ICD-10-AM/ACHI/ACS, prepares and sends the NMDS and NBRS files to Health NZ and corrects returned errors (reads the clinical record).",
+                [Permissions.CodingCode, Permissions.CodingSubmit, Permissions.PatientView, Permissions.EmrView, Permissions.EndoView, Permissions.LabsView, Permissions.TheatreView, Permissions.ReferralsView, Permissions.QualityReport]),
         };
 }

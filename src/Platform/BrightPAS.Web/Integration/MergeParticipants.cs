@@ -134,3 +134,11 @@ public sealed class DevicesMerge(BrightPAS.Modules.Devices.DevicesDbContext db) 
         await db.Associations.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
         + await db.Records.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
 }
+
+public sealed class CodingMerge(BrightPAS.Modules.Coding.CodingDbContext db) : IPatientMergeParticipant
+{
+    public string Name => "Coding & statutory reporting (coded events, NBRS entries)";
+    public async Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) =>
+        await db.Episodes.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
+        + await db.NbrsEntries.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
+}

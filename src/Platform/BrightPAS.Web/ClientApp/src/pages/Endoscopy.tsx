@@ -155,18 +155,51 @@ function Quality() {
   );
 }
 
+/** Video retention (0.20.0): 30 days by default, an AES-256 encrypted copy to the archive folder (share or USB drive) before deleting. */
+function VideoRetention() {
+  const [r, setR] = useState<any>(null);
+  const [f, setF] = useState({ days: '', archiveFirst: true, folder: '', newPassword: '', confirm: '' });
+  const [error, setError] = useState<string | null>(null); const [msg, setMsg] = useState<string | null>(null);
+  const load = async () => { const x = await api('/api/endoscopy/retention'); setR(x); setF({ days: x.days == null ? 'never' : String(x.days), archiveFirst: x.archiveFirst, folder: x.folder ?? '', newPassword: '', confirm: '' }); };
+  useEffect(() => { load().catch((e) => setError(errText(e))); }, []);
+  const save = async () => {
+    setError(null); setMsg(null);
+    if (f.newPassword !== f.confirm) { setError('The archive passwords do not match.'); return; }
+    try { await api('/api/endoscopy/retention', { method: 'PUT', body: { days: f.days, archiveFirst: f.archiveFirst, folder: f.folder || null, newPassword: f.newPassword || null } }); setMsg('Video retention saved.'); await load(); }
+    catch (x) { setError(errText(x)); }
+  };
+  if (!r) return error ? <p className="error">{error}</p> : null;
+  return (
+    <div className="stack">
+      <h2>Video retention and archive</h2>
+      <p className="hint">Videos are kept on the server for the number of days below (30 by default), then deleted. With "archive first", each video is copied before deletion to the archive folder – a network share or a USB drive plugged into the server – as an AES-256 encrypted ZIP that needs the archive password to open (7-Zip, WinZip). If the folder or password is missing, or the copy fails, the video is kept. Keep the password in TDS's password safe: without it the archive cannot be opened.</p>
+      {r.overdue > 0 && <p className="warn-box">{r.overdue} video(s) are past the retention period and waiting{f.archiveFirst && (!r.folder || !r.hasPassword) ? ' – set the archive folder and password' : ''}.</p>}
+      <p className="small">{r.archived} video(s) archived so far. Archive password: {r.hasPassword ? 'set' : <span className="error-text">not set</span>}.</p>
+      <div className="form-grid">
+        <label>Keep videos on the server (days, or "never")<input value={f.days} onChange={(e) => setF({ ...f, days: e.target.value })} placeholder="30" /></label>
+        <label>Archive folder (share or USB drive)<input value={f.folder} onChange={(e) => setF({ ...f, folder: e.target.value })} placeholder="e.g. \\\\server\\endoscopy-archive or E:\\Archive" /></label>
+        <label className="check"><input type="checkbox" checked={f.archiveFirst} onChange={(e) => setF({ ...f, archiveFirst: e.target.checked })} /> Archive each video (encrypted) before deleting it</label>
+        <label>New archive password (blank = keep the current one)<input type="password" autoComplete="new-password" value={f.newPassword} onChange={(e) => setF({ ...f, newPassword: e.target.value })} /></label>
+        <label>Repeat the new password<input type="password" autoComplete="new-password" value={f.confirm} onChange={(e) => setF({ ...f, confirm: e.target.value })} /></label>
+      </div>
+      {error && <p className="error" role="alert">{error}</p>}{msg && <p className="ok-text" role="status">{msg}</p>}
+      <div><button className="btn btn-light" onClick={save}>Save video retention</button></div>
+    </div>
+  );
+}
+
 function Settings() {
   const [d, setD] = useState<any>(null);
   const [s, setS] = useState<any>(null);
   const [advice, setAdvice] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const load = async () => { const x = await api('/api/endoscopy/settings'); setD(x); setS({ ...x.settings, mediaPath: x.settings.mediaPath ?? '', dicomCallingAes: x.settings.dicomCallingAes ?? '', videoRetentionDays: x.settings.videoRetentionDays ?? '', importFolder: x.settings.importFolder ?? '' }); setAdvice(await api('/api/endoscopy/advice')); };
+  const load = async () => { const x = await api('/api/endoscopy/settings'); setD(x); setS({ ...x.settings, mediaPath: x.settings.mediaPath ?? '', dicomCallingAes: x.settings.dicomCallingAes ?? '', importFolder: x.settings.importFolder ?? '' }); setAdvice(await api('/api/endoscopy/advice')); };
   useEffect(() => { load().catch((e) => setError(errText(e))); }, []);
   if (!s) return error ? <p className="error">{error}</p> : <p>Loading…</p>;
   const save = async () => {
     setError(null); setMsg(null);
-    try { await api('/api/endoscopy/settings', { method: 'PUT', body: { ...s, mediaPath: s.mediaPath || null, dicomPort: Number(s.dicomPort), videoRetentionDays: s.videoRetentionDays === '' ? null : Number(s.videoRetentionDays), importFolder: s.importFolder || null } }); setMsg('Settings saved.'); setTimeout(() => load(), 1500); }
+    try { await api('/api/endoscopy/settings', { method: 'PUT', body: { ...s, mediaPath: s.mediaPath || null, dicomPort: Number(s.dicomPort), videoRetentionDays: null, importFolder: s.importFolder || null } }); setMsg('Settings saved.'); setTimeout(() => load(), 1500); }
     catch (x) { setError(errText(x)); }
   };
   return (
@@ -176,10 +209,10 @@ function Settings() {
       <p className={d.media.ok ? 'ok-text' : 'error-text'}>{d.media.ok ? 'Folder OK: ' : 'Problem: '}{d.media.detail}</p>
       <div className="form-grid">
         <label>Media folder (blank = {d.defaultMediaPath})<input value={s.mediaPath} onChange={(e) => setS({ ...s, mediaPath: e.target.value })} placeholder={d.defaultMediaPath} /></label>
-        <label>Delete videos after (days, blank = keep)<input type="number" value={s.videoRetentionDays} onChange={(e) => setS({ ...s, videoRetentionDays: e.target.value })} /></label>
         <label>Import folder – USB / network share fallback (blank = off)<input value={s.importFolder} onChange={(e) => setS({ ...s, importFolder: e.target.value })} placeholder="e.g. \\\\server\\endoscopy-export" /></label>
       </div>
       <p className="hint">If the tower cannot reach BrightPAS over DICOM, set it (or the capture box) to save DICOM files to this folder; BrightPAS files them every minute and moves each to processed\\ or failed\\. The BrightPAS service account needs change access to the folder.{d.dicom.importProblem ? <span className="error-text"> {d.dicom.importProblem}</span> : null}</p>
+      <VideoRetention />
       <h2>Olympus tower (DICOM)</h2>
       <p className="small">{d.dicom.enabled ? (d.dicom.listening ? <span className="ok-text">Listening on port {d.dicom.port} as {d.dicom.aeTitle}. {d.dicom.images} picture(s), {d.dicom.videos} video(s), {d.dicom.worklist} worklist request(s) since start{d.dicom.lastActivity ? `; last ${nzDateTime(d.dicom.lastActivity)}` : ''}.</span>
         : <span className="error-text">{d.dicom.error ?? 'Not listening.'}</span>) : 'Off.'}</p>

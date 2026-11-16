@@ -78,6 +78,9 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☐ Scribe next: PAS-SPEECH server build and accuracy testing, NZMT dose checking, speaker diarisation, confirm Medow API
 - ☑ Devices & SaferSleep foundations – 0.17.0 (ADR 0029)
 - ☑ Monitor feed checked against the CARESCAPE Gateway Technical Manual: GE mnemonics/units, back-collection, DST repeated hour – 0.19.1
+- ☑ Clinical coding and statutory reporting (spec 7.11): coder workbench, edit checks, advice library, NMDS load file, NBRS batches – 0.20.0 (ADR 0033)
+- ☑ Endoscopy video retention 30 days with AES-256 archive to share/USB – 0.20.0
+- ☐ Coding next: obtain the Health NZ clinical code table and code tables (purchaser, specialty, facility, domicile, CPAC); NBSP extract layout; AR-DRG/WIES grouping if a contract needs it; NNPAC if TDS reports outpatient events
 - ☐ Optional: ADT to the CARESCAPE Gateway so monitors can "Request Admit" the patient by unit and bed
 - ☐ Devices next: capture real CARESCAPE Gateway messages and adjust the mapping; agree the anaesthetic record profile with SaferSleep; clinical sign-off of chart intervals and plausibility limits; Olympus tower status on the Monitors page; overdue-validation prompt on the whiteboard
 - ☑ Import from file / watched share for every inbound connection – 0.18.0 (ADR 0030)
