@@ -77,6 +77,8 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ BrightPAS Scribe foundations – 0.16.0 (ADR 0028)
 - ☐ Scribe next: PAS-SPEECH server build and accuracy testing, NZMT dose checking, speaker diarisation, confirm Medow API
 - ☑ Devices & SaferSleep foundations – 0.17.0 (ADR 0029)
+- ☑ Monitor feed checked against the CARESCAPE Gateway Technical Manual: GE mnemonics/units, back-collection, DST repeated hour – 0.19.1
+- ☐ Optional: ADT to the CARESCAPE Gateway so monitors can "Request Admit" the patient by unit and bed
 - ☐ Devices next: capture real CARESCAPE Gateway messages and adjust the mapping; agree the anaesthetic record profile with SaferSleep; clinical sign-off of chart intervals and plausibility limits; Olympus tower status on the Monitors page; overdue-validation prompt on the whiteboard
 - ☑ Import from file / watched share for every inbound connection – 0.18.0 (ADR 0030)
 - ☐ Check offline import against real sample files (Delta lab queue, CARESCAPE export, Olympus USB export, SaferSleep export)

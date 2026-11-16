@@ -77,7 +77,7 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 
 | Item | Difference | Action |
 |---|---|---|
-| Bedside monitors (GE CARESCAPE) | Built at TDS's request in 0.17.0. Spec v1.9 did not list them | Added to spec 4.7, the 6 interfaces table and 7.6 (spec changelog, 2026-11-15) |
+| Bedside monitors (GE CARESCAPE) | Built at TDS's request in 0.17.0; checked against the Gateway Technical Manual in 0.19.1 (GE mnemonics, back-collection, DST). Spec v1.9 did not list them | Added to spec 4.7, the 6 interfaces table and 7.6 (spec changelog, 2026-11-15) |
 | Monitor waveforms and alarms | Not stored or shown, by design: BrightPAS is a record, and the monitor and central station stay the alarm system | Recorded in ADR 0029 and spec 7.6 |
 | DICOM MWL and MPPS | Built in the endoscopy node, not as a general engine service | Appendix C notes this |
 | HL7 layouts (GE, SaferSleep) | BrightPAS interface profiles built from the standards | Confirm with real captures before go-live; mapping changes only |

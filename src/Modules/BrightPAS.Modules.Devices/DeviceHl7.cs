@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using BrightPAS.Core;
 using BrightPAS.Messaging.Hl7;
 
 namespace BrightPAS.Modules.Devices;
@@ -21,9 +22,11 @@ public sealed record AdtData(Guid EpisodeId, string Nhi, string Mrn, string Fami
     IReadOnlyList<string> Allergies);
 
 /// <summary>
-/// HL7 v2 for devices. Monitor results follow the IHE PCD-01 (DEC) style the GE CARESCAPE Gateway sends: ORU^R01, PV1-3 bed, OBX-3 IEEE 11073 MDC
-/// codes, OBX-18 equipment id. Plain labels (HR, SPO2, NIBP_SYS …) are accepted too. The exact GE output (MDC or MDIL codes, units, interval)
-/// must be checked against TDS's gateway configuration with GE before go-live.
+/// HL7 v2 for devices. Monitor results: the GE CARESCAPE Gateway (Technical Manual 2052437-015, software 2.2) sends ORU^R01 trends either in
+/// IHE PCD-01 form (OBX-3 IEEE 11073 MDC codes) or in GE's own form (OBX-3 the parameter mnemonic from the manual's Appendix E – HR, SPO2-%,
+/// NBP-S, AR1-S, CO2-EX, TP1-1 … – with units such as "mm (hg)", "cel", "/min"). Both are accepted. PV1-3 carries the gateway's HIS mapping
+/// (UNIT^BED; a caret in the mapping arrives doubled, which is tolerated); OBX-18 the equipment id. The gateway is the TCP client: it connects
+/// to BrightPAS. The site's exact Cloverleaf mapping is still to be captured from TDS's gateway before go-live.
 /// </summary>
 public static class DeviceHl7
 {
@@ -94,7 +97,18 @@ public static class DeviceHl7
         ["MDC_AWAY_CO2_ET"] = "EtCO2",
         ["ETCO2"] = "EtCO2",
         ["CO2-ET"] = "EtCO2",
+        // GE CARESCAPE Gateway mnemonics (Technical Manual Appendix E). Slot-numbered pressures and temperatures are matched in GeSlot.
+        ["SPO2-%"] = "SpO2",
+        ["SPO2-%1"] = "SpO2",
+        ["SPO2-R"] = "PR",
+        ["SPO2-R1"] = "PR",
+        ["CO2-EX"] = "EtCO2",
+        ["CO2-RR"] = "RR",
     };
+
+    // GE slot-numbered mnemonics: AR1-S … AR8-M and ABP1-S … (arterial), TP1-1 / TP1-2 (temperature probes). Second SpO2 probes (SPO2-%2) are not kept.
+    private static readonly System.Text.RegularExpressions.Regex GeSlot = new(@"^(?:(?<art>AR|ABP)[1-8]-(?<p>[SDM])|TP[1-8*]?-?[12])$",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(100));
 
     public static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>
     {
@@ -118,7 +132,32 @@ public static class DeviceHl7
         if (Mdc.TryGetValue(id, out var c)) return c;
         if (Aliases.TryGetValue(id, out c)) return c;
         if (Aliases.TryGetValue(text, out c)) return c;
+        foreach (var k in new[] { id, text })
+        {
+            if (k.Length == 0) continue;
+            var g = GeSlot.Match(k);
+            if (!g.Success) continue;
+            return g.Groups["art"].Success ? "ART-" + g.Groups["p"].Value.ToUpperInvariant() : "Temp";
+        }
         return null;
+    }
+
+    /// <summary>
+    /// A timestamp from a live feed. With no UTC offset, a wall-clock time in the hour repeated when daylight saving ends is ambiguous
+    /// (the gateway itself repeats timestamps then): the occurrence nearest the time the message arrived is taken, so the second 02:xx is not
+    /// filed an hour early and then dropped as older than readings already held. Files imported later keep the first occurrence (no arrival time).
+    /// </summary>
+    public static DateTimeOffset? LiveTimestamp(string v, TimeZoneInfo zone, DateTimeOffset? arrived)
+    {
+        var t = Hl7Message.ParseTimestamp(v, zone);
+        if (t is null || arrived is null || v.Trim().IndexOfAny(['+', '-'], Math.Min(8, v.Trim().Length)) > 0) return t;
+        if (zone.Id != NzTime.Zone.Id) return t;
+        var local = t.Value.DateTime;
+        if (!NzTime.Zone.IsAmbiguousTime(local)) return t;
+        var later = NzTime.FromLocal(local, laterIfRepeated: true);
+        var limit = arrived.Value.AddMinutes(5);
+        var candidates = new[] { t.Value, later }.Where(c => c <= limit).ToList();
+        return candidates.Count == 0 ? t : candidates.MinBy(c => Math.Abs((arrived.Value - c).Ticks));
     }
 
     public static string? Nhi(Hl7Message m)
@@ -139,8 +178,8 @@ public static class DeviceHl7
 
     private static string Key(string v) => string.Join('/', v.Split('^').Select(p => p.Trim()).Where(p => p.Length > 0)).ToUpperInvariant();
 
-    /// <summary>Parses a monitor ORU^R01. Throws Hl7Exception when it is not one.</summary>
-    public static MonitorMessage ParseMonitor(string raw, TimeZoneInfo zone, DateTimeOffset now)
+    /// <summary>Parses a monitor ORU^R01. Throws Hl7Exception when it is not one. <paramref name="liveFeed"/> false for files imported later.</summary>
+    public static MonitorMessage ParseMonitor(string raw, TimeZoneInfo zone, DateTimeOffset now, bool liveFeed = true)
     {
         var m = Hl7Message.Parse(raw);
         if (m.Msh.Get(9, 1) != "ORU") throw new Hl7Exception($"Expected ORU^R01 from the monitor gateway, got {m.MessageType}.");
@@ -148,8 +187,20 @@ public static class DeviceHl7
         void AddKey(string k) { k = Key(k); if (k.Length > 0 && !keys.Contains(k)) keys.Add(k); }
         if (m.First("PV1") is { } pv1) AddKey(pv1.Raw(3).Split(m.RepetitionSep)[0].Replace(m.ComponentSep, '^'));
         var obr = m.First("OBR");
-        var obrTime = obr is null ? null : Hl7Message.ParseTimestamp(obr.Get(7), zone);
+        DateTimeOffset? arrived = liveFeed ? now : null;
+        var obrTime = obr is null ? null : LiveTimestamp(obr.Get(7), zone, arrived);
         var values = new List<Measurement>();
+        // Barometric pressure (GE AMB_P / PBAR, or MDC) in the same message, for end-tidal CO2 sent as a percentage.
+        decimal? baroMmHg = null;
+        foreach (var obx in m.All("OBX"))
+        {
+            var bid = obx.Get(3, 1).ToUpperInvariant();
+            if (bid is not ("AMB_P" or "PBAR" or "MDC_PRESS_AIR_AMBIENT") && obx.Get(3, 2).ToUpperInvariant() is not ("AMB_P" or "PBAR" or "MDC_PRESS_AIR_AMBIENT")) continue;
+            if (Number(obx.Get(5)) is not { } b) continue;
+            var bu = (obx.Get(6, 1) + obx.Get(6, 2)).ToUpperInvariant();
+            baroMmHg = bu.Contains("KPA", StringComparison.Ordinal) || bu.Contains("KILO_PASCAL", StringComparison.Ordinal) ? b * 7.50062m : b;
+            if (baroMmHg is < 400 or > 900) baroMmHg = null;
+        }
         foreach (var obx in m.All("OBX"))
         {
             AddKey(obx.Get(18, 1));
@@ -162,8 +213,11 @@ public static class DeviceHl7
             if (Number(raw5) is not { } v) continue;
             var u1 = obx.Get(6, 1); var u2 = obx.Get(6, 2);
             var unit = u2.StartsWith("MDC_DIM_", StringComparison.Ordinal) ? Unit(u2) : u1.Length > 0 && !u1.All(char.IsDigit) ? u1 : u2.Length > 0 ? u2 : null;
-            var at = Hl7Message.ParseTimestamp(obx.Get(14), zone) ?? obrTime ?? now;
-            (v, unit) = Normalise(code, v, unit);
+            // GE CARESCAPE Gateway unit spellings: "mm (hg)", "cel".
+            if (unit is not null && unit.Replace(" ", "", StringComparison.Ordinal).Equals("mm(hg)", StringComparison.OrdinalIgnoreCase)) unit = "mmHg";
+            else if (unit is not null && unit.Equals("cel", StringComparison.OrdinalIgnoreCase)) unit = "°C";
+            var at = LiveTimestamp(obx.Get(14), zone, arrived) ?? obrTime ?? now;
+            (v, unit) = Normalise(code, v, unit, baroMmHg);
             values.Add(new(code, v, unit, at));
         }
         return new(keys, Nhi(m), values);
@@ -182,13 +236,18 @@ public static class DeviceHl7
         _ => mdcDim.Replace("MDC_DIM_", "", StringComparison.Ordinal).ToLowerInvariant(),
     };
 
-    /// <summary>Temperature to °C, end-tidal CO2 to mmHg.</summary>
-    public static (decimal Value, string? Unit) Normalise(string code, decimal v, string? unit)
+    /// <summary>
+    /// Temperature to °C, end-tidal CO2 to mmHg. GE sends CO2-EX in mm (hg) or in % (of the ambient pressure: the barometric pressure in the
+    /// same message is used, otherwise 760 mmHg).
+    /// </summary>
+    public static (decimal Value, string? Unit) Normalise(string code, decimal v, string? unit, decimal? baroMmHg = null)
     {
         var u = unit?.Trim() ?? "";
         if (code == "Temp" && (u.Contains('F') || u.Equals("degF", StringComparison.OrdinalIgnoreCase))) return (Math.Round((v - 32) * 5 / 9, 1), "°C");
         if (code == "Temp") return (v, "°C");
         if (code == "EtCO2" && u.Equals("kPa", StringComparison.OrdinalIgnoreCase)) return (Math.Round(v * 7.50062m, 1), "mmHg");
+        if (code == "EtCO2" && (u == "%" || u.Equals("MDC_DIM_PERCENT", StringComparison.Ordinal) || u.Equals("percent", StringComparison.OrdinalIgnoreCase)))
+            return (Math.Round(v / 100m * (baroMmHg ?? 760m), 1), "mmHg");
         if (code == "EtCO2") return (v, "mmHg");
         if (code.Contains('-') || code.EndsWith("BP", StringComparison.Ordinal)) return (v, "mmHg");
         if (code == "SpO2") return (v, "%");

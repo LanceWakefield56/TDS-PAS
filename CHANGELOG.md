@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.1 – 2026-11-16 – **Monitor feed checked against the GE CARESCAPE Gateway Technical Manual (software 2.2)**
+- **GE's own message form accepted** as well as IHE PCD-01: the parameter names in the manual's Appendix E (HR, SPO2-%, SPO2-R, NBP-S/D/M, AR1–8 and ABP1–8 arterial pressures, CO2-EX, CO2-RR, TP1-1/TP1-2) and GE's units ("mm (hg)", "cel"). A second SpO2 probe is not taken. End-tidal CO2 sent as a **percentage** is converted to mmHg using the barometric pressure in the same message (760 mmHg if none).
+- **Readings the gateway back-collects** (up to 8 hours held by a monitor while it was offline) are now kept, and filed to whichever patient was connected at the time of each reading – never to the patient connected now. Before, the live feed dropped anything older than the last reading. Values the gateway sends again are kept once.
+- **End of daylight saving:** the gateway repeats wall-clock timestamps in the 02:00 hour. On the live feed a timestamp with no offset in that hour is now placed by when it arrived, so the second 02:xx is not filed an hour early (and dropped). Files imported later keep the first occurrence.
+- A caret in the gateway's HIS mapping (it arrives doubled, UNIT^^BED) still matches the monitor.
+- Checked, no change needed: the gateway connects to BrightPAS as the TCP client (BrightPAS listens on the monitor interface); collection intervals on the gateway are 1–60 minutes, so the 5/15-minute chart intervals work with a 1- or 5-minute gateway setting.
+- **Olympus CV-1500:** Olympus's own sales sheet lists still pictures as TIFF (standard) or JPEG (low quality) to portable memory, an image filing system or a server, SDI video outputs and remote control of a recorder – it does not mention DICOM. BrightPAS already takes both routes (DICOM node, and TIFF/JPEG from USB or a watched folder), so nothing changes until Olympus confirms which the tower uses.
+- **SaferSleep:** no public interface specification – the record profile stays BrightPAS's own until SaferSleep supply theirs.
+
 ## 0.19.0 – 2026-11-16 – **Quality management, incidents and complaints (spec 7.12, 7.14)** – also releases 0.18.0 below
 - **Quality module (ADR 0031, guide H25):**
   - **Incidents:** any staff member reports from the menu; triage with HQSC **SAC 1–4**; SAC 1–2 and Always Report and Review events escalate with HQSC notification due; **open disclosure** record; external notifications (HQSC, ACC treatment injury, Medsafe, HDC, Health NZ, WorkSafe, Privacy Commissioner, Coroner).

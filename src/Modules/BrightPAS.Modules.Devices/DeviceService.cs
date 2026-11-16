@@ -97,7 +97,7 @@ public sealed class DeviceService(DevicesDbContext db, EmrDbContext emr, Patient
     public async Task<IngestResult> ImportAsync(string raw, CancellationToken ct = default)
     {
         MonitorMessage msg;
-        try { msg = DeviceHl7.ParseMonitor(raw, Nz, clock.GetUtcNow()); }
+        try { msg = DeviceHl7.ParseMonitor(raw, Nz, clock.GetUtcNow(), liveFeed: false); }
         catch (Hl7Exception ex) { return new(false, ex.Message, null, 0, null); }
         var monitors = await db.Monitors.AsNoTracking().Where(m => msg.DeviceKeys.Contains(m.Code)).ToListAsync(ct);
         var mon = msg.DeviceKeys.Select(k => monitors.FirstOrDefault(m => m.Code == k)).FirstOrDefault(m => m is not null);
@@ -150,17 +150,30 @@ public sealed class DeviceService(DevicesDbContext db, EmrDbContext emr, Patient
                 await audit.WriteAsync("monitor", "Connect", "Monitor", mon.Id.ToString(), ep.PatientId.ToString(), reason: $"{mon.Code} connected by NHI sent from the monitor", ct: ct);
             }
         }
-        // Downsample: keep one reading per measurement every StoreEverySeconds.
-        var window = now.AddSeconds(-s.StoreEverySeconds * 2 - 60);
-        var last = await db.Readings.AsNoTracking().Where(r => r.MonitorId == mon.Id && r.At >= window).GroupBy(r => r.Code).Select(g => new { g.Key, At = g.Max(r => r.At) }).ToListAsync(ct);
-        var lastAt = last.ToDictionary(x => x.Key, x => x.At);
+        // Downsample: keep one reading per measurement every StoreEverySeconds, compared with the readings already held around each time rather
+        // than only the latest one. So the gateway's back-collection (up to 8 hours held by a monitor while it was offline), episodic values it
+        // re-sends, and the hour repeated when daylight saving ends are kept once each instead of being dropped as "older than the last reading".
+        var values = msg.Values.Where(v => DeviceHl7.Plausible(v.Code, v.Value) && v.At <= now.AddMinutes(5)).OrderBy(v => v.At).ToList();
         var stored = 0;
-        foreach (var v in msg.Values.Where(v => DeviceHl7.Plausible(v.Code, v.Value)).OrderBy(v => v.At))
+        if (values.Count > 0)
         {
-            if (v.At > now.AddMinutes(5)) continue;
-            if (lastAt.TryGetValue(v.Code, out var prev) && (v.At - prev).TotalSeconds < s.StoreEverySeconds) continue;
-            db.Readings.Add(new Reading { MonitorId = mon.Id, AssociationId = assoc?.Id, At = v.At, Code = v.Code, Value = v.Value, Unit = v.Unit });
-            lastAt[v.Code] = v.At; stored++;
+            var from = values[0].At.AddSeconds(-s.StoreEverySeconds); var to = values[^1].At.AddSeconds(s.StoreEverySeconds);
+            var held = await db.Readings.AsNoTracking().Where(r => r.MonitorId == mon.Id && r.At >= from && r.At <= to).Select(r => new { r.Code, r.At }).ToListAsync(ct);
+            var kept = held.GroupBy(r => r.Code).ToDictionary(g => g.Key, g => g.Select(r => r.At).ToList());
+            // Back-collected readings go to whoever was connected to the monitor at the time of the reading (never to today's patient).
+            var history = await db.Associations.AsNoTracking().Where(a => a.MonitorId == mon.Id && a.StartedAt <= to && (a.EndedAt == null || a.EndedAt >= from)).ToListAsync(ct);
+            var recent = now.AddMinutes(-10);
+            foreach (var v in values)
+            {
+                var times = kept.TryGetValue(v.Code, out var t) ? t : kept[v.Code] = [];
+                if (times.Any(x => Math.Abs((x - v.At).TotalSeconds) < s.StoreEverySeconds)) continue;
+                // A reading from the last few minutes with nobody else connected at its time goes to the current connection (it may be stamped
+                // just before the nurse connected the patient).
+                var assocId = history.FirstOrDefault(x => x.StartedAt <= v.At && (x.EndedAt is null || x.EndedAt >= v.At))?.Id
+                    ?? (assoc is not null && (v.At >= assoc.StartedAt || v.At >= recent) ? assoc.Id : null);
+                db.Readings.Add(new Reading { MonitorId = mon.Id, AssociationId = assocId, At = v.At, Code = v.Code, Value = v.Value, Unit = v.Unit });
+                times.Add(v.At); stored++;
+            }
         }
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException) when (assoc is not null && db.Entry(assoc).State == EntityState.Added)

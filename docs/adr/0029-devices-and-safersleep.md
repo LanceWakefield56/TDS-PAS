@@ -17,6 +17,13 @@ Spec 4.7 / 6 / 7.6 ask for vital signs from the GE CARESCAPE monitors (B450 in t
 - **Retention:** readings from a monitor with no patient connected are deleted after 24 h (setting); monitor HL7 messages in the message store after 48 h (failed ones after 7 days) – the readings themselves are the record.
 - Permissions: `devices.use` (Nurse, Anaesthetist), `devices.manage` (System Administrator). Validating also needs `emr.write`.
 
+## Addendum 0.19.1 – GE CARESCAPE Gateway Technical Manual (2052437-015, software 2.2)
+- The gateway sends trends in PCD-01 form **or** GE's own form (Appendix E mnemonics such as HR, SPO2-%, NBP-S, AR1-S, CO2-EX, TP1-1; units "mm (hg)", "cel", "/min", "%"). `DeviceHl7` accepts both; slot-numbered pressures/temperatures are matched by pattern; a second SpO2 probe is ignored; CO2-EX in % uses the message's barometric pressure (AMB_P/PBAR) or 760 mmHg.
+- The gateway is the TCP client for outbound HL7 (configured in Webmin › Cloverleaf Thread Startup with BrightPAS's address and port); it listens for ADT inbound (not used by BrightPAS yet – it would let monitors "Request Admit" by unit and bed).
+- **Back-collection:** up to 8 h of data held by a monitor while offline is sent when it returns. The live ingest therefore de-duplicates against readings held around each reading's time (as the file import does) and files each reading to the connection active at that time.
+- **Daylight saving:** the manual states that during fall-back the gateway repeats timestamps with new periodic data and may resend episodic data. A live timestamp without an offset in the repeated hour is resolved to the occurrence nearest the arrival time (`DeviceHl7.LiveTimestamp`).
+- HIS mappings containing a caret arrive with it doubled; the device key ignores empty components.
+
 ## Consequences
 - The HL7 shapes are BrightPAS **interface profiles** built from the published standards, not from TDS's actual gateway or SaferSleep output. Before go-live: capture real messages from the CARESCAPE Gateway (codes MDC vs GE's own, units, send interval, bed labels) and agree the record profile with SaferSleep; both are mapping changes in `DeviceHl7`, covered by tests.
 - The test robot plays both systems (virtual GE gateway and virtual SaferSleep) so the whole path – screens included – is tested without hardware; it cannot prove behaviour of the real devices.

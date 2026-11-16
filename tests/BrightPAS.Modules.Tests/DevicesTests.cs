@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using BrightPAS.Modules.Devices;
@@ -41,6 +42,81 @@ public class DevicesTests
         Assert.False(DeviceHl7.Plausible("SpO2", 0)); Assert.False(DeviceHl7.Plausible("HR", 400)); Assert.True(DeviceHl7.Plausible("NIBP-S", 120));
         Assert.Equal("HR", DeviceHl7.Code("HR", "")); Assert.Equal("NIBP-S", DeviceHl7.Code("x", "NIBP_SYS"));
         Assert.Throws<BrightPAS.Messaging.Hl7.Hl7Exception>(() => DeviceHl7.ParseMonitor("MSH|^~\\&|X|Y|Z|W|20261109||ADT^A01|1|P|2.4\r", TimeZoneInfo.Utc, at));
+    }
+
+    /// <summary>GE's own form (CARESCAPE Gateway Technical Manual, Appendix E mnemonics and units), not PCD-01.</summary>
+    public static string GeNativeOru(string mapping, DateTimeOffset at, string co2Unit = "%", string co2 = "5.0", string? baro = "NM|AMB_P^AMB_P||750|mm (hg)") =>
+        $"MSH|^~\\&|CARESCAPE GW|GEHC|BrightPAS|TDS|{Ts(at)}||ORU^R01|GN{at:HHmmssfff}|P|2.4\r" +
+        $"PV1||I|{mapping}\r" +
+        $"OBR|1||||||{Ts(at)}\r" +
+        $"OBX|1|NM|HR^HR||70|/min|||||F|||{Ts(at)}\r" +
+        $"OBX|2|NM|SPO2-%^SPO2-%||97|%|||||F|||{Ts(at)}\r" +
+        $"OBX|3|NM|SPO2-%2^SPO2-%2||88|%|||||F|||{Ts(at)}\r" +
+        $"OBX|4|NM|SPO2-R^SPO2-R||71|/min|||||F|||{Ts(at)}\r" +
+        $"OBX|5|NM|NBP-S^NBP-S||118|mm (hg)|||||F|||{Ts(at)}\r" +
+        $"OBX|6|NM|AR1-M^AR1-M||85|mm (hg)|||||F|||{Ts(at)}\r" +
+        $"OBX|7|NM|CO2-EX^CO2-EX||{co2}|{co2Unit}|||||F|||{Ts(at)}\r" +
+        $"OBX|8|NM|TP1-1^TP1-1||36.6|cel|||||F|||{Ts(at)}\r" +
+        $"OBX|9|NM|CO2-RR^CO2-RR||12|breaths/min|||||F|||{Ts(at)}\r" +
+        (baro is null ? "" : $"OBX|10|{baro}|||||F|||{Ts(at)}\r");
+
+    [Fact]
+    public void Parses_GE_native_mnemonics_units_and_doubled_caret_mapping()
+    {
+        var at = new DateTimeOffset(2026, 11, 9, 10, 0, 0, TimeSpan.FromHours(13));
+        var m = DeviceHl7.ParseMonitor(GeNativeOru("PACU^^BAY1", at), NzTime.Zone, at);
+        Assert.Equal(["PACU/BAY1"], m.DeviceKeys); // the gateway doubles a caret in the HIS mapping
+        Assert.Equal(70, m.Values.Single(v => v.Code == "HR").Value);
+        Assert.Equal(97, m.Values.Single(v => v.Code == "SpO2").Value); // second probe (SPO2-%2) not kept
+        Assert.Equal(71, m.Values.Single(v => v.Code == "PR").Value);
+        Assert.Equal(("NIBP-S", "mmHg"), (m.Values.Single(v => v.Value == 118).Code, m.Values.Single(v => v.Value == 118).Unit));
+        Assert.Equal("ART-M", m.Values.Single(v => v.Value == 85).Code);
+        Assert.Equal((36.6m, "°C"), (m.Values.Single(v => v.Code == "Temp").Value, m.Values.Single(v => v.Code == "Temp").Unit));
+        Assert.Equal(12, m.Values.Single(v => v.Code == "RR").Value);
+        Assert.Equal(37.5m, m.Values.Single(v => v.Code == "EtCO2").Value); // 5.0 % of 750 mmHg
+        Assert.Equal(38.0m, DeviceHl7.ParseMonitor(GeNativeOru("PACU^BAY1", at, baro: null), NzTime.Zone, at).Values.Single(v => v.Code == "EtCO2").Value); // 760 assumed
+        Assert.Equal(36m, DeviceHl7.ParseMonitor(GeNativeOru("PACU^BAY1", at, "mm (hg)", "36"), NzTime.Zone, at).Values.Single(v => v.Code == "EtCO2").Value);
+        Assert.Equal(8, m.Values.Count);
+    }
+
+    [Fact]
+    public void Repeated_hour_when_daylight_saving_ends_is_resolved_by_arrival_time_on_the_live_feed()
+    {
+        // NZ daylight saving ends 03:00 NZDT Sunday 4 April 2027: 02:00–02:59 happens twice. The gateway sends wall-clock times with no offset.
+        var first = new DateTimeOffset(2027, 4, 4, 2, 30, 0, TimeSpan.FromHours(13));
+        var second = new DateTimeOffset(2027, 4, 4, 2, 30, 0, TimeSpan.FromHours(12));
+        var raw = MonitorOru("PACU/BAY1", null, first).Replace("+1300", "", StringComparison.Ordinal);
+        Assert.Equal(first, DeviceHl7.ParseMonitor(raw, NzTime.Zone, first.AddSeconds(40)).Values[0].At);
+        Assert.Equal(second, DeviceHl7.ParseMonitor(raw, NzTime.Zone, second.AddSeconds(40)).Values[0].At);
+        Assert.Equal(first, DeviceHl7.ParseMonitor(raw, NzTime.Zone, second.AddDays(2), liveFeed: false).Values[0].At); // file imported later: first occurrence
+        Assert.Equal(second.AddHours(2), DeviceHl7.LiveTimestamp("20270404043000", NzTime.Zone, second.AddHours(2)));
+    }
+
+    [Fact]
+    public async Task Back_collected_readings_are_kept_and_filed_to_the_patient_connected_at_the_time()
+    {
+        await using var h = new ModulesHost();
+        await using var s = h.Scope();
+        var sp = s.ServiceProvider;
+        var dev = sp.GetRequiredService<DeviceService>();
+        var (e, p) = await AdmittedAsync(h, sp);
+        var (mon, _) = await dev.SaveMonitorAsync(null, Guid.NewGuid(), "WARD/BED2", true, "admin");
+        Assert.Null((await dev.ConnectAsync(mon!.Id, e.Id, "rn")).Error);
+        var connectedAt = h.Clock.GetUtcNow();
+        h.Clock.Advance(TimeSpan.FromHours(3));
+        var now = h.Clock.GetUtcNow();
+        Assert.Equal(7, (await dev.IngestAsync(MonitorOru("WARD/BED2", null, now))).Stored);
+        // The monitor was offline: the gateway now back-collects readings from 2 hours ago (while connected) and 4 hours ago (before connection).
+        Assert.Equal(7, (await dev.IngestAsync(MonitorOru("WARD/BED2", null, now.AddHours(-2), hr: 66))).Stored);
+        Assert.Equal(7, (await dev.IngestAsync(MonitorOru("WARD/BED2", null, connectedAt.AddHours(-1), hr: 60))).Stored);
+        Assert.Equal(0, (await dev.IngestAsync(MonitorOru("WARD/BED2", null, now.AddHours(-2), hr: 66))).Stored); // re-sent: kept once
+        var db = sp.GetRequiredService<DevicesDbContext>();
+        var a = await db.Associations.SingleAsync();
+        var hrs = await db.Readings.Where(r => r.Code == "HR").OrderBy(r => r.At).ToListAsync();
+        Assert.Equal([60m, 66m, 72m], hrs.Select(r => r.Value));
+        Assert.Null(hrs[0].AssociationId); // before the patient was connected: not filed to them
+        Assert.Equal(a.Id, hrs[1].AssociationId);
+        Assert.Equal(a.Id, hrs[2].AssociationId);
     }
 
     internal static async Task<(Episode Episode, Patient Patient)> AdmittedAsync(ModulesHost h, IServiceProvider sp, string nhi = "ZSC21TN", string family = "Ngātai")
