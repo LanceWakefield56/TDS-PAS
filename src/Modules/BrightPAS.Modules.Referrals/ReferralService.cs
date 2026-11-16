@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using Microsoft.EntityFrameworkCore;
 using BrightPAS.Core.Audit;
 using BrightPAS.Core.Data;
@@ -431,7 +432,7 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
         var problems = new List<string>();
         if (string.IsNullOrWhiteSpace(s.NbrsAgencyCode) || string.IsNullOrWhiteSpace(s.NbrsFacilityCode)) problems.Add("Set the NBRS agency and facility codes (Referral targets → NBRS codes).");
         var entries = await db.Waitlist.AsNoTracking().Where(w => w.Funder == Funder.HealthNz && w.AddedOn <= to).ToListAsync(ct);
-        entries = entries.Where(w => w.Status is WaitlistStatus.Waiting or WaitlistStatus.OnHold or WaitlistStatus.Booked || DateOnly.FromDateTime(w.StatusAt.ToLocalTime().DateTime) >= from).ToList();
+        entries = entries.Where(w => w.Status is WaitlistStatus.Waiting or WaitlistStatus.OnHold or WaitlistStatus.Booked || DateOnly.FromDateTime(w.StatusAt.ToNz().DateTime) >= from).ToList();
         var people = await People(entries.Select(e => e.PatientId), ct);
         var clinicianNames = await theatre.ClinicianNamesAsync(ct);
         var ethnic = await patients.Patients.AsNoTracking().Where(p => people.Keys.Contains(p.Id)).SelectMany(p => p.Ethnicities).ToListAsync(ct);
@@ -448,7 +449,7 @@ public sealed class ReferralService(ReferralsDbContext db, PatientsDbContext pat
             var sex = p.Sex switch { BirthSex.Female => "F", BirthSex.Male => "M", BirthSex.Indeterminate => "I", _ => "U" };
             sb.AppendLine(string.Join(",", new[] { s.NbrsAgencyCode ?? "", s.NbrsFacilityCode ?? "", w.Id.ToString("N")[..20].ToUpperInvariant(), p.Nhi, p.DateOfBirth.ToString("yyyyMMdd"), sex,
                 eth.ElementAtOrDefault(0) ?? "99", eth.ElementAtOrDefault(1) ?? "", eth.ElementAtOrDefault(2) ?? "", spec!, w.Procedure, NbrsPriority(w.Priority),
-                w.AddedOn.ToString("yyyyMMdd"), w.TargetDate.ToString("yyyyMMdd"), NbrsStatus(w.Status), w.StatusAt.ToLocalTime().ToString("yyyyMMdd"),
+                w.AddedOn.ToString("yyyyMMdd"), w.TargetDate.ToString("yyyyMMdd"), NbrsStatus(w.Status), w.StatusAt.ToNz().ToString("yyyyMMdd"),
                 w.HoldUntil?.ToString("yyyyMMdd") ?? "", w.BookedFor?.ToString("yyyyMMdd") ?? "", w.RemovedReason ?? "", clinicianNames.GetValueOrDefault(w.SpecialistId, "") }.Select(Csv)));
             rows++;
         }

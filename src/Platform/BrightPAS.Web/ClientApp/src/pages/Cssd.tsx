@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { api, errText, formatDate, nzDateTime, Perm, fileToText } from '../api';
+import FileImport from '../components/FileImport';
 import { useSession } from '../App';
 
 const TRAY_PILL: Record<string, string> = { Sterile: 'pill green', ExpiringSoon: 'pill', Expired: 'pill bad', Quarantine: 'pill bad', Dirty: 'pill', Washed: 'pill', Packed: 'pill', Issued: 'pill' };
@@ -129,6 +130,12 @@ function Loads() {
     if (p) setForm({ ...form, logText: text, fileName: f.name, machineCycleNumber: p.machineCycleNumber ?? '', program: p.program ?? '', maxTemperatureC: p.maxTemperatureC ?? '', holdSeconds: p.holdSeconds ?? '', a0: p.a0 ?? '',
       pressureKpa: p.pressureKpa ?? '', machinePassed: p.passed === true, startedAt: p.startedAt ? p.startedAt.slice(0, 16) : form.startedAt, parseNotes: p.notes });
   };
+  const [contents, setContents] = useState({ trays: '', others: '' });
+  const addContents = async () => {
+    if (await act(() => api(`/api/assets/cycles/${sel.cycle.id}/contents`, { body: { trayBarcodes: lines(contents.trays), otherItems: others(contents.others) } }), (x) => x.message)) {
+      setContents({ trays: '', others: '' }); setSel(await api(`/api/assets/cycles/${sel.cycle.id}`));
+    }
+  };
   const open = async (r: any) => { setFail(''); setSel(await api(`/api/assets/cycles/${r.id}`)); };
   const release = async (ok: boolean) => { if (await act(() => api(`/api/assets/cycles/${sel.cycle.id}/release`, { body: { release: ok, note: ok ? null : fail } }), (x) => x.message)) { setSel(null); load(); } };
   const indicators = async (ci: string, bi: string) => { if (await act(() => api(`/api/assets/cycles/${sel.cycle.id}/indicators`, { body: { chemical: ci, biological: bi } }), (x) => x?.warning ?? 'Indicator results recorded.')) { await open(sel.cycle); load(); } };
@@ -139,6 +146,9 @@ function Loads() {
         {can(Perm.CssdProcess) && !form && <>{['Wash', 'Steam', 'LowTemperature', 'Aer'].map((k) => <button key={k} className="btn btn-light" onClick={() => setForm(blank(k))}>New {KIND[k].toLowerCase()} load</button>)}</>}
       </div>
       {view}
+      {can(Perm.CssdProcess) && !form && <FileImport url="/api/assets/cycles/import-files" title="Cycle records from the steriliser or washer (USB / log folder)" accept=".csv,.txt,.log,.dat,.zip" onDone={load}
+        hint="Choose the cycle record files copied from the machine (or a ZIP). Each becomes a load waiting for release, with the full temperature and pressure curve and BrightPAS's plateau checks; a cycle already imported is skipped. The record must name the machine as it is in the equipment register (e.g. Sterilizer 1)." />}
+      {can(Perm.AssetsManage) && !form && <LogFolder />}
       {form && <div className="card subtle stack">
         <h2>New {KIND[form.kind].toLowerCase()} load</h2>
         <label className="btn btn-light file-btn">Read the machine's log file (Belimed etc.)<input type="file" className="sr-only" accept=".txt,.csv,.log,.dat,text/*" onChange={(e) => { readLog(e.target.files?.[0]); e.target.value = ''; }} /></label>
@@ -178,6 +188,13 @@ function Loads() {
         <p>{sel.cycle.machine} · {KIND[sel.cycle.kind]} · started {nzDateTime(sel.cycle.startedAt)} by {sel.cycle.operator} · source {sel.cycle.source}</p>
         {sel.trays.length > 0 && <p>Trays: {sel.trays.map((t: any) => `${t.barcode} (${t.name})`).join(', ')}</p>}
         {sel.others.length > 0 && <p>Other: {sel.others.map((o: any) => `${o.quantity} × ${o.description}`).join(', ')}</p>}
+        {sel.cycle.release === 'Pending' && can(Perm.CssdProcess) && sel.cycle.kind !== 'Aer' && <details className="card subtle" open={sel.trays.length + sel.others.length === 0}>
+          <summary>{sel.trays.length + sel.others.length === 0 ? 'Contents not listed yet – scan the trays in this load' : 'Add more trays or items to this load'}</summary>
+          <div className="row"><label>Tray barcodes (scan, one per line)<textarea rows={3} value={contents.trays} onChange={(e) => setContents({ ...contents, trays: e.target.value })} /></label>
+            <label>Other items (e.g. "4 x steri pack")<textarea rows={3} value={contents.others} onChange={(e) => setContents({ ...contents, others: e.target.value })} /></label></div>
+          <button className="btn btn-light" onClick={addContents}>Add to load</button>
+        </details>}
+        {sel.steriliser && <SteriliserCurve r={sel.steriliser} />}
         {sel.rawLog && <details><summary>Machine log</summary><pre>{sel.rawLog}</pre></details>}
         {can(Perm.CssdProcess) && <div className="row">
           <label>Chemical indicator<select value={sel.cycle.chemicalIndicator} onChange={(e) => indicators(e.target.value, sel.cycle.biologicalIndicator)}>{IND.map((i) => <option key={i} value={i}>{INDL[i]}</option>)}</select></label>
@@ -374,6 +391,51 @@ function Trace() {
             <td>{t.caseDate ? formatDate(t.caseDate) : ''} {t.procedure}</td><td>{nzDateTime(t.issuedAt)} · {t.issuedBy}</td></tr>)}</tbody></table>))}
       {load && can(Perm.CssdRelease) && <div className="card subtle row"><label>Recall this load – why?<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. biological indicator positive" /></label>
         <button className="btn btn-warn" onClick={recall}>Recall load</button></div>}
+    </div>
+  );
+}
+
+/** The folder the steriliser and washer write their cycle records to – imported automatically every minute. */
+function LogFolder() {
+  const [v, setV] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => { api('/api/assets/cssd-settings').then((x) => setV(x.logFolder ?? '')).catch(() => setV(null)); }, []);
+  if (v === null) return null;
+  return (
+    <details className="card subtle"><summary>Automatic import from the machines' log folder</summary>
+      <div className="row"><label>Folder (blank = off)<input value={v} onChange={(e) => setV(e.target.value)} placeholder="e.g. \\\\server\\cssd-logs" /></label>
+        <button className="btn btn-light" onClick={async () => { try { await api('/api/assets/cssd-settings', { method: 'PUT', body: { logFolder: v || null } }); setMsg('Saved – records saved there are imported every minute and moved to processed\\ or failed\\.'); } catch (e) { setMsg(errText(e)); } }}>Save</button></div>
+      {msg && <p className="small" role="status">{msg}</p>}
+    </details>
+  );
+}
+
+/** Steriliser curve: chamber temperature (dark) and pressure (blue, right scale), set temperature and the plateau checks. SVG attributes only (CSP). */
+function SteriliserCurve({ r }: { r: any }) {
+  const pts = r.curve as { s: number; t: number; p: number }[];
+  if (!pts || pts.length < 2) return null;
+  const W = 720, H = 240, L = 44, R = 50, T = 10, B = 26;
+  const maxS = pts[pts.length - 1].s || 1, maxT = 140, maxP = Math.max(350, ...pts.map((x) => x.p));
+  const x = (s: number) => L + ((W - L - R) * s) / maxS;
+  const yT = (t: number) => T + (H - T - B) * (1 - t / maxT);
+  const yP = (p: number) => T + (H - T - B) * (1 - p / maxP);
+  const line = (f: (q: any) => number) => pts.map((q) => `${x(q.s).toFixed(1)},${f(q).toFixed(1)}`).join(' ');
+  const mins = Math.ceil(maxS / 60);
+  return (
+    <div className="stack-sm">
+      <h3>Cycle curve {r.cycleNumber} – {r.program}</h3>
+      <svg viewBox={`0 0 ${W} ${H}`} className="spc" role="img" aria-label={`Steriliser cycle ${r.cycleNumber}: temperature and pressure over ${mins} minutes`}>
+        <line x1={L} y1={T} x2={L} y2={H - B} stroke="#9AA9B4" /><line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="#9AA9B4" /><line x1={W - R} y1={T} x2={W - R} y2={H - B} stroke="#9AA9B4" />
+        {[0, 35, 70, 105, 140].map((t) => <text key={t} x={L - 6} y={yT(t) + 4} textAnchor="end" fontSize="10" fill="#1B2730">{t}°</text>)}
+        {[0, 100, 200, 300].filter((p) => p <= maxP).map((p) => <text key={p} x={W - R + 6} y={yP(p) + 4} fontSize="10" fill="#24688A">{p} kPa</text>)}
+        {Array.from({ length: Math.floor(mins / 10) + 1 }, (_, i) => i * 10).map((m) => <text key={m} x={x(m * 60)} y={H - 8} textAnchor="middle" fontSize="10" fill="#5B6B77">{m} min</text>)}
+        {r.setTemperatureC != null && <line x1={L} x2={W - R} y1={yT(r.setTemperatureC)} y2={yT(r.setTemperatureC)} stroke="#2E7D32" strokeDasharray="4 3" />}
+        <polyline points={line((q) => yP(q.p))} fill="none" stroke="#24688A" strokeWidth="1.5" />
+        <polyline points={line((q) => yT(q.t))} fill="none" stroke="#1B2730" strokeWidth="2" />
+      </svg>
+      <p className="small">Dark line: chamber temperature (left scale); blue: chamber pressure (right scale); green dashes: set temperature {r.setTemperatureC} °C. Steriliser result: {r.resultText}</p>
+      <ul className="small">{r.checks.map((c: string) => <li key={c} className={/TOO|NOT|OUT|CHECK/.test(c) ? 'error-text' : ''}>{c}</li>)}</ul>
+      {!r.checksOk && <p className="warn-box">BrightPAS's plateau checks did not all pass – do not release without investigating.</p>}
     </div>
   );
 }

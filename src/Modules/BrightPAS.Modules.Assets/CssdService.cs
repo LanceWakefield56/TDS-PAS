@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -147,7 +148,8 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
         return number;
     }
 
-    public async Task<(Cycle? Cycle, IReadOnlyList<string> Errors)> CreateCycleAsync(CycleEdit e, string source, string? rawLog, string user, CancellationToken ct = default)
+    /// <param name="contentsLater">A machine record imported from a file (USB / log folder): the trays are scanned onto the load afterwards (<see cref="AddContentsAsync"/>); it cannot be released until they are.</param>
+    public async Task<(Cycle? Cycle, IReadOnlyList<string> Errors)> CreateCycleAsync(CycleEdit e, string source, string? rawLog, string user, CancellationToken ct = default, bool contentsLater = false)
     {
         var errors = new List<string>();
         var machine = await db.Equipment.SingleOrDefaultAsync(x => x.Id == e.MachineId, ct);
@@ -175,7 +177,7 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
         }
         var others = (e.OtherItems ?? []).Where(o => !string.IsNullOrWhiteSpace(o.Description)).ToList();
         if (others.Any(o => o.Quantity is < 1 or > 500)) errors.Add("Each item's quantity must be between 1 and 500.");
-        if (e.Kind != CycleKind.Aer && barcodes.Count == 0 && others.Count == 0) errors.Add("Scan the trays in the load, or list the other items (steri packs, devices).");
+        if (e.Kind != CycleKind.Aer && !contentsLater && barcodes.Count == 0 && others.Count == 0) errors.Add("Scan the trays in the load, or list the other items (steri packs, devices).");
         if (errors.Count > 0) return (null, errors);
         var c = new Cycle
         {
@@ -212,6 +214,10 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
     /// </summary>
     public static ParsedLog ParseMachineLog(string text)
     {
+        // TDS's steam steriliser writes a positional record with the full cycle curve (0.18.0): read it exactly and add BrightPAS's plateau checks.
+        if (SteriliserLog.Parse(text) is { } r)
+            return new ParsedLog(r.CycleNumber, r.Program, r.Start, r.End, r.PlateauMaxC ?? r.MaxHoldC, r.PlateauSeconds ?? r.SetHoldSeconds, r.PlateauPressureKpa, null, r.Passed && r.ChecksOk,
+                [$"Steriliser cycle record: {r.Machine} ({r.Model}), operator {r.Operator}, {r.Curve.Count} curve samples. Steriliser result: {r.ResultText}.", .. r.Checks]);
         var notes = new List<string>();
         string? cycle = null, program = null; DateTimeOffset? start = null, end = null; decimal? temp = null, pressure = null; int? hold = null, a0 = null; bool? passed = null;
         var temps = new List<decimal>();
@@ -247,6 +253,9 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
         return new ParsedLog(cycle, program, start, end, temp, hold, pressure, a0, passed, notes);
     }
 
+    private static readonly TimeZoneInfo NzZone = FindZone();
+    private static TimeZoneInfo FindZone() { try { return TimeZoneInfo.FindSystemTimeZoneById("Pacific/Auckland"); } catch (TimeZoneNotFoundException) { return TimeZoneInfo.Local; } }
+
     [GeneratedRegex(@"^([A-Za-z0-9°#.\s/()_-]{1,40}?)\s*[:=;\t]\s*(.+)$")]
     private static partial Regex KeyValue();
 
@@ -268,16 +277,16 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
     {
         string[] formats = ["dd.MM.yyyy HH:mm:ss", "dd.MM.yyyy HH:mm", "dd/MM/yyyy HH:mm:ss", "dd/MM/yyyy HH:mm", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-ddTHH:mm:ss", "yyyy-MM-dd HH:mm", "d/M/yyyy H:mm", "dd-MM-yyyy HH:mm:ss"];
         var t = v.Trim();
-        if (DateTime.TryParseExact(t, formats, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var dt)) return new DateTimeOffset(dt);
-        return DateTime.TryParse(t, CultureInfo.GetCultureInfo("en-NZ"), DateTimeStyles.AssumeLocal, out dt) ? new DateTimeOffset(dt) : null;
+        if (DateTime.TryParseExact(t, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt)) return NzTime.FromLocal(dt);
+        return DateTime.TryParse(t, CultureInfo.GetCultureInfo("en-NZ"), DateTimeStyles.None, out dt) ? NzTime.FromLocal(dt) : null;
     }
 
     public async Task<IReadOnlyList<CycleRow>> CyclesAsync(string? view, DateOnly? from, DateOnly? to, CancellationToken ct = default)
     {
         var q = db.Cycles.AsNoTracking().AsQueryable();
         if (view == "pending") q = q.Where(c => c.Release == CycleRelease.Pending);
-        if (from is { } f) { var fs = new DateTimeOffset(f.ToDateTime(TimeOnly.MinValue), clock.GetLocalNow().Offset); q = q.Where(c => c.StartedAt >= fs); }
-        if (to is { } t) { var ts = new DateTimeOffset(t.AddDays(1).ToDateTime(TimeOnly.MinValue), clock.GetLocalNow().Offset); q = q.Where(c => c.StartedAt < ts); }
+        if (from is { } f) { var fs = NzTime.StartOfDay(f); q = q.Where(c => c.StartedAt >= fs); }
+        if (to is { } t) { var ts = NzTime.StartOfDay(t.AddDays(1)); q = q.Where(c => c.StartedAt < ts); }
         var list = await q.OrderByDescending(c => c.StartedAt).Take(500).Include(c => c.Items).ToListAsync(ct);
         var machines = await db.Equipment.AsNoTracking().Where(e => e.Category == EquipmentCategory.Washer || e.Category == EquipmentCategory.Steriliser || e.Category == EquipmentCategory.Aer)
             .ToDictionaryAsync(e => e.Id, e => e.Name, ct);
@@ -309,6 +318,34 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
     /// used must have passed). Washer loads make their trays "washed"; steriliser loads make them "sterile" until the storage date. Failing a load
     /// quarantines its trays and raises a nonconformance.
     /// </summary>
+    /// <summary>Scans trays and other items onto a load that is still waiting for release (a cycle record imported from the machine's file arrives without them).</summary>
+    public async Task<IReadOnlyList<string>> AddContentsAsync(Guid id, IReadOnlyList<string>? trayBarcodes, IReadOnlyList<CycleItemEdit>? otherItems, string user, CancellationToken ct = default)
+    {
+        var c = await db.Cycles.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (c is null) return ["Load not found."];
+        if (c.Release != CycleRelease.Pending) return [$"Load {c.LoadNumber} has already been {c.Release.ToString().ToLowerInvariant()} – its contents cannot change."];
+        var errors = new List<string>();
+        var have = c.Items.Where(i => i.TrayInstanceId != null).Select(i => i.TrayInstanceId!.Value).ToHashSet();
+        var barcodes = (trayBarcodes ?? []).Select(b => b.Trim().ToUpperInvariant()).Where(b => b.Length > 0).Distinct().ToList();
+        var trays = await db.Trays.Where(t => barcodes.Contains(t.Barcode)).ToListAsync(ct);
+        foreach (var b in barcodes.Where(b => trays.All(t => t.Barcode != b))) errors.Add($"No tray with barcode {b}.");
+        foreach (var t in trays.Where(t => !have.Contains(t.Id)))
+        {
+            if (c.Kind == CycleKind.Wash && t.Status is not (TrayStatus.Dirty or TrayStatus.Quarantine)) errors.Add($"{t.Barcode} is {t.Status.ToString().ToLowerInvariant()}, not dirty – it does not need washing.");
+            if (SterilisingKinds.Contains(c.Kind) && t.Status != TrayStatus.Packed) errors.Add($"{t.Barcode} is {t.Status.ToString().ToLowerInvariant()} – only packed trays go in the steriliser.");
+        }
+        var others = (otherItems ?? []).Where(o => !string.IsNullOrWhiteSpace(o.Description)).ToList();
+        if (others.Any(o => o.Quantity is < 1 or > 500)) errors.Add("Each item's quantity must be between 1 and 500.");
+        if (barcodes.Count == 0 && others.Count == 0) errors.Add("Scan the trays in the load, or list the other items (steri packs, devices).");
+        if (errors.Count > 0) return errors;
+        var added = trays.Where(t => !have.Contains(t.Id)).ToList();
+        foreach (var t in added) db.CycleItems.Add(new CycleItem { CycleId = c.Id, TrayInstanceId = t.Id });
+        foreach (var o in others) db.CycleItems.Add(new CycleItem { CycleId = c.Id, Description = EquipmentService.Clip(o.Description, 200), Quantity = o.Quantity });
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Update", "Cycle", c.Id.ToString(), reason: $"{c.LoadNumber} contents added: {added.Count} trays, {others.Count} other", ct: ct);
+        return [];
+    }
+
     public async Task<(bool Ok, string Message)> ReleaseAsync(Guid id, bool release, string? note, string user, CancellationToken ct = default)
     {
         var c = await db.Cycles.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
@@ -319,6 +356,7 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
         {
             var problems = new List<string>();
             if (!c.MachinePassed) problems.Add("the machine did not report a good cycle");
+            if (c.Kind != CycleKind.Aer && c.Items.Count == 0) problems.Add("the load's contents are not listed (scan the trays onto it)");
             if (c.ChemicalIndicator == IndicatorResult.Fail) problems.Add("the chemical indicator failed");
             if (c.ChemicalIndicator == IndicatorResult.Pending) problems.Add("the chemical indicator has not been checked");
             if (c.BiologicalIndicator is IndicatorResult.Pending or IndicatorResult.Fail) problems.Add(c.BiologicalIndicator == IndicatorResult.Fail ? "the biological indicator failed" : "the biological indicator result is not in yet");
@@ -432,7 +470,7 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
         if (!leakSinceUse) return ("NeedsReprocessing", "No passed leak test recorded before the AER cycle", lastAer, lastUse);
         var hours = (clock.GetUtcNow() - lastAer.Value).TotalHours;
         if (hours > storageHours) return ("StorageExpired", $"Stored {hours:0} h (limit {storageHours} h) – reprocess before use", lastAer, lastUse);
-        return ("Ready", $"Ready – reprocessed {lastAer.Value.ToLocalTime():d MMM HH:mm}", lastAer, lastUse);
+        return ("Ready", $"Ready – reprocessed {lastAer.Value.ToNz():d MMM HH:mm}", lastAer, lastUse);
     }
 
     public async Task<IReadOnlyList<ScopeEvent>> ScopeHistoryAsync(Guid scopeId, CancellationToken ct = default) =>
@@ -596,7 +634,7 @@ public sealed partial class CssdService(AssetsDbContext db, EquipmentService equ
         sb.Append(CultureInfo.InvariantCulture, $"^PW{w}^LL{D(lengthMm)}");
         sb.Append(CultureInfo.InvariantCulture, $"^FO{m},{m}^A0N,{F(10)},{F(10)}^FB{w - 2 * m},1,0,L^FD{Z(set.Name)}^FS");
         sb.Append(CultureInfo.InvariantCulture, $"^FO{m},{m + F(12)}^A0N,{F(8)},{F(8)}^FDTray {Z(t.Barcode)}  Load {Z(load?.LoadNumber ?? "-")}^FS");
-        sb.Append(CultureInfo.InvariantCulture, $"^FO{m},{m + F(21)}^A0N,{F(8)},{F(8)}^FDSterilised {load?.StartedAt.ToLocalTime():dd/MM/yyyy}  Use by {t.SterileUntil:dd/MM/yyyy}^FS");
+        sb.Append(CultureInfo.InvariantCulture, $"^FO{m},{m + F(21)}^A0N,{F(8)},{F(8)}^FDSterilised {load?.StartedAt.ToNz():dd/MM/yyyy}  Use by {t.SterileUntil:dd/MM/yyyy}^FS");
         sb.Append(CultureInfo.InvariantCulture, $"^FO{m},{m + F(30)}^A0N,{F(7)},{F(7)}^FDPacked by {Z(t.PackedBy ?? "-")}^FS");
         sb.Append(CultureInfo.InvariantCulture, $"^FO{m},{m + F(39)}^BY2^BCN,{F(14)},N,N,N^FD{Z(t.Barcode)}^FS");
         sb.Append("^PQ1^XZ");

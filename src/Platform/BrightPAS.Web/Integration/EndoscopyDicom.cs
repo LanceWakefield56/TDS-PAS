@@ -15,7 +15,7 @@ using BrightPAS.Web.Licensing;
 
 namespace BrightPAS.Web.Integration;
 
-public sealed record EndoDicomStatus(bool Enabled, bool Listening, int Port, string AeTitle, string? Error, DateTimeOffset? LastActivity, int Images, int Videos, int Worklist, int Unmatched);
+public sealed record EndoDicomStatus(bool Enabled, bool Listening, int Port, string AeTitle, string? Error, DateTimeOffset? LastActivity, int Images, int Videos, int Worklist, int Unmatched, string? ImportProblem = null);
 
 /// <summary>
 /// The endoscopy DICOM node for the Olympus towers (and any video processor or capture box that speaks DICOM):
@@ -43,13 +43,15 @@ public sealed class EndoscopyDicomHost(IServiceScopeFactory scopes, ILogger<Endo
         {
             try { await ConfigureAsync(ct); }
             catch (Exception ex) when (ex is not OperationCanceledException) { log.LogError(ex, "Endoscopy DICOM node could not be configured."); }
+            try { await WatchFolderAsync(ct); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning(ex, "Endoscopy import folder could not be read."); }
             if (clock.GetUtcNow() > nextClean)
             {
                 try { await RetentionAsync(ct); } catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning(ex, "Endoscopy video retention clean-up failed."); }
                 try { await ScribeRetentionAsync(ct); } catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning(ex, "Scribe audio clean-up failed."); }
                 nextClean = clock.GetUtcNow().AddHours(6);
             }
-            await _reload.WaitAsync(TimeSpan.FromMinutes(5), ct).ContinueWith(_ => { }, CancellationToken.None);
+            await _reload.WaitAsync(TimeSpan.FromMinutes(1), ct).ContinueWith(_ => { }, CancellationToken.None);
         }
         Stop();
     }
@@ -95,6 +97,49 @@ public sealed class EndoscopyDicomHost(IServiceScopeFactory scopes, ILogger<Endo
     {
         lock (_gate) { _server?.Dispose(); _server = null; }
         Update(x => x with { Listening = false });
+    }
+
+    /// <summary>
+    /// Drive share / USB fallback (0.18.0): when an import folder is set, DICOM files (or ZIPs of them) the tower or a capture box saves there
+    /// are stored every minute exactly as if they had been sent over the network; each file is then moved to processed\ or failed\.
+    /// </summary>
+    private async Task WatchFolderAsync(CancellationToken ct)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        if (sp.GetRequiredService<LicenceCache>().Status.AccessTo(EndoscopyModule.Id) != ModuleAccess.Full) return;
+        if (await sp.GetRequiredService<SettingsService>().GetAsync(EndoscopyEndpoints.ImportFolderKey, ct) is not { Length: > 0 } dir) { Update(x => x with { ImportProblem = null }); return; }
+        if (!Directory.Exists(dir)) { Update(x => x with { ImportProblem = $"Import folder {dir} not found or not readable by the BrightPAS service account." }); return; }
+        Update(x => x with { ImportProblem = null });
+        foreach (var file in Directory.EnumerateFiles(dir).Where(f => Path.GetExtension(f).ToLowerInvariant() is ".dcm" or ".dicom" or ".zip" or "").Take(200))
+        {
+            var ok = true;
+            try
+            {
+                var bytes = await File.ReadAllBytesAsync(file, ct);
+                foreach (var item in BrightPAS.Messaging.MessageFile.Expand(Path.GetFileName(file), bytes))
+                {
+                    if (!BrightPAS.Messaging.MessageFile.IsDicom(item.Bytes)) { ok = false; continue; }
+                    await using var s2 = scopes.CreateAsyncScope();
+                    var r = await EndoDicomImport.StoreAsync(EndoDicomImport.Open(item.Bytes), $"import folder ({Path.GetFileName(file)})", s2.ServiceProvider);
+                    ok &= r.Error is null;
+                    Update(x => r.Video ? x with { Videos = x.Videos + (r.Stored ? 1 : 0), LastActivity = DateTimeOffset.UtcNow }
+                        : x with { Images = x.Images + (r.Stored ? 1 : 0), Unmatched = x.Unmatched + (r.Stored && !r.Matched ? 1 : 0), LastActivity = DateTimeOffset.UtcNow });
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or DicomException or InvalidOperationException)
+            {
+                log.LogWarning("Endoscopy import folder: {File} not imported: {Reason}", file, ex.Message);
+                ok = false;
+            }
+            try
+            {
+                var target = Path.Combine(dir, ok ? "processed" : "failed");
+                Directory.CreateDirectory(target);
+                File.Move(file, Path.Combine(target, $"{clock.GetUtcNow():yyyyMMddHHmmss}-{Path.GetFileName(file)}"), overwrite: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { log.LogWarning("Endoscopy import folder: could not move {File}: {Reason}", file, ex.Message); }
+        }
     }
 
     private async Task RetentionAsync(CancellationToken ct)
@@ -251,30 +296,15 @@ public sealed class EndoDicomScp(INetworkStream stream, Encoding fallbackEncodin
         var ctx = Ctx;
         try
         {
-            var ds = request.Dataset;
-            var (bytes, isVideo) = Extract(ds);
-            if (bytes is null) return new DicomCStoreResponse(request, DicomStatus.StorageCannotUnderstand);
-            var info = new DicomImageInfo(request.SOPInstanceUID.UID, Q(ds, DicomTag.PatientID), Q(ds, DicomTag.PatientName).Replace('^', ' '), Q(ds, DicomTag.AccessionNumber), Q(ds, DicomTag.StudyInstanceUID));
             await using var scope = ctx.Scopes.CreateAsyncScope();
-            var sp = scope.ServiceProvider;
-            var db = sp.GetRequiredService<EndoDbContext>();
-            var svc = sp.GetRequiredService<EndoService>();
-            var proc = info.Accession is { Length: > 0 } acc ? await db.Procedures.AsNoTracking().SingleOrDefaultAsync(p => p.AccessionNumber == acc) : null;
-            proc ??= info.StudyInstanceUid is { Length: > 0 } st ? await db.Procedures.AsNoTracking().SingleOrDefaultAsync(p => p.StudyInstanceUid == st) : null;
-            var who = $"tower {Association.CallingAE}";
-            if (isVideo)
+            var r = await EndoDicomImport.StoreAsync(request.Dataset, $"tower {Association.CallingAE}", scope.ServiceProvider);
+            if (r.Error is not null)
             {
-                if (proc is null) { ctx.Log.LogWarning("Endoscopy DICOM: video {Uid} has no matching procedure – not stored.", info.SopInstanceUid); return new DicomCStoreResponse(request, DicomStatus.ProcessingFailure); }
-                var (_, verr) = await svc.AddVideoFileAsync(proc.Id, bytes, MediaSource.Dicom, who, info);
-                if (verr is not null) return new DicomCStoreResponse(request, DicomStatus.ProcessingFailure);
-                ctx.Host.Update(x => x with { Videos = x.Videos + 1, LastActivity = DateTimeOffset.UtcNow });
+                ctx.Log.LogWarning("Endoscopy DICOM: {Uid} not stored: {Error}", request.SOPInstanceUID.UID, r.Error);
+                return new DicomCStoreResponse(request, r.NotUnderstood ? DicomStatus.StorageCannotUnderstand : DicomStatus.ProcessingFailure);
             }
-            else
-            {
-                var (_, err) = await svc.AddImageAsync(proc?.Id, bytes, MediaSource.Dicom, who, info);
-                if (err is not null) { ctx.Log.LogWarning("Endoscopy DICOM: {Uid} not stored: {Error}", info.SopInstanceUid, err); return new DicomCStoreResponse(request, DicomStatus.ProcessingFailure); }
-                ctx.Host.Update(x => x with { Images = x.Images + 1, Unmatched = x.Unmatched + (proc is null ? 1 : 0), LastActivity = DateTimeOffset.UtcNow });
-            }
+            ctx.Host.Update(x => r.Video ? x with { Videos = x.Videos + 1, LastActivity = DateTimeOffset.UtcNow }
+                : x with { Images = x.Images + 1, Unmatched = x.Unmatched + (r.Matched ? 0 : 1), LastActivity = DateTimeOffset.UtcNow });
             return new DicomCStoreResponse(request, DicomStatus.Success);
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException or DicomDataException or DbUpdateException or ArgumentException)
@@ -363,4 +393,42 @@ public sealed class EndoDicomScp(INetworkStream stream, Encoding fallbackEncodin
     public Task<DicomNDeleteResponse> OnNDeleteRequestAsync(DicomNDeleteRequest request) => Task.FromResult(new DicomNDeleteResponse(request, DicomStatus.SOPClassNotSupported));
     public Task<DicomNEventReportResponse> OnNEventReportRequestAsync(DicomNEventReportRequest request) => Task.FromResult(new DicomNEventReportResponse(request, DicomStatus.SOPClassNotSupported));
     public Task<DicomNGetResponse> OnNGetRequestAsync(DicomNGetRequest request) => Task.FromResult(new DicomNGetResponse(request, DicomStatus.SOPClassNotSupported));
+}
+
+/// <summary>
+/// Stores one DICOM object (picture or video) from the tower – received over the network (C-STORE) or imported from a file
+/// when the connection is down (USB export, network share; 0.18.0). Matching is the same either way: accession number, then study UID;
+/// pictures with no match wait in Pictures to match; a video needs its procedure. Re-importing the same object (same SOP instance UID) stores nothing new.
+/// </summary>
+public static class EndoDicomImport
+{
+    public sealed record Result(bool Stored, bool Matched, bool Video, string? Error, bool NotUnderstood = false);
+
+    public static async Task<Result> StoreAsync(DicomDataset ds, string who, IServiceProvider sp, Guid? procedureId = null)
+    {
+        var (bytes, isVideo) = EndoDicomScp.Extract(ds);
+        if (bytes is null) return new(false, false, false, "This DICOM object has no picture or video BrightPAS can read (JPEG, 8-bit RGB/greyscale or MPEG-4).", true);
+        static string Q(DicomDataset d, DicomTag t) => d.GetSingleValueOrDefault(t, "").Trim();
+        var info = new DicomImageInfo(Q(ds, DicomTag.SOPInstanceUID), Q(ds, DicomTag.PatientID), Q(ds, DicomTag.PatientName).Replace('^', ' '), Q(ds, DicomTag.AccessionNumber), Q(ds, DicomTag.StudyInstanceUID));
+        var db = sp.GetRequiredService<EndoDbContext>();
+        var svc = sp.GetRequiredService<EndoService>();
+        Guid? proc = procedureId;
+        if (proc is null && info.Accession is { Length: > 0 } acc) proc = await db.Procedures.AsNoTracking().Where(p => p.AccessionNumber == acc).Select(p => (Guid?)p.Id).SingleOrDefaultAsync();
+        if (proc is null && info.StudyInstanceUid is { Length: > 0 } st) proc = await db.Procedures.AsNoTracking().Where(p => p.StudyInstanceUid == st).Select(p => (Guid?)p.Id).SingleOrDefaultAsync();
+        if (isVideo)
+        {
+            if (proc is null) return new(false, false, true, "Video has no matching procedure (accession number or study) – open the procedure and upload it there.");
+            var (_, verr) = await svc.AddVideoFileAsync(proc.Value, bytes, MediaSource.Dicom, who, info);
+            return new(verr is null, true, true, verr);
+        }
+        var (_, err) = await svc.AddImageAsync(proc, bytes, MediaSource.Dicom, who, info);
+        return new(err is null, proc is not null, false, err);
+    }
+
+    /// <summary>Reads a DICOM Part 10 file from bytes.</summary>
+    public static DicomDataset Open(byte[] bytes)
+    {
+        using var ms = new MemoryStream(bytes, writable: false);
+        return DicomFile.Open(ms, FileReadOption.ReadAll).Dataset;
+    }
 }

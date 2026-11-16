@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Text;
 using ICSharpCode.SharpZipLib.Zip;
 using Microsoft.AspNetCore.DataProtection;
@@ -90,7 +91,7 @@ public sealed class SecureExportService(SettingsService settings, AuditWriter au
             if (password is not null) zip.Password = password;
             foreach (var f in files)
             {
-                var entry = new ZipEntry(ZipEntry.CleanName(f.Name)) { DateTime = DateTime.Now, Size = f.Content.Length };
+                var entry = new ZipEntry(ZipEntry.CleanName(f.Name)) { DateTime = DateTimeOffset.UtcNow.ToNz().DateTime, Size = f.Content.Length };
                 if (password is not null) entry.AESKeySize = 256;
                 zip.PutNextEntry(entry);
                 zip.Write(f.Content, 0, f.Content.Length);

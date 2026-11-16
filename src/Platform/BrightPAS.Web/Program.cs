@@ -51,7 +51,7 @@ builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs
     new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule(),
     new BrightPAS.Modules.Referrals.ReferralsModule(), new BrightPAS.Modules.Letters.LettersModule(),
     new BrightPAS.Modules.Rostering.RosteringModule(), new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(),
-    new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule()]);
+    new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule()]);
 builder.Services.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
 builder.Services.AddScoped<RoleAdminService>();
 builder.Services.AddScoped<BrightPAS.Core.Setup.SettingsService>();
@@ -64,7 +64,7 @@ builder.Services.AddScoped<BrightPAS.Modules.Patients.IDocumentTextExtractor, Br
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.DocumentTextWorker>();
 foreach (var t in new[] { typeof(BrightPAS.Web.Integration.TheatreMerge), typeof(BrightPAS.Web.Integration.FormsMerge), typeof(BrightPAS.Web.Integration.BillingMerge),
     typeof(BrightPAS.Web.Integration.LabsMerge), typeof(BrightPAS.Web.Integration.ReferralsMerge), typeof(BrightPAS.Web.Integration.LettersMerge),
-    typeof(BrightPAS.Web.Integration.RemindersMerge), typeof(BrightPAS.Web.Integration.PortalMerge), typeof(BrightPAS.Web.Integration.MessagingMerge), typeof(BrightPAS.Web.Integration.AssetsMerge), typeof(BrightPAS.Web.Integration.EmrMerge), typeof(BrightPAS.Web.Integration.EndoscopyMerge), typeof(BrightPAS.Web.Integration.ScribeMerge), typeof(BrightPAS.Web.Integration.DevicesMerge) })
+    typeof(BrightPAS.Web.Integration.RemindersMerge), typeof(BrightPAS.Web.Integration.PortalMerge), typeof(BrightPAS.Web.Integration.MessagingMerge), typeof(BrightPAS.Web.Integration.AssetsMerge), typeof(BrightPAS.Web.Integration.EmrMerge), typeof(BrightPAS.Web.Integration.EndoscopyMerge), typeof(BrightPAS.Web.Integration.ScribeMerge), typeof(BrightPAS.Web.Integration.DevicesMerge), typeof(BrightPAS.Web.Integration.QualityMerge) })
     builder.Services.AddScoped(typeof(BrightPAS.Modules.Patients.IPatientMergeParticipant), t);
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.HealthLinkWorker>();
 builder.Services.AddScoped<BrightPAS.Web.Licensing.ModuleSetupService>();
@@ -82,6 +82,8 @@ builder.Services.AddHostedService<BrightPAS.Web.Integration.MllpListener>();
 FellowOakDicom.IServiceCollectionExtension.AddFellowOakDicom(builder.Services);
 builder.Services.AddSingleton<BrightPAS.Web.Integration.MessagingRuntime>();
 builder.Services.AddScoped<BrightPAS.Web.Integration.MessagingPipeline>();
+builder.Services.AddScoped<BrightPAS.Web.Integration.FileImportService>();
+builder.Services.AddSingleton<BrightPAS.Modules.Quality.IIndicatorCalculators, BrightPAS.Web.Integration.QualityIndicatorCalculators>();
 builder.Services.AddHttpClient("messaging", c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient("ai", c => c.Timeout = TimeSpan.FromSeconds(60));
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.MessagingHost>();
@@ -89,6 +91,7 @@ builder.Services.AddSingleton<BrightPAS.Web.Integration.EndoscopyDicomHost>();
 builder.Services.AddSingleton<BrightPAS.Web.Integration.ScribeEngines>();
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService(sp => sp.GetRequiredService<BrightPAS.Web.Integration.EndoscopyDicomHost>());
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.DevicesWorker>();
+if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.CssdLogWatcher>();
 builder.Services.AddPasAuthentication(builder.Environment);
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
@@ -210,6 +213,8 @@ app.MapEmrEndpoints();
 app.MapEndoscopyEndpoints();
 app.MapScribeEndpoints();
 app.MapDevicesEndpoints();
+app.MapImportEndpoints();
+app.MapQualityEndpoints();
 app.MapMcpAndAiEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.

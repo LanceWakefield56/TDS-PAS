@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Globalization;
 using System.Text;
 
@@ -99,7 +100,9 @@ public sealed class Hl7Message
         if (dot > 0) v = v[..dot];
         string[] formats = ["yyyyMMddHHmmss", "yyyyMMddHHmm", "yyyyMMddHH", "yyyyMMdd"];
         if (!DateTime.TryParseExact(v, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt)) return null;
-        return offset is { } o ? new DateTimeOffset(dt, o) : new DateTimeOffset(dt, defaultZone.GetUtcOffset(dt));
+        if (offset is { } o) return new DateTimeOffset(dt, o);
+        // No offset in the message: the sender's wall-clock time (daylight saving gaps and repeats resolved by NzTime for NZ senders).
+        return defaultZone == NzTime.Zone || defaultZone.Id == NzTime.Zone.Id ? NzTime.FromLocal(dt) : new DateTimeOffset(dt, defaultZone.GetUtcOffset(dt));
     }
 }
 

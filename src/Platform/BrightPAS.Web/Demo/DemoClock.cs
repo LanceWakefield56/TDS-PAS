@@ -10,7 +10,7 @@ public sealed class DemoClock(TimeProvider inner) : TimeProvider
     private static readonly AsyncLocal<DateTimeOffset?> Override = new();
 
     public override DateTimeOffset GetUtcNow() => Override.Value ?? inner.GetUtcNow();
-    public override TimeZoneInfo LocalTimeZone => inner.LocalTimeZone;
+    public override TimeZoneInfo LocalTimeZone => BrightPAS.Core.NzTime.Zone; // NZ time on any server: GetLocalNow() everywhere is NZ wall-clock time with daylight saving
     public override long GetTimestamp() => inner.GetTimestamp();
     public override long TimestampFrequency => inner.TimestampFrequency;
 

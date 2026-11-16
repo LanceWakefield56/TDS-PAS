@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Net.Sockets;
 using System.Security.Claims;
 using System.Text;
@@ -23,7 +24,9 @@ public static class AssetsEndpoints
     public sealed record BarcodeRequest(string Barcode, bool ContentsChecked = false, string? Notes = null);
     public sealed record IssueRequest(string Barcode, Guid BookingId);
     public sealed record ReleaseRequest(bool Release, string? Note);
+    public sealed record ContentsRequest(IReadOnlyList<string>? TrayBarcodes, IReadOnlyList<CycleItemEdit>? OtherItems);
     public sealed record IndicatorRequest(IndicatorResult Chemical, IndicatorResult Biological);
+    public sealed record CssdSettingsRequest(string? LogFolder);
     public sealed record ImportRequest(Guid MachineId, CycleKind Kind, string FileName, string Text, IReadOnlyList<string>? TrayBarcodes, IReadOnlyList<CycleItemEdit>? OtherItems,
         IndicatorResult ChemicalIndicator, IndicatorResult BiologicalIndicator, bool BowieDickTest, DateTimeOffset? StartedAt);
     public sealed record ParseRequest(string Text);
@@ -146,13 +149,57 @@ public static class AssetsEndpoints
             var c = await svc.CycleAsync(id);
             if (c is null) return Results.NotFound();
             var trays = (await svc.TraysAsync(null, null)).Where(t => c.Items.Any(i => i.TrayInstanceId == t.Id)).Select(t => new { t.Barcode, t.Name, t.Status });
-            return Results.Ok(new { cycle = (await svc.CyclesAsync(null, null, null)).FirstOrDefault(x => x.Id == id) ?? null, trays, others = c.Items.Where(i => i.TrayInstanceId == null).Select(i => new { i.Description, i.Quantity }), c.RawLog });
+            // Steriliser cycle record with its curve (0.18.0): the chart and BrightPAS's plateau checks for parametric release.
+            var rec = c.RawLog is { } raw ? SteriliserLog.Parse(raw) : null;
+            var every = rec is null ? 1 : Math.Max(1, rec.Curve.Count / 400);
+            return Results.Ok(new
+            {
+                cycle = (await svc.CyclesAsync(null, null, null)).FirstOrDefault(x => x.Id == id) ?? null,
+                trays,
+                others = c.Items.Where(i => i.TrayInstanceId == null).Select(i => new { i.Description, i.Quantity }),
+                c.RawLog,
+                steriliser = rec is null ? null : new
+                {
+                    rec.Program,
+                    rec.Machine,
+                    rec.Operator,
+                    rec.CycleNumber,
+                    rec.SetTemperatureC,
+                    rec.SetHoldSeconds,
+                    rec.ResultText,
+                    rec.Passed,
+                    rec.PlateauSeconds,
+                    rec.PlateauMinC,
+                    rec.PlateauMaxC,
+                    rec.PlateauPressureKpa,
+                    rec.SaturationC,
+                    rec.Checks,
+                    rec.ChecksOk,
+                    curve = rec.Curve.Where((_, i) => i % every == 0).Select(p => new { s = p.Seconds, t = p.TemperatureC, p = p.PressureKpa })
+                }
+            });
         }).RequireAuthorization(Permissions.AssetsView);
         g.MapPost("/cycles", async (CycleEdit e, ClaimsPrincipal u, CssdService svc) =>
         {
             var (row, errors) = await svc.CreateCycleAsync(e, "Manual", null, Me(u));
             return row is null ? Errors(errors) : Results.Ok(new { row.Id, row.LoadNumber });
         }).RequireAuthorization(Permissions.CssdProcess);
+        // USB / network-folder fallback (0.18.0): one cycle record file per request (raw body, name in X-File-Name; X-Machine-Id when the record does not name its machine).
+        g.MapPost("/cycles/import-files", async (HttpRequest req, ClaimsPrincipal u, IServiceProvider sp) =>
+        {
+            using var ms = new MemoryStream();
+            await req.Body.CopyToAsync(ms);
+            if (ms.Length is 0 or > 50 * 1024 * 1024) return Done("Choose cycle record files (up to 50 MB each).");
+            var mid = Guid.TryParse(req.Headers["X-Machine-Id"], out var m) ? m : (Guid?)null;
+            return Results.Ok(await BrightPAS.Web.Integration.CssdLogImport.ImportAsync(sp, req.Headers["X-File-Name"].ToString(), ms.ToArray(), Me(u), mid));
+        }).RequireAuthorization(Permissions.CssdProcess);
+        g.MapGet("/cssd-settings", async (BrightPAS.Core.Setup.SettingsService s) => Results.Ok(new { logFolder = await s.GetAsync(BrightPAS.Web.Integration.CssdLogImport.FolderKey) })).RequireAuthorization(Permissions.AssetsManage);
+        g.MapPut("/cssd-settings", async (CssdSettingsRequest r, ClaimsPrincipal u, BrightPAS.Core.Setup.SettingsService s) =>
+        {
+            if (r.LogFolder is { Length: > 0 } f && !Path.IsPathFullyQualified(f)) return Done("The folder must be a full path or network share, e.g. \\\\server\\cssd-logs.");
+            await s.SetAsync(BrightPAS.Web.Integration.CssdLogImport.FolderKey, r.LogFolder?.Trim() ?? "", Me(u));
+            return Results.Ok();
+        }).RequireAuthorization(Permissions.AssetsManage);
         g.MapPost("/cycles/parse", (ParseRequest r) => Results.Ok(CssdService.ParseMachineLog(r.Text ?? ""))).RequireAuthorization(Permissions.CssdProcess);
         g.MapPost("/cycles/import", async (ImportRequest r, ClaimsPrincipal u, CssdService svc) =>
         {
@@ -164,6 +211,11 @@ public static class AssetsEndpoints
                 r.ChemicalIndicator, r.BiologicalIndicator, r.BowieDickTest, r.TrayBarcodes, r.OtherItems);
             var (row, errors) = await svc.CreateCycleAsync(edit, r.FileName, r.Text, Me(u));
             return row is null ? Errors(errors) : Results.Ok(new { row.Id, row.LoadNumber, parsed = p });
+        }).RequireAuthorization(Permissions.CssdProcess);
+        g.MapPost("/cycles/{id:guid}/contents", async (Guid id, ContentsRequest r, ClaimsPrincipal u, CssdService svc) =>
+        {
+            var errors = await svc.AddContentsAsync(id, r.TrayBarcodes, r.OtherItems, Me(u));
+            return errors.Count > 0 ? Errors(errors) : Results.Ok(new { message = "Contents added to the load." });
         }).RequireAuthorization(Permissions.CssdProcess);
         g.MapPost("/cycles/{id:guid}/indicators", async (Guid id, IndicatorRequest r, ClaimsPrincipal u, CssdService svc) =>
         {
@@ -282,7 +334,7 @@ public static class AssetsEndpoints
         {
             var (csv, count) = await svc.XeroBillsCsvAsync(Me(u), r.MarkExported);
             return count == 0 ? Done("No matched supplier invoices are waiting to go to Xero.")
-                : Results.File(BrightPAS.Web.Security.SecureExportService.Utf8Bom(csv), "text/csv", $"xero-bills-{DateTime.Now:yyyyMMdd-HHmm}.csv");
+                : Results.File(BrightPAS.Web.Security.SecureExportService.Utf8Bom(csv), "text/csv", $"xero-bills-{DateTimeOffset.UtcNow.ToNz():yyyyMMdd-HHmm}.csv");
         }).RequireAuthorization(Permissions.PurchasingApprove);
     }
 

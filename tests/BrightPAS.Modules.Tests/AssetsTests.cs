@@ -90,6 +90,27 @@ public class AssetsTests
     }
 
     [Fact]
+    public async Task Imported_machine_record_needs_its_trays_scanned_before_release()
+    {
+        await using var h = new ModulesHost();
+        await using var s = h.Scope();
+        var eq = s.ServiceProvider.GetRequiredService<EquipmentService>();
+        var cssd = s.ServiceProvider.GetRequiredService<CssdService>();
+        var washer = await MachineAsync(eq, "WD9", EquipmentCategory.Washer);
+        var set = (await cssd.SaveTraySetAsync(new(null, "EYE", "Eye set", null, 90, true, [new("Speculum", 1)]), "lee")).Set!;
+        await cssd.AddTraysAsync(set.Id, 1, "lee");
+        var edit = new CycleEdit(washer, CycleKind.Wash, "77", "Instruments", Now, Now.AddMinutes(50), 93, 300, null, 3000, true, IndicatorResult.NotUsed, IndicatorResult.NotUsed, false, [], []);
+        Assert.Contains((await cssd.CreateCycleAsync(edit, "Manual", null, "lee")).Errors, e => e.Contains("Scan the trays"));
+        var (c, errs) = await cssd.CreateCycleAsync(edit, "00000077.csv", "log", "lee", contentsLater: true);
+        Assert.True(c is not null, string.Join(" ", errs));
+        Assert.Contains("contents are not listed", (await cssd.ReleaseAsync(c!.Id, true, null, "kim")).Message);
+        Assert.Contains(await cssd.AddContentsAsync(c.Id, ["NOPE-01"], null, "lee"), e => e.Contains("No tray"));
+        Assert.Empty(await cssd.AddContentsAsync(c.Id, ["eye-01"], [new("Steri packs", 2)], "lee"));
+        Assert.True((await cssd.ReleaseAsync(c.Id, true, null, "kim")).Ok);
+        Assert.Contains(await cssd.AddContentsAsync(c.Id, ["EYE-01"], null, "lee"), e => e.Contains("already been released"));
+    }
+
+    [Fact]
     public async Task Failed_load_quarantines_trays_raises_a_nonconformance_and_needs_root_cause_to_close()
     {
         await using var h = new ModulesHost();

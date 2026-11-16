@@ -1,4 +1,4 @@
-# Specification traceability – BrightPAS 0.17.0 against specification v1.9
+# Specification traceability – BrightPAS 0.18.0 against specification v1.9
 
 This file links every section of the specification to the code that builds it, the decision record (ADR), and the automated tests and test robot steps that prove it. Update it in every release, alongside spec Appendix C (module status) and `CHANGELOG.md`.
 
@@ -33,6 +33,7 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 | 6.1 | DICOM C-ECHO, MWL, MPPS, C-STORE | Built | Endoscopy DICOM node (ADR 0027); engine DICOM listener | EndoscopyDicomTests, robot virtual Olympus tower |
 | 6.1 | Storage commitment, query/retrieve | Planned | – | – |
 | 6.2.1 | Message store, queues, retry, dashboard, allowed senders | Built | Messaging module and `MessagingHost` (ADR 0021). From 0.17.0, listeners that file clinical data refuse all connections until their allowed list is set | MessagingTests, MessagingWebTests |
+| 6.2.1 | Offline fallback: import from file / watched share for every inbound connection | Built | `MessageFile`, `FileImportService`, ImportEndpoints, EndoDicomImport (ADR 0030) | OfflineImportTests, robot offline import |
 | 6.2.2 | Workflow engine with tasks and escalation | Planned | – | – |
 | 6.2.3 | Visual flow and mapping designers, second-person approval | Built | Messaging UI and service | MessagingTests |
 | 6.2.4 | Integrated or standalone engine | Partial | Integrated only | – |
@@ -53,7 +54,7 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 | 7.9 | Assets, CSSD, scopes, inventory | Built | Assets (ADR 0025) | AssetsTests, robot virtual washer |
 | 7.10 | Communications and reminders | Built | Reminders (ADR 0012) | RemindersTests, robot |
 | 7.11, 7.15 | Coding and statutory reporting | Partial | NBRS draft extract (Referrals), NBSP (Endoscopy) | ReferralsTests, EndoscopyTests |
-| 7.12, 7.14 | Audit, certification, QMS | Planned | – | – |
+| 7.12, 7.14 | Audit, certification, QMS; incidents, complaints, risk | Built (0.19.0; surveys, SSI, M&M, PDSA, audit forms with the form designer) | Modules/BrightPAS.Modules.Quality, Web/Api/QualityEndpoints.cs, pages/Quality.tsx; ADR 0031 | QualityTests, robot Quality |
 | 7.13 | Credentialing | Built | Credentialing | ModuleTests |
 | 7.16 | Letters and transfer pack | Built | Letters (ADR 0016) | AdminAndLettersTests |
 | 7.17 | Optional external scribe (Medow) | Foundations | Scribe inbound API (ADR 0028) | ScribeTests, robot |
@@ -69,7 +70,7 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 | 8 | Standards matrix (HISF, Privacy Act, HQSC, ANZCA) | Partial | The standards self-test checks the controls the code can check (StandardsTests). Policy items stay with TDS |
 | 9 | Usability: plain language, accessibility | Built | Robot accessibility checks (axe-core), phone and tablet sizes, plain-language checks (`Usability.cs`) |
 | 10 | Non-functional (performance, availability, logging) | Partial | Serilog logging (ADR 0022), health checks. Load testing is planned |
-| 11.5 | Testing strategy | Built | 326 automated tests; test robot (ADR 0024); upgrade test recipe |
+| 11.5 | Testing strategy | Built | 330 automated tests; test robot (ADR 0024); upgrade test recipe |
 | 12 | Governance and clinical safety | Operational | Clinical sign-off items are listed in README "Before production" |
 
 ## Where the build differs from the specification
@@ -80,3 +81,4 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 | Monitor waveforms and alarms | Not stored or shown, by design: BrightPAS is a record, and the monitor and central station stay the alarm system | Recorded in ADR 0029 and spec 7.6 |
 | DICOM MWL and MPPS | Built in the endoscopy node, not as a general engine service | Appendix C notes this |
 | HL7 layouts (GE, SaferSleep) | BrightPAS interface profiles built from the standards | Confirm with real captures before go-live; mapping changes only |
+| Import from file (0.18.0) | Added at TDS's request; spec v1.9 does not describe a file fallback | Add to spec 6.2.1 / 4.7 (spec changelog 2026-11-16) |

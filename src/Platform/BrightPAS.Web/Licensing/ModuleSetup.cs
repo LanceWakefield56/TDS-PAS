@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -69,6 +69,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "endoscopy" => await EndoChecksAsync(ct),
         "scribe" => await ScribeChecksAsync(ct),
         "devices" => await DevicesChecksAsync(ct),
+        "quality" => await QualityChecksAsync(ct),
         _ => []
     };
 
@@ -285,6 +286,30 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 users > 0, $"{users} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
             new("safersleep", "SaferSleep interface", "Optional: switch on SaferSleep, with an outbound MLLP interface (patient and booking to SaferSleep) and an inbound one with the handler 'SaferSleep anaesthetic record'. Confirm the message profile with SaferSleep.",
                 s.SaferSleepEnabled && ssIn && ssOut, !s.SaferSleepEnabled ? "Off." : $"Out: {(ssOut ? s.SaferSleepOutCode : "missing")}; in: {(ssIn ? "set up" : "missing")}.", true, "Open device settings", "/devices?tab=settings", Permissions.DevicesManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> QualityChecksAsync(CancellationToken ct)
+    {
+        var q = Svc<BrightPAS.Modules.Quality.QualityDbContext>();
+        var managers = await UsersWithAsync(Permissions.QualityManage, ct);
+        var reporters = await UsersWithAsync(Permissions.QualityReport, ct);
+        var indicators = await q.Indicators.CountAsync(i => i.IsActive && i.Target != null, ct);
+        var risks = await q.Risks.CountAsync(r => !r.IsHazard, ct);
+        var policies = await q.Policies.CountAsync(p => p.IsActive, ct);
+        var s = await Svc<BrightPAS.Modules.Quality.QualityService>().SettingsAsync(ct);
+        return
+        [
+            new("manager", "Quality manager", "At least one person with 'Triage and investigate incidents…' (the Quality Manager role) to triage incidents within a working day.",
+                managers > 0, $"{managers} user(s).", false, "Open users", "/admin/users", Permissions.UsersManage),
+            new("reporters", "Every staff member can report an incident", "Clinical, reception, CSSD, finance and other staff roles get 'Report incidents' by default.",
+                reporters > 1, $"{reporters} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("escalation", "Who is alerted about serious events", "Names or roles alerted about SAC 1–2 and Always Report and Review events (shown on each such incident).",
+                !string.IsNullOrWhiteSpace(s.EscalateTo) && s.UpdatedBy.Length > 0, s.UpdatedBy.Length > 0 ? s.EscalateTo : "Not confirmed.", false, "Open quality settings", "/quality?tab=settings", Permissions.QualityManage),
+            new("indicators", "Indicator targets", "The starter indicators have suggested targets – Clinical Governance confirms or changes them.",
+                indicators > 0, $"{indicators} indicator(s) with a target.", false, "Open indicators", "/quality?tab=indicators", Permissions.QualityManage),
+            new("risks", "Risk register", "Enter TDS's current risks (or import them from the existing register).", risks > 0, $"{risks} risk(s).", true, "Open risks", "/quality?tab=risks", Permissions.QualityManage),
+            new("policies", "Policy register", "List the policies and procedures (with their SharePoint links) and mark those staff must read and acknowledge.", policies > 0, $"{policies} document(s).", true, "Open policies", "/quality?tab=policies", Permissions.QualityManage),
         ];
     }
 

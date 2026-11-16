@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { api, errText, fileToBase64, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
+import FileImport from '../components/FileImport';
 import { DocNode, Errors, errs, FORMAT_LABEL, FORMATS, MsgNav, StatusBadge, TRANSPORT_LABEL, TreeView } from '../components/MsgShared';
 const HANDLER_LABEL: Record<string, string> = { LabResults: 'Lab results', DeviceObservations: 'Bedside monitors', AnaesthesiaRecord: 'SaferSleep record' };
 
@@ -69,6 +70,7 @@ export function MessagingInterfaces() {
   const [errors, setErrors] = useState<string[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [inject, setInject] = useState<{ id: string; name: string; content: string; result?: any } | null>(null);
+  const [importTo, setImportTo] = useState<{ id: string; name: string } | null>(null);
   const load = () => api<any[]>('/api/messaging/interfaces').then(setList).catch((e) => setErrors(errs(e)));
   useEffect(() => { load(); }, []);
   const save = async () => {
@@ -155,7 +157,12 @@ export function MessagingInterfaces() {
               <td className="actions">{can(Perm.Integration) && i.transport !== 'Monitored' && <>
                 <button className="btn btn-link" onClick={() => setEdit({ ...i, secret: null })}>Change</button>
                 <button className="btn btn-link" onClick={() => test(i)}>Test connection</button>
-                {i.direction === 'Inbound' && <button className="btn btn-link" onClick={async () => setInject({ id: i.id, name: i.name, content: (await api(`/api/messaging/samples/${i.format}`)).sample })}>Send test message</button>}</>}</td></tr>))}</tbody></table>)}
+                {i.direction === 'Inbound' && <button className="btn btn-link" onClick={async () => setInject({ id: i.id, name: i.name, content: (await api(`/api/messaging/samples/${i.format}`)).sample })}>Send test message</button>}
+                {i.direction === 'Inbound' && <button className="btn btn-link" onClick={() => setImportTo({ id: i.id, name: i.name })}>Import from file</button>}</>}</td></tr>))}</tbody></table>)}
+      {importTo && <div className="stack-sm">
+        <FileImport url={`/api/messaging/interfaces/${importTo.id}/import`} title={`Import into ${importTo.name}`} onDone={load}
+          hint="When this connection is down, import the messages from a file instead – a USB stick, a network share or a file the sending system saved (HL7 files may hold many messages; ZIPs are opened). Each message is received, stored and processed exactly as if it had arrived live." />
+        <div><button className="btn btn-light" onClick={() => setImportTo(null)}>Close import</button></div></div>}
     </div>
   );
 }

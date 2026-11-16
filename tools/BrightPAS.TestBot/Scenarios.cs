@@ -81,6 +81,8 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         await EndoscopyGpStepsAsync();
         await Step("Virtual laboratory (MLLP)", "Laboratory sends a result over MLLP; it arrives in Lab results", LabAsync);
         await DevicesStepsAsync();
+        await ImportStepsAsync();
+        await QualityStepsAsync();
         await Step("Exports", "Payroll export for Xero is encrypted, and the timesheet file is in the expected shape", PayrollAsync);
         await Step("Exports", "Letter as a password-protected PDF", PdfAsync);
     }

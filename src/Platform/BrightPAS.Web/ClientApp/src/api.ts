@@ -45,6 +45,7 @@ export const Perm = {
   LabsView: 'labs.view', LabsAck: 'labs.acknowledge', LabsMatch: 'labs.match',
   ScribeUse: 'scribe.use', ScribeApprove: 'scribe.approve', ScribeManage: 'scribe.manage',
   DevicesUse: 'devices.use', DevicesManage: 'devices.manage',
+  QualityReport: 'quality.report', QualityView: 'quality.view', QualityManage: 'quality.manage',
   EndoView: 'endoscopy.view', EndoWrite: 'endoscopy.write', EndoSign: 'endoscopy.sign', EndoManage: 'endoscopy.manage',
   EmrView: 'emr.view', EmrWrite: 'emr.write', EmrControlledDrugs: 'emr.controlled-drugs',
   TheatreView: 'theatre.view', TheatreBook: 'theatre.book', TheatreManage: 'theatre.manage',
@@ -80,9 +81,10 @@ export const fileToBase64 = (f: File) => new Promise<string>((resolve, reject) =
 export const fileToText = (f: File) => new Promise<string>((resolve, reject) => {
   const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = () => reject(r.error); r.readAsText(f);
 });
-export const nzDateTime = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+export const nzDateTime = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 export const money = (n: number) => n.toLocaleString('en-NZ', { style: 'currency', currency: 'NZD' });
-export const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+/** Today's NZ date (YYYY-MM-DD), daylight saving included, even on a PC set to another time zone. */
+export const todayIso = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Auckland', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 export const addDays = (iso: string, n: number) => { const [y, m, d] = iso.split('-').map(Number); const x = new Date(y, m - 1, d + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 export const errText = (e: unknown) => e instanceof ApiError ? (e.body?.errors?.join(' ') ?? e.body?.message ?? (e.status === 403 ? 'You do not have access to this.' : `Something went wrong (${e.status}).`)) : 'Could not reach BrightPAS. Check your connection.';
 

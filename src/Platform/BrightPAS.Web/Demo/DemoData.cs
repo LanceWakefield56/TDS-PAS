@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using BrightPAS.Core.Data;
@@ -17,6 +18,7 @@ using Emr = BrightPAS.Modules.Emr;
 using Endo = BrightPAS.Modules.Endoscopy;
 using Scr = BrightPAS.Modules.Scribe;
 using Dev = BrightPAS.Modules.Devices;
+using Qm = BrightPAS.Modules.Quality;
 using Let = BrightPAS.Modules.Letters;
 using Msg = BrightPAS.Modules.Messaging;
 using Por = BrightPAS.Modules.Portal;
@@ -60,6 +62,7 @@ public static class DemoAccounts
         new("integration2", "Dana Fox", [DefaultRoles.IntegrationAdministrator], "Second approver for mapping changes"),
         new("roster", "Julie Martin", [DefaultRoles.RosterManager, DefaultRoles.Nurse], "Nurse manager – writes the roster"),
         new("loconnor", "Dr Liam O'Connor", [DefaultRoles.SpecialistPortal], "Visiting urologist (portal only)"),
+        new("quality", "Morgan Hayes (Quality Manager)", [DefaultRoles.QualityManager], "Incidents, complaints, risks, actions, policies, indicators"),
     ];
 }
 
@@ -120,6 +123,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await ScribeAsync(ct);
         await MessagingAsync(ct);
         await DevicesAsync(ct);
+        await QualityAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
 
@@ -137,7 +141,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
     private IDisposable At(DateOnly date, int hour, int minute = 0)
     {
         var local = date.ToDateTime(new TimeOnly(hour, minute));
-        return DemoClock.At(new DateTimeOffset(local, _clock.LocalTimeZone.GetUtcOffset(local)));
+        return DemoClock.At(NzTime.FromLocal(local));
     }
 
     private static void Ok(IReadOnlyList<string> errors, string what)
@@ -490,7 +494,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             Ok((await svc.AssessAsync(e.Id, new Emr.AssessmentRequest(Emr.AssessmentKind.Falls, new Dictionary<string, string> { ["sedation"] = sed ? "yes" : "no", ["age"] = "55" }, null), Actor, ct)).Errors, "falls");
             foreach (var phase in new[] { Emr.CheckPhase.SignIn, Emr.CheckPhase.TimeOut })
                 Ok((await svc.CompleteCheckAsync(e.Id, new Emr.CheckRequest(phase, Emr.EmrService.CheckItems[phase].Select(i => i.Key).ToList(), team, null), Actor, ct)).Errors, "checklist " + phase);
-            var t0 = new DateTimeOffset(sess.Date.ToDateTime(new TimeOnly(9, 0)), TimeSpan.FromHours(13)).AddMinutes(_rng.Next(0, 120));
+            var t0 = NzTime.FromLocal(sess.Date.ToDateTime(new TimeOnly(9, 0))).AddMinutes(_rng.Next(0, 120));
             Ok((await svc.SaveIntraopAsync(e.Id, new Emr.IntraopEdit(t0, t0.AddMinutes(5), t0.AddMinutes(15), t0.AddMinutes(55), t0.AddMinutes(65), "Supine", "Gel head ring, heel pads", "Chlorhexidine 2% in alcohol",
                 "ELEC-01", "Left thigh", true, null, null, null, null, true, "Clean", null, "Island dressing", null), Actor, ct)).Errors, "intraop");
             foreach (var stage in new[] { Emr.CountStage.Initial, Emr.CountStage.Final })
@@ -587,7 +591,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             Ok(await svc.UpdateDetailsAsync(p.Id, new Endo.DetailsEdit(kind, sess.SurgeonId, names.GetValueOrDefault(sess.SurgeonId), "Demo Endoscopy RN, Demo Assistant",
                 up ? Scope("GIF") : null, low ? Scope("CF") : null, tower, low && n % 3 == 0, low && n % 3 == 0 ? $"NBSP{_rng.Next(100000, 999999)}" : null, ind, null, true,
                 Endo.SedationKind.Conscious, "Midazolam and fentanyl", true, false, false, n % 2 == 0, false), Actor, ct), "endoscopy details");
-            var t0 = new DateTimeOffset(sess.Date.ToDateTime(b.TheatreIn ?? sess.StartTime.AddMinutes(30 * b.Order)), TimeSpan.FromHours(13));
+            var t0 = NzTime.FromLocal(sess.Date.ToDateTime(b.TheatreIn ?? sess.StartTime.AddMinutes(30 * b.Order)));
             var lowStart = up ? t0.AddMinutes(10) : t0;
             var reached = !col || n % 7 != 5;
             var withdrawal = 6 + _rng.Next(0, 9) + (n % 6 == 4 ? -2 : 0);
@@ -675,7 +679,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             return Must(row, errors, "equipment " + no).Id;
         }
         var washer = await E("WD-01", "Washer-disinfector", Ast.EquipmentCategory.Washer, "Belimed", "WD 290 IQ", null, Ast.RiskClass.High, belimed, 85000);
-        var steriliser = await E("ST-01", "Steam steriliser", Ast.EquipmentCategory.Steriliser, "Belimed", "MST-V 6-6-9", null, Ast.RiskClass.High, belimed, 120000);
+        var steriliser = await E("ST-01", "Sterilizer 1", Ast.EquipmentCategory.Steriliser, "Belimed", "MST-V 6-6-9", null, Ast.RiskClass.High, belimed, 120000);
         var aer = await E("AER-01", "Endoscope reprocessor", Ast.EquipmentCategory.Aer, "Olympus", "OER-Elite", null, Ast.RiskClass.High, olympus, 60000);
         await E("DRY-01", "Scope drying cabinet", Ast.EquipmentCategory.DryingCabinet, "Olympus", "ETD-Dry", null, Ast.RiskClass.Medium, olympus, 25000);
         var scopes = new List<Guid>();
@@ -1315,7 +1319,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             n++;
             var p = await S<PatientsDbContext>().Patients.AsNoTracking().SingleAsync(x => x.Id == pid, ct);
             if (p.Nhi is null) continue;
-            var at = new DateTimeOffset(_today.AddDays(-(n % 9) - 1).ToDateTime(new TimeOnly(10 + n % 6, 15)), TimeSpan.FromHours(13));
+            var at = NzTime.FromLocal(_today.AddDays(-(n % 9) - 1).ToDateTime(new TimeOnly(10 + n % 6, 15)));
             var sex = p.Sex == BirthSex.Female ? 'F' : 'M';
             string raw = n switch
             {
@@ -1400,7 +1404,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         {
             var pdf = Pdf.PdfReports.Letter(new Pdf.LetterheadData("Tasman Day Surgery (DEMO)", "1 Demonstration Way, Richmond", "03 555 0100", null),
                 new Pdf.LetterData($"CONSENT-{b.Id.ToString()[..6]}", "Patient", null, "Consent to treatment", $"I consent to: {b.Procedure}.\n\nRisks discussed: bleeding, infection, pain, need for further surgery.\n\nSigned by the patient and {_clinName(KeyOf(s.SurgeonId))}.",
-                new DateTimeOffset(s.Date.ToDateTime(new TimeOnly(7, 30))), false, _clinName(KeyOf(s.SurgeonId))), null);
+                NzTime.FromLocal(s.Date.ToDateTime(new TimeOnly(7, 30))), false, _clinName(KeyOf(s.SurgeonId))), null);
             using (At(s.Date, 7, 45))
                 Ok((await docs.AddAsync(new NewPatientDocument(b.PatientId, b.Id, DocumentCategory.Consent, "Signed consent", "consent.pdf", Convert.ToBase64String(pdf), DocumentSource.Scan), "nurse", ct: ct)).Errors, "consent document");
         }
@@ -1528,6 +1532,90 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         }
     }
 
+    // ------------------------------------------------------------------ Quality management (0.19.0)
+    private async Task QualityAsync(CancellationToken ct)
+    {
+        var q = S<Qm.QualityService>();
+        var ind = S<Qm.IndicatorService>();
+        Ok(await q.SaveSettingsAsync("General Manager; Clinical Governance chair; Director of Nursing", null, "quality", ct), "quality settings");
+        await ind.SeedStarterAsync(ct);
+        var pdb = S<PatientsDbContext>();
+        var pts = await pdb.Patients.AsNoTracking().Where(p => p.MergedIntoId == null).OrderBy(p => p.Mrn).Take(6).Select(p => p.Id).ToListAsync(ct);
+        var mon = await S<Ast.AssetsDbContext>().Equipment.AsNoTracking().Where(e => e.Category == Ast.EquipmentCategory.Monitor).Select(e => (Guid?)e.Id).FirstOrDefaultAsync(ct);
+        var now = _clock.GetUtcNow();
+        async Task<Qm.Incident> Report(int daysAgo, string user, Qm.IncidentCategory c, Qm.Harm h, string where, string what, Guid? patient, bool anon = false, Guid? eq = null)
+        {
+            using (DemoClock.At(now.AddDays(-daysAgo)))
+            {
+                var (i, e) = await q.ReportAsync(new Qm.IncidentReport(now.AddDays(-daysAgo).AddHours(-2), where, c, what, "Patient checked and made safe; team informed.", patient, null, eq, null, h, anon), user, ct);
+                return Must(i, e, "incident");
+            }
+        }
+        // A closed fall with learning, an open SAC 2 medication event awaiting disclosure, a device near miss, an untriaged anonymous report, a staff sharps injury.
+        var fall = await Report(40, "nurse3", Qm.IncidentCategory.Fall, Qm.Harm.Minor, "Recovery (stage 2)", "Patient stood up to go to the bathroom 30 minutes after sedation without calling for help and slid to the floor; small graze to the left elbow.", pts.ElementAtOrDefault(0));
+        Ok(await q.TriageAsync(fall.Id, new Qm.IncidentTriage(4, Qm.Harm.Minor, false, "Morgan Hayes", []), "quality", ct), "triage fall");
+        Ok(await q.FindingsAsync(fall.Id, new Qm.IncidentFindings("Falls risk not re-assessed after sedation; call bell out of reach.", "Busy list; bell clipped to the wall side of the chair.", "After sedation, re-check falls risk and put the call bell in the patient's hand before leaving the bedside."), "quality", ct), "findings fall");
+        Ok(await q.DiscloseAsync(fall.Id, new Qm.DisclosureEdit(now.AddDays(-40), "Patient and husband", "In person", "Apologised; explained what happened and the graze care."), "nurse3", ct), "disclosure fall");
+        var (fa, fe) = await q.NewActionAsync(new Qm.ActionEdit(Qm.ActionSource.Incident, fall.Id, null, "Add post-sedation falls re-check to the recovery discharge checklist", null, "Clinical nurse manager", _today.AddDays(1)), "quality", ct);
+        var fallAction = Must(fa, fe, "fall action");
+        Ok(await q.ActionDoneAsync(fallAction.Id, "Checklist v3 issued 12 Oct; staff briefed at handover (sign-in sheet in the quality folder).", "roster", ct), "action done");
+        Ok(await q.ActionVerifyAsync(fallAction.Id, "quality", ct), "action verified");
+        Ok(await q.CloseIncidentAsync(fall.Id, "quality", ct), "close fall");
+
+        var med = await Report(6, "nurse2", Qm.IncidentCategory.Medication, Qm.Harm.Moderate, "Theatre 1", "Second dose of prophylactic antibiotic given in recovery – the theatre dose had not been charted. Patient developed a rash, treated with antihistamine.", pts.ElementAtOrDefault(1));
+        Ok(await q.TriageAsync(med.Id, new Qm.IncidentTriage(2, Qm.Harm.Moderate, false, "Morgan Hayes", [Qm.Agency.Hqsc]), "quality", ct), "triage med");
+        Ok((await q.NewActionAsync(new Qm.ActionEdit(Qm.ActionSource.Incident, med.Id, null, "Review antibiotic charting at Time Out and Sign Out with the anaesthetists", null, "Dr Ben Kowalski", _today.AddDays(21)), "quality", ct)).Errors, "med action");
+
+        await Report(3, "cssd", Qm.IncidentCategory.EquipmentDevice, Qm.Harm.None, "CSSD", "Steriliser printout showed a temperature dip in the hold phase; load quarantined before release. Near miss.", null, eq: mon);
+        await Report(1, "reception", Qm.IncidentCategory.InformationPrivacy, Qm.Harm.None, "Reception", "Appointment letter for one patient was put in the envelope of another; returned unopened by the recipient.", pts.ElementAtOrDefault(2), anon: true);
+        var sharps = await Report(12, "nurse", Qm.IncidentCategory.StaffInjury, Qm.Harm.Minor, "Theatre 1", "Needlestick from a used suture needle during counting; blood-borne virus protocol followed.", null);
+        Ok(await q.TriageAsync(sharps.Id, new Qm.IncidentTriage(3, Qm.Harm.Minor, false, "Morgan Hayes", [Qm.Agency.WorkSafe]), "quality", ct), "triage sharps");
+
+        // Complaints: one acknowledged and decided on time and closed, one waiting for acknowledgement.
+        var (c1, e1) = await q.NewComplaintAsync(new Qm.ComplaintEdit(_today.AddDays(-30), "Email", "Mr R. Thompson", "r.thompson@example.nz", pts.ElementAtOrDefault(3), "Unhappy that his procedure was cancelled on the morning with no explanation.", "Waiting time", "Morgan Hayes", null), "quality", ct);
+        var comp = Must(c1, e1, "complaint");
+        Ok(await q.ComplaintStepAsync(comp.Id, new Qm.ComplaintStep("acknowledge", _today.AddDays(-28), null, null, null, null), "quality", ct), "ack");
+        Ok(await q.ComplaintStepAsync(comp.Id, new Qm.ComplaintStep("respond", _today.AddDays(-20), "Apologised; explained the emergency that delayed the list and rebooked at the patient's convenience. Advised of the right to contact the HDC and the Advocacy Service.", Qm.ComplaintOutcome.PartlyUpheld, false, false), "quality", ct), "respond");
+        Ok((await q.NewActionAsync(new Qm.ActionEdit(Qm.ActionSource.Complaint, comp.Id, null, "Phone every patient whose list is cancelled on the day before 9 am", null, "Theatre manager", _today.AddDays(30)), "quality", ct)).Errors, "complaint action");
+        Ok((await q.NewComplaintAsync(new Qm.ComplaintEdit(_today.AddDays(-1), "Letter", "Mrs S. Patel", null, pts.ElementAtOrDefault(4), "Invoice was higher than the estimate she was given.", "Billing / cost", "Morgan Hayes", null), "quality", ct)).Errors, "complaint 2");
+        Ok((await q.ComplimentAsync(new Qm.ComplimentEdit(_today.AddDays(-5), "Patient (card)", "Recovery team", "Thank you all for making me feel so calm and cared for."), "quality", ct)).Errors, "compliment");
+
+        // Risks and hazards.
+        Qm.RiskEdit R(bool hz, string t, Qm.RiskCategory c, string owner, int l, int k, string controls, int? rl, int? rk, string? loc = null) =>
+            new(hz, t, c, t, owner, l, k, controls, rl, rk, loc, null, _today.AddMonths(3), Qm.RiskStatus.Open);
+        foreach (var r in new[]
+        {
+            R(false, "Cyber attack or ransomware takes the PAS offline", Qm.RiskCategory.InformationTechnology, "General Manager", 3, 5, "Immutable backups, MFA, EDR, offline downtime forms; import from file for devices.", 2, 4),
+            R(false, "Single anaesthetist cover – list cancellations if unwell", Qm.RiskCategory.Operational, "Clinical director", 3, 3, "Locum agreement; roster review monthly.", 2, 3),
+            R(false, "Emergency transfer to Nelson Hospital delayed", Qm.RiskCategory.Clinical, "Director of Nursing", 2, 5, "Transfer pack, St John agreement, annual simulation.", 1, 5),
+            R(false, "Loss of key CSSD technician knowledge", Qm.RiskCategory.People, "General Manager", 3, 3, "Cross-training; written procedures in the policy register.", 2, 2),
+            R(true, "Manual handling – patient transfers from theatre table", Qm.RiskCategory.HealthAndSafety, "Director of Nursing", 3, 3, "Slide sheets, minimum two staff, annual training.", 2, 2, "Theatre 1"),
+            R(true, "Hot surfaces and steam – steriliser door", Qm.RiskCategory.HealthAndSafety, "CSSD lead", 2, 3, "Heat-resistant gloves; signage; door interlock checked at service.", 1, 2, "CSSD"),
+        }) Ok((await q.SaveRiskAsync(null, r, "quality", ct)).Errors, "risk " + r.Title);
+
+        // Policy register (documents live in SharePoint) with some acknowledgements.
+        var docs = new List<Qm.PolicyDocument>();
+        foreach (var (code, title, ver, owner, ack, months) in new[]
+        {
+            ("TDS-5.9", "Emergency blood collection procedure", "2.1", "Director of Nursing", true, 10),
+            ("TDS-3.2", "Falls prevention and management", "4.0", "Clinical nurse manager", true, 4),
+            ("TDS-4.1", "Incident management and open disclosure", "3.0", "Quality manager", true, 14),
+            ("TDS-1.6", "Complaints management (Right 10)", "2.0", "Quality manager", false, -1),
+            ("TDS-6.4", "Infection prevention – surgical site infection surveillance", "1.3", "IPC nurse", true, 8),
+        })
+        {
+            var (d, de) = await q.SavePolicyAsync(null, new Qm.PolicyEdit(code, title, ver, owner, $"https://tasmandaysurgery.sharepoint.com/sites/policies/{code}.pdf", _today.AddMonths(months), ack, true), "quality", ct);
+            docs.Add(Must(d, de, "policy " + code));
+        }
+        foreach (var u in new[] { "nurse", "nurse2", "nurse3", "roster" }) Ok(await q.AcknowledgeAsync(docs[0].Id, u, ct), "ack policy");
+        Ok(await q.AcknowledgeAsync(docs[1].Id, "nurse", ct), "ack policy 2");
+
+        // Patient satisfaction (entered monthly until surveys are built in).
+        var psat = (await ind.ListAsync(false, ct)).Single(i => i.Code == "PSAT");
+        var first = new DateOnly(_today.Year, _today.Month, 1);
+        for (var m = 6; m >= 1; m--) Ok(await ind.EnterValueAsync(psat.Id, first.AddMonths(-m), 92 + _rng.Next(0, 8), 100, "quality", ct), "psat");
+    }
+
     // ------------------------------------------------------------------ messaging engine
     private async Task MessagingAsync(CancellationToken ct)
     {
@@ -1555,6 +1643,10 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             Msg.InboundHandler.None, null, null, Dir("out-json"), null, null, null, null, true, 3, null, null), "integration", ct), "JSON folder interface");
         I(await svc.SaveInterfaceAsync(new Msg.InterfaceEdit(null, "scan-in", "Scanned results drop folder", Msg.InterfaceDirection.Inbound, Msg.Transport.FolderWatch, Msg.MessageFormat.Hl7v2,
             Msg.InboundHandler.None, null, null, Dir("in"), null, null, null, null, true, 3, null, "Drop .hl7 files here to test."), "integration", ct), "folder watch interface");
+        // Offline fallback (0.18.0): if the laboratory's MLLP link is down, it (or IT) saves the results to this share and BrightPAS files them from there.
+        I(await svc.SaveInterfaceAsync(new Msg.InterfaceEdit(null, "lab-share", "Lab results from a network share (fallback)", Msg.InterfaceDirection.Inbound, Msg.Transport.FolderWatch, Msg.MessageFormat.Hl7v2,
+            Msg.InboundHandler.LabResults, null, null, Dir("lab-share"), null, null, null, null, true, 3, null, "Used when the MLLP link is down: HL7 files saved here are filed as lab results (many messages per file allowed)."), "integration", ct), "lab share interface");
+        await S<SettingsService>().SetAsync(BrightPAS.Web.Api.EndoscopyEndpoints.ImportFolderKey, Dir("endoscopy-share"), "integration", ct);
         I(await svc.SaveInterfaceAsync(new Msg.InterfaceEdit(null, "fhir-partner", "Insurer FHIR API (not live yet)", Msg.InterfaceDirection.Outbound, Msg.Transport.HttpPost, Msg.MessageFormat.Json,
             Msg.InboundHandler.None, null, null, null, "https://partner.example.nz/fhir", null, null, null, false, 3, null, "Switched off until the insurer gives us test credentials."), "integration", ct), "HTTP interface");
 
@@ -1637,7 +1729,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
                 {
                     content = n % 4 == 0
                         ? $"MSH|^~\\&|PARTNER|LAB|BrightPAS|TDS|{s.Date:yyyyMMdd}1500||ADT^A08|ADT{n}|P|2.4\rPID|1||{p.Nhi}^^^NHI^NHI||{p.FamilyName.ToUpperInvariant()}^{p.GivenNames.Split(' ')[0]}||{p.DateOfBirth:yyyyMMdd}|{sex}\r"
-                        : Oru($"PL{n:D4}", p.Nhi, p.FamilyName, p.GivenNames.Split(' ')[0], p.DateOfBirth, sex[0], new DateTimeOffset(s.Date.ToDateTime(new TimeOnly(15, 0)), TimeSpan.FromHours(13)), "Full blood count", "CBC",
+                        : Oru($"PL{n:D4}", p.Nhi, p.FamilyName, p.GivenNames.Split(' ')[0], p.DateOfBirth, sex[0], NzTime.FromLocal(s.Date.ToDateTime(new TimeOnly(15, 0))), "Full blood count", "CBC",
                             [("718-7", "Haemoglobin", (120 + n).ToString(), "g/L", "115-155", "N"), ("777-3", "Platelets", "240", "x10*9/L", "150-400", "N")]);
                     iface = api; flowId = flow1.Id;
                 }

@@ -6,6 +6,7 @@ using BrightPAS.Licensing;
 using BrightPAS.Modules.Endoscopy;
 using BrightPAS.Modules.Patients;
 using BrightPAS.Modules.Theatre;
+using BrightPAS.Web.Integration;
 using BrightPAS.Web.Licensing;
 using static BrightPAS.Modules.Endoscopy.Terminology;
 
@@ -27,16 +28,18 @@ public static class EndoscopyEndpoints
     public sealed record ReportRequest(string Kind, BrightPAS.Web.Security.ExportOptions? Export);
     public sealed record SaveRequest(string Kind);
     public sealed record NbspExtract(DateOnly From, DateOnly To, bool OnlyComplete, BrightPAS.Web.Security.ExportOptions? Export);
-    public sealed record EndoSettings(string? MediaPath, bool DicomEnabled, int DicomPort, string DicomAeTitle, string? DicomCallingAes, bool DicomAnyTower, int? VideoRetentionDays);
+    public sealed record EndoSettings(string? MediaPath, bool DicomEnabled, int DicomPort, string DicomAeTitle, string? DicomCallingAes, bool DicomAnyTower, int? VideoRetentionDays, string? ImportFolder = null);
 
     public const string DicomEnabledKey = "endo.dicom.enabled", DicomPortKey = "endo.dicom.port", DicomAeKey = "endo.dicom.aeTitle",
-        DicomCallingKey = "endo.dicom.callingAes", DicomAnyKey = "endo.dicom.anyTower", RetentionKey = "endo.videoRetentionDays";
+        DicomCallingKey = "endo.dicom.callingAes", DicomAnyKey = "endo.dicom.anyTower", RetentionKey = "endo.videoRetentionDays", ImportFolderKey = "endo.importFolder";
 
     private static async Task<IResult> Guard(Func<Task<IResult>> f)
     {
         try { return await f(); }
         catch (KeyNotFoundException ex) { return Results.NotFound(new { errors = new[] { ex.Message } }); }
         catch (InvalidOperationException ex) { return Results.BadRequest(new { errors = new[] { ex.Message } }); }
+        catch (InvalidDataException ex) { return Results.BadRequest(new { errors = new[] { ex.Message } }); }
+        catch (FellowOakDicom.DicomException ex) { return Results.BadRequest(new { errors = new[] { $"Could not read the DICOM file: {ex.Message}" } }); }
     }
 
     private static async Task<byte[]> Body(HttpRequest req, long max)
@@ -56,7 +59,8 @@ public static class EndoscopyEndpoints
     {
         return new EndoSettings(await s.GetAsync(MediaStore.PathKey) is { Length: > 0 } p ? p : null, await s.GetAsync(DicomEnabledKey) == "true",
             int.TryParse(await s.GetAsync(DicomPortKey), out var port) ? port : 11112, await s.GetAsync(DicomAeKey) is { Length: > 0 } ae ? ae : "BRIGHTPAS_ES",
-            await s.GetAsync(DicomCallingKey), await s.GetAsync(DicomAnyKey) == "true", int.TryParse(await s.GetAsync(RetentionKey), out var r) ? r : null);
+            await s.GetAsync(DicomCallingKey), await s.GetAsync(DicomAnyKey) == "true", int.TryParse(await s.GetAsync(RetentionKey), out var r) ? r : null,
+            await s.GetAsync(ImportFolderKey) is { Length: > 0 } f ? f : null);
     }
 
     public static void MapEndoscopyEndpoints(this IEndpointRouteBuilder app)
@@ -169,9 +173,15 @@ public static class EndoscopyEndpoints
         g.MapPut("/polyps/{itemId:guid}/histology", async (Guid itemId, HistologyEdit r, ClaimsPrincipal u, EndoService svc) => Done(await svc.HistologyAsync(itemId, r, Me(u)))).RequireAuthorization(Permissions.EndoWrite);
 
         // Pictures and video. Pictures/uploads arrive as the raw file body; recordings arrive in numbered chunks.
-        g.MapPost("/procedures/{id:guid}/pictures", (Guid id, HttpRequest req, ClaimsPrincipal u, EndoService svc) => Guard(async () =>
+        g.MapPost("/procedures/{id:guid}/pictures", (Guid id, HttpRequest req, ClaimsPrincipal u, EndoService svc, IServiceProvider sp) => Guard(async () =>
         {
             var data = await Body(req, 500L * 1024 * 1024);
+            if (BrightPAS.Messaging.MessageFile.IsDicom(data))
+            {
+                // A DICOM file saved by the tower (USB / share) while its network connection was down – stored on this procedure.
+                var r = await EndoDicomImport.StoreAsync(EndoDicomImport.Open(data), Me(u), sp, id);
+                return r.Error is not null ? Done(r.Error) : Results.Ok();
+            }
             var type = Imaging.Sniff(data);
             var (m, error) = type is "video/mp4" or "video/webm"
                 ? await svc.AddVideoFileAsync(id, data, MediaSource.Upload, Me(u))
@@ -217,6 +227,28 @@ public static class EndoscopyEndpoints
             if (m is null || await store.OriginalPathAsync(m) is not { } path) return Results.NotFound();
             return Results.File(path, m.OriginalContentType ?? "application/octet-stream", $"endoscopy-{m.Id:N}{Path.GetExtension(path)}");
         }).RequireAuthorization(Permissions.EndoView);
+        // Offline import (0.18.0): DICOM files (or a ZIP of them) copied from the tower by USB or a share while the network was down.
+        // Matched to procedures exactly as if the tower had sent them; anything unmatched waits in Pictures to match.
+        g.MapPost("/import", (HttpRequest req, ClaimsPrincipal u, IServiceProvider sp, BrightPAS.Core.Audit.AuditWriter audit) => Guard(async () =>
+        {
+            var name = FileImportService.Clean(req.Headers["X-File-Name"]);
+            var items = BrightPAS.Messaging.MessageFile.Expand(name, await Body(req, 1024L * 1024 * 1024));
+            var results = new List<ImportItemResult>();
+            foreach (var f in items)
+            {
+                if (!BrightPAS.Messaging.MessageFile.IsDicom(f.Bytes)) { results.Add(new(f.Name, "Rejected", "Not a DICOM file – use Upload on the procedure for JPEG, TIFF or MP4.", null)); continue; }
+                try
+                {
+                    var r = await EndoDicomImport.StoreAsync(EndoDicomImport.Open(f.Bytes), $"file import by {Me(u)}", sp);
+                    results.Add(new(f.Name, r.Error is null ? "Accepted" : "Rejected", r.Error ?? (r.Matched ? (r.Video ? "Video filed to its procedure." : "Picture filed to its procedure.") : "No matching procedure – waiting in Pictures to match."), null));
+                }
+                catch (FellowOakDicom.DicomException ex) { results.Add(new(f.Name, "Rejected", $"Could not read the DICOM file: {ex.Message}", null)); }
+            }
+            var summary = ImportSummary.From(results);
+            await audit.WriteAsync(Me(u), "ImportFile", "Endoscopy", name, reason: $"{summary.Messages} DICOM file(s): {summary.Accepted} stored, {summary.Rejected} rejected");
+            return Results.Ok(summary);
+        })).RequireAuthorization(Permissions.EndoWrite);
+
         g.MapGet("/unmatched", async (EndoService svc) => Results.Ok((await svc.UnmatchedAsync()).Select(m => new { m.Id, m.CapturedAt, m.DicomPatientId, m.DicomPatientName, m.DicomAccession, m.CapturedBy, kind = m.Kind.ToString() })))
             .RequireAuthorization(Permissions.EndoWrite);
         g.MapPost("/media/{mediaId:guid}/assign", (Guid mediaId, AssignRequest r, ClaimsPrincipal u, EndoService svc) => Guard(async () => Done(await svc.AssignAsync(mediaId, r.ProcedureId, Me(u))))).RequireAuthorization(Permissions.EndoWrite);
@@ -317,6 +349,7 @@ public static class EndoscopyEndpoints
             if (string.IsNullOrWhiteSpace(r.DicomAeTitle) || r.DicomAeTitle.Length > 16 || r.DicomAeTitle.Any(c => c < 32 || c > 126 || c == '\\')) errors.Add("AE title is 1–16 plain characters.");
             if (r.VideoRetentionDays is < 30) errors.Add("Keep videos for at least 30 days (or leave blank to keep them).");
             if (r.MediaPath is { Length: > 0 } mp && !Path.IsPathFullyQualified(mp)) errors.Add("The media folder must be a full path, e.g. D:\\BrightPAS\\Endoscopy.");
+            if (r.ImportFolder is { Length: > 0 } inf && !Path.IsPathFullyQualified(inf)) errors.Add("The import folder must be a full path or network share, e.g. \\\\server\\endoscopy-export.");
             if (errors.Count > 0) return Errors(errors);
             await s.SetAsync(MediaStore.PathKey, r.MediaPath?.Trim() ?? "", Me(u));
             await s.SetAsync(DicomEnabledKey, r.DicomEnabled ? "true" : "false", Me(u));
@@ -325,6 +358,7 @@ public static class EndoscopyEndpoints
             await s.SetAsync(DicomCallingKey, r.DicomCallingAes?.Trim() ?? "", Me(u));
             await s.SetAsync(DicomAnyKey, r.DicomAnyTower ? "true" : "false", Me(u));
             await s.SetAsync(RetentionKey, r.VideoRetentionDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "", Me(u));
+            await s.SetAsync(ImportFolderKey, r.ImportFolder?.Trim() ?? "", Me(u));
             host.Reload();
             return Results.Ok();
         }).RequireAuthorization(Permissions.EndoManage);

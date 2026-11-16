@@ -163,6 +163,7 @@ public sealed partial class Scenarios
             dicomCallingAes = TowerAe,
             dicomAnyTower = false,
             videoRetentionDays = orig.TryGetProperty("videoRetentionDays", out var vr) && vr.ValueKind == JsonValueKind.Number ? vr.GetInt32() : (int?)null,
+            importFolder = orig.TryGetProperty("importFolder", out var inf) && inf.ValueKind == JsonValueKind.String ? inf.GetString() : null,
         });
         if (change.Status != 200) return (Outcome.Fail, $"Could not turn on the DICOM node: {change.Text}");
         _restore.Add(async () => await (await As("admin")).PutAsync("/api/endoscopy/settings", JsonSerializer.Deserialize<object>(orig.GetRawText())!));

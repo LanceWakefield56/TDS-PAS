@@ -72,7 +72,10 @@ public sealed class MessagingPipeline(MessagingService messages, FlowService flo
                     }
                     if (i.Handler == InboundHandler.DeviceObservations)
                     {
-                        var d = await sp.GetRequiredService<BrightPAS.Modules.Devices.DeviceService>().IngestAsync(content, ct);
+                        // A file (upload or watched share) holds readings from while the gateway was down: file them by the time of each reading.
+                        var fromFile = m.CreatedBy.StartsWith("file:", StringComparison.Ordinal) || m.CreatedBy.StartsWith("folder:", StringComparison.Ordinal);
+                        var devices = sp.GetRequiredService<BrightPAS.Modules.Devices.DeviceService>();
+                        var d = fromFile ? await devices.ImportAsync(content, ct) : await devices.IngestAsync(content, ct);
                         status = d.Accepted ? MsgStatus.Processed : MsgStatus.Rejected; error = d.Error; patientId = d.PatientId;
                     }
                     else
@@ -320,8 +323,16 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
                     continue;
                 }
                 await using var scope = scopes.CreateAsyncScope();
-                var r = await scope.ServiceProvider.GetRequiredService<MessagingPipeline>().ReceiveAsync(i, content, $"folder:{Path.GetFileName(file)}", null, ct);
-                MoveTo(file, r.Status is MsgStatus.Processed ? "processed" : "failed");
+                var pipeline = scope.ServiceProvider.GetRequiredService<MessagingPipeline>();
+                // An HL7 file written by a device or exported to a share can hold many messages (0.18.0): each is received on its own.
+                var parts = i.Format == MsgFormat.Hl7v2 ? BrightPAS.Messaging.MessageFile.SplitHl7(content) : [content];
+                var allOk = parts.Count > 0;
+                foreach (var part in parts)
+                {
+                    var r = await pipeline.ReceiveAsync(i, part, $"folder:{Path.GetFileName(file)}", null, ct);
+                    allOk &= r.Status is MsgStatus.Processed;
+                }
+                MoveTo(file, allOk ? "processed" : "failed");
                 runtime.Touch(i.Id);
             }
         }

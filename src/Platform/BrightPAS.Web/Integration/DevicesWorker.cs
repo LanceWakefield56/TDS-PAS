@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using Microsoft.EntityFrameworkCore;
 using BrightPAS.Licensing;
 using BrightPAS.Modules.Devices;
@@ -64,7 +65,7 @@ public sealed class DevicesWorker(IServiceScopeFactory scopes, LicenceCache lice
         if (!s.SaferSleepEnabled) return;
         var clock = sp.GetRequiredService<TimeProvider>();
         var local = clock.GetLocalNow();
-        var dayStart = new DateTimeOffset(local.Date, local.Offset).ToUniversalTime();
+        var dayStart = NzTime.StartOfDay(DateOnly.FromDateTime(local.DateTime)).ToUniversalTime();
         var emr = sp.GetRequiredService<EmrDbContext>();
         var svc = sp.GetRequiredService<AnaesthesiaService>();
         var stages = s.SendOn == SendAdtOn.Admission ? DeviceService.ActiveStages : [EpisodeStage.InTheatre, EpisodeStage.Recovery, EpisodeStage.ReadyForDischarge];
@@ -101,8 +102,7 @@ public sealed class DevicesWorker(IServiceScopeFactory scopes, LicenceCache lice
                 location = view.LocationName; surgeon = view.Surgeon; anaes = view.Anaesthetist;
                 if (view.Bookings.FirstOrDefault(b => b.Id == booking.Id) is { } bv)
                 {
-                    var dt = session.Date.ToDateTime(bv.PlannedStart);
-                    planned = new DateTimeOffset(dt, TimeZoneInfo.Local.GetUtcOffset(dt));
+                    planned = NzTime.FromLocal(session.Date, bv.PlannedStart);
                 }
             }
         }

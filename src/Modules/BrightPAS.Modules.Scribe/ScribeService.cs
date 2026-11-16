@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -257,6 +258,43 @@ public sealed class ScribeService(ScribeDbContext db, PatientsDbContext patients
         return null;
     }
 
+    /// <summary>
+    /// Offline fallback (0.18.0): a recording made on a dictaphone, phone or the workstation's own recorder (e.g. when the browser microphone
+    /// or network was not available) is uploaded instead of recording live. Same consent rule; the file becomes the session's audio (encrypted) and
+    /// the session moves on to transcription.
+    /// </summary>
+    public async Task<string?> UploadRecordingAsync(Guid id, string fileName, byte[] data, string user, CancellationToken ct = default)
+    {
+        var s = await OpenAsync(id, ct);
+        if (s.Provider != ScribeProvider.BrightPas) return "Audio is recorded by the external scribe, not BrightPAS.";
+        if (!await HasConsentAsync(s, ct)) return "The patient has not consented to AI recording – a recording cannot be added.";
+        if (s.Status != SessionStatus.Recording || s.AudioChunks > 0) return "This session already has audio.";
+        if (data.Length < 1000) return "The file is empty or too short to be a recording.";
+        if (data.Length > MaxRecordingBytes) return $"The recording is larger than {MaxRecordingBytes / 1024 / 1024} MB – split it, or record at a lower quality.";
+        var type = AudioType(data);
+        if (type is null) return "Not a recording BrightPAS can read – use WAV, MP3, M4A/MP4, OGG or WebM.";
+        await audio.AppendAsync(s.Id, 0, data, ct);
+        s.AudioChunks = 1; s.AudioBytes = data.Length; s.AudioType = type; s.AudioFolder = s.Id.ToString("N");
+        s.Status = SessionStatus.Recorded; s.UpdatedAt = clock.GetUtcNow();
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "UploadRecording", "ScribeSession", s.Id.ToString(), s.PatientId.ToString(), reason: $"{Path.GetFileName(fileName)}, {data.Length / 1024} KB ({type})", ct: ct);
+        return null;
+    }
+
+    public const int MaxRecordingBytes = 100 * 1024 * 1024;
+
+    /// <summary>Recognises a recording by its first bytes (not by the file name): WAV, MP3, MP4/M4A, OGG, WebM.</summary>
+    public static string? AudioType(byte[] b)
+    {
+        bool At(int o, string s) => b.Length >= o + s.Length && s.Select((c, i) => b[o + i] == (byte)c).All(x => x);
+        if (At(0, "RIFF") && At(8, "WAVE")) return "audio/wav";
+        if (At(0, "ID3") || (b.Length > 2 && b[0] == 0xFF && (b[1] & 0xE0) == 0xE0)) return "audio/mpeg";
+        if (At(4, "ftyp")) return "audio/mp4";
+        if (At(0, "OggS")) return "audio/ogg";
+        if (b.Length > 4 && b[0] == 0x1A && b[1] == 0x45 && b[2] == 0xDF && b[3] == 0xA3) return "audio/webm";
+        return null;
+    }
+
     public async Task<string?> StopAsync(Guid id, decimal? seconds, string user, CancellationToken ct = default)
     {
         var s = await OpenAsync(id, ct);
@@ -396,8 +434,8 @@ public sealed class ScribeService(ScribeDbContext db, PatientsDbContext patients
 
     public async Task<IReadOnlyList<AccuracyRow>> AccuracyAsync(DateOnly from, DateOnly to, CancellationToken ct = default)
     {
-        var a = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddDays(-1);
-        var b = new DateTimeOffset(to.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddDays(2);
+        var a = NzTime.StartOfDay(from);
+        var b = NzTime.StartOfDay(to.AddDays(1));
         var rows = (await db.Sessions.AsNoTracking().Where(s => s.Status == SessionStatus.Signed && s.EditPercent != null).ToListAsync(ct)).Where(s => s.SignedAt >= a && s.SignedAt < b).ToList();
         return rows.GroupBy(s => (s.Clinician, Engine: $"{s.SpeechEngine ?? "–"} / {s.DraftEngine ?? "–"}")).OrderBy(g => g.Key.Clinician)
             .Select(g => new AccuracyRow(g.Key.Clinician, g.Key.Engine, g.Count(), Math.Round(g.Average(x => x.EditPercent!.Value), 1), g.Max(x => x.EditPercent))).ToList();

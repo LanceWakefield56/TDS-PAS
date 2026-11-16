@@ -444,3 +444,17 @@ Cross-schema keys (90-reporting.sql): Monitors.EquipmentId → assets.Equipment;
 - **emr.MedicationsGiven** (new columns): Source (Manual, SaferSleep), ExternalRef (the external record's case number – replaced as a set on correction).
 - **msg.Interfaces.Handler**: new values DeviceObservations and AnaesthesiaRecord.
 - Views: reporting.vDeviceCapture (what was offered and what nurses did with it), reporting.vAnaestheticDrug (drugs from current records).
+
+## 0.19.0 – Quality (schema quality)
+Cross-schema keys (90-reporting.sql): Incidents.PatientId, Complaints.PatientId → patients.Patients; Incidents.BookingId → scheduling.Bookings; Incidents.EquipmentId, Risks.EquipmentId → assets.Equipment.
+- **quality.Incidents**: Number (unique, INC-yyyy-nnnn), ReportedAt/By, OccurredAt, Location, Category (Fall, Medication, ClinicalCare, SurgicalProcedural, Anaesthetic, Infection, EquipmentDevice, InformationPrivacy, Staff…), Description, ImmediateAction, PatientId, BookingId, EquipmentId, StaffInvolved, Harm (None–Death), Sac (1–4, null until triaged), AlwaysReport, Status (Reported, Triaged, Investigating, Actions, Closed), Investigator, TriagedBy/At, EscalatedAt, Findings, ContributingFactors, LearningSummary, ClosedBy/At.
+- **quality.Disclosures** (IncidentId): At, By, PersonTold, Method, Notes. **quality.Notifications** (IncidentId, Agency – unique together): NotifiedAt/By, Reference. Agency: Hqsc, AccTreatmentInjury, Medsafe, Hdc, HealthNz, WorkSafe, PrivacyCommissioner, Coroner.
+- **quality.Complaints**: Number (unique), ReceivedOn, ReceivedVia, Complainant, Contact, PatientId, Summary, Category, Status (Received, Acknowledged, Investigating, Responded, Closed), AcknowledgeBy, AcknowledgedOn, DecideBy, ExtensionNotifiedOn, ExtensionReason, RespondedOn, Outcome (Upheld, PartlyUpheld, NotUpheld, Withdrawn), Response, HdcReferral, AdvocacyInvolved, IncidentId, Owner, CreatedAt/By.
+- **quality.Compliments**: ReceivedOn, From, StaffNamed, Text, SharedAt, CreatedBy.
+- **quality.Risks**: Number (unique), IsHazard, Title, Category, Description, Owner, Likelihood, Consequence (1–5), Controls, ResidualLikelihood, ResidualConsequence, Location, EquipmentId, ReviewBy, Status (Open, Monitoring, Closed), UpdatedAt/By.
+- **quality.CorrectiveActions**: Number (unique), Source (Incident, Complaint, InternalAudit, DaaAudit, Risk, Feedback, Other), SourceId, SourceRef, Title, Detail, Owner, DueOn, Status (Open, Done, Verified), Evidence, DoneAt/By, VerifiedAt/By (must differ from DoneBy), CreatedAt/By.
+- **quality.Policies**: Code (unique), Title, Version, Owner, Link, ReviewBy, RequiresAcknowledgement, IsActive, UpdatedAt/By. **quality.PolicyAcknowledgements**: DocumentId, Version, UserName (unique together), At.
+- **quality.Indicators**: Code (unique), Name, Definition, Numerator, Denominator, Calculator (built-in code or null = manual), Scale (100 = %, 1000 = per 1,000), Direction, Target, AlertAt, Owner, Source, IsActive, Sort. **quality.IndicatorValues**: IndicatorId, Month (unique together), NumeratorValue, DenominatorValue, EnteredBy/At.
+- **quality.Settings** (single row): EscalateTo, ExtraNonWorkingDays, UpdatedAt/By. **quality.Sequences**: Key, Next.
+- Views: reporting.vIncident, reporting.vComplaint.
+

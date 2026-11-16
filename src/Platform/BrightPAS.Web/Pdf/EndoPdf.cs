@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Globalization;
 using MigraDoc.DocumentObjectModel;
 using MigraDoc.DocumentObjectModel.Tables;
@@ -18,7 +19,7 @@ public sealed record EndoReportData(Procedure P, Guid BookingId, Guid PatientId,
 public static class EndoPdf
 {
     private static string Yn(bool? b) => b is null ? "—" : b.Value ? "Yes" : "No";
-    private static string T(DateTimeOffset? t) => t?.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) ?? "—";
+    private static string T(DateTimeOffset? t) => t?.ToNz().ToString("HH:mm", CultureInfo.InvariantCulture) ?? "—";
     private static string Enum(string? s) => s is null ? "—" : System.Text.RegularExpressions.Regex.Replace(s, "(?<=[a-z])(?=[A-Z0-9])", " ");
 
     private static string SedationLabel(SedationKind s) => s switch
@@ -169,7 +170,7 @@ public static class EndoPdf
         }
         var pics = d.Pictures.Where(x => x.InReport).ToList();
         if (pics.Count > 0) { sec.AddParagraph("Images", StyleNames.Heading2); Pictures(sec, pics, 3, 5.4, true); }
-        var sig = sec.AddParagraph(d.Signed ? $"Electronically signed by {p.SignedBy} on {p.SignedAt?.ToLocalTime():d MMM yyyy HH:mm}" : "Not signed.");
+        var sig = sec.AddParagraph(d.Signed ? $"Electronically signed by {p.SignedBy} on {p.SignedAt?.ToNz():d MMM yyyy HH:mm}" : "Not signed.");
         sig.Format.SpaceBefore = 14; sig.Format.Font.Italic = true;
         return PdfReports.Render(doc, password);
     }

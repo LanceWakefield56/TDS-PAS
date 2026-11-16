@@ -145,6 +145,15 @@ function Recorder({ id, act }: { id: string; act: (l: string, fn: () => Promise<
         {on && <span className="endo-rec-inline" aria-live="polite">● Recording – speak normally; the patient can ask to stop at any time.</span>}</div>
       {problem && <p className="error-text" role="alert">{problem}</p>}
       <p className="hint">Use a headset or desk microphone. Audio is saved encrypted every few seconds and deleted when the note is signed.</p>
+      {!on && <label className="small">No microphone or network in the room? Record on a dictaphone or phone, then upload the recording here (WAV, MP3, M4A, OGG or WebM, up to 100 MB):
+        <input type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" onChange={async (e) => {
+          const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
+          setProblem(null);
+          await act('upload', async () => {
+            const res = await fetch(`/api/scribe/sessions/${id}/recording`, { method: 'POST', credentials: 'same-origin', headers: { 'X-BrightPAS-Request': '1', 'X-File-Name': encodeURIComponent(f.name), 'Content-Type': 'application/octet-stream' }, body: f });
+            if (!res.ok) { const j = await res.json().catch(() => null); throw new Error(j?.errors?.join(' ') ?? 'The recording was not saved.'); }
+          }, 'Recording uploaded – transcribe it next.');
+        }} /></label>}
     </div>
   );
 }

@@ -233,7 +233,7 @@ function Capture({ r, act, reload, write }: Ctx) {
         <span className="small">{taken} picture(s) this session</span>
       </div>
       <p className="hint">A USB foot pedal can be set to send Space (picture) and R (record) – or F9/F10. Pictures taken with the scope's release button on the tower arrive by DICOM when the tower is connected (Endoscopy › Settings).</p>
-      <label>Add pictures or video from a file (JPEG, PNG, TIFF, MP4, WebM)<input type="file" accept="image/jpeg,image/png,image/tiff,.tif,.tiff,video/mp4,video/webm" multiple onChange={(e) => uploadFiles(e.target.files)} /></label>
+      <label>Add pictures or video from a file (JPEG, PNG, TIFF, MP4, WebM or DICOM from the tower)<input type="file" accept="image/jpeg,image/png,image/tiff,.tif,.tiff,video/mp4,video/webm,.dcm,application/dicom" multiple onChange={(e) => uploadFiles(e.target.files)} /></label>
       <Strip media={r.media.slice(-8)} />
     </div>
   );

@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -73,7 +74,7 @@ public static class PdfReports
         sec.PageSetup.LeftMargin = Unit.FromCentimeter(2); sec.PageSetup.RightMargin = Unit.FromCentimeter(2);
         var footer = sec.Footers.Primary.AddParagraph();
         footer.Format.Font.Size = 7; footer.Format.Font.Color = Colors.Gray;
-        footer.AddText($"{title} · BrightPAS {DateTime.Now:d MMM yyyy HH:mm} · Contains health information – handle under the Health Information Privacy Code · Page ");
+        footer.AddText($"{title} · BrightPAS {DateTimeOffset.UtcNow.ToNz():d MMM yyyy HH:mm} · Contains health information – handle under the Health Information Privacy Code · Page ");
         footer.AddPageField(); footer.AddText(" of "); footer.AddNumPagesField();
         return d;
     }
@@ -114,7 +115,7 @@ public static class PdfReports
             var w = sec.AddParagraph("DRAFT – NOT SENT");
             w.Format.Font.Bold = true; w.Format.Font.Color = Colors.DarkRed; w.Format.SpaceAfter = 6;
         }
-        sec.AddParagraph((l.Date ?? DateTimeOffset.Now).ToLocalTime().ToString("d MMMM yyyy")).Format.SpaceAfter = 12;
+        sec.AddParagraph((l.Date ?? DateTimeOffset.UtcNow).ToNz().ToString("d MMMM yyyy")).Format.SpaceAfter = 12;
         var to = sec.AddParagraph();
         to.AddText(l.RecipientName);
         foreach (var line in (l.RecipientAddress ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) { to.AddLineBreak(); to.AddText(line); }

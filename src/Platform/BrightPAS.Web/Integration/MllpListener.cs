@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Net;
 using System.Net.Sockets;
 using BrightPAS.Licensing;
@@ -90,7 +91,7 @@ public sealed class MllpListener(IServiceScopeFactory scopes, IConfiguration con
 
     private static string TryAck(string raw, string code, string text)
     {
-        try { return Hl7Message.Parse(raw).Ack(code, text, DateTimeOffset.Now); }
+        try { return Hl7Message.Parse(raw).Ack(code, text, DateTimeOffset.UtcNow.ToNz()); }
         catch (Hl7Exception) { return ""; }
     }
 }

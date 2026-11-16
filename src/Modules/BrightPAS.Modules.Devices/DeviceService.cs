@@ -89,7 +89,42 @@ public sealed class DeviceService(DevicesDbContext db, EmrDbContext emr, Patient
     public bool Online(Monitor m, DeviceSettings s) => m.LastSeenAt is { } t && clock.GetUtcNow() - t <= TimeSpan.FromSeconds(s.OfflineAfterSeconds);
 
     // ------------------------------------------------------------------ ingest
-    /// <summary>Takes one monitor ORU (from the messaging engine). Unknown monitors are rejected so the gateway configuration problem is visible.</summary>
+    /// <summary>
+    /// Offline import (0.18.0): one monitor ORU taken from a file (USB export, network share) while the gateway connection was down.
+    /// Readings are filed to whichever patient was connected to the monitor <em>at the time of each reading</em>; the monitor is not marked
+    /// online, nobody is auto-connected, and readings already held (same monitor, measurement and time) are skipped, so a file can be imported twice safely.
+    /// </summary>
+    public async Task<IngestResult> ImportAsync(string raw, CancellationToken ct = default)
+    {
+        MonitorMessage msg;
+        try { msg = DeviceHl7.ParseMonitor(raw, Nz, clock.GetUtcNow()); }
+        catch (Hl7Exception ex) { return new(false, ex.Message, null, 0, null); }
+        var monitors = await db.Monitors.AsNoTracking().Where(m => msg.DeviceKeys.Contains(m.Code)).ToListAsync(ct);
+        var mon = msg.DeviceKeys.Select(k => monitors.FirstOrDefault(m => m.Code == k)).FirstOrDefault(m => m is not null);
+        if (mon is null) return new(false, $"Unknown monitor ({string.Join(", ", msg.DeviceKeys.DefaultIfEmpty("no bed or device id"))}) – add it under Devices › Monitors.", null, 0, null);
+        var s = await SettingsAsync(ct);
+        var now = clock.GetUtcNow();
+        var values = msg.Values.Where(v => DeviceHl7.Plausible(v.Code, v.Value) && v.At <= now.AddMinutes(5)).OrderBy(v => v.At).ToList();
+        if (values.Count == 0) return new(true, null, null, 0, mon.Code);
+        var from = values[0].At.AddSeconds(-s.StoreEverySeconds); var to = values[^1].At.AddSeconds(s.StoreEverySeconds);
+        var assocs = await db.Associations.AsNoTracking().Where(a => a.MonitorId == mon.Id && a.StartedAt <= to && (a.EndedAt == null || a.EndedAt >= from)).ToListAsync(ct);
+        var held = await db.Readings.AsNoTracking().Where(r => r.MonitorId == mon.Id && r.At >= from && r.At <= to).Select(r => new { r.Code, r.At }).ToListAsync(ct);
+        var kept = held.GroupBy(r => r.Code).ToDictionary(g => g.Key, g => g.Select(r => r.At).ToList());
+        var stored = 0; Guid? patient = null;
+        foreach (var v in values)
+        {
+            var times = kept.TryGetValue(v.Code, out var t) ? t : kept[v.Code] = [];
+            if (times.Any(x => Math.Abs((x - v.At).TotalSeconds) < s.StoreEverySeconds)) continue; // already held, or within the keep interval
+            var a = assocs.FirstOrDefault(x => x.StartedAt <= v.At && (x.EndedAt is null || x.EndedAt >= v.At));
+            db.Readings.Add(new Reading { MonitorId = mon.Id, AssociationId = a?.Id, At = v.At, Code = v.Code, Value = v.Value, Unit = v.Unit });
+            times.Add(v.At); stored++;
+            patient ??= a?.PatientId;
+        }
+        await db.SaveChangesAsync(ct);
+        return new(true, null, patient, stored, mon.Code);
+    }
+
+    /// <summary>Takes one monitor ORU from the live gateway connection (messaging engine). Unknown monitors are rejected so the gateway configuration problem is visible.</summary>
     public async Task<IngestResult> IngestAsync(string raw, CancellationToken ct = default)
     {
         MonitorMessage msg;

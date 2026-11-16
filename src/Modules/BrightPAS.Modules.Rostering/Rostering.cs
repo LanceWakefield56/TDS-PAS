@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
@@ -246,6 +247,16 @@ public sealed class RosterService(RosterDbContext db, AuditWriter audit, TimePro
     public static decimal Hours(bool allDay, TimeOnly? start, TimeOnly? end, int breakMinutes) =>
         allDay || start is null || end is null ? 0 : Math.Max(0, Math.Round((decimal)((end.Value - start.Value).TotalMinutes - breakMinutes) / 60m, 2));
 
+    /// <summary>Hours actually worked on a date: worked out from NZ instants, so a shift through the daylight-saving change is an hour
+    /// shorter (September) or longer (April) – as paid under the Holidays Act. A shift ending at or before its start runs past midnight.</summary>
+    public static decimal Hours(DateOnly date, bool allDay, TimeOnly? start, TimeOnly? end, int breakMinutes)
+    {
+        if (allDay || start is null || end is null) return 0;
+        var from = NzTime.FromLocal(date, start.Value);
+        var to = NzTime.EndAfter(from, end.Value <= start.Value ? date.AddDays(1) : date, end.Value);
+        return Math.Max(0, Math.Round((decimal)((to - from).TotalMinutes - breakMinutes) / 60m, 2));
+    }
+
     public async Task<ShiftResult> SaveShiftAsync(ShiftEdit e, string user, CancellationToken ct = default)
     {
         var errors = new List<string>();
@@ -265,7 +276,7 @@ public sealed class RosterService(RosterDbContext db, AuditWriter audit, TimePro
         {
             var (weekStart, weekEnd) = Week(e.Date);
             var week = await db.Shifts.AsNoTracking().Where(x => x.StaffId == e.StaffId && x.Date >= weekStart && x.Date <= weekEnd && x.Id != e.Id).ToListAsync(ct);
-            var total = week.Sum(x => Hours(x.AllDay, x.Start, x.End, x.BreakMinutes)) + Hours(e.AllDay, e.Start, e.End, e.BreakMinutes);
+            var total = week.Sum(x => Hours(x.Date, x.AllDay, x.Start, x.End, x.BreakMinutes)) + Hours(e.Date, e.AllDay, e.Start, e.End, e.BreakMinutes);
             if (total > contracted + 8) warnings.Add($"{staff.Name} would be rostered {total:0.##} hours that week (contracted {contracted:0.##}).");
         }
         if (warnings.Count > 0 && !e.AcceptWarnings) return new(null, errors, warnings);
@@ -301,7 +312,7 @@ public sealed class RosterService(RosterDbContext db, AuditWriter audit, TimePro
         {
             var s = staff.GetValueOrDefault(x.StaffId);
             return new ShiftView(x.Id, x.StaffId, s?.Name ?? "?", s?.Role.ToString() ?? "", s?.Colour ?? 0, x.Date, x.AllDay, x.Start, x.End, x.BreakMinutes,
-                Hours(x.AllDay, x.Start, x.End, x.BreakMinutes), x.Area, x.IsTentative, x.Note, leave.Any(l => l.StaffId == x.StaffId && l.From <= x.Date && l.To >= x.Date));
+                Hours(x.Date, x.AllDay, x.Start, x.End, x.BreakMinutes), x.Area, x.IsTentative, x.Note, leave.Any(l => l.StaffId == x.StaffId && l.From <= x.Date && l.To >= x.Date));
         }).ToList();
     }
 
@@ -322,7 +333,7 @@ public sealed class RosterService(RosterDbContext db, AuditWriter audit, TimePro
         {
             var mine = shifts.Where(x => x.StaffId == s.Id).ToList();
             var leaveDays = leave.Where(l => l.StaffId == s.Id).Sum(l => Math.Min(l.To.DayNumber, to.DayNumber) - Math.Max(l.From.DayNumber, from.DayNumber) + 1);
-            return new HoursRow(s.Id, s.Name, s.Role.ToString(), mine.Sum(x => Hours(x.AllDay, x.Start, x.End, x.BreakMinutes)),
+            return new HoursRow(s.Id, s.Name, s.Role.ToString(), mine.Sum(x => Hours(x.Date, x.AllDay, x.Start, x.End, x.BreakMinutes)),
                 s.ContractedHours is { } c ? Math.Round(c * weeks, 2) : null, mine.Count(x => !x.AllDay), leaveDays);
         }).ToList();
     }
@@ -591,7 +602,7 @@ public sealed class RosterService(RosterDbContext db, AuditWriter audit, TimePro
         {
             var s = staff.GetValueOrDefault(x.StaffId);
             dt.AppendLine(string.Join(",", new[] { s?.Name ?? "?", s?.PayrollCode ?? "", x.Date.ToString("yyyy-MM-dd"), x.Start?.ToString("HH:mm") ?? "", x.End?.ToString("HH:mm") ?? "",
-                x.BreakMinutes.ToString(), Hours(x.AllDay, x.Start, x.End, x.BreakMinutes).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture), x.Area ?? "", x.AllDay ? "Yes" : "", x.Note ?? "" }.Select(Csv)));
+                x.BreakMinutes.ToString(), Hours(x.Date, x.AllDay, x.Start, x.End, x.BreakMinutes).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture), x.Area ?? "", x.AllDay ? "Yes" : "", x.Note ?? "" }.Select(Csv)));
         }
         await audit.WriteAsync(user, "Export", "Payroll", $"{from:yyyy-MM-dd}..{to:yyyy-MM-dd}", reason: $"{people} staff, {grand:0.##} hours", ct: ct);
         return (ts.ToString(), dt.ToString(), people, grand);

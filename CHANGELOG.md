@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.19.0 – 2026-11-16 – **Quality management, incidents and complaints (spec 7.12, 7.14)** – also releases 0.18.0 below
+- **Quality module (ADR 0031, guide H25):**
+  - **Incidents:** any staff member reports from the menu; triage with HQSC **SAC 1–4**; SAC 1–2 and Always Report and Review events escalate with HQSC notification due; **open disclosure** record; external notifications (HQSC, ACC treatment injury, Medsafe, HDC, Health NZ, WorkSafe, Privacy Commissioner, Coroner).
+  - **Complaints:** Code of Rights Right 10 clock in working days (weekends, NZ public holidays with Mondayisation, Matariki, 25 Dec–15 Jan excluded; extra closed days in settings) – acknowledge within 5, decide within 10, extension +20; HDC/advocacy flags. Compliments recorded.
+  - **Risk register** (5×5 matrix with bands), **corrective actions** (owner, due date, sign-off by a second person), **policies** with per-version read acknowledgement.
+  - **Indicators:** built-in library calculated from BrightPAS data (day-of-surgery cancellation, transfers, Surgical Safety Checklist, counts, falls, SAC 1–2, complaint acknowledgement, caecal intubation and adenoma detection rates and more) with SPC charts (p/u/c, 3σ, shift and trend rules), red/amber/green targets and equity grouping.
+  - Quality pack PDF through the secure export; patient merge; reporting views; module set-up wizard; Quality Manager role; demo data and account **quality**.
+- **Daylight saving and leap years everywhere (ADR 0032):** one NZ time helper on every server whatever its time zone – the missing hour in September and the repeated hour in April are handled; steriliser cycles and night shifts across the change keep their real length (a night shift is paid 8 h or 10 h on change nights); date filters, reports and reporting views use NZ days; ages with a 29 February birthday count from 1 March in a common year; a machine record dated 29 February in a common year is refused. Screens show NZ time even on a PC set to another zone.
+- **CSSD:** a cycle record imported from the machine arrives without its contents – scan the trays onto the load (new **Contents** box on the load); it cannot be released until they are listed.
+- Test robot: **Quality** steps; offline import adds a real steriliser record.
+- Not yet: patient surveys/PROMs, SSI surveillance, M&M, PDSA cycles and internal audit forms – these will be built on the form designer (0.22.0).
+
+## 0.18.0 – 2026-11-16 – **Import from file when a connection is down (USB stick, network share)**
+- **Every device and outside system can be fed from a file** when its network link is down (ADR 0030, guide H24). Imported messages go the same way as live ones – through the messaging interface for that module when there is one – so matching, checks, acknowledgement and audit are identical, and anything already received is not filed twice.
+  - **Lab results:** Lab results › Import from file (HL7, many results per file, MLLP-framed or batched, or a ZIP). A **Watch a folder** interface can take results the lab saves to a share (demo: lab-share).
+  - **Monitors:** Monitors & SaferSleep › Import from file – a gateway export is filed to whichever patient was connected to each monitor *at the time of each reading*; the monitor is not shown as online.
+  - **SaferSleep:** records exported to a file are matched and filed like live ones.
+  - **Endoscopy:** Pictures to match › Import DICOM files from the tower (USB export, ZIP with DICOMDIR); a procedure's Upload also takes a DICOM file; Settings › **Import folder** watches a share the tower saves to and moves files to processed\ or failed\. Videos are no longer stored twice when the same DICOM arrives again.
+  - **Scribe:** a recording from a dictaphone or phone can be uploaded to a session instead of recording live (consent still required).
+  - **Messaging:** Import from file on every inbound interface (any format it takes).
+  - **CSSD steriliser cycle records:** CSSD › Loads › Cycle records (USB) – the steriliser's own cycle files (tested with TDS's Sterilizer 1 records) become loads waiting for release with the temperature/pressure **curve** and BrightPAS's checks: plateau time at or above the set temperature against the set hold, plateau within set +3 °C, and saturated steam (temperature vs pressure, ±2 °C). A cycle already held is skipped. A **log folder** can be watched instead.
+- Watched folders now split HL7 files with many messages into separate messages.
+- Test robot: **Offline import (USB / share)** steps – lab file on screen (and again: already held), lab share, monitor export, SaferSleep file, tower DICOM ZIP, endoscopy import folder, dictaphone recording.
+
 ## 0.17.0 – 2026-11-14 – **Devices & SaferSleep: bedside monitor feeds with nurse validation, and the anaesthetic record interface (foundations)**
 - **Devices & SaferSleep module (ADR 0029, spec 6 and 7.6):** built on the messaging engine, so allowed-IP lists, the message store and the message viewer apply.
   - **Bedside monitors (GE CARESCAPE B450 / B1x5 through the CARESCAPE Gateway):** vital signs arrive as HL7 ORU (IEEE 11073 codes; plain labels accepted) – heart rate, pulse, SpO2, NIBP, arterial pressure, respiratory rate, temperature, end-tidal CO2. Units are normalised, impossible values are discarded as artefact, and readings are kept at most every 30 seconds. A monitor BrightPAS does not know is **refused**, so a gateway set-up fault is seen.

@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Security.Claims;
 using BrightPAS.Identity;
 using BrightPAS.Modules.Referrals;
@@ -88,7 +89,7 @@ public static class ReferralsEndpoints
                 (string, double)[] cols = [("Patient", 4.2), ("NHI / MRN", 2.6), ("Procedure", 4.6), ("Specialist", 3.2), ("Priority", 1.9), ("Funder", 1.9), ("Added", 2.0), ("Target", 2.0), ("Days", 1.1), ("Status", 2.2)];
                 var data = rows.Select(w => new[] { w.PatientName, $"{w.Nhi ?? "—"} {w.Mrn}", w.Procedure + (w.Laterality == "NotApplicable" ? "" : $" ({w.Laterality})"), w.Specialist, w.Priority, w.Funder,
                     w.AddedOn.ToString("dd/MM/yy"), w.TargetDate.ToString("dd/MM/yy") + (w.Overdue ? " OVERDUE" : ""), w.DaysWaiting.ToString(), w.Status }).ToList();
-                return await export.ExportPdfAsync(r.Export, "BrightPAS-waitlist", pw => BrightPAS.Web.Pdf.PdfReports.Table("Waitlist", $"{rows.Count} entries · {r.View ?? "all-open"} · {DateTime.Now:d MMMM yyyy}", cols, data, pw),
+                return await export.ExportPdfAsync(r.Export, "BrightPAS-waitlist", pw => BrightPAS.Web.Pdf.PdfReports.Table("Waitlist", $"{rows.Count} entries · {r.View ?? "all-open"} · {DateTimeOffset.UtcNow.ToNz():d MMMM yyyy}", cols, data, pw),
                     Me(u), "WaitlistPdf");
             }
             var csv = await svc.ExportCsvAsync(r.View ?? "all-open", Me(u));

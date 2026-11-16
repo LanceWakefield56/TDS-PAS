@@ -78,6 +78,12 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☐ Scribe next: PAS-SPEECH server build and accuracy testing, NZMT dose checking, speaker diarisation, confirm Medow API
 - ☑ Devices & SaferSleep foundations – 0.17.0 (ADR 0029)
 - ☐ Devices next: capture real CARESCAPE Gateway messages and adjust the mapping; agree the anaesthetic record profile with SaferSleep; clinical sign-off of chart intervals and plausibility limits; Olympus tower status on the Monitors page; overdue-validation prompt on the whiteboard
+- ☑ Import from file / watched share for every inbound connection – 0.18.0 (ADR 0030)
+- ☐ Check offline import against real sample files (Delta lab queue, CARESCAPE export, Olympus USB export, SaferSleep export)
+- ☑ CSSD steriliser cycle records from USB / log folder with curve and plateau checks – 0.19.0 (real Sterilizer 1 files)
+- ☑ Daylight saving and leap years handled throughout – 0.19.0 (ADR 0032)
+- ☑ Quality, incidents and complaints (spec 7.12, 7.14) – 0.19.0 (ADR 0031)
+- ☐ Quality next (with the form designer, 0.22.0): patient surveys/PROMs, SSI surveillance, M&M review, PDSA cycles, internal audit forms; HQSC/ACC notification files when formats are confirmed
 - ☐ Messaging: workflow engine (human tasks, timers, escalation), MLLP/DICOM over TLS, DICOM MWL/MPPS (with endoscopy), drag lines in mapper, C# extension scripts
 - ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends
 - ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)

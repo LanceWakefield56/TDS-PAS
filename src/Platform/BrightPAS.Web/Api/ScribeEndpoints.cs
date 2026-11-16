@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using BrightPAS.Identity;
@@ -116,7 +117,7 @@ public static class ScribeEndpoints
             var draftHighlights = s.Draft is null ? [] : await svc.HighlightsAsync(id, s.Draft);
             string? procedure = null;
             if (s.BookingId is { } bid) procedure = await sp.GetRequiredService<BrightPAS.Modules.Theatre.TheatreDbContext>().Bookings.AsNoTracking().Where(b => b.Id == bid).Select(b => b.Procedure).SingleOrDefaultAsync();
-            var age = DateTime.Today.Year - pt.DateOfBirth.Year - (DateTime.Today.DayOfYear < pt.DateOfBirth.DayOfYear ? 1 : 0);
+            var age = NzTime.Age(pt.DateOfBirth, NzTime.Today(TimeProvider.System));
             await sp.GetRequiredService<BrightPAS.Core.Audit.AuditWriter>().WriteAsync(Me(u), "View", "ScribeSession", id.ToString(), s.PatientId.ToString());
             return Results.Ok(new
             {
@@ -138,6 +139,8 @@ public static class ScribeEndpoints
         }).RequireAuthorization(Permissions.ScribeUse);
         g.MapPost("/sessions/{id:guid}/audio/{seq:int}", (Guid id, int seq, HttpRequest req, ScribeService svc) => Guard(async () =>
             Done(await svc.AppendAudioAsync(id, seq, req.ContentType ?? "audio/webm", await Body(req, 32L * 1024 * 1024))))).RequireAuthorization(Permissions.ScribeUse);
+        g.MapPost("/sessions/{id:guid}/recording", (Guid id, HttpRequest req, ClaimsPrincipal u, ScribeService svc) => Guard(async () =>
+            Done(await svc.UploadRecordingAsync(id, req.Headers["X-File-Name"].ToString(), await Body(req, ScribeService.MaxRecordingBytes + 1), Me(u))))).RequireAuthorization(Permissions.ScribeUse);
         g.MapPost("/sessions/{id:guid}/stop", (Guid id, StopRequest r, ClaimsPrincipal u, ScribeService svc) => Guard(async () => Done(await svc.StopAsync(id, r.Seconds, Me(u))))).RequireAuthorization(Permissions.ScribeUse);
         g.MapPost("/sessions/{id:guid}/transcribe", (Guid id, ClaimsPrincipal u, ScribeService svc, ScribeEngines engines) => Guard(async () =>
         {

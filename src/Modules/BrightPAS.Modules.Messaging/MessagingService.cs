@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -506,8 +507,8 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
         if (q.PatientId is { } pid) query = query.Where(m => m.PatientId == pid);
         if (!string.IsNullOrWhiteSpace(q.Nhi)) { var nhi = q.Nhi.Trim().ToUpperInvariant(); query = query.Where(m => m.Nhi == nhi); }
         if (!string.IsNullOrWhiteSpace(q.Text)) { var t = q.Text.Trim(); query = query.Where(m => m.ControlId == t || m.Reference == t || m.MessageType == t); }
-        if (q.From is { } f) { var from = new DateTimeOffset(f.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddHours(-14); query = query.Where(m => m.CreatedAt >= from); }
-        if (q.To is { } t2) { var to = new DateTimeOffset(t2.ToDateTime(TimeOnly.MaxValue), TimeSpan.Zero).AddHours(14); query = query.Where(m => m.CreatedAt <= to); }
+        if (q.From is { } f) { var from = NzTime.StartOfDay(f); query = query.Where(m => m.CreatedAt >= from); }
+        if (q.To is { } t2) { var to = NzTime.StartOfDay(t2.AddDays(1)); query = query.Where(m => m.CreatedAt < to); }
         var rows = await query.OrderByDescending(m => m.CreatedAt).Take(Math.Clamp(q.Take, 1, 1000)).ToListAsync(ct);
         return await RowsAsync(rows, ct);
     }

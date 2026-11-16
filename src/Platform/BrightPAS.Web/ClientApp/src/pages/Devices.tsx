@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { api, errText, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
+import FileImport from '../components/FileImport';
 
 const fmt = (v: number, code: string) => Number(v).toFixed(code === 'Temp' ? 1 : 0);
 
@@ -11,13 +12,19 @@ export default function Devices() {
   const manage = can(Perm.DevicesManage);
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'monitors';
-  const tabs: [string, string][] = [['monitors', 'Monitors'], ['safersleep', 'SaferSleep'], ...(manage ? [['settings', 'Settings'] as [string, string]] : [])];
+  const tabs: [string, string][] = [['monitors', 'Monitors'], ['safersleep', 'SaferSleep'], ...(can(Perm.DevicesUse) ? [['import', 'Import from file'] as [string, string]] : []), ...(manage ? [['settings', 'Settings'] as [string, string]] : [])];
   return (
     <div className="stack-lg">
       <h1>Monitors &amp; SaferSleep</h1>
       <div className="tabs" role="tablist">{tabs.map(([k, t]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setParams({ tab: k })}>{t}</button>)}</div>
       {tab === 'monitors' && <Monitors manage={manage} />}
       {tab === 'safersleep' && <SaferSleep manage={manage} />}
+      {tab === 'import' && can(Perm.DevicesUse) && <div className="stack">
+        <FileImport url="/api/imports/monitors" title="Monitor readings from a file" accept=".hl7,.txt,.zip,.dat"
+          hint="When the monitor network or the CARESCAPE Gateway was down: export the readings from the gateway or central station as HL7 (USB or network share) and choose the file. Readings are filed to whichever patient was connected to that monitor at the time of each reading; readings already held are skipped. They appear in the trend – chart any you need with the nurse's validation as usual." />
+        <FileImport url="/api/imports/safersleep" title="SaferSleep anaesthetic records from a file" accept=".hl7,.txt,.zip"
+          hint="When the SaferSleep link was down: export the completed record from SaferSleep as HL7 (with its PDF) and choose the file. It is matched and filed like a live record; a record already received is not filed twice." />
+      </div>}
       {tab === 'settings' && manage && <Settings />}
     </div>
   );

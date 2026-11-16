@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { addDays, api, errText, formatDate, nzDateTime, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import ExportButton from '../components/ExportButton';
+import FileImport from '../components/FileImport';
 
 export const KIND: Record<string, string> = { Gastroscopy: 'Gastroscopy', Colonoscopy: 'Colonoscopy', FlexibleSigmoidoscopy: 'Flexible sigmoidoscopy', Bidirectional: 'Gastroscopy + colonoscopy' };
 export const STATUS: Record<string, string> = { NotStarted: 'Not started', Planned: 'Planned', InProgress: 'In progress', Completed: 'Completed – to sign', Signed: 'Signed' };
@@ -68,6 +69,8 @@ function Unmatched() {
     <div className="stack">
       <p className="hint">Pictures that arrived from a tower without a worklist entry (e.g. the patient was typed in on the tower). Check the picture and the tower's patient details, then choose the procedure.</p>
       {error && <p className="error" role="alert">{error}</p>}{msg && <p className="ok-text" role="status">{msg}</p>}
+      <FileImport url="/api/endoscopy/import" title="Import DICOM files from the tower" accept=".dcm,.dicom,.zip,application/dicom" onDone={load}
+        hint="When the tower could not reach BrightPAS: export the study from the tower or capture box to a USB stick (DICOM files, or a ZIP of them) and choose the files. Pictures and videos are filed to their procedure by accession number exactly as if the tower had sent them; anything unmatched appears below. A folder the tower saves to can also be watched automatically (Settings › Import folder)." />
       {!rows ? <p>Loading…</p> : rows.length === 0 ? <p className="muted">Nothing to match.</p> : (
         <div className="endo-gallery">{rows.map((m) => <figure key={m.id} className="endo-thumb">
           <img src={`/api/endoscopy/media/${m.id}`} alt={`From ${m.capturedBy}`} />
@@ -158,12 +161,12 @@ function Settings() {
   const [advice, setAdvice] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const load = async () => { const x = await api('/api/endoscopy/settings'); setD(x); setS({ ...x.settings, mediaPath: x.settings.mediaPath ?? '', dicomCallingAes: x.settings.dicomCallingAes ?? '', videoRetentionDays: x.settings.videoRetentionDays ?? '' }); setAdvice(await api('/api/endoscopy/advice')); };
+  const load = async () => { const x = await api('/api/endoscopy/settings'); setD(x); setS({ ...x.settings, mediaPath: x.settings.mediaPath ?? '', dicomCallingAes: x.settings.dicomCallingAes ?? '', videoRetentionDays: x.settings.videoRetentionDays ?? '', importFolder: x.settings.importFolder ?? '' }); setAdvice(await api('/api/endoscopy/advice')); };
   useEffect(() => { load().catch((e) => setError(errText(e))); }, []);
   if (!s) return error ? <p className="error">{error}</p> : <p>Loading…</p>;
   const save = async () => {
     setError(null); setMsg(null);
-    try { await api('/api/endoscopy/settings', { method: 'PUT', body: { ...s, mediaPath: s.mediaPath || null, dicomPort: Number(s.dicomPort), videoRetentionDays: s.videoRetentionDays === '' ? null : Number(s.videoRetentionDays) } }); setMsg('Settings saved.'); setTimeout(() => load(), 1500); }
+    try { await api('/api/endoscopy/settings', { method: 'PUT', body: { ...s, mediaPath: s.mediaPath || null, dicomPort: Number(s.dicomPort), videoRetentionDays: s.videoRetentionDays === '' ? null : Number(s.videoRetentionDays), importFolder: s.importFolder || null } }); setMsg('Settings saved.'); setTimeout(() => load(), 1500); }
     catch (x) { setError(errText(x)); }
   };
   return (
@@ -174,7 +177,9 @@ function Settings() {
       <div className="form-grid">
         <label>Media folder (blank = {d.defaultMediaPath})<input value={s.mediaPath} onChange={(e) => setS({ ...s, mediaPath: e.target.value })} placeholder={d.defaultMediaPath} /></label>
         <label>Delete videos after (days, blank = keep)<input type="number" value={s.videoRetentionDays} onChange={(e) => setS({ ...s, videoRetentionDays: e.target.value })} /></label>
+        <label>Import folder – USB / network share fallback (blank = off)<input value={s.importFolder} onChange={(e) => setS({ ...s, importFolder: e.target.value })} placeholder="e.g. \\\\server\\endoscopy-export" /></label>
       </div>
+      <p className="hint">If the tower cannot reach BrightPAS over DICOM, set it (or the capture box) to save DICOM files to this folder; BrightPAS files them every minute and moves each to processed\\ or failed\\. The BrightPAS service account needs change access to the folder.{d.dicom.importProblem ? <span className="error-text"> {d.dicom.importProblem}</span> : null}</p>
       <h2>Olympus tower (DICOM)</h2>
       <p className="small">{d.dicom.enabled ? (d.dicom.listening ? <span className="ok-text">Listening on port {d.dicom.port} as {d.dicom.aeTitle}. {d.dicom.images} picture(s), {d.dicom.videos} video(s), {d.dicom.worklist} worklist request(s) since start{d.dicom.lastActivity ? `; last ${nzDateTime(d.dicom.lastActivity)}` : ''}.</span>
         : <span className="error-text">{d.dicom.error ?? 'Not listening.'}</span>) : 'Off.'}</p>

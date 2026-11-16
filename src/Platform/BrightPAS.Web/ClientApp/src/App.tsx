@@ -10,6 +10,7 @@ import EndoscopyProcedure from './pages/EndoscopyProcedure';
 import Scribe from './pages/Scribe';
 import ScribeSession from './pages/ScribeSession';
 import Devices from './pages/Devices';
+import { Quality, QualityComplaint, QualityIncident, QualityMine, ReportIncident } from './pages/Quality';
 import Stock from './pages/Stock';
 import Shell from './components/Shell';
 import SignIn from './pages/SignIn';
@@ -165,6 +166,11 @@ export default function App() {
           <Route path="/emr/:bookingId" element={allowed(mod('emr') && can(Perm.EmrView), <EmrEpisode />)} />
           <Route path="/scribe" element={allowed(mod('scribe') && (can(Perm.ScribeUse) || can(Perm.ScribeManage) || can(Perm.ScribeApprove)), <Scribe />)} />
           <Route path="/devices" element={allowed(mod('devices') && (can(Perm.DevicesUse) || can(Perm.DevicesManage)), <Devices />)} />
+          <Route path="/quality" element={allowed(mod('quality') && (can(Perm.QualityView) || can(Perm.QualityManage)), <Quality />)} />
+          <Route path="/quality/incidents/:id" element={allowed(mod('quality') && (can(Perm.QualityView) || can(Perm.QualityManage)), <QualityIncident />)} />
+          <Route path="/quality/complaints/:id" element={allowed(mod('quality') && (can(Perm.QualityView) || can(Perm.QualityManage)), <QualityComplaint />)} />
+          <Route path="/quality/report" element={allowed(mod('quality') && can(Perm.QualityReport), <ReportIncident />)} />
+          <Route path="/quality/mine" element={allowed(mod('quality') && can(Perm.QualityReport), <QualityMine />)} />
           <Route path="/scribe/:id" element={allowed(mod('scribe') && can(Perm.ScribeUse), <ScribeSession />)} />
           <Route path="/endoscopy" element={allowed(mod('endoscopy') && can(Perm.EndoView), <Endoscopy />)} />
           <Route path="/endoscopy/:bookingId" element={allowed(mod('endoscopy') && can(Perm.EndoView), <EndoscopyProcedure />)} />

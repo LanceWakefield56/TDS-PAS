@@ -43,7 +43,7 @@ public class DevicesTests
         Assert.Throws<BrightPAS.Messaging.Hl7.Hl7Exception>(() => DeviceHl7.ParseMonitor("MSH|^~\\&|X|Y|Z|W|20261109||ADT^A01|1|P|2.4\r", TimeZoneInfo.Utc, at));
     }
 
-    private static async Task<(Episode Episode, Patient Patient)> AdmittedAsync(ModulesHost h, IServiceProvider sp, string nhi = "ZSC21TN", string family = "Ngātai")
+    internal static async Task<(Episode Episode, Patient Patient)> AdmittedAsync(ModulesHost h, IServiceProvider sp, string nhi = "ZSC21TN", string family = "Ngātai")
     {
         var p = await h.PatientAsync(family, nhi: nhi);
         var emr = sp.GetRequiredService<EmrService>();

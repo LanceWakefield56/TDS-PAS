@@ -1,3 +1,4 @@
+using BrightPAS.Core;
 using System.Globalization;
 using System.Numerics;
 using Microsoft.EntityFrameworkCore;
@@ -405,6 +406,7 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
         var type = Imaging.Sniff(data);
         if (type is not ("video/mp4" or "video/webm")) return (null, "Only MP4 or WebM video can be stored.");
         var p = await OpenAsync(procedureId, ct, allowSigned: true);
+        if (dicom?.SopInstanceUid is { Length: > 0 } sop && await db.Media.AnyAsync(x => x.SopInstanceUid == sop, ct)) return (await db.Media.SingleAsync(x => x.SopInstanceUid == sop, ct), null);
         var m = new Media
         {
             ProcedureId = p.Id,
@@ -599,8 +601,8 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
     /// <summary>Quality indicators per endoscopist (and "All") for completed/signed procedures whose date falls in the range.</summary>
     public async Task<IReadOnlyList<KpiRow>> KpisAsync(DateOnly from, DateOnly to, CancellationToken ct = default)
     {
-        var start = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddDays(-1);
-        var end = new DateTimeOffset(to.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddDays(2);
+        var start = NzTime.StartOfDay(from);
+        var end = NzTime.StartOfDay(to.AddDays(1));
         var procs = await db.Procedures.AsNoTracking().Where(p => p.Status == ProcedureStatus.Completed || p.Status == ProcedureStatus.Signed).ToListAsync(ct);
         procs = procs.Where(p => (p.InsertedAt ?? p.UpperStartAt ?? p.CreatedAt) is var d && d >= start && d < end).ToList();
         var ids = procs.Select(p => p.Id).ToList();
@@ -608,6 +610,23 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
         var rows = procs.GroupBy(p => p.EndoscopistName ?? "(not recorded)").OrderBy(g => g.Key).Select(g => Row(g.Key, g.ToList(), polyps)).ToList();
         if (rows.Count != 1) rows.Add(Row("All endoscopists", procs, polyps));
         return rows;
+    }
+
+    /// <summary>One row per completed colonoscopy in the period, for the quality indicator library (0.19.0): caecum reached and adenoma found.</summary>
+    public sealed record ColonoscopyOutcome(Guid ProcedureId, Guid BookingId, Guid PatientId, DateOnly On, bool CaecumReached, bool Adenoma);
+
+    public async Task<IReadOnlyList<ColonoscopyOutcome>> ColonoscopyOutcomesAsync(DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        var start = NzTime.StartOfDay(from);
+        var end = NzTime.StartOfDay(to.AddDays(1));
+        var procs = await db.Procedures.AsNoTracking().Where(p => p.Status == ProcedureStatus.Completed || p.Status == ProcedureStatus.Signed).ToListAsync(ct);
+        procs = procs.Where(p => IsColonoscopy(p.Kind) && (p.InsertedAt ?? p.UpperStartAt ?? p.CreatedAt) is var d && d >= start && d < end).ToList();
+        var ids = procs.Select(p => p.Id).ToList();
+        var polyps = (await db.Polyps.AsNoTracking().Where(x => ids.Contains(x.ProcedureId)).ToListAsync(ct)).ToLookup(x => x.ProcedureId);
+        var nz = NzTime.Zone;
+        return procs.Select(p => new ColonoscopyOutcome(p.Id, p.BookingId, p.PatientId, DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(p.InsertedAt ?? p.UpperStartAt ?? p.CreatedAt, nz).DateTime),
+                CaecumReached(p), polyps[p.Id].Any(x => IsAdenoma(x.Histology))))
+            .Where(o => o.On >= from && o.On <= to).ToList();
     }
 
     private static decimal? Pct(int n, int d) => d == 0 ? null : Math.Round(100m * n / d, 1);
@@ -646,8 +665,8 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
     public async Task<IReadOnlyList<NbspRow>> NbspAsync(DateOnly from, DateOnly to, CancellationToken ct = default)
     {
         var procs = await db.Procedures.AsNoTracking().Include(p => p.Indications).Where(p => p.NbspScreening).ToListAsync(ct);
-        var start = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddDays(-1);
-        var end = new DateTimeOffset(to.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddDays(2);
+        var start = NzTime.StartOfDay(from);
+        var end = NzTime.StartOfDay(to.AddDays(1));
         procs = procs.Where(p => (p.InsertedAt ?? p.CreatedAt) is var d && d >= start && d < end).OrderBy(p => p.InsertedAt ?? p.CreatedAt).ToList();
         var ids = procs.Select(p => p.Id).ToList();
         var polyps = (await db.Polyps.AsNoTracking().Where(x => ids.Contains(x.ProcedureId)).ToListAsync(ct)).ToLookup(x => x.ProcedureId);
@@ -664,7 +683,7 @@ public sealed class EndoService(EndoDbContext db, MediaStore store, SettingsServ
             if (p.Status != ProcedureStatus.Signed) problems.Add("report not signed");
             var awaited = removed.Count(x => x.Retrieved == "Yes" && x.Histology is null);
             if (awaited > 0) problems.Add($"histology awaited for {awaited} polyp(s)");
-            return new NbspRow(p.Id, p.PatientId, p.AccessionNumber, p.NbspNumber, DateOnly.FromDateTime((p.InsertedAt ?? p.CreatedAt).ToLocalTime().DateTime), p.Status.ToString(),
+            return new NbspRow(p.Id, p.PatientId, p.AccessionNumber, p.NbspNumber, DateOnly.FromDateTime((p.InsertedAt ?? p.CreatedAt).ToNz().DateTime), p.Status.ToString(),
                 p.EndoscopistName, p.EndoscopistId, p.Kind.ToString(), string.Join("; ", p.Indications.Select(i => IndicationLabel(i.Code))), p.Sedation.ToString(), p.LowerExtent?.ToString(),
                 CaecumReached(p), p.TerminalIleum, BbpsTotal(p), AdequatePrep(p), WithdrawalMinutes(p), p.Comfort,
                 pl.Count, removed.Count, removed.Count(x => x.Retrieved == "Yes"), pl.Count == 0 ? null : pl.Max(x => x.SizeMm), adenomas.Count, advanced, pl.Count(x => IsSerrated(x.Histology)),
