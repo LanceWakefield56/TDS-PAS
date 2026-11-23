@@ -91,12 +91,15 @@ public static class Permissions
     public const string CodingCode = "coding.code";
     public const string CodingSubmit = "coding.submit";
     public const string CodingManage = "coding.manage";
+    // Procedure estimates module (0.21.0)
+    public const string EstimatesBuild = "estimates.build";
+    public const string EstimatesManage = "estimates.manage";
 
     /// <summary>Policy name allowing ANY of the given permissions (0.12.4), e.g. forms listed for staff who send OR triage them. Registered in <see cref="AnyOfPolicies"/>.</summary>
     public static string AnyOf(params string[] permissions) => string.Join('|', permissions);
 
     /// <summary>Every "any of" policy used by an endpoint; each part must be a real permission (checked by the endpoint security test).</summary>
-    public static readonly IReadOnlyList<string> AnyOfPolicies = [AnyOf(FormsSend, FormsTriage), AnyOf(ScribeUse, ScribeApprove, ScribeManage), AnyOf(DevicesUse, DevicesManage), AnyOf(QualityView, QualityManage), AnyOf(CodingCode, CodingSubmit, CodingManage)];
+    public static readonly IReadOnlyList<string> AnyOfPolicies = [AnyOf(FormsSend, FormsTriage), AnyOf(ScribeUse, ScribeApprove, ScribeManage), AnyOf(DevicesUse, DevicesManage), AnyOf(QualityView, QualityManage), AnyOf(CodingCode, CodingSubmit, CodingManage), AnyOf(EstimatesBuild, EstimatesManage)];
     /// <summary>Scribe templates and dictionary can be read by clinicians, approvers and scribe administrators.</summary>
     public static string ScribeAny => AnyOf(ScribeUse, ScribeApprove, ScribeManage);
     /// <summary>Monitor status and the anaesthetic record can be read by clinicians using devices and by device administrators.</summary>
@@ -104,6 +107,8 @@ public static class Permissions
     public static string QualityAny => AnyOf(QualityView, QualityManage);
     /// <summary>The coding queue, code search and advice can be read by coders, by staff who submit files and by coding administrators.</summary>
     public static string CodingAny => AnyOf(CodingCode, CodingSubmit, CodingManage);
+    /// <summary>Estimates and the price list can be read by staff who build estimates and by estimates administrators.</summary>
+    public static string EstimatesAny => AnyOf(EstimatesBuild, EstimatesManage);
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -113,7 +118,7 @@ public static class Permissions
         BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage,
         CredentialingView, CredentialingManage, PortalSpecialist, PortalManage, MessagingView,
         AssetsView, AssetsManage, CssdProcess, CssdRelease, StockManage, PurchasingApprove, EmrView, EmrWrite, EmrControlledDrugs,
-        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage
+        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage, EstimatesBuild, EstimatesManage
     ];
 }
 
@@ -150,7 +155,7 @@ public static class DefaultRoles
             [Reception] = ("Registers patients and manages bookings.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.PatientEdit, Permissions.TheatreView, Permissions.TheatreBook,
                  Permissions.TheatreManage, Permissions.FormsSend, Permissions.BillingView, Permissions.BillingManage, Permissions.LabsMatch, Permissions.RemindersView,
-                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.PortalManage, Permissions.QualityReport]),
+                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.PortalManage, Permissions.QualityReport, Permissions.EstimatesBuild]),
             [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.PatientRegister, Permissions.TheatreBook, Permissions.FormsSend,
                  Permissions.FormsTriage, Permissions.LabsMatch, Permissions.RemindersView, Permissions.ReferralsView, Permissions.ReferralsManage,
                  Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.AssetsView, Permissions.CssdProcess, Permissions.StockManage, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs, Permissions.EndoView, Permissions.EndoWrite, Permissions.ScribeUse, Permissions.DevicesUse]),
@@ -159,7 +164,7 @@ public static class DefaultRoles
                  Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",
                 [Permissions.PatientView, Permissions.RosterView, Permissions.AssetsView, Permissions.AssetsManage, Permissions.CssdProcess, Permissions.CssdRelease, Permissions.StockManage, Permissions.QualityReport]),
-            [Finance] = ("Billing, invoices and payments.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees, Permissions.AssetsView, Permissions.PurchasingApprove, Permissions.QualityReport]),
+            [Finance] = ("Billing, invoices and payments; procedure estimates and the estimates price list.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees, Permissions.AssetsView, Permissions.PurchasingApprove, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.EstimatesManage]),
             [PracticeAssistant] = ("Specialist's practice assistant: bookings for their specialist's patients.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.TheatreView, Permissions.TheatreBook, Permissions.FormsSend, Permissions.LabsView,
                  Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist]),

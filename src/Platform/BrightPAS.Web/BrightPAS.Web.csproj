@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Devices\BrightPAS.Modules.Devices.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Quality\BrightPAS.Modules.Quality.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Coding\BrightPAS.Modules.Coding.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Estimates\BrightPAS.Modules.Estimates.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Portal\BrightPAS.Modules.Portal.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Messaging\BrightPAS.Modules.Messaging.csproj" />
   </ItemGroup>
@@ -42,6 +43,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Pdf\Fonts\*.ttf" />
+    <EmbeddedResource Include="Pdf\Estimates\*.png" />
+    <EmbeddedResource Include="Demo\Estimates\*.xlsx" />
     <None Include="Pdf\Fonts\OFL-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="tessdata\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

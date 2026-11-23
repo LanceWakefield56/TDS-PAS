@@ -53,6 +53,8 @@ public sealed class RoleAdminService(RoleManager<PasRole> roles, UserManager<Pas
         [Permissions.CodingCode] = ("Coding & reporting", "Code discharged events (coder workbench), record Health NZ errors, NBRS entries"),
         [Permissions.CodingSubmit] = ("Coding & reporting", "Create, download and send NMDS and NBRS files; load acknowledgements"),
         [Permissions.CodingManage] = ("Coding & reporting", "Coding settings, clinical code table import, procedure picklists, advice library, clinician registrations"),
+        [Permissions.EstimatesBuild] = ("Procedure estimates", "Build, issue, email and print estimates; save to Incisive; search estimates; the email outbox"),
+        [Permissions.EstimatesManage] = ("Procedure estimates", "Price list (procedures, surgeon fees, surgeons, add-ons, specialties), templates, stock and costing, pricing imports, estimate settings and wording"),
         [Permissions.LabsView] = ("Lab results", "View lab results"),
         [Permissions.LabsAcknowledge] = ("Lab results", "Acknowledge lab results"),
         [Permissions.LabsMatch] = ("Lab results", "Match unmatched results to patients"),

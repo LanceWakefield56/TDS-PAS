@@ -418,3 +418,10 @@ a.tile.tile-bad strong { color: #A02B1F; }
 .prewrap { white-space: pre-wrap; }
 svg.spc { width: 100%; max-width: 760px; height: auto; background: #fff; }
 .row-warn td { background: var(--warn-bg); }
+/* Procedure estimates (0.21.0): builder form on the left, live totals and warnings on the right. */
+.est-builder { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); gap: 1.25rem; align-items: start; }
+.est-form { border: 0; padding: 0; margin: 0; min-width: 0; }
+.est-totals { position: sticky; top: 1rem; }
+.est-totals .totals { width: 100%; }
+@media (max-width: 1000px) { .est-builder { grid-template-columns: 1fr; } .est-totals { position: static; } }
+.est-list .choice { display: block; width: 100%; text-align: left; }

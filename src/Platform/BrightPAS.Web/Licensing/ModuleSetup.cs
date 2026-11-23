@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -71,6 +71,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "devices" => await DevicesChecksAsync(ct),
         "quality" => await QualityChecksAsync(ct),
         "reporting" => await CodingChecksAsync(ct),
+        "estimates" => await EstimatesChecksAsync(ct),
         _ => []
     };
 
@@ -287,6 +288,37 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 users > 0, $"{users} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
             new("safersleep", "SaferSleep interface", "Optional: switch on SaferSleep, with an outbound MLLP interface (patient and booking to SaferSleep) and an inbound one with the handler 'SaferSleep anaesthetic record'. Confirm the message profile with SaferSleep.",
                 s.SaferSleepEnabled && ssIn && ssOut, !s.SaferSleepEnabled ? "Off." : $"Out: {(ssOut ? s.SaferSleepOutCode : "missing")}; in: {(ssIn ? "set up" : "missing")}.", true, "Open device settings", "/devices?tab=settings", Permissions.DevicesManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> EstimatesChecksAsync(CancellationToken ct)
+    {
+        var db = Svc<BrightPAS.Modules.Estimates.EstDbContext>();
+        var procs = await db.Procedures.CountAsync(p => p.IsActive, ct);
+        var noFacility = await db.Procedures.CountAsync(p => p.IsActive && p.Facility == null, ct);
+        var withFee = await db.SurgeonFees.Select(f => f.ProcedureId).Distinct().ToListAsync(ct);
+        var missingFees = await db.Procedures.Where(p => p.IsActive && !withFee.Contains(p.Id)).OrderBy(p => p.Code).Select(p => p.Code).ToListAsync(ct);
+        var surgeons = await db.Surgeons.CountAsync(x => x.IsActive, ct);
+        var builders = await UsersWithAsync(Permissions.EstimatesBuild, ct);
+        var admins = await UsersWithAsync(Permissions.EstimatesManage, ct);
+        var s = await Svc<BrightPAS.Modules.Estimates.EstimateService>().SettingsAsync(ct);
+        var mail = await Svc<BrightPAS.Modules.Estimates.IEstimateMailer>().ConfigurationProblemAsync(ct);
+        return
+        [
+            new("pricing", "Price list imported", "Import the ‘Export’ tab of Estimates - Facility & Anaesthetist.xlsx (Estimates › Admin › Import pricing), or add procedures by hand.",
+                procs > 0, $"{procs} active procedure(s); {noFacility} without a facility fee.", false, "Import pricing", "/estimates/admin?tab=import", Permissions.EstimatesManage),
+            new("fees", "Surgeon fees", "Each procedure needs an ‘All surgeons’ fee (and any surgeon-specific fees) or the estimate shows ‘To be advised’ for the surgeon.",
+                procs > 0 && missingFees.Count == 0, missingFees.Count == 0 ? "Every active procedure has a surgeon fee." : $"No surgeon fee yet: {string.Join(", ", missingFees.Take(12))}{(missingFees.Count > 12 ? $" and {missingFees.Count - 12} more" : "")}.",
+                true, "Open procedures", "/estimates/admin?tab=procedures", Permissions.EstimatesManage),
+            new("surgeons", "Surgeons", "The surgeons who appear on estimates, with their specialties.", surgeons > 0, $"{surgeons} surgeon(s).", false, "Open surgeons", "/estimates/admin?tab=surgeons", Permissions.EstimatesManage),
+            new("staff", "Who builds and manages estimates", "Reception gets ‘Build estimates’ and Finance gets both by default – adjust in roles.",
+                builders > 0 && admins > 0, $"{builders} can build, {admins} can manage.", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("wording", "Terms, wording and bank account", "Check the printed terms, payment wording, bank account and contact details.",
+                s.BankAccount.Length > 0 && s.Terms.Length > 0, s.BankAccount, false, "Open settings", "/estimates/admin?tab=settings", Permissions.EstimatesManage),
+            new("email", "Email", s.SendMode == BrightPAS.Modules.Estimates.SendMode.SendFromApp ? "Send from BrightPAS uses the Reminders mail server." : "Outlook drafts need no mail server; ‘Send from BrightPAS’ uses the Reminders mail server.",
+                s.SendMode == BrightPAS.Modules.Estimates.SendMode.OutlookDraft || mail is null, mail ?? "Ready.", s.SendMode == BrightPAS.Modules.Estimates.SendMode.OutlookDraft, "Open reminders settings", "/reminders?tab=settings", Permissions.RemindersManage),
+            new("incisive", "Incisive scans folder", "The share where ‘Save to Incisive’ puts the PDF (a \\\\server\\share path the website's account can write to).",
+                !string.IsNullOrWhiteSpace(s.IncisiveFolder), s.IncisiveFolder ?? "Not set.", true, "Open settings", "/estimates/admin?tab=settings", Permissions.EstimatesManage),
         ];
     }
 

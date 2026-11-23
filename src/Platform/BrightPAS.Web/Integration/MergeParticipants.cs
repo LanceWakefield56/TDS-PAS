@@ -142,3 +142,9 @@ public sealed class CodingMerge(BrightPAS.Modules.Coding.CodingDbContext db) : I
         await db.Episodes.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
         + await db.NbrsEntries.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
 }
+
+public sealed class EstimatesMerge(BrightPAS.Modules.Estimates.EstDbContext db) : IPatientMergeParticipant
+{
+    public string Name => "Procedure estimates";
+    public Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) => db.Estimates.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, (Guid?)to), ct);
+}

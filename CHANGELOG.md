@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.21.0 – 2026-11-23 – **Procedure estimates: TDS Estimates moved into BrightPAS**
+- **Procedure estimates module (ADR 0034, guide H28, spec 7.24)** – TDS's estimate builder (standalone TDS Estimates v1.5) as a licensed BrightPAS module; permissions *Build estimates* (Reception, Finance) and *Manage estimates* (Finance); demo account **finance** (Grace Liu).
+  - **Builder:** form on the left (patient, funding, procedure, add-ons, other charges, "if required" lines, manual fees, notes), live totals and warnings on the right; Save draft / Save & issue / PDF / Email… / Save to Incisive / Duplicate / Cancel / Save as template. Start from a template.
+  - **Same rules and totals as v1.5:** facility/surgeon/anaesthetist/consumables, surgeon fees per surgeon or "All surgeons", surgeon and all-in add-ons itemised, included add-ons can't be charged twice, special packages, $90 per started 15 extra minutes, 100%/200% multiplier, 50% deposit 14 days before, valid 3 months, EST-yymmdd-NHI references. All 69 procedure totals and the v1.5 self-test scenarios are unit tests against TDS's real price list.
+  - **Printed estimate** in the v1.5 layout with the TDS logo and footer; a PDF copy kept (encrypted) when issued and on every later change.
+  - **Email safety:** right-recipient checks, confirm tick, PDF password (patients DOB DDMMYY by default, insurers none), Outlook draft or send through the Reminders mail server with a **10-minute hold** in the Estimate outbox (stop / send now); editing an estimate stops its held email.
+  - **Patient link:** New estimate from a patient record (prefilled; returning patients' insurer carried over); estimates listed on the patient page.
+  - **Admin:** templates, procedures with surgeon fees and internal costing, surgeons, add-ons, specialties, stock and charge-out, pricing and stock spreadsheet imports (difference list, approval, warnings, scheduled future prices, price-change impact), downloads in the same layouts, settings and wording; safe delete (used items can only be hidden).
+  - Set-up wizard, demo data (TDS's price list and stock list), robot steps, patient merge.
+
 ## 0.20.0 – 2026-11-16 – **Clinical coding and statutory reporting (spec 7.11): NMDS and NBRS** – and endoscopy video retention with an encrypted archive
 - **Coding & statutory reporting module (ADR 0033, guide H27)** – new role **Clinical Coder** (demo account **coder**):
   - **Coder workbench** for ICD-10-AM/ACHI/ACS **Twelfth Edition** (NZ, clinical coding system 16): every discharged event joins the queue with its purchaser code; code search by code or words; the procedure picklist offers the usual codes for the booked procedure; **edit checks** – one principal diagnosis, code table type/validity, ACS 0049 never-assign codes, sex and age edits, dates, ACS 0031 anaesthesia (and no 92513), ACS 2001 external causes with injuries, and the **NZ Clinical Coding Conventions and NMDS Reporting Requirements** (Z03.6 with substance, place and activity; free text for complications, injuries and external causes; mesh details; gender reaffirming surgery from 1 July 2025). Errors stop "coded"; warnings do not.

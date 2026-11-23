@@ -59,9 +59,10 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 | 7.16 | Letters and transfer pack | Built | Letters (ADR 0016) | AdminAndLettersTests |
 | 7.17 | Optional external scribe (Medow) | Foundations | Scribe inbound API (ADR 0028) | ScribeTests, robot |
 | 7.18 | Endoscopy (Endobase replacement) | Built | Endoscopy (ADR 0027) | EndoscopyTests, EndoscopyDicomTests, robot |
-| 7.19–7.21 | Delayed send, right recipient, de-identified reporting | Planned | – | – |
+| 7.19–7.21 | Delayed send, right recipient, de-identified reporting | Partial (0.21.0: estimate emails only – hold period, stop, right-recipient checks) | Estimates (ADR 0034) | EstimatesTests |
 | 7.22 | BrightPAS Scribe | Foundations | Scribe (ADR 0028) | ScribeTests, robot virtual speech server |
 | 7.23 | Form designer and import | Planned | – | – |
+| 7.24 | Procedure estimates | Built (0.21.0; follow-up statuses, estimate → invoice and reports not yet) | Modules/BrightPAS.Modules.Estimates, Web/Api/EstimatesEndpoints.cs, Web/Pdf/EstimatePdf.cs, pages/Estimates.tsx, pages/EstimatesAdmin.tsx; ADR 0034 | EstimatesTests, EstimatePdfTests, robot Procedure estimates |
 
 ## 8–13 Compliance, usability, delivery
 

@@ -54,6 +54,8 @@ import SecuritySettings from './pages/SecuritySettings';
 import Nbrs from './pages/Nbrs';
 import Coding, { CodingWorkbench } from './pages/Coding';
 import DymoLabels from './pages/DymoLabels';
+import Estimates, { EstimateEdit, EstimatesOutbox } from './pages/Estimates';
+import EstimatesAdmin from './pages/EstimatesAdmin';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
 import { FlowEditor, MessagingFlows } from './pages/FlowDesigner';
 import { MappingEditor, MessagingMappings } from './pages/MappingDesigner';
@@ -129,6 +131,11 @@ export default function App() {
           <Route path="/referrals" element={allowed(mod('referrals') && can(Perm.ReferralsView), <Referrals />)} />
           <Route path="/admin/organisation" element={allowed(can(Perm.OrganisationManage), <Organisation />)} />
           <Route path="/admin/roles" element={allowed(can(Perm.UsersManage), <Roles />)} />
+          <Route path="/estimates" element={allowed(mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)), <Estimates />)} />
+          <Route path="/estimates/new" element={allowed(mod('estimates') && can(Perm.EstimatesBuild), <EstimateEdit />)} />
+          <Route path="/estimates/outbox" element={allowed(mod('estimates') && can(Perm.EstimatesBuild), <EstimatesOutbox />)} />
+          <Route path="/estimates/admin" element={allowed(mod('estimates') && can(Perm.EstimatesManage), <EstimatesAdmin />)} />
+          <Route path="/estimates/:id" element={allowed(mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)), <EstimateEdit />)} />
           <Route path="/theatre/templates" element={allowed(mod('theatre') && can(Perm.TheatreManage), <ListTemplates />)} />
           <Route path="/calendar" element={allowed(mod('theatre') && can(Perm.TheatreView), <Calendar />)} />
           <Route path="/roster" element={allowed(mod('rostering') && can(Perm.RosterView), <Roster />)} />

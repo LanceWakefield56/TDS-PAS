@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting', 'estimates'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -53,6 +53,10 @@ export default function Shell() {
           {mod('labs') && can(Perm.LabsView) && <NavLink to="/labs">Lab results</NavLink>}
           {mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)) && <NavLink to="/forms">Pre-admission forms</NavLink>}
           {mod('billing') && can(Perm.BillingView) && <NavLink to="/billing">Estimates &amp; invoices</NavLink>}
+          {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <NavLink to="/estimates" end>Procedure estimates</NavLink>}
+          {mod('estimates') && can(Perm.EstimatesBuild) && <NavLink to="/estimates/new">New estimate</NavLink>}
+          {mod('estimates') && can(Perm.EstimatesBuild) && <NavLink to="/estimates/outbox">Estimate outbox</NavLink>}
+          {mod('estimates') && can(Perm.EstimatesManage) && <NavLink to="/estimates/admin">Estimates admin</NavLink>}
           {mod('reminders') && can(Perm.RemindersView) && <NavLink to="/reminders">SMS &amp; email</NavLink>}
           {mod('letters') && can(Perm.LettersView) && <NavLink to="/letters" end>Letters</NavLink>}
           {mod('rostering') && can(Perm.RosterView) && <NavLink to="/roster">Roster</NavLink>}

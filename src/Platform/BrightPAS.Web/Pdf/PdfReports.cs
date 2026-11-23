@@ -53,6 +53,9 @@ public static class PdfReports
         }
     }
 
+    /// <summary>Registers the embedded fonts (for PDFs that build their own layout, e.g. the printed estimate).</summary>
+    internal static void EnsureFontsReady() => EnsureFonts();
+
     internal static Document NewDocument(string title, bool landscape = false)
     {
         EnsureFonts();

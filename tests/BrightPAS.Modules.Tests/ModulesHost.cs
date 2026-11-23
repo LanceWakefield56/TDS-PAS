@@ -41,8 +41,11 @@ public sealed class ModulesHost : IAsyncDisposable
         s.AddSingleton<ISecretProtector, ReversibleTestProtector>();
         s.AddSingleton(new ReminderDefaults(SmsProvider.TestOutbox, EmailProvider.TestOutbox));
         s.AddPasModules([new PatientsModule(), new LabsModule(), new TheatreModule(), new FormsModule(), new BillingModule(), new RemindersModule(), new ReferralsModule(), new LettersModule(), new RosteringModule(),
-            new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(), new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule()]);
+            new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(), new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule()]);
         s.AddLogging();
+        s.AddSingleton<BrightPAS.Modules.Estimates.IEstimatePdf, TestEstimatePdf>();
+        s.AddSingleton<TestEstimateMailer>();
+        s.AddSingleton<BrightPAS.Modules.Estimates.IEstimateMailer>(sp => sp.GetRequiredService<TestEstimateMailer>());
         s.AddSingleton<IDocumentCipher, TestDocumentCipher>();
         s.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
         Services = s.BuildServiceProvider();
@@ -51,7 +54,7 @@ public sealed class ModulesHost : IAsyncDisposable
         foreach (DbContext db in new DbContext[] { sp.GetRequiredService<PasDbContext>(), sp.GetRequiredService<PatientsDbContext>(), sp.GetRequiredService<LabsDbContext>(),
                      sp.GetRequiredService<TheatreDbContext>(), sp.GetRequiredService<FormsDbContext>(), sp.GetRequiredService<BillingDbContext>(),
                      sp.GetRequiredService<RemindersDbContext>(), sp.GetRequiredService<ReferralsDbContext>(), sp.GetRequiredService<LettersDbContext>(), sp.GetRequiredService<RosterDbContext>(),
-                     sp.GetRequiredService<BrightPAS.Modules.Credentialing.CredDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Portal.PortalDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Messaging.MsgDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Assets.AssetsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Emr.EmrDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Endoscopy.EndoDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Scribe.ScribeDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Devices.DevicesDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Quality.QualityDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Coding.CodingDbContext>() })
+                     sp.GetRequiredService<BrightPAS.Modules.Credentialing.CredDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Portal.PortalDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Messaging.MsgDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Assets.AssetsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Emr.EmrDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Endoscopy.EndoDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Scribe.ScribeDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Devices.DevicesDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Quality.QualityDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Coding.CodingDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Estimates.EstDbContext>() })
             db.Database.EnsureCreated();
         var core = sp.GetRequiredService<PasDbContext>();
         core.Organisations.Add(BrightPAS.Core.Organisation.TdsDefaultSetup.Create());
@@ -99,4 +102,28 @@ public sealed class TestDocumentCipher : IDocumentCipher
 public static class Doc
 {
     public static Guid Id(string name) => new(System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(name)));
+}
+
+/// <summary>Stand-in for the printed estimate: the text that matters, "encrypted" with the password so tests can check the rule.</summary>
+public sealed class TestEstimatePdf : BrightPAS.Modules.Estimates.IEstimatePdf
+{
+    public byte[] Render(BrightPAS.Modules.Estimates.Estimate e, BrightPAS.Modules.Estimates.EstSettings s, string? password) =>
+        System.Text.Encoding.UTF8.GetBytes((password is null ? "" : $"/Encrypt pw={password}\n") + $"{e.Ref}|{e.Title}|{e.Subtotal:0.00}|" +
+            string.Join(";", e.Lines.OrderBy(l => l.Sequence).Select(l => $"{l.Kind}:{l.Label}={l.DisplayText ?? l.Amount?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}")));
+}
+
+/// <summary>Records what would be emailed; can be told to fail.</summary>
+public sealed class TestEstimateMailer : BrightPAS.Modules.Estimates.IEstimateMailer
+{
+    public List<BrightPAS.Modules.Estimates.OutgoingEmail> Sent { get; } = [];
+    public string? Problem { get; set; }
+    public bool Fail { get; set; }
+    public Task<string?> ConfigurationProblemAsync(CancellationToken ct) => Task.FromResult(Problem);
+    public Task<BrightPAS.Modules.Estimates.MailSendResult> SendAsync(BrightPAS.Modules.Estimates.OutgoingEmail m, CancellationToken ct)
+    {
+        if (Fail) return Task.FromResult(new BrightPAS.Modules.Estimates.MailSendResult(false, "server down"));
+        Sent.Add(m);
+        return Task.FromResult(new BrightPAS.Modules.Estimates.MailSendResult(true, null));
+    }
+    public byte[] Draft(BrightPAS.Modules.Estimates.OutgoingEmail m) => System.Text.Encoding.UTF8.GetBytes($"X-Unsent: 1\nTo: {m.To}\nSubject: {m.Subject}\n\n{m.Body}");
 }

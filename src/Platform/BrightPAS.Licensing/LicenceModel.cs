@@ -75,6 +75,7 @@ public static class ProductModules
         new("referrals", "Referrals & waitlist", "Referral intake and triage, the surgical waitlist with target dates, and booking theatre from the waitlist.", true),
         new("forms", "Pre-admission forms", "Online patient health questionnaire and nurse triage.", true),
         new("billing", "Estimates & invoices", "Fee schedule, estimates, invoices, payments and fee splits.", true),
+        new("estimates", "Procedure estimates", "Patient cost estimates from the procedure price list (facility, surgeon, anaesthetist, consumables, add-ons, special packages, extended time), templates, warnings, the printed estimate, email with a hold period and right-patient checks, Incisive export and pricing spreadsheet imports.", true),
         new("emr", "Clinical record (eMR)", "Perioperative and nursing record: risk screens, Surgical Safety Checklist, intra-op record and counts, observations with early warning score, medicines and controlled drugs, blood products, notes and discharge.", true),
         new("rostering", "Rostering", "Staff rosters: shifts, regular shifts, leave and hours (replaces TeamUp).", true),
         new("assets", "Assets & CSSD", "Equipment register and maintenance, sterile instrument (AS/NZS 5369) and endoscope traceability, loan sets, stock, implants and purchasing.", true),

@@ -77,6 +77,7 @@ public static class Standards
         (["devices", "monitor", "safersleep", "anaesthetic record", "capture"], "Devices & SaferSleep"),
         (["quality", "incident", "complaint", "risk register", "corrective action"], "Quality management"),
         (["coding", "nmds", "nbrs", "clinical code", "statutory"], "Coding & statutory reporting"),
+        (["procedure estimate", "price list", "surgeon fee", "incisive"], "Procedure estimates"),
         (["scribe", "dictation", "transcri", "ai-assisted", "consent to ai"], "BrightPAS Scribe"),
         (["endoscopy", "polyp", "colonoscopy", "gastroscopy", "worklist"], "Endoscopy"),
         (["emr", "episode", "checklist", "controlled drug", "observation"], "Clinical record (eMR)"),
@@ -158,5 +159,8 @@ public static class ModuleSuites
         new("reporting", "Coding & statutory reporting", ["api/coding/summary", "api/coding/queue", $"api/coding/events/{Guid.Empty}", "api/coding/nmds/files", "api/coding/nbrs/entries"],
             [("PUT", $"api/coding/events/{Guid.Empty}", "{}"), ("POST", "api/coding/nmds/files", "{}"), ("POST", "api/coding/codes/import", "{}"), ("POST", "api/coding/nbrs/batches", "{}"),
              ("PUT", "api/coding/settings", "{}")]),
+        new("estimates", "Procedure estimates", ["api/estimates/", "api/estimates/meta", $"api/estimates/{Guid.Empty}", "api/estimates/outbox", "api/estimates/admin/catalogue"],
+            [("POST", "api/estimates/", "{}"), ("POST", $"api/estimates/{Guid.Empty}/email/send", "{}"), ("POST", "api/estimates/admin/import/pricing", "{}"), ("PUT", "api/estimates/admin/settings", "{}"),
+             ("POST", $"api/estimates/{Guid.Empty}/incisive", "{}")]),
     ];
 }

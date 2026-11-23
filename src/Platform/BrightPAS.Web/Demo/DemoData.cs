@@ -20,6 +20,7 @@ using Scr = BrightPAS.Modules.Scribe;
 using Dev = BrightPAS.Modules.Devices;
 using Qm = BrightPAS.Modules.Quality;
 using Cod = BrightPAS.Modules.Coding;
+using Est = BrightPAS.Modules.Estimates;
 using Let = BrightPAS.Modules.Letters;
 using Msg = BrightPAS.Modules.Messaging;
 using Por = BrightPAS.Modules.Portal;
@@ -127,6 +128,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await DevicesAsync(ct);
         await QualityAsync(ct);
         await CodingAsync(ct);
+        await EstimatesAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
 
@@ -1774,6 +1776,68 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
     // ------------------------------------------------------------------ module set-up
 
     // ------------------------------------------------------------------ Coding & statutory reporting (0.20.0)
+    /// <summary>Procedure estimates (0.21.0): TDS's own price list and stock list (the spreadsheets the module imports), surgeons linked to the demo clinicians, and a few estimates.</summary>
+    private async Task EstimatesAsync(CancellationToken ct)
+    {
+        var imp = S<Est.EstimateImport>();
+        var asm = typeof(DemoDataSeeder).Assembly;
+        Stream Res(string name) => asm.GetManifestResourceStream(asm.GetManifestResourceNames().Single(n => n.EndsWith("Demo.Estimates." + name, StringComparison.Ordinal)))!;
+        await using (var f = Res("pricing.xlsx"))
+        {
+            var pv = await imp.PreviewPricingAsync(f, "Estimates - Facility & Anaesthetist.xlsx", ct);
+            Ok(pv.Errors, "estimates pricing");
+            await imp.ApplyPricingAsync(pv, true, true, false, "finance", ct);
+        }
+        await using (var f = Res("stock.xlsx"))
+        {
+            var pv = await imp.PreviewStockAsync(f, "TDS Suppliers and vendors stock prices.xlsx", ct);
+            Ok(pv.Errors, "estimates stock");
+            await imp.ApplyStockAsync(pv, "finance", ct);
+        }
+        var cat = S<Est.EstimateCatalogue>();
+        var specs = (await cat.SpecialtiesAsync(ct)).ToDictionary(x => x.Name, x => x.Id, StringComparer.OrdinalIgnoreCase);
+        Guid[] Specs(params string[] names) => [.. names.Select(n => specs.TryGetValue(n, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty)];
+        foreach (var (name, notes) in new[] { ("Infusion", "Medication is charged in addition. Payment for the cost of medication must be made at least 10 days prior to your infusion so it can be ordered in time – delay in payment could postpone treatment. Please use ‘Infusion’ as the reference and your surname as the code."), ("Dental", "Teeth: ") })
+            if (specs.TryGetValue(name, out var id)) Ok((await cat.SaveSpecialtyAsync(id, new Est.SpecialtyEdit(name, notes, true), "finance", ct)).Error, "specialty " + name);
+        var surgeons = new Dictionary<ClinicianType, Guid>();
+        var first = true;
+        foreach (var c in await S<PasDbContext>().Clinicians.AsNoTracking().Where(c => c.IsActive && (c.Type == ClinicianType.Surgeon || c.Type == ClinicianType.Endoscopist)).OrderBy(c => c.Name).ToListAsync(ct))
+        {
+            var sp = c.Type == ClinicianType.Endoscopist ? Specs("Endoscopy") : first ? Specs("General Surgery", "Gynaecology", "Skin", "Veins") : Specs("General Surgery", "Skin");
+            first = false;
+            var (sid, err) = await cat.SaveSurgeonAsync(null, new Est.SurgeonEdit(c.Name, c.Id, true, sp), "finance", ct);
+            Ok(err, "estimates surgeon");
+            surgeons.TryAdd(c.Type, sid!.Value);
+        }
+        var svc = S<Est.EstimateService>();
+        await svc.SeedTemplatesOnceAsync("finance", ct);
+        var procs = (await cat.ProceduresAsync(ct)).ToDictionary(p => p.Code, StringComparer.Ordinal);
+        var s = await svc.SettingsAsync(ct);
+        s.IncisiveFolder = Path.Combine(Path.GetTempPath(), "BrightPAS-demo-incisive");
+        Ok(await cat.SaveSettingsAsync(s, "finance", ct), "estimate settings");
+        var people = _patients.Where(p => p.MergedIntoId is null).Take(4).ToList();
+        if (people.Count < 3 || !procs.TryGetValue("GYN-001", out var gyn) || !procs.TryGetValue("GEN-011", out var hernia)) return;
+
+        // 1. Issued self-funding colonoscopy from a template (biopsies required, polypectomy if required).
+        var tpl = (await svc.TemplatesAsync(true, null, ct)).First(t => t.Name.StartsWith("Colonoscopy + biopsies", StringComparison.Ordinal));
+        var f1 = await svc.ApplyTemplateAsync(tpl.Id, await svc.FromPatientAsync(people[0].Id, ct), ct);
+        f1.SurgeonId = surgeons.GetValueOrDefault(ClinicianType.Endoscopist, surgeons.Values.First());
+        (f1.ProcedureDate, f1.PreparedBy, f1.Email) = (_today.AddDays(24), "Grace Liu", f1.Email ?? "demo.patient@example.nz");
+        Ok((await svc.SaveAsync(null, f1, true, "finance", ct)).Errors, "estimate 1");
+        // 2. Insured hysteroscopy with sharp resection, issued.
+        var f2 = await svc.FromPatientAsync(people[1].Id, ct);
+        (f2.ProcedureId, f2.Anaesthetic, f2.Funding, f2.Insurer, f2.PolicyNumber, f2.ProcedureDate, f2.PreparedBy) =
+            (gyn.Id, gyn.DefaultAnaesthetic, Est.Funding.Insurance, "Southern Cross", "SX-4471920", _today.AddDays(35), "Grace Liu");
+        f2.SurgeonId = surgeons.GetValueOrDefault(ClinicianType.Surgeon);
+        f2.Inputs.AddOns.Add(new Est.AddOnChoice { Code = "GYN-A01" });
+        Ok((await svc.SaveAsync(null, f2, true, "finance", ct)).Errors, "estimate 2");
+        // 3. Draft hernia repair (mesh if required) still being prepared.
+        var f3 = await svc.FromPatientAsync(people[2].Id, ct);
+        (f3.ProcedureId, f3.Anaesthetic, f3.PreparedBy) = (hernia.Id, hernia.DefaultAnaesthetic, "Grace Liu");
+        f3.Inputs.AddOns.Add(new Est.AddOnChoice { Code = "GEN-A05", IfRequired = true });
+        Ok((await svc.SaveAsync(null, f3, false, "finance", ct)).Errors, "estimate 3");
+    }
+
     private async Task CodingAsync(CancellationToken ct)
     {
         var coding = S<Cod.CodingService>();
