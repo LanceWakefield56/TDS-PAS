@@ -86,6 +86,7 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         await CodingStepsAsync();
         await EstimatesStepsAsync();
         await TriageStepsAsync();
+        await JourneyStepsAsync();
         await Step("Exports", "Payroll export for Xero is encrypted, and the timesheet file is in the expected shape", PayrollAsync);
         await Step("Exports", "Letter as a password-protected PDF", PdfAsync);
     }

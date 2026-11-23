@@ -84,8 +84,9 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☐ Estimates next: follow-up statuses (accepted, declined, deposit paid, booked, prior approval, expiry list), estimate → Billing invoice, reports, layout builder; standalone app on a shared library; open business items (Incisive naming, SMTP, Veins/skin graft/Dr Butcher/MyoSure fees, costing defaults)
 - ☑ Triage & suitability (spec 7.25): risk profile and scores, versioned rules with clinical approval, re-triage, sign-off, booking hold – 0.22.0 (ADR 0035)
 - ☐ Triage next: TDS's anaesthetists agree and approve the rules; NEWS2/early-warning scores on the day (with EMR observations); anaesthetist video/phone review booking
-- ☐ Post-op follow-up and SSI surveillance (spec 7.26) – 0.23.0
-- ☐ Delayed send and right-recipient checks for letters and reminders (7.19–7.20), de-identified reporting (7.21) – 0.24.0; form designer 0.25.0; claims, Xero, EFTPOS, NHI/HPI 0.26.0
+- ☑ Patient journey, My list, theatre day board, simpler menu – 0.23.0 (ADR 0036)
+- ☐ Post-op follow-up and SSI surveillance (spec 7.26) – 0.24.0
+- ☐ Delayed send and right-recipient checks for letters and reminders (7.19–7.20), de-identified reporting (7.21) and form designer – 0.25.0; claims, Xero, EFTPOS, NHI/HPI 0.26.0
 - ☐ Coding next: obtain the Health NZ clinical code table and code tables (purchaser, specialty, facility, domicile, CPAC); NBSP extract layout; AR-DRG/WIES grouping if a contract needs it; NNPAC if TDS reports outpatient events
 - ☐ Optional: ADT to the CARESCAPE Gateway so monitors can "Request Admit" the patient by unit and bed
 - ☐ Devices next: capture real CARESCAPE Gateway messages and adjust the mapping; agree the anaesthetic record profile with SaferSleep; clinical sign-off of chart intervals and plausibility limits; Olympus tower status on the Monitors page; overdue-validation prompt on the whiteboard

@@ -56,6 +56,7 @@ import Coding, { CodingWorkbench } from './pages/Coding';
 import DymoLabels from './pages/DymoLabels';
 import Estimates, { EstimateEdit, EstimatesOutbox } from './pages/Estimates';
 import EstimatesAdmin from './pages/EstimatesAdmin';
+import DayBoard from './pages/DayBoard';
 import Triage, { TriageAssessment, TriageReport, TriageRules } from './pages/Triage';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
 import { FlowEditor, MessagingFlows } from './pages/FlowDesigner';
@@ -133,6 +134,7 @@ export default function App() {
           <Route path="/referrals" element={allowed(mod('referrals') && can(Perm.ReferralsView), <Referrals />)} />
           <Route path="/admin/organisation" element={allowed(can(Perm.OrganisationManage), <Organisation />)} />
           <Route path="/admin/roles" element={allowed(can(Perm.UsersManage), <Roles />)} />
+          <Route path="/day" element={allowed(mod('theatre') && can(Perm.TheatreView), <DayBoard />)} />
           <Route path="/triage" element={allowed(mod('triage') && triageAny, <Triage />)} />
           <Route path="/triage/rules" element={allowed(mod('triage') && triageAny, <TriageRules />)} />
           <Route path="/triage/report" element={allowed(mod('triage') && triageAny, <TriageReport />)} />

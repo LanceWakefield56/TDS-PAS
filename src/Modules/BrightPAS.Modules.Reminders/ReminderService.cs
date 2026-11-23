@@ -148,6 +148,10 @@ public sealed class ReminderService(
             "{ClinicName}: see your appointment details, send us a question or a document, and fill in your forms here: {Link} You will need your date of birth. Reply STOP to opt out."),
         (MessageKind.PortalLink, Channel.Email, "Your {ClinicName} patient portal",
             "Kia ora {FirstName},\n\nYou can see your appointment details, send us questions or documents, fill in your health questionnaire and see your estimate here:\n\n{Link}\n\nYou will need your date of birth to open it. Please keep this link private.\n\nIf you have any questions, phone us on {ClinicPhone}.\n\nNgā mihi,\n{ClinicName}"),
+        (MessageKind.FollowUpCheckIn, Channel.Sms, null,
+            "{ClinicName}: how are you getting on after your procedure? Please answer a few quick questions: {Link} You will need your date of birth. If you are worried now, phone {ClinicPhone} or 111 in an emergency."),
+        (MessageKind.FollowUpCheckIn, Channel.Email, "How are you getting on? – {ClinicName}",
+            "Kia ora {FirstName},\n\nWe hope your recovery is going well. Please tell us how you are getting on – it takes two minutes:\n\n{Link}\n\nYou will need your date of birth to open it. If you are worried about your wound, pain, bleeding or a fever, please phone us on {ClinicPhone} straight away, or 111 in an emergency.\n\nNgā mihi,\n{ClinicName}"),
         (MessageKind.ReplyConfirmed, Channel.Sms, null, "Thank you, your appointment on {Date} is confirmed. {ClinicName}"),
         (MessageKind.ReplyCancelRequested, Channel.Sms, null, "Thank you for letting us know. Our team will phone you about your appointment. {ClinicName} {ClinicPhone}"),
         (MessageKind.OptOutConfirmed, Channel.Sms, null, "You will no longer get text messages from {ClinicName}. Reply START to get them again."),
@@ -180,7 +184,7 @@ public sealed class ReminderService(
         if (string.IsNullOrWhiteSpace(body)) return "The message text is empty.";
         if (body.Length > (channel == Channel.Sms ? 612 : 4000)) return channel == Channel.Sms ? "SMS text is too long (612 characters = 4 SMS parts maximum)." : "Email text is too long.";
         if (channel == Channel.Email && string.IsNullOrWhiteSpace(subject)) return "Enter an email subject.";
-        if (kind is MessageKind.FormLink or MessageKind.PortalLink && !body.Contains("{Link}", StringComparison.Ordinal)) return "This message must contain {Link}.";
+        if (kind is MessageKind.FormLink or MessageKind.PortalLink or MessageKind.FollowUpCheckIn && !body.Contains("{Link}", StringComparison.Ordinal)) return "This message must contain {Link}.";
         var unknown = System.Text.RegularExpressions.Regex.Matches(body + subject, @"\{[A-Za-z]+\}").Select(m => m.Value).Where(p => !Placeholders.Contains(p)).Distinct().ToList();
         if (unknown.Count > 0) return $"Unknown placeholder(s): {string.Join(", ", unknown)}. Allowed: {string.Join(" ", Placeholders)}";
         var t = await db.Templates.SingleOrDefaultAsync(x => x.Kind == kind && x.Channel == channel && x.Language == language, ct);
@@ -353,6 +357,32 @@ public sealed class ReminderService(
         return list;
     }
 
+    /// <summary>Queues a post-operative check-in link (follow-up, 0.24.0). The link is a secret: kept only until the message is sent.</summary>
+    public async Task<IReadOnlyList<OutboundMessage>> QueueFollowUpLinkAsync(Guid patientId, Guid? bookingId, string link, string dedupeKey, string user, CancellationToken ct = default)
+    {
+        var s = await SettingsAsync(ct);
+        await EnsureTemplatesAsync(ct);
+        var p = await patients.Patients.AsNoTracking().SingleOrDefaultAsync(x => x.Id == patientId, ct);
+        if (p is null) return [];
+        var list = await QueueAsync(s, p, MessageKind.FollowUpCheckIn, null, link, dedupeKey, true, true, ignoreQuiet: false, user, ct);
+        foreach (var m in list) m.BookingId = bookingId;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Queue", "OutboundMessage", string.Join(",", list.Select(m => m.Id)), patientId.ToString(), reason: "Follow-up check-in link", ct: ct);
+        return list;
+    }
+
+    /// <summary>Alerts the duty nurse by SMS (a staff number, not a patient): used when a patient's check-in answer needs a call.</summary>
+    public async Task<OutboundMessage?> QueueStaffAlertAsync(string mobile, string text, string user, CancellationToken ct = default)
+    {
+        var to = Addresses.ToE164(mobile);
+        if (to is null || !Addresses.IsNzMobile(to)) return null;
+        var m = new OutboundMessage { Kind = MessageKind.Test, Channel = Channel.Sms, Address = to, Body = text, Status = MessageStatus.Queued, IgnoreQuietHours = true, NextAttemptAt = clock.GetUtcNow(), CreatedAt = clock.GetUtcNow(), CreatedBy = user };
+        db.Messages.Add(m);
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Queue", "OutboundMessage", m.Id.ToString(), reason: "Duty nurse alert", ct: ct);
+        return m;
+    }
+
     public async Task<IReadOnlyList<OutboundMessage>> QueueTestAsync(Channel channel, string to, string user, CancellationToken ct = default)
     {
         var s = await SettingsAsync(ct);
@@ -492,7 +522,7 @@ public sealed class ReminderService(
 
     private static string Problem(ISmsGateway? g, ReminderSettings s, string what) => g?.ConfigurationProblem(s) ?? $"No {what} sender is available for {s.SmsProvider}.";
 
-    private static string LinkPlaceholder(MessageKind kind) => kind == MessageKind.PortalLink ? "[portal link]" : "[questionnaire link]";
+    private static string LinkPlaceholder(MessageKind kind) => kind switch { MessageKind.PortalLink => "[portal link]", MessageKind.FollowUpCheckIn => "[check-in link]", _ => "[questionnaire link]" };
 
     private static void Close(OutboundMessage m, MessageStatus status, string why) { m.Status = status; m.LastError = why; m.SecretLink = null; }
 
@@ -657,7 +687,7 @@ public sealed class ReminderService(
         var m = await db.Messages.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (m is null) return "Message not found.";
         if (m.Status is not (MessageStatus.Failed or MessageStatus.Suppressed)) return "Only failed or held messages can be retried.";
-        if (m.Kind is MessageKind.FormLink or MessageKind.PortalLink && m.SecretLink is null) return "Secure links cannot be resent (the link is not stored). Create a new link instead.";
+        if (m.Kind is MessageKind.FormLink or MessageKind.PortalLink or MessageKind.FollowUpCheckIn && m.SecretLink is null) return "Secure links cannot be resent (the link is not stored). Create a new link instead.";
         m.Status = MessageStatus.Queued; m.Attempts = 0; m.NextAttemptAt = clock.GetUtcNow(); m.IgnoreQuietHours = true; m.LastError = null;
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Retry", "OutboundMessage", m.Id.ToString(), m.PatientId?.ToString(), ct: ct);

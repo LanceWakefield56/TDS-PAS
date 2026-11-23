@@ -91,6 +91,7 @@ builder.Services.AddScoped<BrightPAS.Modules.Estimates.IEstimateMailer, BrightPA
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.EstimatesWorker>();
 // Patient triage (0.22.0, ADR 0035): booking hold until sign-off, re-triage scan.
 builder.Services.AddScoped<BrightPAS.Core.Modules.IBookingConfirmGate, BrightPAS.Web.Integration.TriageBookingGate>();
+builder.Services.AddScoped<BrightPAS.Web.Journey.JourneyService>();
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.TriageWorker>();
 builder.Services.AddHttpClient("messaging", c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient("ai", c => c.Timeout = TimeSpan.FromSeconds(60));
@@ -226,6 +227,7 @@ app.MapQualityEndpoints();
 app.MapCodingEndpoints();
 app.MapEstimatesEndpoints();
 app.MapTriageEndpoints();
+app.MapJourneyEndpoints();
 app.MapMcpAndAiEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.

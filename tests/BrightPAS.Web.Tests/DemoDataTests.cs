@@ -85,6 +85,33 @@ public class DemoDataTests(InstallerScriptWebFactory factory) : IClassFixture<In
             Assert.True((await scope.ServiceProvider.GetRequiredService<BrightPAS.Core.Audit.AuditQueryService>().VerifyAsync()).Intact, "audit chain");
             // A test SMS (no patient) is stored – the 0.12.3 fix for the reminders foreign key.
             Assert.True(await scope.ServiceProvider.GetRequiredService<BrightPAS.Modules.Reminders.RemindersDbContext>().Messages.AnyAsync(m => m.PatientId == null));
+
+            // 0.23.0: the patient journey reads every module for every demo patient without a SQL translation error, and the demo covers every stage.
+            var journey = scope.ServiceProvider.GetRequiredService<BrightPAS.Web.Journey.JourneyService>();
+            var ids = await scope.ServiceProvider.GetRequiredService<BrightPAS.Modules.Patients.PatientsDbContext>().Patients.Select(p => p.Id).ToListAsync();
+            var states = new HashSet<string>(StringComparer.Ordinal);
+            var withNext = 0;
+            foreach (var id in ids)
+            {
+                var v = await journey.ForPatientAsync(id);
+                Assert.NotNull(v);
+                foreach (var jc in v!.Cases)
+                {
+                    if (jc.Next is not null) withNext++;
+                    foreach (var st in jc.Stages) states.Add($"{st.Key}:{st.State}");
+                    Assert.Equal(jc.Stages.Select(x => x.Key).Distinct(StringComparer.Ordinal).Count(), jc.Stages.Count);
+                }
+            }
+            Assert.True(withNext > 20, $"cases with a next step: {withNext}");
+            foreach (var expected in new[] { "triage:Now", "booking:Now", "booking:Done", "discharge:Done", "billing:Done", "questionnaire:Waiting", "referral:Now" })
+                Assert.Contains(expected, states);
+            var today = await journey.TodayAsync(_ => true);
+            Assert.Contains(today, t => t.Group == "Before surgery");
+            Assert.Contains(today, t => t.Group == "After surgery");
+            Assert.Empty(await journey.TodayAsync(_ => false));
+            // Today's patients appear on the Today list while they are still in the building (demo lists run on weekdays).
+            var day = await journey.DayAsync(BrightPAS.Core.NzTime.Today(scope.ServiceProvider.GetRequiredService<TimeProvider>()));
+            Assert.Equal(day.Any(c => c.Column != "Gone home"), today.Any(t => t.Group == "Theatre today"));
         }
 
         // Demo accounts sign in with the shared password and authenticator key; the demo flag reaches the screens.

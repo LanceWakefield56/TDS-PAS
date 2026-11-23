@@ -42,7 +42,7 @@ export default function BillingNew() {
     setErrors([]);
     try {
       const r = await api<{ id: string }>(`/api/billing/${kind === 'Invoice' ? 'invoices' : 'estimates'}`, {
-        body: { patientId: patient.id, ...f, lines: lines.filter((l) => l.code || l.description).map((l) => ({ code: l.code || null, description: l.description || null, quantity: l.quantity, unitPrice: l.unitPrice })) },
+        body: { patientId: patient.id, bookingId: params.get('booking') || null, ...f, lines: lines.filter((l) => l.code || l.description).map((l) => ({ code: l.code || null, description: l.description || null, quantity: l.quantity, unitPrice: l.unitPrice })) },
       });
       navigate(`/billing/${r.id}`);
     } catch (e: any) { setErrors(e?.body?.errors ?? [errText(e)]); }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { api, Location, Perm, todayIso } from '../api';
 import { useSession } from '../App';
+import TodayList from '../components/TodayList';
 
 interface DaySession { id: string; locationName: string; startTime: string; endTime: string; surgeon: string; bookings: { status: string }[] }
 
@@ -10,9 +11,7 @@ export default function Home() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [sessions, setSessions] = useState<DaySession[] | null>(null);
   const [labCount, setLabCount] = useState<number | null>(null);
-  const [formCount, setFormCount] = useState<number | null>(null);
   const [version, setVersion] = useState('');
-  const [wait, setWait] = useState<{ toTriage: number; overdue: number; dueIn14Days: number } | null>(null);
   const SETUP = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe'];
   const setupNeeded = me && can(Perm.ModulesManage) ? SETUP.filter((id) => me.modules[id] === 'Full' && !me.moduleSetup?.[id]).length : 0;
   const theatreOn = mod('theatre') && can(Perm.TheatreView);
@@ -21,8 +20,6 @@ export default function Home() {
     api<{ version: string }>('/health').then((h) => setVersion(h.version)).catch(() => undefined);
     if (theatreOn) api<DaySession[]>(`/api/theatre/sessions?from=${todayIso()}`).then(setSessions).catch(() => setSessions([]));
     if (mod('labs') && can(Perm.LabsView)) api<{ unacknowledged: number }>('/api/labs/count').then((r) => setLabCount(r.unacknowledged)).catch(() => undefined);
-    if (mod('forms') && can(Perm.FormsTriage)) api<unknown[]>('/api/forms?view=to-triage').then((r) => setFormCount(r.length)).catch(() => undefined);
-    if (mod('referrals') && can(Perm.ReferralsView)) api<{ toTriage: number; overdue: number; dueIn14Days: number }>('/api/referrals/summary').then(setWait).catch(() => undefined);
   }, [theatreOn, mod, can]);
   const today = new Date().toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const greeting = new Date().getHours() < 12 ? 'Mōrena' : 'Kia ora';
@@ -32,6 +29,7 @@ export default function Home() {
     <div className="stack-lg">
       <div className="page-head"><h1>{greeting}, {me?.displayName?.replace(/^(Dr|Mr|Mrs|Ms|Miss|Prof)\.? /i, '').split(' ')[0]}</h1><p className="muted">{today}</p></div>
       <div className="grid">
+        {can(Perm.PatientView) && <TodayList />}
         {can(Perm.PatientView) && (
           <section className="card action">
             <h2>Patients</h2>
@@ -42,16 +40,8 @@ export default function Home() {
             </div>
           </section>
         )}
-        {(labCount !== null || formCount !== null || wait !== null) && (
-          <section className="card action">
-            <h2>Waiting for you</h2>
-            <ul className="plain">
-              {labCount !== null && <li><Link to="/labs"><strong>{labCount}</strong> lab result{labCount === 1 ? '' : 's'} to acknowledge</Link></li>}
-              {formCount !== null && <li><Link to="/forms"><strong>{formCount}</strong> pre-admission form{formCount === 1 ? '' : 's'} to triage</Link></li>}
-              {wait && (can(Perm.ReferralsTriage) || wait.toTriage > 0) && <li><Link to="/referrals"><strong>{wait.toTriage}</strong> referral{wait.toTriage === 1 ? '' : 's'} to triage</Link></li>}
-              {wait && <li><Link to="/waitlist"><strong>{wait.overdue}</strong> waitlist patient{wait.overdue === 1 ? '' : 's'} past target{wait.dueIn14Days ? `, ${wait.dueIn14Days} due within 14 days` : ''}</Link></li>}
-            </ul>
-          </section>
+        {labCount !== null && labCount > 0 && (
+          <section className="card action"><h2>Lab results</h2><p><Link to="/labs"><strong>{labCount}</strong> result{labCount === 1 ? '' : 's'} to acknowledge</Link></p></section>
         )}
         <section className="card">
           <h2>Today's theatres</h2>

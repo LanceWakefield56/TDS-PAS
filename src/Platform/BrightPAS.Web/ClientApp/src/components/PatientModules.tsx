@@ -87,7 +87,7 @@ export default function PatientModules({ patientId }: { patientId: string }) {
         </section>
       )}
       {forms && (
-        <section className="card">
+        <section className="card" id="forms">
           <div className="row-between"><h2>Pre-admission form</h2>{writable('forms') && <button className="btn btn-light btn-small" onClick={sendForm}>{forms.length ? 'Send a new link' : 'Send pre-admission form'}</button>}</div>
           {remindersOn && writable('forms') && writable('reminders') && (
             <div className="row small"><span className="muted">Send the link by</span>
@@ -132,7 +132,7 @@ export default function PatientModules({ patientId }: { patientId: string }) {
           ))}</ul>}
         </section>
       )}
-      {mod('triage') && (can(Perm.TriageView) || can(Perm.TriageAssess) || can(Perm.TriageReview)) && <PatientTriage patientId={patientId} />}
+      {mod('triage') && (can(Perm.TriageView) || can(Perm.TriageAssess) || can(Perm.TriageReview)) && <div id="triage"><PatientTriage patientId={patientId} /></div>}
       {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <PatientEstimates patientId={patientId} />}
       {trace && implants && (
         <section className="card">

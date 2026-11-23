@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router';
 import { age, api, ApiError, ethnicityName, formatDate, PatientDetail, Perm } from '../api';
 import { useSession } from '../App';
 import PatientModules from '../components/PatientModules';
+import JourneyPanel from '../components/Journey';
 import PatientRecords from '../components/PatientRecords';
 
 export default function PatientView() {
@@ -67,6 +68,8 @@ export default function PatientView() {
           <strong>Critical alert{critical.length > 1 ? 's' : ''}:</strong> {critical.map((a) => `${a.type} – ${a.description}`).join(' · ')}
         </div>
       )}
+
+      <JourneyPanel patientId={p.id} />
 
       <div className="grid">
         <section className="card">

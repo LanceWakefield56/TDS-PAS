@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.23.0 – 2026-11-23 – **Patient journey: the whole system follows the patient**
+- **Journey on every patient page (ADR 0036, guide H30)** – referral → waitlist → estimate → questionnaire → triage → booked → reminders → admitted → theatre → recovery → discharged → follow-up → paid → coded, each stage done / to do now / waiting / stopped / later, with **one big "next step" button** that opens the right screen; other episodes and "start something new" (referral, estimate, theatre date, clinic appointment).
+- **My list** (home page) – everything you can act on across every module, grouped Theatre today / Before surgery / After surgery, most urgent first, with "Start here". Only shows what your role can do.
+- **Theatre day board** – today's patients in Coming in / Admitted / In theatre / Recovery / Gone home, one tap to move on, alerts, triage outcome and precautions on each card; refreshes every 30 seconds.
+- **Simpler menu** – My list, Patients, Theatre day; everything else in groups (Before surgery, Day of surgery, After surgery, Running TDS, Administration) that open on the page you're on.
+- An invoice started from the journey is linked to the booking. Robot: each role's list is followed without the menu.
+
 ## 0.22.0 – 2026-11-23 – **Triage & suitability**
 - **Triage & suitability module (ADR 0035, guide H29, spec 7.25)** – initial and post-booking triage; permissions *View*, *Assess*, *Review* and rule *Edit*/*Approve*; demo account **fgrant** (anaesthetist) and **nurse**.
   - **Risk profile:** BMI, STOP-BANG, Clinical Frailty Scale, VTE (Caprini subset), RCRI and a suggested ASA with reasons; findings with the rule that fired; missing information; precautions; what changed since the last triage.

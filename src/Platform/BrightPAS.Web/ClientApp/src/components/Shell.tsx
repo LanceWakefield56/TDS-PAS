@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Children, ReactNode, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
@@ -43,54 +43,79 @@ export default function Shell() {
       )}
       <div className="body">
         <nav id="mainnav" className={`sidenav ${open ? 'open' : ''}`} aria-label="Main menu">
-          <NavLink to="/" end>My work today</NavLink>
-          {can(Perm.PatientView) && <NavLink to="/patients" end>Find a patient</NavLink>}
+          <NavLink to="/" end className="primary-nav">My list</NavLink>
+          {can(Perm.PatientView) && <NavLink to="/patients" end className="primary-nav">Patients</NavLink>}
+          {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/day" className="primary-nav">Theatre day</NavLink>}
           {can(Perm.PatientRegister) && <NavLink to="/patients/new">Register a patient</NavLink>}
-          {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/referrals">Referrals</NavLink>}
-          {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/waitlist">Waitlist</NavLink>}
-          {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/calendar">Calendar</NavLink>}
-          {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/theatre" end>Theatre lists</NavLink>}
-          {mod('labs') && can(Perm.LabsView) && <NavLink to="/labs">Lab results</NavLink>}
-          {mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)) && <NavLink to="/forms">Pre-admission forms</NavLink>}
-          {mod('billing') && can(Perm.BillingView) && <NavLink to="/billing">Estimates &amp; invoices</NavLink>}
-          {mod('triage') && (can(Perm.TriageView) || can(Perm.TriageAssess) || can(Perm.TriageReview) || can(Perm.TriageRules)) && <NavLink to="/triage" end>Triage</NavLink>}
-          {mod('triage') && (can(Perm.TriageRules) || can(Perm.TriageApprove)) && <NavLink to="/triage/rules">Triage rules</NavLink>}
-          {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <NavLink to="/estimates" end>Procedure estimates</NavLink>}
-          {mod('estimates') && can(Perm.EstimatesBuild) && <NavLink to="/estimates/new">New estimate</NavLink>}
-          {mod('estimates') && can(Perm.EstimatesBuild) && <NavLink to="/estimates/outbox">Estimate outbox</NavLink>}
-          {mod('estimates') && can(Perm.EstimatesManage) && <NavLink to="/estimates/admin">Estimates admin</NavLink>}
-          {mod('reminders') && can(Perm.RemindersView) && <NavLink to="/reminders">SMS &amp; email</NavLink>}
-          {mod('letters') && can(Perm.LettersView) && <NavLink to="/letters" end>Letters</NavLink>}
-          {mod('rostering') && can(Perm.RosterView) && <NavLink to="/roster">Roster</NavLink>}
-          {mod('portal') && can(Perm.PortalSpecialist) && <NavLink to="/portal" end>My TDS patients</NavLink>}
-          {mod('portal') && can(Perm.PortalManage) && <NavLink to="/portal/requests">Portal requests</NavLink>}
-          {mod('emr') && can(Perm.EmrView) && <NavLink to="/emr">Clinical record</NavLink>}
-          {mod('endoscopy') && can(Perm.EndoView) && <NavLink to="/endoscopy">Endoscopy</NavLink>}
-          {mod('scribe') && (can(Perm.ScribeUse) || can(Perm.ScribeManage) || can(Perm.ScribeApprove)) && <NavLink to="/scribe">Scribe</NavLink>}
-          {mod('devices') && (can(Perm.DevicesUse) || can(Perm.DevicesManage)) && <NavLink to="/devices">Monitors &amp; SaferSleep</NavLink>}
-          {mod('assets') && can(Perm.AssetsView) && <NavLink to="/cssd">Sterile services (CSSD)</NavLink>}
-          {mod('assets') && can(Perm.AssetsView) && <NavLink to="/assets">Assets &amp; equipment</NavLink>}
-          {mod('assets') && can(Perm.AssetsView) && <NavLink to="/stock">Stock &amp; purchasing</NavLink>}
-          {mod('credentialing') && can(Perm.CredentialingView) && <NavLink to="/credentialing">Credentialing</NavLink>}
-          {mod('quality') && (can(Perm.QualityView) || can(Perm.QualityManage)) && <NavLink to="/quality" end>Quality</NavLink>}
-          {mod('reporting') && (can(Perm.CodingCode) || can(Perm.CodingSubmit) || can(Perm.CodingManage)) && <NavLink to="/coding">Coding &amp; reporting</NavLink>}
-          {mod('quality') && can(Perm.QualityReport) && <NavLink to="/quality/report">Report an incident</NavLink>}
-          {mod('quality') && can(Perm.QualityReport) && <NavLink to="/quality/mine">Policies &amp; my reports</NavLink>}
-          {can(Perm.PatientMerge) && <NavLink to="/admin/identity">Identity checks</NavLink>}
-          {(can(Perm.UsersManage) || can(Perm.AuditView) || can(Perm.ModulesManage) || can(Perm.Integration) || can(Perm.OrganisationManage)) && <span className="nav-group">Administration</span>}
-          {can(Perm.OrganisationManage) && <NavLink to="/admin/organisation">Organisation set-up</NavLink>}
-          {mod('theatre') && can(Perm.TheatreManage) && !can(Perm.TheatreView) && <NavLink to="/theatre/templates">Regular theatre lists</NavLink>}
-          {can(Perm.UsersManage) && <NavLink to="/admin/users">User accounts</NavLink>}
-          {can(Perm.UsersManage) && <NavLink to="/admin/roles">Roles &amp; permissions</NavLink>}
-          {(can(Perm.UsersManage) || can(Perm.OrganisationManage)) && <NavLink to="/admin/security">Security &amp; printers</NavLink>}
-          {mod('letters') && can(Perm.LettersTemplates) && <NavLink to="/admin/letters">Letter templates</NavLink>}
-          {can(Perm.ModulesManage) && <NavLink to="/admin/licence">Licence &amp; modules{setupCount > 0 && <span className="count">{setupCount}</span>}</NavLink>}
-          {mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)) && <NavLink to="/messaging">Messaging &amp; integration</NavLink>}
-          {can(Perm.Integration) && <NavLink to="/admin/interfaces">Lab test import</NavLink>}
-          {can(Perm.AuditView) && <NavLink to="/audit">Audit log</NavLink>}
+
+          <Group title="Before surgery" paths={['/referrals', '/waitlist', '/estimates', '/forms', '/triage', '/reminders', '/letters', '/portal', '/calendar']}>
+            {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/referrals">Referrals</NavLink>}
+            {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/waitlist">Waitlist</NavLink>}
+            {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <NavLink to="/estimates" end>Procedure estimates</NavLink>}
+            {mod('estimates') && can(Perm.EstimatesBuild) && <NavLink to="/estimates/outbox">Estimate outbox</NavLink>}
+            {mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)) && <NavLink to="/forms">Pre-admission forms</NavLink>}
+            {mod('triage') && (can(Perm.TriageView) || can(Perm.TriageAssess) || can(Perm.TriageReview) || can(Perm.TriageRules)) && <NavLink to="/triage" end>Triage</NavLink>}
+            {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/calendar">Calendar</NavLink>}
+            {mod('reminders') && can(Perm.RemindersView) && <NavLink to="/reminders">SMS &amp; email</NavLink>}
+            {mod('letters') && can(Perm.LettersView) && <NavLink to="/letters" end>Letters</NavLink>}
+            {mod('portal') && can(Perm.PortalSpecialist) && <NavLink to="/portal" end>My TDS patients</NavLink>}
+            {mod('portal') && can(Perm.PortalManage) && <NavLink to="/portal/requests">Portal requests</NavLink>}
+          </Group>
+          <Group title="Day of surgery" paths={['/theatre', '/emr', '/endoscopy', '/scribe', '/devices', '/cssd']}>
+            {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/theatre" end>Theatre lists</NavLink>}
+            {mod('emr') && can(Perm.EmrView) && <NavLink to="/emr">Clinical record</NavLink>}
+            {mod('endoscopy') && can(Perm.EndoView) && <NavLink to="/endoscopy">Endoscopy</NavLink>}
+            {mod('scribe') && (can(Perm.ScribeUse) || can(Perm.ScribeManage) || can(Perm.ScribeApprove)) && <NavLink to="/scribe">Scribe</NavLink>}
+            {mod('devices') && (can(Perm.DevicesUse) || can(Perm.DevicesManage)) && <NavLink to="/devices">Monitors &amp; SaferSleep</NavLink>}
+            {mod('assets') && can(Perm.AssetsView) && <NavLink to="/cssd">Sterile services (CSSD)</NavLink>}
+          </Group>
+          <Group title="After surgery" paths={['/labs', '/billing', '/coding']}>
+            {mod('labs') && can(Perm.LabsView) && <NavLink to="/labs">Lab results</NavLink>}
+            {mod('billing') && can(Perm.BillingView) && <NavLink to="/billing">Invoices &amp; payments</NavLink>}
+            {mod('reporting') && (can(Perm.CodingCode) || can(Perm.CodingSubmit) || can(Perm.CodingManage)) && <NavLink to="/coding">Coding &amp; reporting</NavLink>}
+          </Group>
+          <Group title="Running TDS" paths={['/roster', '/assets', '/stock', '/credentialing', '/quality', '/admin/identity']}>
+            {mod('quality') && can(Perm.QualityReport) && <NavLink to="/quality/report">Report an incident</NavLink>}
+            {mod('quality') && can(Perm.QualityReport) && <NavLink to="/quality/mine">Policies &amp; my reports</NavLink>}
+            {mod('quality') && (can(Perm.QualityView) || can(Perm.QualityManage)) && <NavLink to="/quality" end>Quality</NavLink>}
+            {mod('rostering') && can(Perm.RosterView) && <NavLink to="/roster">Roster</NavLink>}
+            {mod('assets') && can(Perm.AssetsView) && <NavLink to="/assets">Assets &amp; equipment</NavLink>}
+            {mod('assets') && can(Perm.AssetsView) && <NavLink to="/stock">Stock &amp; purchasing</NavLink>}
+            {mod('credentialing') && can(Perm.CredentialingView) && <NavLink to="/credentialing">Credentialing</NavLink>}
+            {can(Perm.PatientMerge) && <NavLink to="/admin/identity">Identity checks</NavLink>}
+          </Group>
+          <Group title={<>Administration{setupCount > 0 && <span className="count">{setupCount}</span>}</>} paths={['/admin/organisation', '/admin/users', '/admin/roles', '/admin/security', '/admin/letters', '/admin/licence', '/admin/modules', '/messaging', '/admin/interfaces', '/audit', '/theatre/templates', '/triage/rules', '/estimates/admin']}>
+            {can(Perm.OrganisationManage) && <NavLink to="/admin/organisation">Organisation set-up</NavLink>}
+            {mod('theatre') && can(Perm.TheatreManage) && <NavLink to="/theatre/templates">Regular theatre lists</NavLink>}
+            {mod('triage') && (can(Perm.TriageRules) || can(Perm.TriageApprove)) && <NavLink to="/triage/rules">Triage rules</NavLink>}
+            {mod('estimates') && can(Perm.EstimatesManage) && <NavLink to="/estimates/admin">Estimates admin</NavLink>}
+            {can(Perm.UsersManage) && <NavLink to="/admin/users">User accounts</NavLink>}
+            {can(Perm.UsersManage) && <NavLink to="/admin/roles">Roles &amp; permissions</NavLink>}
+            {(can(Perm.UsersManage) || can(Perm.OrganisationManage)) && <NavLink to="/admin/security">Security &amp; printers</NavLink>}
+            {mod('letters') && can(Perm.LettersTemplates) && <NavLink to="/admin/letters">Letter templates</NavLink>}
+            {can(Perm.ModulesManage) && <NavLink to="/admin/licence">Licence &amp; modules{setupCount > 0 && <span className="count">{setupCount}</span>}</NavLink>}
+            {mod('messaging') && (can(Perm.MessagingView) || can(Perm.Integration)) && <NavLink to="/messaging">Messaging &amp; integration</NavLink>}
+            {can(Perm.Integration) && <NavLink to="/admin/interfaces">Lab test import</NavLink>}
+            {can(Perm.AuditView) && <NavLink to="/audit">Audit log</NavLink>}
+          </Group>
         </nav>
         <main className="content" id="main"><Outlet /></main>
       </div>
     </div>
+  );
+}
+
+/** A menu group that hides itself when empty and opens when you are on one of its pages. */
+function Group({ title, paths, children }: { title: ReactNode; paths: string[]; children: ReactNode }) {
+  const location = useLocation();
+  const here = paths.some((p) => location.pathname === p || location.pathname.startsWith(p + '/'));
+  const [open, setOpen] = useState(here);
+  useEffect(() => { if (here) setOpen(true); }, [here]);
+  if (Children.toArray(children).filter(Boolean).length === 0) return null;
+  return (
+    <details className="nav-section" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary>{title}</summary>
+      {children}
+    </details>
   );
 }
