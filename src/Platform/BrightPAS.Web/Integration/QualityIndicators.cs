@@ -29,6 +29,7 @@ public sealed class QualityIndicatorCalculators(IServiceProvider sp, LicenceCach
         ("count", "Count discrepancies (clinical record)"), ("ews", "Early warning score ≥ 5 (clinical record)"), ("inc1000", "Incidents per 1,000 episodes"),
         ("fall1000", "Falls per 1,000 episodes"), ("sac12", "SAC 1–2 incidents"), ("cmpack", "Complaints acknowledged within 5 working days"),
         ("cir", "Caecal intubation (endoscopy)"), ("adr", "Adenoma detection (endoscopy)"),
+        ("ssi", "Surgical site infections (confirmed, per operation under surveillance)"), ("fucomplete", "Follow-up contacts completed"),
     ];
 
     private bool Has(string module) => licence.Status.AccessTo(module) != ModuleAccess.None;
@@ -41,6 +42,26 @@ public sealed class QualityIndicatorCalculators(IServiceProvider sp, LicenceCach
         bool In(DateTimeOffset? t) => t is { } x && Day(x) >= from && Day(x) <= to;
         switch (key)
         {
+            case "ssi":
+                {
+                    if (!Has(BrightPAS.Modules.FollowUp.FollowUpModule.Id)) return null;
+                    var fdb = s.GetRequiredService<BrightPAS.Modules.FollowUp.FollowUpDbContext>();
+                    var ops = await fdb.Contacts.AsNoTracking().Where(c => c.Kind == BrightPAS.Modules.FollowUp.ContactKind.SsiCheck && c.OperationDate >= @from && c.OperationDate <= to)
+                        .Select(c => new { c.BookingId, c.PatientId, c.Procedure, c.OperationDate }).Distinct().ToListAsync(ct);
+                    var cases = await fdb.SsiCases.AsNoTracking().Where(c => c.OperationDate >= @from && c.OperationDate <= to
+                        && (c.Class == BrightPAS.Modules.FollowUp.SsiClass.Superficial || c.Class == BrightPAS.Modules.FollowUp.SsiClass.Deep || c.Class == BrightPAS.Modules.FollowUp.SsiClass.OrganSpace)).Select(c => c.BookingId).ToListAsync(ct);
+                    var groups = await GroupsAsync(s, ops.Select(o => o.PatientId), ct);
+                    return ops.GroupBy(o => o.BookingId).Select(g => g.First()).Select(o => new IndicatorCase(o.OperationDate, true, cases.Contains(o.BookingId) ? 1 : 0, $"{o.OperationDate:d MMM} {o.Procedure}", "/followup/ssi", groups.GetValueOrDefault(o.PatientId, "Not stated"))).ToList();
+                }
+            case "fucomplete":
+                {
+                    if (!Has(BrightPAS.Modules.FollowUp.FollowUpModule.Id)) return null;
+                    var today = NzTime.Today(s.GetRequiredService<TimeProvider>());
+                    var rows = await s.GetRequiredService<BrightPAS.Modules.FollowUp.FollowUpDbContext>().Contacts.AsNoTracking()
+                        .Where(c => c.DueOn >= @from && c.DueOn <= to && c.DueOn <= today && c.Status != BrightPAS.Modules.FollowUp.ContactStatus.Cancelled).ToListAsync(ct);
+                    var groups = await GroupsAsync(s, rows.Select(r => r.PatientId), ct);
+                    return rows.Select(r => new IndicatorCase(r.DueOn, true, r.Status == BrightPAS.Modules.FollowUp.ContactStatus.Done ? 1 : 0, $"{r.DueOn:d MMM} {r.Label}", $"/followup/{r.Id}", groups.GetValueOrDefault(r.PatientId, "Not stated"))).ToList();
+                }
             case "dosc":
                 {
                     if (!Has(TheatreModule.Id)) return null;

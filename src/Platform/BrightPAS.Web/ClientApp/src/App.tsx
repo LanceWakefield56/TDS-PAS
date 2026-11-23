@@ -57,6 +57,7 @@ import DymoLabels from './pages/DymoLabels';
 import Estimates, { EstimateEdit, EstimatesOutbox } from './pages/Estimates';
 import EstimatesAdmin from './pages/EstimatesAdmin';
 import DayBoard from './pages/DayBoard';
+import FollowUp, { FollowUpContact, FollowUpPlans, FollowUpReport, PatientCheckIn, SsiCase, SsiList } from './pages/FollowUp';
 import Triage, { TriageAssessment, TriageReport, TriageRules } from './pages/Triage';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
 import { FlowEditor, MessagingFlows } from './pages/FlowDesigner';
@@ -103,6 +104,7 @@ export default function App() {
   const writable = useCallback((id: string) => me?.modules[id] === 'Full', [me]);
 
   if (location.pathname.startsWith('/q/')) return <Routes><Route path="/q/:token" element={<PatientQuestionnaire />} /></Routes>;
+  if (location.pathname.startsWith('/c/')) return <Routes><Route path="/c/:token" element={<PatientCheckIn />} /></Routes>;
   if (location.pathname.startsWith('/my/')) return <Routes><Route path="/my/:token" element={<MyPortal />} /></Routes>;
   if (loading) return <div className="splash"><div className="brand-mark">BrightPAS</div><p>Loading…</p></div>;
 
@@ -111,6 +113,7 @@ export default function App() {
   const allowed = (ok: boolean, page: React.ReactElement) => ok ? page
     : <div className="card"><h1>Not available to you</h1><p>Your account does not include this page. If you need it for your work, ask your BrightPAS administrator.</p></div>;
   const triageAny = ['triage.view', 'triage.assess', 'triage.review', 'triage.rules', 'triage.approve'].some(can);
+  const followAny = ['followup.view', 'followup.record', 'followup.plans', 'followup.ssi', 'followup.report'].some(can);
   const publicPaths = ['/signin', '/setup'];
   if (needsSetup && location.pathname !== '/setup') return <Navigate to="/setup" replace />;
   if (!me && !publicPaths.includes(location.pathname)) return <Navigate to="/signin" replace state={{ from: location.pathname }} />;
@@ -134,6 +137,12 @@ export default function App() {
           <Route path="/referrals" element={allowed(mod('referrals') && can(Perm.ReferralsView), <Referrals />)} />
           <Route path="/admin/organisation" element={allowed(can(Perm.OrganisationManage), <Organisation />)} />
           <Route path="/admin/roles" element={allowed(can(Perm.UsersManage), <Roles />)} />
+          <Route path="/followup" element={allowed(mod('followup') && followAny, <FollowUp />)} />
+          <Route path="/followup/ssi" element={allowed(mod('followup') && followAny, <SsiList />)} />
+          <Route path="/followup/ssi/:id" element={allowed(mod('followup') && followAny, <SsiCase />)} />
+          <Route path="/followup/plans" element={allowed(mod('followup') && followAny, <FollowUpPlans />)} />
+          <Route path="/followup/report" element={allowed(mod('followup') && can(Perm.FollowUpReport), <FollowUpReport />)} />
+          <Route path="/followup/:id" element={allowed(mod('followup') && followAny, <FollowUpContact />)} />
           <Route path="/day" element={allowed(mod('theatre') && can(Perm.TheatreView), <DayBoard />)} />
           <Route path="/triage" element={allowed(mod('triage') && triageAny, <Triage />)} />
           <Route path="/triage/rules" element={allowed(mod('triage') && triageAny, <TriageRules />)} />

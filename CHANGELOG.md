@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.24.0 – 2026-11-24 – **Post-op follow-up and SSI surveillance**
+- **Follow-up module (ADR 0037, guide H31, spec 7.26)** – permissions View / Record / Plans / Confirm SSI / Report; Follow-up in the main menu.
+  - **Plans:** next-working-day call, day-5 wound check by text, day-30 SSI check (90 with an implant), extra call for high-risk patients; first matching plan by procedure, else default. Example plans – agree with the clinical team.
+  - **Contacts made at discharge** on NZ clinic days (public holidays and Nelson Anniversary Day skipped); worklists Due today / Overdue / Concerns / Escalations / Next 2 weeks / Calendar / Unreachable / Done.
+  - **Call script** (pain, nausea, bleeding, wound, fever, eating, bowels/bladder, mobility, medicines, antibiotics, GP/ED visits, return to work, satisfaction); no answer → tried again next clinic day, unreachable after the plan's attempts; escalations (advice, GP, return to TDS, surgeon, ED) tracked until closed; Quality incident from a contact.
+  - **Patient check-in by text/email:** secret link + date of birth (locks after 5 tries); warning answers put a call back on today's list and text the duty nurse (no patient details); unanswered links become phone calls.
+  - **SSI surveillance:** suspected SSI from the wound answers → record with onset, signs, source, treatment and the operation's risk factors (wound class, skin prep, duration, antibiotic timing, temperature, ASA, BMI, diabetes, implant); classified superficial / deep / organ-space by the infection prevention lead; Quality incident; SSI-yyyy-nnn numbers.
+  - **GP letter** asking for wound infections within 30/90 days (drafted automatically); report (completion, concerns, escalations, returns, satisfaction, SSI rate by procedure and surgeon); Quality indicators for SSI and follow-up completion; encrypted SSI export file.
+- Answers and risk factors are stored one per row (3NF). Journey and My list show follow-up calls, concerns, escalations and SSIs to classify.
+
 ## 0.23.0 – 2026-11-23 – **Patient journey: the whole system follows the patient**
 - **Journey on every patient page (ADR 0036, guide H30)** – referral → waitlist → estimate → questionnaire → triage → booked → reminders → admitted → theatre → recovery → discharged → follow-up → paid → coded, each stage done / to do now / waiting / stopped / later, with **one big "next step" button** that opens the right screen; other episodes and "start something new" (referral, estimate, theatre date, clinic appointment).
 - **My list** (home page) – everything you can act on across every module, grouped Theatre today / Before surgery / After surgery, most urgent first, with "Start here". Only shows what your role can do.

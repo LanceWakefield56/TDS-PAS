@@ -79,6 +79,7 @@ public static class Standards
         (["coding", "nmds", "nbrs", "clinical code", "statutory"], "Coding & statutory reporting"),
         (["procedure estimate", "price list", "surgeon fee", "incisive"], "Procedure estimates"),
         (["triage", "suitability", "risk profile"], "Patient triage and suitability"),
+        (["follow-up", "surgical site infection", "ssi"], "Post-op follow-up and SSI surveillance"),
         (["scribe", "dictation", "transcri", "ai-assisted", "consent to ai"], "BrightPAS Scribe"),
         (["endoscopy", "polyp", "colonoscopy", "gastroscopy", "worklist"], "Endoscopy"),
         (["emr", "episode", "checklist", "controlled drug", "observation"], "Clinical record (eMR)"),
@@ -165,5 +166,7 @@ public static class ModuleSuites
              ("POST", $"api/estimates/{Guid.Empty}/incisive", "{}")]),
         new("triage", "Patient triage and suitability", ["api/triage/worklist", "api/triage/meta", $"api/triage/assessments/{Guid.Empty}", "api/triage/rulesets", "api/triage/settings"],
             [("POST", "api/triage/run", "{}"), ("POST", $"api/triage/assessments/{Guid.Empty}/sign-off", "{}"), ("POST", $"api/triage/rulesets/{Guid.Empty}/approve", "{}"), ("PUT", "api/triage/settings", "{}")]),
+        new("followup", "Post-op follow-up and SSI surveillance", ["api/followup/worklist", "api/followup/meta", $"api/followup/contacts/{Guid.Empty}", "api/followup/ssi", "api/followup/plans", "api/followup/report"],
+            [($"POST", $"api/followup/contacts/{Guid.Empty}/record", "{}"), ("POST", "api/followup/ssi", "{}"), ("POST", $"api/followup/ssi/{Guid.Empty}/confirm", "{}"), ("PUT", "api/followup/settings", "{}"), ("POST", "api/followup/plans", "{}")]),
     ];
 }

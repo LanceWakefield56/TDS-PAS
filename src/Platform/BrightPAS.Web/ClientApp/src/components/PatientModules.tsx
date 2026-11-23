@@ -8,6 +8,7 @@ import { MessageTable } from '../pages/Reminders';
 import { LetterTable } from '../pages/Letters';
 import { PatientEstimates } from '../pages/Estimates';
 import { PatientTriage } from '../pages/Triage';
+import { PatientFollowUp } from '../pages/FollowUp';
 
 /** The licensed-module panels on a patient's record: bookings, lab results, pre-admission forms, billing. */
 export default function PatientModules({ patientId }: { patientId: string }) {
@@ -133,6 +134,7 @@ export default function PatientModules({ patientId }: { patientId: string }) {
         </section>
       )}
       {mod('triage') && (can(Perm.TriageView) || can(Perm.TriageAssess) || can(Perm.TriageReview)) && <div id="triage"><PatientTriage patientId={patientId} /></div>}
+      {mod('followup') && (can(Perm.FollowUpView) || can(Perm.FollowUpRecord)) && <PatientFollowUp patientId={patientId} />}
       {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <PatientEstimates patientId={patientId} />}
       {trace && implants && (
         <section className="card">

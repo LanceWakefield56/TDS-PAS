@@ -123,7 +123,7 @@ public class LettersTests
         await using var s = h.Scope();
         var (p, bookingId) = await BookedPatientAsync(h, s);
         var svc = s.ServiceProvider.GetRequiredService<LetterService>();
-        Assert.Equal(5, (await svc.TemplatesAsync(true)).Count);
+        Assert.Equal(6, (await svc.TemplatesAsync(true)).Count);
         var (_, needBooking) = await svc.CreateDraftAsync(new(p.Id, "APPT", null, null), "rec", "Sam Reception");
         Assert.Contains("booking", needBooking[0]);
 

@@ -85,7 +85,8 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Triage & suitability (spec 7.25): risk profile and scores, versioned rules with clinical approval, re-triage, sign-off, booking hold – 0.22.0 (ADR 0035)
 - ☐ Triage next: TDS's anaesthetists agree and approve the rules; NEWS2/early-warning scores on the day (with EMR observations); anaesthetist video/phone review booking
 - ☑ Patient journey, My list, theatre day board, simpler menu – 0.23.0 (ADR 0036)
-- ☐ Post-op follow-up and SSI surveillance (spec 7.26) – 0.24.0
+- ☑ Post-op follow-up and SSI surveillance (spec 7.26) – 0.24.0 (ADR 0037)
+- ☐ Follow-up next: clinical approval of the script, warning rules and plans; HQSC programme data specification check before any submission; PROMs (with the form designer)
 - ☐ Delayed send and right-recipient checks for letters and reminders (7.19–7.20), de-identified reporting (7.21) and form designer – 0.25.0; claims, Xero, EFTPOS, NHI/HPI 0.26.0
 - ☐ Coding next: obtain the Health NZ clinical code table and code tables (purchaser, specialty, facility, domicile, CPAC); NBSP extract layout; AR-DRG/WIES grouping if a contract needs it; NNPAC if TDS reports outpatient events
 - ☐ Optional: ADT to the CARESCAPE Gateway so monitors can "Request Admit" the patient by unit and bed
@@ -95,7 +96,7 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ CSSD steriliser cycle records from USB / log folder with curve and plateau checks – 0.19.0 (real Sterilizer 1 files)
 - ☑ Daylight saving and leap years handled throughout – 0.19.0 (ADR 0032)
 - ☑ Quality, incidents and complaints (spec 7.12, 7.14) – 0.19.0 (ADR 0031)
-- ☐ Quality next (with the form designer, 0.25.0; SSI in 0.23.0): patient surveys/PROMs, SSI surveillance, M&M review, PDSA cycles, internal audit forms; HQSC/ACC notification files when formats are confirmed
+- ☐ Quality next (with the form designer, 0.25.0; SSI done in 0.24.0): patient surveys/PROMs, SSI surveillance, M&M review, PDSA cycles, internal audit forms; HQSC/ACC notification files when formats are confirmed
 - ☐ Messaging: workflow engine (human tasks, timers, escalation), MLLP/DICOM over TLS, DICOM MWL/MPPS (with endoscopy), drag lines in mapper, C# extension scripts
 - ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends
 - ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)

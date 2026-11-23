@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "followup"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -73,6 +73,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "reporting" => await CodingChecksAsync(ct),
         "estimates" => await EstimatesChecksAsync(ct),
         "triage" => await TriageChecksAsync(ct),
+        "followup" => await FollowUpChecksAsync(ct),
         _ => []
     };
 
@@ -289,6 +290,24 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 users > 0, $"{users} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
             new("safersleep", "SaferSleep interface", "Optional: switch on SaferSleep, with an outbound MLLP interface (patient and booking to SaferSleep) and an inbound one with the handler 'SaferSleep anaesthetic record'. Confirm the message profile with SaferSleep.",
                 s.SaferSleepEnabled && ssIn && ssOut, !s.SaferSleepEnabled ? "Off." : $"Out: {(ssOut ? s.SaferSleepOutCode : "missing")}; in: {(ssIn ? "set up" : "missing")}.", true, "Open device settings", "/devices?tab=settings", Permissions.DevicesManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> FollowUpChecksAsync(CancellationToken ct)
+    {
+        var svc = Svc<BrightPAS.Modules.FollowUp.FollowUpService>();
+        var plans = await svc.PlansAsync(ct);
+        var s = await svc.SettingsAsync(ct);
+        var callers = await UsersWithAsync(Permissions.FollowUpRecord, ct);
+        var leads = await UsersWithAsync(Permissions.FollowUpSsi, ct);
+        return
+        [
+            new("plans", "Follow-up plans agreed", "Start from the example plans (next-day call, day-5 wound check, day-30 SSI check – day 90 with an implant) and agree them with the clinical team; one plan must be the default.",
+                plans.Any(p => p.IsDefault && p.IsActive), plans.Count == 0 ? "No plans yet." : $"{plans.Count} plan(s){(plans.Any(p => p.IsDefault && p.IsActive) ? "" : " – no active default plan")}.", false, "Open plans", "/followup/plans", Permissions.FollowUpPlans),
+            new("people", "Nurses who follow up, and the infection prevention lead", "Nurses make the calls; the infection prevention lead confirms SSI classification (Quality Manager role or adjust roles).",
+                callers > 0 && leads > 0, $"{callers} can follow up, {leads} can confirm SSIs.", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("links", "Patient check-in texts", "Set the public web address so check-in links can be sent automatically (needs SMS/email set up in Reminders) and the duty nurse mobile for alerts.",
+                s.PublicUrl is not null || !s.SendCheckInLinks, s.PublicUrl is null ? (s.SendCheckInLinks ? "Public web address not set – links are not sent." : "Check-in texts switched off.") : $"Links to {s.PublicUrl}; duty mobile {(s.DutyMobile is null ? "not set" : "set")}.", true, "Open settings", "/followup/plans?tab=settings", Permissions.FollowUpPlans),
         ];
     }
 

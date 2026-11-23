@@ -154,3 +154,11 @@ public sealed class TriageMerge(BrightPAS.Modules.Triage.TriageDbContext db) : I
     public string Name => "Triage";
     public Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) => db.Assessments.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
 }
+
+public sealed class FollowUpMerge(BrightPAS.Modules.FollowUp.FollowUpDbContext db) : IPatientMergeParticipant
+{
+    public string Name => "Follow-up";
+    public async Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) =>
+        await db.Contacts.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
+        + await db.SsiCases.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
+}

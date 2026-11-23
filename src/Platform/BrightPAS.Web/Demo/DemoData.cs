@@ -130,6 +130,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await CodingAsync(ct);
         await EstimatesAsync(ct);
         await TriageAsync(ct);
+        await FollowUpAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
 
@@ -1258,6 +1259,37 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         var review = open.FirstOrDefault(w => w.Suggested == BrightPAS.Modules.Triage.TriageOutcome.AnaesthetistReview);
         if (review is not null)
             Ok(await svc.SignOffAsync(review.Id, new(BrightPAS.Modules.Triage.TriageOutcome.SuitableWithPrecautions, 3, "First on the list; device check on admission", "Reviewed in pre-assessment clinic.", "Reviewed by anaesthetist – suitable with precautions"), true, "fgrant", "Anaesthetist", ct), "anaesthetist sign-off");
+    }
+
+    private async Task FollowUpAsync(CancellationToken ct)
+    {
+        var fu = S<BrightPAS.Modules.FollowUp.FollowUpService>();
+        await fu.SeedExamplesAsync("quality", ct);
+        var st = await fu.SettingsAsync(ct);
+        Ok(await fu.SaveSettingsAsync(new BrightPAS.Modules.FollowUp.FollowUpSettings { PublicUrl = "https://localhost:5001", DutyMobile = "021 555 0100", SendCheckInLinks = true, LinkDays = st.LinkDays, GpLetter = true }, "quality", ct), "follow-up settings");
+        await fu.ScanAsync(ct);
+        // Record a realistic spread of calls: most fine, one concern escalated to the GP, one unanswered, one suspected wound infection.
+        var due = (await fu.WorklistAsync("overdue", ct: ct)).Concat(await fu.WorklistAsync("today", ct: ct)).Where(c => c.Method == "Phone").OrderBy(c => c.DueOn).ToList();
+        var fine = new Dictionary<string, string> { ["pain"] = "2", ["pain_relief_working"] = "yes", ["nausea"] = "No", ["bleeding"] = "None", ["wound_red"] = "no", ["wound_swollen"] = "no", ["wound_discharge"] = "Nothing", ["wound_open"] = "no", ["fever"] = "no", ["eating"] = "yes", ["bowels_bladder"] = "yes", ["mobility"] = "yes", ["satisfaction"] = "9" };
+        for (var k = 0; k < due.Count; k++)
+        {
+            var c = due[k];
+            if (k == 1)
+            {
+                var r = await fu.RecordAsync(c.Id, new(BrightPAS.Modules.FollowUp.ContactStatus.Done, "Phone", new Dictionary<string, string>(fine) { ["pain"] = "8", ["pain_relief_working"] = "no" }, BrightPAS.Modules.FollowUp.Escalation.GpReview, "Advised to see GP today for stronger pain relief; GP practice phoned.", null), "nurse", ct);
+                Ok(r.Errors, "follow-up escalation");
+            }
+            else if (k == 2) Ok((await fu.RecordAsync(c.Id, new(BrightPAS.Modules.FollowUp.ContactStatus.NoAnswer, "Phone", null, BrightPAS.Modules.FollowUp.Escalation.None, null, "Voicemail left."), "nurse", ct)).Errors, "follow-up no answer");
+            else if (k == 3)
+            {
+                var r = await fu.RecordAsync(c.Id, new(BrightPAS.Modules.FollowUp.ContactStatus.Done, "Phone", new Dictionary<string, string>(fine) { ["wound_red"] = "yes", ["wound_swollen"] = "yes", ["wound_discharge"] = "Cloudy, yellow/green or smelly", ["fever"] = "yes" },
+                    BrightPAS.Modules.FollowUp.Escalation.ReturnToTds, "Wound review at TDS tomorrow 9:00 with the surgeon; swab to be taken.", null), "nurse", ct);
+                Ok(r.Errors, "follow-up wound");
+                var (ssi, errors) = await S<BrightPAS.Modules.FollowUp.SsiService>().OpenAsync(new(c.BookingId, c.Id, _today.AddDays(-1) < c.OperationDate ? c.OperationDate : _today.AddDays(-1), r.Signs, BrightPAS.Modules.FollowUp.SsiSource.Patient, false, false, false, null), "nurse", ct);
+                Ok(errors, "open SSI");
+            }
+            else if (k < 10) Ok((await fu.RecordAsync(c.Id, new(BrightPAS.Modules.FollowUp.ContactStatus.Done, "Phone", fine, BrightPAS.Modules.FollowUp.Escalation.None, null, null), "nurse", ct)).Errors, "follow-up call");
+        }
     }
 
     private async Task BillingAsync(CancellationToken ct)

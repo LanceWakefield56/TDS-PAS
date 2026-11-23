@@ -64,7 +64,7 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 | 7.23 | Form designer and import | Planned | – | – |
 | 7.25 | Triage & suitability | Built (0.22.0; rules need clinical approval) | Modules/BrightPAS.Modules.Triage, Web/Api/TriageEndpoints.cs, Web/Integration/TriageIntegration.cs, pages/Triage.tsx; Theatre IBookingConfirmGate; ADR 0035 | TriageTests, robot Triage & suitability |
 | 6.x | Usability: patient journey, My list, day board | Built (0.23.0) | Web/Journey/JourneyService.cs, Web/Api/JourneyEndpoints.cs, components/Journey.tsx, components/TodayList.tsx, pages/DayBoard.tsx; ADR 0036 | DemoDataTests (journey over all demo patients), robot Patient journey |
-| 7.26 | Post-op follow-up & SSI | Planned (0.24.0) | – | – |
+| 7.26 | Post-op follow-up & SSI | Built (0.24.0; script, rules and plans need clinical approval) | Modules/BrightPAS.Modules.FollowUp, Web/Api/FollowUpEndpoints.cs, Web/Integration/FollowUpIntegration.cs, pages/FollowUp.tsx; Quality indicators ssi/fucomplete; ADR 0037 | FollowUpTests, robot Follow-up & SSI |
 | 7.24 | Procedure estimates | Built (0.21.0; follow-up statuses, estimate → invoice and reports not yet) | Modules/BrightPAS.Modules.Estimates, Web/Api/EstimatesEndpoints.cs, Web/Pdf/EstimatePdf.cs, pages/Estimates.tsx, pages/EstimatesAdmin.tsx; ADR 0034 | EstimatesTests, EstimatePdfTests, robot Procedure estimates |
 
 ## 8–13 Compliance, usability, delivery

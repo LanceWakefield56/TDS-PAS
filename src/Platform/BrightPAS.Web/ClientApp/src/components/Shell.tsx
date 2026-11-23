@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting', 'estimates', 'triage'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting', 'estimates', 'triage', 'followup'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -46,6 +46,7 @@ export default function Shell() {
           <NavLink to="/" end className="primary-nav">My list</NavLink>
           {can(Perm.PatientView) && <NavLink to="/patients" end className="primary-nav">Patients</NavLink>}
           {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/day" className="primary-nav">Theatre day</NavLink>}
+          {mod('followup') && (can(Perm.FollowUpView) || can(Perm.FollowUpRecord) || can(Perm.FollowUpSsi)) && <NavLink to="/followup" end className="primary-nav">Follow-up</NavLink>}
           {can(Perm.PatientRegister) && <NavLink to="/patients/new">Register a patient</NavLink>}
 
           <Group title="Before surgery" paths={['/referrals', '/waitlist', '/estimates', '/forms', '/triage', '/reminders', '/letters', '/portal', '/calendar']}>
@@ -69,8 +70,10 @@ export default function Shell() {
             {mod('devices') && (can(Perm.DevicesUse) || can(Perm.DevicesManage)) && <NavLink to="/devices">Monitors &amp; SaferSleep</NavLink>}
             {mod('assets') && can(Perm.AssetsView) && <NavLink to="/cssd">Sterile services (CSSD)</NavLink>}
           </Group>
-          <Group title="After surgery" paths={['/labs', '/billing', '/coding']}>
+          <Group title="After surgery" paths={['/labs', '/billing', '/coding', '/followup/ssi', '/followup/report']}>
             {mod('labs') && can(Perm.LabsView) && <NavLink to="/labs">Lab results</NavLink>}
+            {mod('followup') && (can(Perm.FollowUpView) || can(Perm.FollowUpSsi)) && <NavLink to="/followup/ssi">SSI surveillance</NavLink>}
+            {mod('followup') && can(Perm.FollowUpReport) && <NavLink to="/followup/report">Follow-up report</NavLink>}
             {mod('billing') && can(Perm.BillingView) && <NavLink to="/billing">Invoices &amp; payments</NavLink>}
             {mod('reporting') && (can(Perm.CodingCode) || can(Perm.CodingSubmit) || can(Perm.CodingManage)) && <NavLink to="/coding">Coding &amp; reporting</NavLink>}
           </Group>
@@ -84,11 +87,12 @@ export default function Shell() {
             {mod('credentialing') && can(Perm.CredentialingView) && <NavLink to="/credentialing">Credentialing</NavLink>}
             {can(Perm.PatientMerge) && <NavLink to="/admin/identity">Identity checks</NavLink>}
           </Group>
-          <Group title={<>Administration{setupCount > 0 && <span className="count">{setupCount}</span>}</>} paths={['/admin/organisation', '/admin/users', '/admin/roles', '/admin/security', '/admin/letters', '/admin/licence', '/admin/modules', '/messaging', '/admin/interfaces', '/audit', '/theatre/templates', '/triage/rules', '/estimates/admin']}>
+          <Group title={<>Administration{setupCount > 0 && <span className="count">{setupCount}</span>}</>} paths={['/admin/organisation', '/admin/users', '/admin/roles', '/admin/security', '/admin/letters', '/admin/licence', '/admin/modules', '/messaging', '/admin/interfaces', '/audit', '/theatre/templates', '/triage/rules', '/estimates/admin', '/followup/plans']}>
             {can(Perm.OrganisationManage) && <NavLink to="/admin/organisation">Organisation set-up</NavLink>}
             {mod('theatre') && can(Perm.TheatreManage) && <NavLink to="/theatre/templates">Regular theatre lists</NavLink>}
             {mod('triage') && (can(Perm.TriageRules) || can(Perm.TriageApprove)) && <NavLink to="/triage/rules">Triage rules</NavLink>}
             {mod('estimates') && can(Perm.EstimatesManage) && <NavLink to="/estimates/admin">Estimates admin</NavLink>}
+            {mod('followup') && can(Perm.FollowUpPlans) && <NavLink to="/followup/plans">Follow-up plans</NavLink>}
             {can(Perm.UsersManage) && <NavLink to="/admin/users">User accounts</NavLink>}
             {can(Perm.UsersManage) && <NavLink to="/admin/roles">Roles &amp; permissions</NavLink>}
             {(can(Perm.UsersManage) || can(Perm.OrganisationManage)) && <NavLink to="/admin/security">Security &amp; printers</NavLink>}

@@ -68,6 +68,7 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
             await Step("Virtual email", "Send a test email and receive it in a virtual inbox", TestEmailAsync);
             await Step("Virtual phones", "Send all reminders that are due now – check every message", RunRemindersAsync);
             await Step("Patient portal on a phone", "Portal link by SMS → patient opens it on a phone → sends a question → reception sees it", PortalAsync);
+            await Step("Follow-up check-in on a phone", "Check-in text → patient answers on a phone → a concern puts a call back on the nurse's list today", CheckInByTextAsync);
         }
         else R.Add(Area, "", "SMS company (virtual Modica)", "SMS and email tests", Outcome.Skip, "The server does not trust the virtual SMS company's certificate. Run the robot from an administrator command prompt on the BrightPAS server.");
         await Step("Virtual Zebra printer", "Print a wristband and labels from the patient record", ZebraAsync);
@@ -87,6 +88,7 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         await EstimatesStepsAsync();
         await TriageStepsAsync();
         await JourneyStepsAsync();
+        await FollowUpStepsAsync();
         await Step("Exports", "Payroll export for Xero is encrypted, and the timesheet file is in the expected shape", PayrollAsync);
         await Step("Exports", "Letter as a password-protected PDF", PdfAsync);
     }

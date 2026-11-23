@@ -4,6 +4,7 @@ using BrightPAS.Modules.Billing;
 using BrightPAS.Modules.Coding;
 using BrightPAS.Modules.Emr;
 using BrightPAS.Modules.Estimates;
+using BrightPAS.Modules.FollowUp;
 using BrightPAS.Modules.Forms;
 using BrightPAS.Modules.Patients;
 using BrightPAS.Modules.Referrals;
@@ -44,7 +45,7 @@ public sealed record DayCard(Guid BookingId, Guid PatientId, string Patient, str
 /// </summary>
 public sealed class JourneyService(
     PatientsDbContext patients, TheatreDbContext theatre, ReferralsDbContext referrals, FormsDbContext forms, TriageDbContext triage,
-    EstDbContext estimates, BillingDbContext billing, EmrDbContext emr, CodingDbContext coding, RemindersDbContext reminders,
+    EstDbContext estimates, BillingDbContext billing, EmrDbContext emr, CodingDbContext coding, RemindersDbContext reminders, FollowUpDbContext followup,
     LicenceCache licence, TimeProvider clock)
 {
     private bool On(string module) => licence.Status.AccessTo(module) != ModuleAccess.None;
@@ -70,6 +71,7 @@ public sealed class JourneyService(
         var docs = On("billing") ? await billing.Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments).Where(d => d.PatientId == patientId && d.Status != DocumentStatus.Void).ToListAsync(ct) : [];
         var eps = On("emr") ? await emr.Episodes.AsNoTracking().Where(e => e.PatientId == patientId).ToListAsync(ct) : [];
         var coded = On("reporting") || On("coding") ? await coding.Episodes.AsNoTracking().Where(c => c.PatientId == patientId).ToListAsync(ct) : [];
+        var fus = On("followup") ? await followup.Contacts.AsNoTracking().Where(c => c.PatientId == patientId && c.Status != ContactStatus.Cancelled).ToListAsync(ct) : [];
         var msgs = On("reminders") ? await reminders.Messages.AsNoTracking().Where(m => m.PatientId == patientId && (m.Kind == MessageKind.BookingConfirmation || m.Kind == MessageKind.DayBeforeReminder)).ToListAsync(ct) : [];
 
         var cases = new List<JourneyCase>();
@@ -96,7 +98,7 @@ public sealed class JourneyService(
             stages.Add(ReminderStage(msgs, b.Id, b.Date, today));
             var ep = eps.FirstOrDefault(e => e.BookingId == b.Id);
             stages.AddRange(DayStages(b.Id, b.Status, b.Date, ep, today));
-            stages.Add(FollowUpStage(ep, b.Status, today));
+            stages.Add(On("followup") ? FollowUpPlanStage(fus.Where(c => c.BookingId == b.Id).ToList(), b.Status, ep, today) : FollowUpStage(ep, b.Status, today));
             stages.Add(BillingStage(docs, b.Id, b.Status, patientId));
             stages.Add(CodingStage(coded, b.Id, b.Status, ep));
             cases.Add(Build(b.Id.ToString(), b.Procedure, b.Date, StatusLabel(b.Status, b.Date, today), stages));
@@ -274,6 +276,24 @@ public sealed class JourneyService(
         return new("followup", "Follow-up", StageState.Done, "No call planned", null, null);
     }
 
+    private static JourneyStage FollowUpPlanStage(List<Contact> mine, BookingStatus st, Episode? ep, DateOnly today)
+    {
+        var discharged = st == BookingStatus.Discharged || ep?.Stage == EpisodeStage.Discharged;
+        if (!discharged) return new("followup", "Follow-up", StageState.Later, null, null, null);
+        if (mine.Count == 0) return new("followup", "Follow-up", StageState.Waiting, "Plan starts within 5 minutes of discharge", null, null);
+        var open = mine.Where(c => c.Status is ContactStatus.Due or ContactStatus.NoAnswer).OrderBy(c => c.DueOn).ToList();
+        var concern = mine.FirstOrDefault(c => c.Concern && c.EscalationClosedAt == null);
+        if (concern is not null) return new("followup", "Follow-up", StageState.Blocked, $"Concern: {concern.ConcernText}", concern.AnsweredAt ?? concern.DoneAt, new("Open the follow-up", $"/followup/{concern.Id}", Permissions.FollowUpRecord));
+        var esc = mine.FirstOrDefault(c => c.Escalation is not (Escalation.None or Escalation.Advice) && c.EscalationClosedAt == null);
+        if (esc is not null) return new("followup", "Follow-up", StageState.Blocked, $"{FollowUpScript.EscalationLabels[esc.Escalation]} – not closed", esc.DoneAt, new("Open the follow-up", $"/followup/{esc.Id}", Permissions.FollowUpRecord));
+        var done = mine.Count(c => c.Status == ContactStatus.Done);
+        if (open.Count == 0) return new("followup", "Follow-up", StageState.Done, $"{done} of {mine.Count} contact(s) done", mine.Max(c => c.DoneAt), null);
+        var n = open[0];
+        var label = n.Method == ContactMethod.PatientForm ? (n.LinkSentAt is null ? $"{n.Label} – text goes {n.DueOn:d MMM}" : $"{n.Label} – waiting for the patient") : $"{n.Label} – due {n.DueOn:d MMM}";
+        var state = n.DueOn <= today && n.Method != ContactMethod.PatientForm ? StageState.Now : n.Method == ContactMethod.PatientForm && n.LinkSentAt is not null ? StageState.Waiting : StageState.Later;
+        return new("followup", "Follow-up", state, $"{label} ({done} of {mine.Count} done)", null, new(n.Method == ContactMethod.PatientForm ? "Open the follow-up" : "Make the call", $"/followup/{n.Id}", Permissions.FollowUpRecord));
+    }
+
     private JourneyStage BillingStage(List<BillingDocument> docs, Guid bookingId, BookingStatus st, Guid patientId)
     {
         if (!On("billing")) return Skip("billing", "Paid", null);
@@ -410,6 +430,28 @@ public sealed class JourneyService(
             var calls = await emr.Episodes.AsNoTracking().Where(e => e.Stage == EpisodeStage.Discharged && e.FollowUpCallOn != null && e.FollowUpCallOn <= today && e.FollowUpCallOn >= today.AddDays(-14)).Take(100).ToListAsync(ct);
             await Names(calls.Select(x => x.PatientId));
             foreach (var x in calls) Add("After surgery", x.PatientId, "Follow-up phone call", x.FollowUpCallOn < today ? "Overdue" : "Due today", x.FollowUpCallOn, new("Open the clinical record", $"/emr/{x.BookingId}", Permissions.EmrView), x.FollowUpCallOn < today ? 2 : 3);
+        }
+        if (On("followup") && (can(Permissions.FollowUpRecord) || can(Permissions.FollowUpSsi)))
+        {
+            var due = await followup.Contacts.AsNoTracking().Where(c => (c.Status == ContactStatus.Due || c.Status == ContactStatus.NoAnswer) && c.DueOn <= today && c.Method != ContactMethod.PatientForm
+                || c.Concern && c.EscalationClosedAt == null
+                || c.Escalation != Escalation.None && c.Escalation != Escalation.Advice && c.EscalationClosedAt == null).OrderBy(c => c.DueOn).Take(200).ToListAsync(ct);
+            await Names(due.Select(x => x.PatientId));
+            foreach (var x in due.GroupBy(c => c.Id).Select(g => g.First()))
+            {
+                if (x.Concern && x.EscalationClosedAt == null && x.Status != ContactStatus.Due)
+                    Add("After surgery", x.PatientId, "Patient reported a concern", x.ConcernText, x.DueOn, new("Open the follow-up", $"/followup/{x.Id}", Permissions.FollowUpRecord), 0);
+                else if (x.Status is ContactStatus.Due or ContactStatus.NoAnswer)
+                    Add("After surgery", x.PatientId, x.Concern ? "Call back – patient concern" : x.Label, $"{x.Procedure}{(x.DueOn < today ? " · overdue" : "")}{(x.Attempts > 0 ? $" · attempt {x.Attempts + 1}" : "")}", x.DueOn, new("Make the call", $"/followup/{x.Id}", Permissions.FollowUpRecord), x.Concern ? 0 : x.DueOn < today ? 2 : 3);
+                else
+                    Add("After surgery", x.PatientId, "Close the escalation", $"{FollowUpScript.EscalationLabels[x.Escalation]}: {x.EscalationNote}", x.DueOn, new("Open the follow-up", $"/followup/{x.Id}", Permissions.FollowUpRecord), 2);
+            }
+            if (can(Permissions.FollowUpSsi))
+            {
+                var ssi = await followup.SsiCases.AsNoTracking().Where(c => c.Class == SsiClass.Suspected).Take(100).ToListAsync(ct);
+                await Names(ssi.Select(x => x.PatientId));
+                foreach (var x in ssi) Add("After surgery", x.PatientId, "Confirm the SSI classification", $"{x.Number} · {x.Procedure}", x.OnsetOn, new("Open the SSI record", $"/followup/ssi/{x.Id}", Permissions.FollowUpSsi), 2);
+            }
         }
         if (On("billing") && can(Permissions.BillingManage) && On("theatre"))
         {
