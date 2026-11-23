@@ -38,6 +38,7 @@
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Devices\BrightPAS.Modules.Devices.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Quality\BrightPAS.Modules.Quality.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Estimates\BrightPAS.Modules.Estimates.csproj" />
+    <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Triage\BrightPAS.Modules.Triage.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Coding\BrightPAS.Modules.Coding.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Portal\BrightPAS.Modules.Portal.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Messaging\BrightPAS.Modules.Messaging.csproj" />

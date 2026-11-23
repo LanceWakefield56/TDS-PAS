@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -72,6 +72,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "quality" => await QualityChecksAsync(ct),
         "reporting" => await CodingChecksAsync(ct),
         "estimates" => await EstimatesChecksAsync(ct),
+        "triage" => await TriageChecksAsync(ct),
         _ => []
     };
 
@@ -288,6 +289,29 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 users > 0, $"{users} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
             new("safersleep", "SaferSleep interface", "Optional: switch on SaferSleep, with an outbound MLLP interface (patient and booking to SaferSleep) and an inbound one with the handler 'SaferSleep anaesthetic record'. Confirm the message profile with SaferSleep.",
                 s.SaferSleepEnabled && ssIn && ssOut, !s.SaferSleepEnabled ? "Off." : $"Out: {(ssOut ? s.SaferSleepOutCode : "missing")}; in: {(ssIn ? "set up" : "missing")}.", true, "Open device settings", "/devices?tab=settings", Permissions.DevicesManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> TriageChecksAsync(CancellationToken ct)
+    {
+        var db = Svc<BrightPAS.Modules.Triage.TriageDbContext>();
+        var approved = await db.RuleSets.AsNoTracking().Where(r => r.Status == BrightPAS.Modules.Triage.RuleSetStatus.Approved).Select(r => new { r.Version, r.ApprovedBy, r.ApprovedAt, r.IsExample }).SingleOrDefaultAsync(ct);
+        var anyRules = await db.RuleSets.AnyAsync(ct);
+        var assessors = await UsersWithAsync(Permissions.TriageAssess, ct);
+        var reviewers = await UsersWithAsync(Permissions.TriageReview, ct);
+        var approvers = await UsersWithAsync(Permissions.TriageApprove, ct);
+        var s = await Svc<BrightPAS.Modules.Triage.TriageService>().SettingsAsync(ct);
+        return
+        [
+            new("rules", "Suitability rules reviewed and approved", "Start from the example rules, change every limit to TDS's agreed criteria with the anaesthetists, then approve (Triage › Rules). Until then triage shows scores only.",
+                approved is not null, approved is null ? (anyRules ? "A draft exists – not yet approved." : "No rule set yet.") : $"Version {approved.Version} approved by {approved.ApprovedBy} {(approved.ApprovedAt is { } at ? BrightPAS.Core.NzTime.ToNz(at).ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) : "")}.",
+                false, "Open rules", "/triage/rules", Permissions.TriageRules),
+            new("people", "Triage nurses, reviewers and approvers", "Nurses triage; anaesthetists review, confirm ASA and approve rules (adjust in roles).",
+                assessors > 0 && reviewers > 0 && approvers > 0, $"{assessors} can triage, {reviewers} can review, {approvers} can approve rules.", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("hold", "Booking hold", "Bookings stay at ‘Booked’ until triage is signed off as suitable. Choose all bookings or only some procedures.",
+                true, s.HoldBookingUntilSignedOff ? $"On for {(s.HoldProcedures ?? "all procedures")}." : "Off.", true, "Open settings", "/triage/rules?tab=settings", Permissions.TriageRules),
+            new("questionnaire", "Pre-admission questionnaire", "Triage reads the patient's questionnaire (PAQ-2). Send links from the booking or the patient record (Forms module).",
+                true, "PAQ-2 in use.", true, "Open forms", "/forms", Permissions.FormsSend),
         ];
     }
 

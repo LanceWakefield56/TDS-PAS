@@ -78,6 +78,7 @@ public static class Standards
         (["quality", "incident", "complaint", "risk register", "corrective action"], "Quality management"),
         (["coding", "nmds", "nbrs", "clinical code", "statutory"], "Coding & statutory reporting"),
         (["procedure estimate", "price list", "surgeon fee", "incisive"], "Procedure estimates"),
+        (["triage", "suitability", "risk profile"], "Patient triage and suitability"),
         (["scribe", "dictation", "transcri", "ai-assisted", "consent to ai"], "BrightPAS Scribe"),
         (["endoscopy", "polyp", "colonoscopy", "gastroscopy", "worklist"], "Endoscopy"),
         (["emr", "episode", "checklist", "controlled drug", "observation"], "Clinical record (eMR)"),
@@ -162,5 +163,7 @@ public static class ModuleSuites
         new("estimates", "Procedure estimates", ["api/estimates/", "api/estimates/meta", $"api/estimates/{Guid.Empty}", "api/estimates/outbox", "api/estimates/admin/catalogue"],
             [("POST", "api/estimates/", "{}"), ("POST", $"api/estimates/{Guid.Empty}/email/send", "{}"), ("POST", "api/estimates/admin/import/pricing", "{}"), ("PUT", "api/estimates/admin/settings", "{}"),
              ("POST", $"api/estimates/{Guid.Empty}/incisive", "{}")]),
+        new("triage", "Patient triage and suitability", ["api/triage/worklist", "api/triage/meta", $"api/triage/assessments/{Guid.Empty}", "api/triage/rulesets", "api/triage/settings"],
+            [("POST", "api/triage/run", "{}"), ("POST", $"api/triage/assessments/{Guid.Empty}/sign-off", "{}"), ("POST", $"api/triage/rulesets/{Guid.Empty}/approve", "{}"), ("PUT", "api/triage/settings", "{}")]),
     ];
 }

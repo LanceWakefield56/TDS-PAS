@@ -102,6 +102,8 @@ public sealed partial class Scenarios
         var ackBy = await page.Locator("dl.facts dd").First.InnerTextAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Acknowledged in writing" }).ClickAsync();
         await Assertions.Expect(page.GetByText("Acknowledged – the decision is due in 10 working days.")).ToBeVisibleAsync(new() { Timeout = 10000 });
+        // The facts list refreshes just after the message; wait for the decision date rather than reading the old text.
+        try { await Assertions.Expect(page.Locator("dl.facts dd").Nth(1)).ToHaveTextAsync(new System.Text.RegularExpressions.Regex(@"^(?!after)\S"), new() { Timeout = 10000 }); } catch (PlaywrightException) { }
         var decide = await page.Locator("dl.facts dd").Nth(1).InnerTextAsync();
         return string.IsNullOrWhiteSpace(decide) || decide.StartsWith("after", StringComparison.Ordinal)
             ? (Outcome.Fail, "After acknowledging, no decision date was shown.")

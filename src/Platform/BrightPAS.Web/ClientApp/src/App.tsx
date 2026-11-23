@@ -56,6 +56,7 @@ import Coding, { CodingWorkbench } from './pages/Coding';
 import DymoLabels from './pages/DymoLabels';
 import Estimates, { EstimateEdit, EstimatesOutbox } from './pages/Estimates';
 import EstimatesAdmin from './pages/EstimatesAdmin';
+import Triage, { TriageAssessment, TriageReport, TriageRules } from './pages/Triage';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
 import { FlowEditor, MessagingFlows } from './pages/FlowDesigner';
 import { MappingEditor, MessagingMappings } from './pages/MappingDesigner';
@@ -108,6 +109,7 @@ export default function App() {
   // 0.12.4: a page typed into the address bar that this person may not use says so, instead of failing on refused server calls.
   const allowed = (ok: boolean, page: React.ReactElement) => ok ? page
     : <div className="card"><h1>Not available to you</h1><p>Your account does not include this page. If you need it for your work, ask your BrightPAS administrator.</p></div>;
+  const triageAny = ['triage.view', 'triage.assess', 'triage.review', 'triage.rules', 'triage.approve'].some(can);
   const publicPaths = ['/signin', '/setup'];
   if (needsSetup && location.pathname !== '/setup') return <Navigate to="/setup" replace />;
   if (!me && !publicPaths.includes(location.pathname)) return <Navigate to="/signin" replace state={{ from: location.pathname }} />;
@@ -131,6 +133,10 @@ export default function App() {
           <Route path="/referrals" element={allowed(mod('referrals') && can(Perm.ReferralsView), <Referrals />)} />
           <Route path="/admin/organisation" element={allowed(can(Perm.OrganisationManage), <Organisation />)} />
           <Route path="/admin/roles" element={allowed(can(Perm.UsersManage), <Roles />)} />
+          <Route path="/triage" element={allowed(mod('triage') && triageAny, <Triage />)} />
+          <Route path="/triage/rules" element={allowed(mod('triage') && triageAny, <TriageRules />)} />
+          <Route path="/triage/report" element={allowed(mod('triage') && triageAny, <TriageReport />)} />
+          <Route path="/triage/:id" element={allowed(mod('triage') && triageAny, <TriageAssessment />)} />
           <Route path="/estimates" element={allowed(mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)), <Estimates />)} />
           <Route path="/estimates/new" element={allowed(mod('estimates') && can(Perm.EstimatesBuild), <EstimateEdit />)} />
           <Route path="/estimates/outbox" element={allowed(mod('estimates') && can(Perm.EstimatesBuild), <EstimatesOutbox />)} />

@@ -82,7 +82,10 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Endoscopy video retention 30 days with AES-256 archive to share/USB – 0.20.0
 - ☑ Procedure estimates (TDS Estimates v1.5 moved in): builder, price list, add-ons, templates, PDF, email with hold and right-recipient checks, Incisive, imports – 0.21.0 (ADR 0034)
 - ☐ Estimates next: follow-up statuses (accepted, declined, deposit paid, booked, prior approval, expiry list), estimate → Billing invoice, reports, layout builder; standalone app on a shared library; open business items (Incisive naming, SMTP, Veins/skin graft/Dr Butcher/MyoSure fees, costing defaults)
-- ☐ Delayed send and right-recipient checks for letters and reminders (7.19–7.20), de-identified reporting (7.21) – moved to 0.22.0
+- ☑ Triage & suitability (spec 7.25): risk profile and scores, versioned rules with clinical approval, re-triage, sign-off, booking hold – 0.22.0 (ADR 0035)
+- ☐ Triage next: TDS's anaesthetists agree and approve the rules; NEWS2/early-warning scores on the day (with EMR observations); anaesthetist video/phone review booking
+- ☐ Post-op follow-up and SSI surveillance (spec 7.26) – 0.23.0
+- ☐ Delayed send and right-recipient checks for letters and reminders (7.19–7.20), de-identified reporting (7.21) – 0.24.0; form designer 0.25.0; claims, Xero, EFTPOS, NHI/HPI 0.26.0
 - ☐ Coding next: obtain the Health NZ clinical code table and code tables (purchaser, specialty, facility, domicile, CPAC); NBSP extract layout; AR-DRG/WIES grouping if a contract needs it; NNPAC if TDS reports outpatient events
 - ☐ Optional: ADT to the CARESCAPE Gateway so monitors can "Request Admit" the patient by unit and bed
 - ☐ Devices next: capture real CARESCAPE Gateway messages and adjust the mapping; agree the anaesthetic record profile with SaferSleep; clinical sign-off of chart intervals and plausibility limits; Olympus tower status on the Monitors page; overdue-validation prompt on the whiteboard
@@ -91,7 +94,7 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ CSSD steriliser cycle records from USB / log folder with curve and plateau checks – 0.19.0 (real Sterilizer 1 files)
 - ☑ Daylight saving and leap years handled throughout – 0.19.0 (ADR 0032)
 - ☑ Quality, incidents and complaints (spec 7.12, 7.14) – 0.19.0 (ADR 0031)
-- ☐ Quality next (with the form designer, 0.22.0): patient surveys/PROMs, SSI surveillance, M&M review, PDSA cycles, internal audit forms; HQSC/ACC notification files when formats are confirmed
+- ☐ Quality next (with the form designer, 0.25.0; SSI in 0.23.0): patient surveys/PROMs, SSI surveillance, M&M review, PDSA cycles, internal audit forms; HQSC/ACC notification files when formats are confirmed
 - ☐ Messaging: workflow engine (human tasks, timers, escalation), MLLP/DICOM over TLS, DICOM MWL/MPPS (with endoscopy), drag lines in mapper, C# extension scripts
 - ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends
 - ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)

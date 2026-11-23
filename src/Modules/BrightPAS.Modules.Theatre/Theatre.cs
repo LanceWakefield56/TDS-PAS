@@ -247,7 +247,7 @@ public sealed record BookingView(Guid Id, Guid PatientId, string PatientName, st
 public sealed record SessionView(Guid Id, Guid LocationId, string LocationName, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, string Type, Guid SurgeonId, string Surgeon,
     Guid? AnaesthetistId, string? Anaesthetist, string? Notes, bool IsCancelled, int BookedMinutes, int AvailableMinutes, bool Overrun, IReadOnlyList<BookingView> Bookings);
 
-public sealed class TheatreService(TheatreDbContext db, PasDbContext core, PatientsDbContext patients, AuditWriter audit, TimeProvider clock)
+public sealed class TheatreService(TheatreDbContext db, PasDbContext core, PatientsDbContext patients, AuditWriter audit, TimeProvider clock, IEnumerable<BrightPAS.Core.Modules.IBookingConfirmGate> gates)
 {
     /// <summary>Minutes allowed between cases for cleaning and set-up when planning start times.</summary>
     public const int TurnoverMinutes = 10;
@@ -510,6 +510,9 @@ public sealed class TheatreService(TheatreDbContext db, PasDbContext core, Patie
         if (b is null) return "Booking not found.";
         if (!Allowed[b.Status].Contains(status)) return $"A booking that is '{Label(b.Status)}' cannot be changed to '{Label(status)}'.";
         if (status is BookingStatus.Cancelled && string.IsNullOrWhiteSpace(reason)) return "Enter the reason for cancelling.";
+        if (status is BookingStatus.Confirmed)
+            foreach (var gate in gates)
+                if (await gate.CheckAsync(b.Id, b.PatientId, b.Procedure, ct) is { } refusal) return refusal;
         var from = b.Status;
         b.Status = status;
         b.StatusAt = clock.GetUtcNow();

@@ -7,6 +7,7 @@ import { docStatusClass } from '../pages/Billing';
 import { MessageTable } from '../pages/Reminders';
 import { LetterTable } from '../pages/Letters';
 import { PatientEstimates } from '../pages/Estimates';
+import { PatientTriage } from '../pages/Triage';
 
 /** The licensed-module panels on a patient's record: bookings, lab results, pre-admission forms, billing. */
 export default function PatientModules({ patientId }: { patientId: string }) {
@@ -131,6 +132,7 @@ export default function PatientModules({ patientId }: { patientId: string }) {
           ))}</ul>}
         </section>
       )}
+      {mod('triage') && (can(Perm.TriageView) || can(Perm.TriageAssess) || can(Perm.TriageReview)) && <PatientTriage patientId={patientId} />}
       {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <PatientEstimates patientId={patientId} />}
       {trace && implants && (
         <section className="card">

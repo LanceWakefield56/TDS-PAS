@@ -4,6 +4,7 @@ import { addDays, api, errText, formatDate, PatientSummary, Perm, todayIso } fro
 import { useSession } from '../App';
 import PatientPicker from '../components/PatientPicker';
 import ExportButton from '../components/ExportButton';
+import { TriageBadge } from './Triage';
 import { findProcedure, RefLists, useRefData, ClinicianSelect } from '../components/RefData';
 
 interface Booking {
@@ -42,10 +43,16 @@ export default function TheatreLists() {
   const [checkItems, setCheckItems] = useState<{ key: string; label: string }[]>([]);
   useEffect(() => { api<{ key: string; label: string }[]>('/api/theatre/checklist-items').then(setCheckItems).catch(() => undefined); }, []);
   const canWrite = writable('theatre');
+  const [triage, setTriage] = useState<Record<string, any>>({});
+  const showTriage = mod('triage') && (can(Perm.TriageView) || can(Perm.TriageAssess) || can(Perm.TriageReview));
 
   const load = async () => {
     setError(null);
-    try { setSessions(await api<Session[]>(`/api/theatre/sessions?from=${date}`)); } catch (e) { setError(errText(e)); }
+    try {
+      const ss = await api<Session[]>(`/api/theatre/sessions?from=${date}`); setSessions(ss);
+      const ids = ss.flatMap((x) => x.bookings.map((b) => b.id));
+      if (showTriage && ids.length) api<Record<string, any>>(`/api/triage/bookings?ids=${ids.join(',')}`).then(setTriage).catch(() => setTriage({}));
+    } catch (e) { setError(errText(e)); }
   };
   useEffect(() => { load(); }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { api<Loc[]>('/api/theatre/locations').then(setLocations).catch(() => setLocations([])); }, []);
@@ -107,7 +114,7 @@ export default function TheatreLists() {
                     <td data-label="Procedure">{b.procedure}{b.laterality !== 'NotApplicable' && <strong> ({b.laterality.toUpperCase()})</strong>}{b.notes && <div className="muted small">{b.notes}</div>}{b.cancelReason && <div className="small">Cancelled: {b.cancelReason}</div>}</td>
                     <td data-label="Anaesthetic">{b.anaesthetic}</td>
                     <td data-label="Status"><span className={`pill ${statusClass[b.status]}`}>{label(b.status)}</span>{b.isTentative && <span className="pill amber">Tentative</span>}
-                      <div className="small muted">{b.payment !== 'NotSet' ? PAYMENTS.find(([k]) => k === b.payment)?.[1] : ''}{checkItems.length > 0 ? ` · ✓ ${b.checklist.length}/${checkItems.length}` : ''}{b.theatreIn ? ` · in ${hm(b.theatreIn)}${b.theatreOut ? `–${hm(b.theatreOut)}` : ''}` : ''}{b.scopeId ? ` · scope ${b.scopeId}` : ''}</div></td>
+                      <div className="small muted">{b.payment !== 'NotSet' ? PAYMENTS.find(([k]) => k === b.payment)?.[1] : ''}{checkItems.length > 0 ? ` · ✓ ${b.checklist.length}/${checkItems.length}` : ''}{b.theatreIn ? ` · in ${hm(b.theatreIn)}${b.theatreOut ? `–${hm(b.theatreOut)}` : ''}` : ''}{b.scopeId ? ` · scope ${b.scopeId}` : ''}</div>{showTriage && !inactive && <TriageBadge t={triage[b.id]} />}</td>
                     <td data-label="Actions" className="no-print">
                       {mod('emr') && can(Perm.EmrView) && !inactive && <Link className="btn btn-link" to={`/emr/${b.id}`}>Clinical record</Link>}
                       {mod('endoscopy') && can(Perm.EndoView) && !inactive && (s.type !== 'Surgical' || /colonoscop|gastroscop|sigmoidoscop|ogd/i.test(b.procedure)) && <Link className="btn btn-link" to={`/endoscopy/${b.id}`}>Endoscopy report</Link>}

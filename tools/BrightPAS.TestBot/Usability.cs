@@ -46,7 +46,7 @@ public static class Usability
           const iso = t.match(/\b20\d\d-[01]\d-[0-3]\d(T[0-2]\d:\d\d)?/);
           if (iso) out.push({ level: 'Warn', what: 'Computer-style date (yyyy-mm-dd) instead of an NZ date like 13 Nov 2026', text: t.substr(Math.max(0, iso.index - 60), 160) });
           const enumLike = t.match(/(?<![\w.@\/-])[a-z]+[A-Z][a-zA-Z]+(?![\w.@\/-])/);
-          if (enumLike && !/iPhone|iPad|HealthLink|DYMO|eMR|mmHg|SpO2|EtCO2|kPa|MyPortal|LabelWriter|PDFs?|JavaScript|SaferSleep|TeamUp|BrightPAS|McAfee|McKenzie|McDonald|MacKenzie/.test(enumLike[0]))
+          if (enumLike && !/iPhone|iPad|HealthLink|DYMO|eMR|mmHg|SpO2|EtCO2|kPa|MyPortal|LabelWriter|PDFs?|JavaScript|SaferSleep|TeamUp|BrightPAS|McAfee|McKenzie|McDonald|MacKenzie|eGFR|HbA1c/.test(enumLike[0]))
             out.push({ level: 'Warn', what: 'Code-style word shown to staff (looks like an internal name)', text: enumLike[0] });
           return out;
         }

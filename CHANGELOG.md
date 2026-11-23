@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.22.0 – 2026-11-23 – **Triage & suitability**
+- **Triage & suitability module (ADR 0035, guide H29, spec 7.25)** – initial and post-booking triage; permissions *View*, *Assess*, *Review* and rule *Edit*/*Approve*; demo account **fgrant** (anaesthetist) and **nurse**.
+  - **Risk profile:** BMI, STOP-BANG, Clinical Frailty Scale, VTE (Caprini subset), RCRI and a suggested ASA with reasons; findings with the rule that fired; missing information; precautions; what changed since the last triage.
+  - **Facts** from the patient record, the questionnaire (now PAQ-2: snoring/apnoea, neck size, stairs, recent heart attack or stroke, home oxygen, GLP-1 medicines), labs from the last 6 months and staff findings (override patient answers with a reason).
+  - **Versioned suitability rules and medicine prompts:** draft, clinical approval with an approval record, retire. Example rules shipped as a draft – not clinically approved.
+  - **Sign-off:** BrightPAS suggests, a clinician decides; a different outcome needs a reason; anaesthetist-only outcomes and ASA confirmation; sets the questionnaire's triage colour.
+  - **Re-triage** on new answers, new results, booking changes and old sign-offs (every 5 minutes); history kept; "got worse" worklist.
+  - **Booking hold:** optional – a booking cannot be confirmed until triage is signed off as suitable (all or listed procedures).
+  - Worklists, patient panel, theatre-list badge with precautions, report; set-up wizard, demo data, robot steps, patient merge.
+
 ## 0.21.0 – 2026-11-23 – **Procedure estimates: TDS Estimates moved into BrightPAS**
 - **Procedure estimates module (ADR 0034, guide H28, spec 7.24)** – TDS's estimate builder (standalone TDS Estimates v1.5) as a licensed BrightPAS module; permissions *Build estimates* (Reception, Finance) and *Manage estimates* (Finance); demo account **finance** (Grace Liu).
   - **Builder:** form on the left (patient, funding, procedure, add-ons, other charges, "if required" lines, manual fees, notes), live totals and warnings on the right; Save draft / Save & issue / PDF / Email… / Save to Incisive / Duplicate / Cancel / Save as template. Start from a template.

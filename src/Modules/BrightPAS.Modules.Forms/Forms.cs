@@ -138,7 +138,8 @@ public sealed record Section(string Title, string? Intro, IReadOnlyList<Question
 /// <summary>The pre-admission health questionnaire (version PAQ-1). Types: number, text, multiline, yesno, choice, confirm.</summary>
 public static class Questionnaire
 {
-    public const string Version = "PAQ-1";
+    /// <summary>PAQ-2 (0.22.0) adds optional questions used by triage scoring (STOP-BANG, functional capacity, recent cardiac events, home oxygen, GLP-1 medicines).</summary>
+    public const string Version = "PAQ-2";
     private static readonly string[] YesNo = ["Yes", "No"];
 
     public static readonly IReadOnlyList<Section> Sections =
@@ -157,6 +158,14 @@ public static class Questionnaire
             new("high_bp", "High blood pressure?", "yesno", true),
             new("lung", "Asthma, COPD or other lung problems?", "yesno", true, DetailsPrompt: "Please describe"),
             new("sleep_apnoea", "Sleep apnoea, heavy snoring, or do you use a CPAP machine?", "yesno", true),
+            new("snoring_loud", "Do you snore loudly (loud enough to be heard through a closed door)?", "yesno"),
+            new("daytime_tired", "Do you often feel tired, fatigued or sleepy during the day?", "yesno"),
+            new("observed_apnoea", "Has anyone seen you stop breathing or choke during your sleep?", "yesno"),
+            new("cpap_use", "If you have sleep apnoea: do you use your CPAP machine every night?", "choice", false, ["Yes", "No", "Not applicable"]),
+            new("neck_cm", "Neck (collar) size in cm, if you know it", "number"),
+            new("stairs", "Can you walk up two flights of stairs without stopping?", "yesno"),
+            new("recent_cardiac_stroke", "In the last 6 months, have you had a heart attack, a stent, heart surgery or a stroke?", "yesno", DetailsPrompt: "What and when?"),
+            new("home_oxygen", "Do you use oxygen at home?", "yesno"),
             new("diabetes", "Diabetes", "choice", true, ["No", "Yes – diet controlled", "Yes – tablets", "Yes – insulin"]),
             new("kidney_liver", "Kidney or liver disease?", "yesno", true, DetailsPrompt: "Please describe"),
             new("stroke", "Stroke, mini-stroke (TIA) or epilepsy?", "yesno", true, DetailsPrompt: "Please describe"),
@@ -170,6 +179,7 @@ public static class Questionnaire
             new("medications", "List all medicines you take, with the dose (include inhalers, patches and eye drops)", "multiline", Help: "Write 'none' if you take no medicines."),
             new("blood_thinners", "Do you take blood thinners (e.g. warfarin, dabigatran, rivaroxaban, apixaban, clopidogrel, aspirin)?", "yesno", true, DetailsPrompt: "Which one?"),
             new("herbal", "Do you take herbal remedies or supplements?", "yesno", true, DetailsPrompt: "Which ones?"),
+            new("glp1", "Do you have a weekly injection for diabetes or weight loss (e.g. Ozempic, Wegovy, Mounjaro, Trulicity)?", "yesno", DetailsPrompt: "Which one, and which day do you take it?"),
         ]),
         new("Allergies", null,
         [
@@ -243,6 +253,10 @@ public static class Questionnaire
             else f.Add(new("Info", $"BMI {bmi}"));
         }
         if (Yes("pacemaker")) f.Add(new("Red", "Pacemaker or implanted defibrillator"));
+        if (Yes("recent_cardiac_stroke")) f.Add(new("Red", "Heart attack, stent, heart surgery or stroke in the last 6 months" + D("recent_cardiac_stroke")));
+        if (Yes("home_oxygen")) f.Add(new("Red", "Uses home oxygen"));
+        if (a.GetValueOrDefault("stairs") == "No") f.Add(new("Amber", "Cannot climb two flights of stairs without stopping (low functional capacity)"));
+        if (Yes("glp1")) f.Add(new("Amber", "Weekly GLP-1 injection – check the hold rule before surgery" + D("glp1")));
         if (Yes("family_mh")) f.Add(new("Red", "Family history of anaesthetic problems (possible malignant hyperthermia)" + D("family_mh")));
         if (Yes("heart")) f.Add(new("Amber", "Heart condition" + D("heart")));
         if (Yes("sleep_apnoea")) f.Add(new("Amber", "Sleep apnoea / snoring / CPAP"));

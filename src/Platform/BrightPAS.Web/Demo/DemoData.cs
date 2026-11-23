@@ -129,6 +129,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await QualityAsync(ct);
         await CodingAsync(ct);
         await EstimatesAsync(ct);
+        await TriageAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
 
@@ -1193,6 +1194,16 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         if (a["blood_thinners"] == "Yes") a["blood_thinners_details"] = "Aspirin 100 mg daily";
         if (a["allergies"] == "Yes") a["allergies_details"] = "Penicillin – rash";
         if (i == 9) { a["pacemaker"] = "Yes"; a["heart"] = "Yes"; a["heart_details"] = "Pacemaker 2023 for heart block"; }
+        // PAQ-2 triage questions (0.22.0)
+        a["snoring_loud"] = i % 4 == 1 ? "Yes" : "No";
+        a["daytime_tired"] = i % 5 == 1 ? "Yes" : "No";
+        a["observed_apnoea"] = i == 6 ? "Yes" : "No";
+        a["stairs"] = i == 11 ? "No" : "Yes";
+        a["recent_cardiac_stroke"] = "No";
+        a["home_oxygen"] = "No";
+        a["glp1"] = i == 8 ? "Yes" : "No";
+        if (i == 8) { a["glp1_details"] = "Ozempic 1 mg on Sundays"; a["weight_kg"] = "128"; a["height_cm"] = "172"; }
+        if (i == 6) { a["neck_cm"] = "44"; a["sleep_apnoea"] = "Yes"; a["cpap_use"] = "No"; }
         return a;
     }
 
@@ -1226,6 +1237,27 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
                 Ok(await svc.TriageAsync(row.Id, Enum.Parse<TriageCategory>(row.Suggested ?? "Green"), row.Suggested == "Green" ? "Fit for day surgery" : "Discussed with anaesthetist – proceed",
                     row.Suggested == "Green" ? null : "Phoned patient to confirm details", addAllergyAlert: Answers(i)["allergies"] == "Yes", "nurse", ct), "triage questionnaire");
         }
+    }
+
+    /// <summary>Triage (0.22.0): the example rules approved for the demo only, triage of the upcoming bookings, and sign-offs by a nurse and an anaesthetist.</summary>
+    private async Task TriageAsync(CancellationToken ct)
+    {
+        var rules = S<BrightPAS.Modules.Triage.TriageRulesService>();
+        var rs = await rules.SeedExampleAsync("fgrant", ct);
+        if (rs is null) return;
+        Ok(await rules.ApproveAsync(rs.Id, "DEMONSTRATION ONLY – not a clinical approval. TDS's anaesthetists must review the rules before real use.", "fgrant", "Anaesthetist", ct), "approve demo rules");
+        var svc = S<BrightPAS.Modules.Triage.TriageService>();
+        await svc.ScanAsync(ct);
+        var open = await svc.WorklistAsync("open", ct);
+        var n = 0;
+        foreach (var w in open.Where(w => w.Suggested <= BrightPAS.Modules.Triage.TriageOutcome.SuitableWithPrecautions && w.ProcedureDate <= _today.AddDays(5)).Take(6))
+        {
+            Ok(await svc.SignOffAsync(w.Id, new(w.Suggested, null, null, "Questionnaire reviewed; phoned patient to confirm escort.", null), false, "nurse", "Nurse", ct), "triage sign-off");
+            n++;
+        }
+        var review = open.FirstOrDefault(w => w.Suggested == BrightPAS.Modules.Triage.TriageOutcome.AnaesthetistReview);
+        if (review is not null)
+            Ok(await svc.SignOffAsync(review.Id, new(BrightPAS.Modules.Triage.TriageOutcome.SuitableWithPrecautions, 3, "First on the list; device check on admission", "Reviewed in pre-assessment clinic.", "Reviewed by anaesthetist – suitable with precautions"), true, "fgrant", "Anaesthetist", ct), "anaesthetist sign-off");
     }
 
     private async Task BillingAsync(CancellationToken ct)
