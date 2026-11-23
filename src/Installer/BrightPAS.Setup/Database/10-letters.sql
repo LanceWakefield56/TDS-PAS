@@ -252,3 +252,56 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175751_SendSafety'
+)
+BEGIN
+    ALTER TABLE [letters].[Letters] ADD [CorrectionForId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175751_SendSafety'
+)
+BEGIN
+    ALTER TABLE [letters].[Letters] ADD [WrongRecipientAt] datetimeoffset NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175751_SendSafety'
+)
+BEGIN
+    ALTER TABLE [letters].[Letters] ADD [WrongRecipientReason] nvarchar(500) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175751_SendSafety'
+)
+BEGIN
+    CREATE INDEX [IX_Letters_CorrectionForId] ON [letters].[Letters] ([CorrectionForId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175751_SendSafety'
+)
+BEGIN
+    ALTER TABLE [letters].[Letters] ADD CONSTRAINT [FK_Letters_Letters_CorrectionForId] FOREIGN KEY ([CorrectionForId]) REFERENCES [letters].[Letters] ([Id]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [letters].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175751_SendSafety'
+)
+BEGIN
+    INSERT INTO [letters].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261123175751_SendSafety', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

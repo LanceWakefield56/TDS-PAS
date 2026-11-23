@@ -63,7 +63,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
     private static readonly (string Prefix, string? Module)[] Areas =
     [
         ("/api/labs", "labs"), ("/api/theatre", "theatre"), ("/api/forms", "forms"), ("/api/q/", "forms"), ("/api/billing", "billing"),
-        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/mcp", "messaging"), ("/api/assets", "assets"), ("/api/emr", "emr"), ("/api/endoscopy", "endoscopy"), ("/api/scribe", "scribe"), ("/api/devices", "devices"), ("/api/imports/labs", "labs"), ("/api/imports/monitors", "devices"), ("/api/imports/safersleep", "devices"), ("/api/quality", "quality"), ("/api/coding", "reporting"), ("/api/estimates", "estimates"), ("/api/triage", "triage"), ("/api/followup", "followup"), ("/api/c/", "followup"), ("/api/journey", null), ("/api/export-policy", null),
+        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/mcp", "messaging"), ("/api/assets", "assets"), ("/api/emr", "emr"), ("/api/endoscopy", "endoscopy"), ("/api/scribe", "scribe"), ("/api/devices", "devices"), ("/api/imports/labs", "labs"), ("/api/imports/monitors", "devices"), ("/api/imports/safersleep", "devices"), ("/api/quality", "quality"), ("/api/coding", "reporting"), ("/api/estimates", "estimates"), ("/api/triage", "triage"), ("/api/followup", "followup"), ("/api/c/", "followup"), ("/api/journey", null), ("/api/outbox", null), ("/api/research", "reporting"), ("/api/export-policy", null),
         ("/api/patients", null), ("/api/admin", null), ("/api/audit", null), ("/api/auth", null), ("/api/setup", null), ("/api/me", null),
         ("/api/organisation", null), ("/api/{**rest}", null), ("/health", null), ("/{*path", null),
     ];
@@ -164,7 +164,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         foreach (var (method, url, e) in Probeable().Where(p => !IsPublic(p.E)))
         {
             var policies = e.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(a => a.Policy).Where(p => p is not null).ToList();
-            if (policies.Count == 0 || policies.All(mine.Contains)) continue;
+            if (policies.Count == 0 || policies.All(p => p!.Split('|').Any(mine.Contains))) continue; // "any of" policies: one permission is enough
             using var req = new HttpRequestMessage(new HttpMethod(method), url) { Content = method == "GET" ? null : new StringContent("{}", Encoding.UTF8, "application/json") };
             var res = await c.SendAsync(req);
             if (res.StatusCode != HttpStatusCode.Forbidden) problems.Add($"{method} {url} -> {(int)res.StatusCode}");

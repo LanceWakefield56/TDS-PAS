@@ -347,3 +347,120 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Settings] ADD [BulkHoldSeconds] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Settings] ADD [HoldSeconds] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Settings] ADD [ReviewKinds] nvarchar(300) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Messages] ADD [CorrectionForId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Messages] ADD [RecallReason] nvarchar(500) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Messages] ADD [RecalledAt] datetimeoffset NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Messages] ADD [RecalledBy] nvarchar(100) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Messages] ADD [ReleasedAt] datetimeoffset NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Messages] ADD [ReleasedBy] nvarchar(100) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Messages] ADD [RequiresRelease] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Messages] ADD [WrongRecipientAt] datetimeoffset NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    CREATE INDEX [IX_Messages_CorrectionForId] ON [reminders].[Messages] ([CorrectionForId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    ALTER TABLE [reminders].[Messages] ADD CONSTRAINT [FK_Messages_Messages_CorrectionForId] FOREIGN KEY ([CorrectionForId]) REFERENCES [reminders].[Messages] ([Id]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [reminders].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123175821_SendSafety'
+)
+BEGIN
+    INSERT INTO [reminders].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261123175821_SendSafety', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

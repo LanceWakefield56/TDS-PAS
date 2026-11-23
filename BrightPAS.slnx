@@ -16,6 +16,7 @@
     <Project Path="src/Modules/BrightPAS.Modules.Estimates/BrightPAS.Modules.Estimates.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Triage/BrightPAS.Modules.Triage.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.FollowUp/BrightPAS.Modules.FollowUp.csproj" />
+    <Project Path="src/Modules/BrightPAS.Modules.Research/BrightPAS.Modules.Research.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Forms/BrightPAS.Modules.Forms.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Labs/BrightPAS.Modules.Labs.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Letters/BrightPAS.Modules.Letters.csproj" />

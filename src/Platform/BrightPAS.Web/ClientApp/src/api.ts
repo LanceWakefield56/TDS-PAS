@@ -48,6 +48,8 @@ export const Perm = {
   QualityReport: 'quality.report', QualityView: 'quality.view', QualityManage: 'quality.manage',
   CodingCode: 'coding.code', CodingSubmit: 'coding.submit', CodingManage: 'coding.manage',
   EstimatesBuild: 'estimates.build', EstimatesManage: 'estimates.manage',
+  FormsDesign: 'forms.design', FormsApprove: 'forms.approve', FormsFill: 'forms.fill',
+  ResearchBuild: 'research.build', ResearchApprove: 'research.approve',
   FollowUpView: 'followup.view', FollowUpRecord: 'followup.record', FollowUpPlans: 'followup.plans', FollowUpSsi: 'followup.ssi', FollowUpReport: 'followup.report',
   TriageView: 'triage.view', TriageAssess: 'triage.assess', TriageReview: 'triage.review', TriageRules: 'triage.rules', TriageApprove: 'triage.approve',
   EndoView: 'endoscopy.view', EndoWrite: 'endoscopy.write', EndoSign: 'endoscopy.sign', EndoManage: 'endoscopy.manage',

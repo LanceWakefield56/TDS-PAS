@@ -86,6 +86,8 @@ public sealed partial class LetterService(LettersDbContext db, PatientsDbContext
             "Dear {PatientTitleName}\n\nThis letter explains how to get ready for your {Procedure} on {BookingDate}.\n\nArrival: please arrive at {ArrivalTime} at {ClinicName}, {ClinicAddress}.\n\nFasting: do not eat anything after {FastingFrom}. You may drink small sips of clear water until two hours before you arrive, unless you have been told otherwise.\n\nMedicines: keep taking your usual medicines unless the nurse or your specialist has told you to stop any of them. Bring all your medicines with you.\n\nGoing home: you must have a responsible adult to drive you home and stay with you overnight. You cannot drive for 24 hours after a general anaesthetic or sedation.\n\nIf you have questions, phone {ClinicPhone}.\n\nYours sincerely\n\n{Author}\n{ClinicName}"),
         new("GPBOOK", "Booking notification (GP)", LetterKind.GpNotification, RecipientType.Gp, "{PatientName}, NHI {Nhi}, DOB {DateOfBirth}: booked for {Procedure}",
             "Dear Doctor\n\nRe: {PatientName}, NHI {Nhi}, born {DateOfBirth}, {PatientAddress}\n\nFor your information, your patient is booked for {Procedure}{Side} with {Surgeon} at {ClinicName} on {BookingDate}.\n\nPlease let us know of any recent changes to their health or medicines that may affect their procedure.\n\nKind regards\n\n{Author}\n{ClinicName}, {ClinicPhone}"),
+        new("RETRACT", "Letter sent in error (retraction)", LetterKind.Custom, RecipientType.Other, "Letter sent to you in error – please destroy it",
+            "Dear Sir or Madam\n\nA letter from {ClinicName} was sent to you in error. It was meant for someone else and contains private health information.\n\nPlease do not read further, destroy it securely (or delete it from your system) and let us know you have done so by phoning {ClinicPhone}.\n\nWe are sorry for the trouble.\n\nYours sincerely\n\n{ClinicName}"),
         new("GPSSI", "Wound infection surveillance (GP)", LetterKind.GpNotification, RecipientType.Gp, "{PatientName}, NHI {Nhi}: please tell us about any wound infection",
             "Dear Doctor\n\nRe: {PatientName}, NHI {Nhi}, born {DateOfBirth}, {PatientAddress}\n\nYour patient had {Procedure}{Side} with {Surgeon} at {ClinicName} on {BookingDate}.\n\n{ClinicName} takes part in surgical site infection (SSI) surveillance. If you see or treat your patient for a wound infection within 30 days of the operation (90 days if an implant was used), please let us know – phone {ClinicPhone} or reply through HealthLink – with the date it started, what you found and any antibiotics or swab results.\n\nThank you for your help.\n\nYours sincerely\n\n{ClinicName}"),
         new("REFACK", "Referral received (referrer)", LetterKind.ReferralAcknowledgement, RecipientType.Referrer, "Referral received: {PatientName}, NHI {Nhi}",
@@ -285,6 +287,46 @@ public sealed partial class LetterService(LettersDbContext db, PatientsDbContext
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Create", "Letter", letter.Id.ToString(), p.Id.ToString(), reason: $"{letter.Number} {t.Name} to {name}", ct: ct);
         return (letter, []);
+    }
+
+    /// <summary>
+    /// "Sent to the wrong person" (spec 7.20.3): marks the letter and drafts a retraction to the same (wrong) recipient asking them to destroy it.
+    /// The retraction names no patient. The caller opens the privacy incident.
+    /// </summary>
+    public async Task<(Letter? Retraction, string? Error)> WrongRecipientAsync(Guid id, string reason, string user, CancellationToken ct = default)
+    {
+        var l = await db.Letters.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (l is null) return (null, "Letter not found.");
+        if (string.IsNullOrWhiteSpace(reason)) return (null, "Say what happened.");
+        if (l.WrongRecipientAt is not null) return (null, "Already reported.");
+        if (l.Status is not (LetterStatus.Sent or LetterStatus.Acknowledged)) return (null, "This letter has not been sent – check the recipient, or void it.");
+        await EnsureDefaultTemplatesAsync(ct);
+        var t = await db.Templates.AsNoTracking().SingleAsync(x => x.Code == "RETRACT", ct);
+        var settings = await SettingsAsync(ct);
+        var values = new Dictionary<string, string> { ["ClinicName"] = (await org.MainSiteAsync(ct))?.Org.Name ?? "Tasman Day Surgery", ["ClinicPhone"] = (await org.MainSiteAsync(ct))?.Site.Phone ?? "" };
+        l.WrongRecipientAt = clock.GetUtcNow(); l.WrongRecipientReason = reason.Trim().Length > 500 ? reason.Trim()[..500] : reason.Trim();
+        var r = new Letter
+        {
+            Number = $"L{settings.NextLetterNumber:000000}",
+            PatientId = l.PatientId,
+            TemplateCode = t.Code,
+            TemplateVersion = t.Version,
+            Kind = t.Kind,
+            Recipient = l.Recipient,
+            RecipientName = l.RecipientName,
+            RecipientAddress = l.RecipientAddress,
+            GpPracticeId = l.GpPracticeId,
+            Subject = Render(t.Subject, values),
+            Body = Render(t.Body, values),
+            CorrectionForId = l.Id,
+            CreatedAt = clock.GetUtcNow(),
+            CreatedBy = user
+        };
+        settings.NextLetterNumber++;
+        db.Letters.Add(r);
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "WrongRecipient", "Letter", l.Id.ToString(), l.PatientId.ToString(), reason: $"{l.Number} to {l.RecipientName}: {reason}. Retraction {r.Number} drafted.", ct: ct);
+        return (r, null);
     }
 
     /// <summary>

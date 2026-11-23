@@ -87,7 +87,11 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Patient journey, My list, theatre day board, simpler menu – 0.23.0 (ADR 0036)
 - ☑ Post-op follow-up and SSI surveillance (spec 7.26) – 0.24.0 (ADR 0037)
 - ☐ Follow-up next: clinical approval of the script, warning rules and plans; HQSC programme data specification check before any submission; PROMs (with the form designer)
-- ☐ Delayed send and right-recipient checks for letters and reminders (7.19–7.20), de-identified reporting (7.21) and form designer – 0.25.0; claims, Xero, EFTPOS, NHI/HPI 0.26.0
+- ☑ Outbox hold/undo/release/send now, wrong-recipient recall and correction, right-recipient checks (7.19–7.20) – 0.25.0 (ADR 0038)
+- ☑ De-identified reporting (7.21) – 0.25.0
+- ☑ Form designer and import from CSV / FHIR / fillable PDF (7.23) – 0.25.0
+- ☐ 0.25 next: scanned/Word form import with AI field detection; handwriting extraction from completed paper forms; SharePoint bulk import; body maps, photos, drawn signatures; designer forms on the patient portal/kiosk; scheduled saved reports; reporting replica; image de-identification
+- ☐ Claims, Xero, EFTPOS, NHI/HPI – 0.26.0
 - ☐ Coding next: obtain the Health NZ clinical code table and code tables (purchaser, specialty, facility, domicile, CPAC); NBSP extract layout; AR-DRG/WIES grouping if a contract needs it; NNPAC if TDS reports outpatient events
 - ☐ Optional: ADT to the CARESCAPE Gateway so monitors can "Request Admit" the patient by unit and bed
 - ☐ Devices next: capture real CARESCAPE Gateway messages and adjust the mapping; agree the anaesthetic record profile with SaferSleep; clinical sign-off of chart intervals and plausibility limits; Olympus tower status on the Monitors page; overdue-validation prompt on the whiteboard

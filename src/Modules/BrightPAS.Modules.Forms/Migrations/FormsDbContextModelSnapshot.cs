@@ -23,6 +23,50 @@ namespace BrightPAS.Modules.Forms.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("BrightPAS.Modules.Forms.EntryValue", b =>
+                {
+                    b.Property<Guid>("EntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FieldKey")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.HasKey("EntryId", "FieldKey");
+
+                    b.ToTable("EntryValues", "forms");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FieldOption", b =>
+                {
+                    b.Property<Guid>("VersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FieldKey")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Score")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("VersionId", "FieldKey", "Sequence");
+
+                    b.ToTable("FieldOptions", "forms");
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Forms.FormAnswer", b =>
                 {
                     b.Property<Guid>("RequestId")
@@ -40,6 +84,233 @@ namespace BrightPAS.Modules.Forms.Migrations
                     b.HasKey("RequestId", "QuestionKey");
 
                     b.ToTable("Answers", "forms");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormDesign", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Designs", "forms");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormDesignVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ApprovalNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("DesignId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Footer")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Header")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("LicenceNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("RetiredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)");
+
+                    b.Property<bool>("ThirdParty")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DesignId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_DesignVersions_OnePublished")
+                        .HasFilter("[Status] = 'Published'");
+
+                    b.HasIndex("DesignId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("DesignVersions", "forms");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("BookingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CompletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid?>("PatientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("StartedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)");
+
+                    b.Property<Guid>("VersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("PatientId");
+
+                    b.HasIndex("VersionId");
+
+                    b.ToTable("Entries", "forms");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormField", b =>
+                {
+                    b.Property<Guid>("VersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Key")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Calculation")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Help")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("MapsTo")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<decimal?>("Max")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("decimal(12,3)");
+
+                    b.Property<decimal?>("Min")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("decimal(12,3)");
+
+                    b.Property<bool>("Required")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Section")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ShowIfKey")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ShowIfValue")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)");
+
+                    b.HasKey("VersionId", "Key");
+
+                    b.HasIndex("VersionId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("Fields", "forms");
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Forms.FormFlagRow", b =>
@@ -152,11 +423,56 @@ namespace BrightPAS.Modules.Forms.Migrations
                     b.ToTable("Requests", "forms");
                 });
 
+            modelBuilder.Entity("BrightPAS.Modules.Forms.EntryValue", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Forms.FormEntry", null)
+                        .WithMany("Values")
+                        .HasForeignKey("EntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FieldOption", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Forms.FormField", null)
+                        .WithMany("Options")
+                        .HasForeignKey("VersionId", "FieldKey")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Forms.FormAnswer", b =>
                 {
                     b.HasOne("BrightPAS.Modules.Forms.FormRequest", null)
                         .WithMany("Answers")
                         .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormDesignVersion", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Forms.FormDesign", null)
+                        .WithMany("Versions")
+                        .HasForeignKey("DesignId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormEntry", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Forms.FormDesignVersion", null)
+                        .WithMany()
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormField", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Forms.FormDesignVersion", null)
+                        .WithMany("Fields")
+                        .HasForeignKey("VersionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -168,6 +484,26 @@ namespace BrightPAS.Modules.Forms.Migrations
                         .HasForeignKey("RequestId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormDesign", b =>
+                {
+                    b.Navigation("Versions");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormDesignVersion", b =>
+                {
+                    b.Navigation("Fields");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormEntry", b =>
+                {
+                    b.Navigation("Values");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Forms.FormField", b =>
+                {
+                    b.Navigation("Options");
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Forms.FormRequest", b =>

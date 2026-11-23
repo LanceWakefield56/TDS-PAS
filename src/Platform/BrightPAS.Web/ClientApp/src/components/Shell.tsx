@@ -49,15 +49,16 @@ export default function Shell() {
           {mod('followup') && (can(Perm.FollowUpView) || can(Perm.FollowUpRecord) || can(Perm.FollowUpSsi)) && <NavLink to="/followup" end className="primary-nav">Follow-up</NavLink>}
           {can(Perm.PatientRegister) && <NavLink to="/patients/new">Register a patient</NavLink>}
 
-          <Group title="Before surgery" paths={['/referrals', '/waitlist', '/estimates', '/forms', '/triage', '/reminders', '/letters', '/portal', '/calendar']}>
+          <Group title="Before surgery" paths={['/referrals', '/waitlist', '/estimates', '/forms', '/triage', '/reminders', '/letters', '/portal', '/calendar', '/outbox']}>
             {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/referrals">Referrals</NavLink>}
             {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/waitlist">Waitlist</NavLink>}
             {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <NavLink to="/estimates" end>Procedure estimates</NavLink>}
             {mod('estimates') && can(Perm.EstimatesBuild) && <NavLink to="/estimates/outbox">Estimate outbox</NavLink>}
-            {mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)) && <NavLink to="/forms">Pre-admission forms</NavLink>}
+            {mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)) && <NavLink to="/forms" end>Pre-admission forms</NavLink>}
             {mod('triage') && (can(Perm.TriageView) || can(Perm.TriageAssess) || can(Perm.TriageReview) || can(Perm.TriageRules)) && <NavLink to="/triage" end>Triage</NavLink>}
             {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/calendar">Calendar</NavLink>}
             {mod('reminders') && can(Perm.RemindersView) && <NavLink to="/reminders">SMS &amp; email</NavLink>}
+            {((mod('reminders') && can(Perm.RemindersView)) || (mod('letters') && can(Perm.LettersView))) && <NavLink to="/outbox">Outbox</NavLink>}
             {mod('letters') && can(Perm.LettersView) && <NavLink to="/letters" end>Letters</NavLink>}
             {mod('portal') && can(Perm.PortalSpecialist) && <NavLink to="/portal" end>My TDS patients</NavLink>}
             {mod('portal') && can(Perm.PortalManage) && <NavLink to="/portal/requests">Portal requests</NavLink>}
@@ -77,7 +78,7 @@ export default function Shell() {
             {mod('billing') && can(Perm.BillingView) && <NavLink to="/billing">Invoices &amp; payments</NavLink>}
             {mod('reporting') && (can(Perm.CodingCode) || can(Perm.CodingSubmit) || can(Perm.CodingManage)) && <NavLink to="/coding">Coding &amp; reporting</NavLink>}
           </Group>
-          <Group title="Running TDS" paths={['/roster', '/assets', '/stock', '/credentialing', '/quality', '/admin/identity']}>
+          <Group title="Running TDS" paths={['/roster', '/assets', '/stock', '/credentialing', '/quality', '/admin/identity', '/research']}>
             {mod('quality') && can(Perm.QualityReport) && <NavLink to="/quality/report">Report an incident</NavLink>}
             {mod('quality') && can(Perm.QualityReport) && <NavLink to="/quality/mine">Policies &amp; my reports</NavLink>}
             {mod('quality') && (can(Perm.QualityView) || can(Perm.QualityManage)) && <NavLink to="/quality" end>Quality</NavLink>}
@@ -86,13 +87,15 @@ export default function Shell() {
             {mod('assets') && can(Perm.AssetsView) && <NavLink to="/stock">Stock &amp; purchasing</NavLink>}
             {mod('credentialing') && can(Perm.CredentialingView) && <NavLink to="/credentialing">Credentialing</NavLink>}
             {can(Perm.PatientMerge) && <NavLink to="/admin/identity">Identity checks</NavLink>}
+            {mod('reporting') && (can(Perm.ResearchBuild) || can(Perm.ResearchApprove)) && <NavLink to="/research">De-identified reports</NavLink>}
           </Group>
-          <Group title={<>Administration{setupCount > 0 && <span className="count">{setupCount}</span>}</>} paths={['/admin/organisation', '/admin/users', '/admin/roles', '/admin/security', '/admin/letters', '/admin/licence', '/admin/modules', '/messaging', '/admin/interfaces', '/audit', '/theatre/templates', '/triage/rules', '/estimates/admin', '/followup/plans']}>
+          <Group title={<>Administration{setupCount > 0 && <span className="count">{setupCount}</span>}</>} paths={['/admin/organisation', '/admin/users', '/admin/roles', '/admin/security', '/admin/letters', '/admin/licence', '/admin/modules', '/messaging', '/admin/interfaces', '/audit', '/theatre/templates', '/triage/rules', '/estimates/admin', '/followup/plans', '/forms/designer']}>
             {can(Perm.OrganisationManage) && <NavLink to="/admin/organisation">Organisation set-up</NavLink>}
             {mod('theatre') && can(Perm.TheatreManage) && <NavLink to="/theatre/templates">Regular theatre lists</NavLink>}
             {mod('triage') && (can(Perm.TriageRules) || can(Perm.TriageApprove)) && <NavLink to="/triage/rules">Triage rules</NavLink>}
             {mod('estimates') && can(Perm.EstimatesManage) && <NavLink to="/estimates/admin">Estimates admin</NavLink>}
             {mod('followup') && can(Perm.FollowUpPlans) && <NavLink to="/followup/plans">Follow-up plans</NavLink>}
+            {mod('forms') && (can(Perm.FormsDesign) || can(Perm.FormsApprove)) && <NavLink to="/forms/designer">Form designer</NavLink>}
             {can(Perm.UsersManage) && <NavLink to="/admin/users">User accounts</NavLink>}
             {can(Perm.UsersManage) && <NavLink to="/admin/roles">Roles &amp; permissions</NavLink>}
             {(can(Perm.UsersManage) || can(Perm.OrganisationManage)) && <NavLink to="/admin/security">Security &amp; printers</NavLink>}

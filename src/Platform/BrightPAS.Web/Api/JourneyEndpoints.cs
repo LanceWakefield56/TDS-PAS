@@ -22,7 +22,7 @@ public static class JourneyEndpoints
         }).RequireAuthorization(Permissions.PatientView);
 
         g.MapGet("/today", async (ClaimsPrincipal u, JourneyService svc) =>
-            Results.Ok(await svc.TodayAsync(p => u.HasClaim(Permissions.ClaimType, p)))).RequireAuthorization(Permissions.PatientView);
+            Results.Ok(await svc.TodayAsync(p => u.HasClaim(Permissions.ClaimType, p), default, u.Identity!.Name!))).RequireAuthorization(Permissions.PatientView);
 
         g.MapGet("/day", async (string? date, JourneyService svc, TimeProvider clock) =>
         {

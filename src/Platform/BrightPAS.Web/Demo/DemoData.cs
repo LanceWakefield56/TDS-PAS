@@ -131,6 +131,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await EstimatesAsync(ct);
         await TriageAsync(ct);
         await FollowUpAsync(ct);
+        await SafetyFormsResearchAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
 
@@ -1259,6 +1260,52 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         var review = open.FirstOrDefault(w => w.Suggested == BrightPAS.Modules.Triage.TriageOutcome.AnaesthetistReview);
         if (review is not null)
             Ok(await svc.SignOffAsync(review.Id, new(BrightPAS.Modules.Triage.TriageOutcome.SuitableWithPrecautions, 3, "First on the list; device check on admission", "Reviewed in pre-assessment clinic.", "Reviewed by anaesthetist – suitable with precautions"), true, "fgrant", "Anaesthetist", ct), "anaesthetist sign-off");
+    }
+
+    /// <summary>0.25.0: outbox hold (short in the demo), form designer forms and an entry, de-identified extracts.</summary>
+    private async Task SafetyFormsResearchAsync(CancellationToken ct)
+    {
+        // Outbox: 10 seconds in the demo so the test robot's text messages arrive quickly (real default 2 minutes).
+        Ok(await S<BrightPAS.Modules.Reminders.ReminderService>().SaveSafetyAsync(10, 600, null, "admin", ct), "outbox settings");
+
+        var fd = S<BrightPAS.Modules.Forms.FormDesignerService>();
+        static BrightPAS.Modules.Forms.FieldEdit F(string key, string label, BrightPAS.Modules.Forms.FieldType t, bool req = false, string? section = null, string? showKey = null, string? showVal = null, string? calc = null, string? maps = null, decimal? min = null, decimal? max = null, params string[] opts) =>
+            new(key, section, label, t, req, min, max, showKey, showVal, calc, maps, null, [.. opts.Select(o => { var i = o.LastIndexOf('='); return i > 0 ? new BrightPAS.Modules.Forms.OptionEdit(o[..i], int.Parse(o[(i + 1)..], System.Globalization.CultureInfo.InvariantCulture)) : new BrightPAS.Modules.Forms.OptionEdit(o, null); })]);
+        var (preop, e1) = await fd.CreateAsync("NPA", "Pre-operative nursing assessment", BrightPAS.Modules.Forms.FormCategory.Clinical, BrightPAS.Modules.Forms.DesignSource.Designer,
+        [
+            F("h1", "Measurements", BrightPAS.Modules.Forms.FieldType.Heading, section: "Measurements"),
+            F("weight", "Weight (kg)", BrightPAS.Modules.Forms.FieldType.Number, true, "Measurements", maps: "weight_kg", min: 20, max: 300),
+            F("height", "Height (cm)", BrightPAS.Modules.Forms.FieldType.Number, true, "Measurements", maps: "height_cm", min: 100, max: 230),
+            F("bmi", "BMI", BrightPAS.Modules.Forms.FieldType.Calculated, section: "Measurements", calc: "bmi(weight,height)"),
+            F("bp_sys", "Blood pressure – systolic", BrightPAS.Modules.Forms.FieldType.Number, false, "Measurements", maps: "bp_sys", min: 60, max: 260),
+            F("allergies", "Any allergies?", BrightPAS.Modules.Forms.FieldType.YesNo, true, "Allergies"),
+            F("allergy_detail", "Allergy and reaction", BrightPAS.Modules.Forms.FieldType.Text, true, "Allergies", "allergies", "yes", maps: "allergy"),
+            F("fasting", "Fasting from", BrightPAS.Modules.Forms.FieldType.Choice, true, "On the day", opts: ["Midnight", "06:00", "Clear fluids until 2 hours before"]),
+            F("escort", "Responsible adult for 24 hours confirmed", BrightPAS.Modules.Forms.FieldType.YesNo, true, "On the day"),
+            F("signed", "Nurse", BrightPAS.Modules.Forms.FieldType.Signature, true, "On the day"),
+        ], "quality", ct);
+        Ok(e1, "pre-op form");
+        Ok(await fd.PublishAsync(preop!.Id, true, "DEMONSTRATION ONLY – Clinical Governance approval to be recorded for real forms.", "fgrant", ct), "publish pre-op form");
+        var (cssd, e2) = await fd.CreateAsync("CSSD-DAILY", "CSSD daily start-up checks", BrightPAS.Modules.Forms.FormCategory.Cssd, BrightPAS.Modules.Forms.DesignSource.Designer,
+        [
+            F("bd", "Bowie-Dick test passed (Sterilizer 1)", BrightPAS.Modules.Forms.FieldType.YesNo, true), F("leak", "Leak test passed", BrightPAS.Modules.Forms.FieldType.YesNo, true),
+            F("washer", "Washer daily check done", BrightPAS.Modules.Forms.FieldType.YesNo, true), F("fault", "What was wrong?", BrightPAS.Modules.Forms.FieldType.LongText, true, showKey: "bd", showVal: "no"),
+            F("score", "Checks passed", BrightPAS.Modules.Forms.FieldType.Calculated, calc: "count(bd,leak,washer)"), F("tech", "Technician", BrightPAS.Modules.Forms.FieldType.Signature, true),
+        ], "quality", ct);
+        Ok(e2, "CSSD form");
+        Ok(await fd.PublishAsync(cssd!.Id, false, null, "quality", ct), "publish CSSD form");
+        var (entry, e3) = await fd.StartAsync(preop.Id, _patients[3].Id, null, "nurse", ct);
+        Ok(e3, "start pre-op entry");
+        Ok((await fd.SaveEntryAsync(entry!.Id, new Dictionary<string, string> { ["weight"] = "82", ["height"] = "171", ["bp_sys"] = "132", ["allergies"] = "no", ["fasting"] = "Midnight", ["escort"] = "yes", ["signed"] = "Claire Bishop RN" }, true, "nurse", ct)).Errors, "pre-op entry");
+
+        // De-identified reporting: a Board aggregate (released) and a research request waiting for the Privacy Officer.
+        var rx = S<BrightPAS.Modules.Research.ExtractService>();
+        var (agg, e4) = await rx.CreateAsync(new("Operations by procedure – Board", "episodes", BrightPAS.Modules.Research.DeidLevel.Aggregate, _today.AddDays(-365), _today, BrightPAS.Modules.Research.ExtractPurpose.Board,
+            "TDS Board", null, null, 5, false, ["procedure", "sex"]), "quality", ct);
+        Ok(e4, "aggregate extract");
+        await rx.ReleaseAsync(agg!.Id, "quality", ct);
+        Ok((await rx.CreateAsync(new("Hernia outcomes study", "episodes", BrightPAS.Modules.Research.DeidLevel.Pseudonymised, _today.AddDays(-365), _today, BrightPAS.Modules.Research.ExtractPurpose.Research,
+            "Dr Ben Hall (investigator)", "HDEC 2026 FULL 0001 (DEMONSTRATION)", null, 5, false, ["date_of_birth", "sex", "procedure", "operation_date", "outcome", "triage_outcome"]), "quality", ct)).Errors, "research extract");
     }
 
     private async Task FollowUpAsync(CancellationToken ct)

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.25.0 – 2026-11-24 – **Send safety, de-identified reports, form designer**
+- **Outbox (spec 7.19, ADR 0038, guide H32):** messages wait 2 minutes (bulk reminders 10) so they can be stopped – **Undo send**; chosen message types need a second person to release them; **Send now** for urgent messages (audited); Outbox page with what's waiting and what went in the last 7 days.
+- **Sent to the wrong person (7.20.3):** recall if still waiting, otherwise a correction notice to the same number/email (no patient details); letters get a retraction letter drafted; a privacy incident opens in Quality for the Privacy Officer's notifiable-breach assessment.
+- **Right recipient (7.20.1):** HealthLink letters to a practice that isn't the patient's GP of record need a reason; attachments naming another NHI are stopped; plain-words confirmation before sending. New Quality indicator "Misdirection near misses".
+- **De-identified reports (7.21):** extracts of operations, SSIs and follow-up as pseudonymised (study IDs, key kept by the Privacy Officer), de-identified (age bands, month/year, regions, coded clinicians, no free text, re-identification check) or aggregate (small cells and the cells that would reveal them suppressed); Privacy Officer approval for patient-level extracts; ethics reference for research; Māori data governance note for ethnicity; watermarked, encrypted, logged downloads.
+- **Form designer (7.23):** design any form (text, numbers with ranges, dates, yes/no, pick lists with scores, signatures, calculations such as BMI and scores, NHI check), show/hide logic, sections; answers flow into the record (allergies → alerts, measurements → triage); versions with testing, Clinical Governance approval for clinical forms and licence check for licensed forms; import from CSV question lists, FHIR Questionnaires and fillable PDFs; FHIR export; fill in on the patient page; print.
+- Demo: pre-op nursing assessment and CSSD daily checks forms; a Board extract and a research request for the Privacy Officer.
+
 ## 0.24.0 – 2026-11-24 – **Post-op follow-up and SSI surveillance**
 - **Follow-up module (ADR 0037, guide H31, spec 7.26)** – permissions View / Record / Plans / Confirm SSI / Report; Follow-up in the main menu.
   - **Plans:** next-working-day call, day-5 wound check by text, day-30 SSI check (90 with an implant), extra call for high-risk patients; first matching plan by procedure, else default. Example plans – agree with the clinical team.

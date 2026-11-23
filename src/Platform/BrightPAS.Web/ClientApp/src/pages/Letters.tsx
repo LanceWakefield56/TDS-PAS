@@ -14,6 +14,7 @@ interface Letter {
   status: string; channel: string; printCount: number; messageControlId: string | null; ackCode: string | null; ackText: string | null; ackAt: string | null; voidReason: string | null;
   createdAt: string; createdBy: string; author: string | null; finalisedAt: string | null; finalisedBy: string | null; sentAt: string | null; sentBy: string | null;
   practice: { name: string; healthLinkEdi: string | null; channel: string } | null;
+  patientName: string; wrongRecipientAt: string | null; wrongRecipientReason: string | null; correctionForId: string | null;
 }
 interface Org { organisationName: string; addressLine1: string | null; addressLine2: string | null; suburb: string | null; city: string | null; postcode: string | null; phone: string | null; email: string | null }
 export const letterStatusClass: Record<string, string> = { Draft: 'amber', Final: 'blue', Sent: 'green', Acknowledged: 'green', Failed: 'red', Void: '' };
@@ -139,6 +140,9 @@ export function LetterView() {
     else setEdit(null);
   };
   useEffect(() => { load().catch((e) => setErrors([errText(e)])); api<Org>('/api/letters/letterhead').then(setOrg).catch(() => undefined); }, [id]);
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [override, setOverride] = useState('');
+  const [wrong, setWrong] = useState(false);
   const act = async (fn: () => Promise<any>, ok?: string) => { setErrors([]); setMsg(null); try { const r = await fn(); setMsg(r?.message ?? ok ?? null); await load(); } catch (x: any) { setErrors(x?.body?.errors ?? [errText(x)]); } };
   const saveDraft = () => act(() => api(`/api/letters/${id}`, { method: 'PUT', body: edit }), 'Draft saved.');
   const finalise = () => act(async () => { await api(`/api/letters/${id}`, { method: 'PUT', body: edit }); await api(`/api/letters/${id}/finalise`, { body: {} }); }, 'Letter is final – now print it or send it.');
@@ -156,13 +160,30 @@ export function LetterView() {
           {canWrite && l.status === 'Draft' && <><button className="btn btn-light" onClick={saveDraft}>Save draft</button><button className="btn btn-primary" onClick={finalise}>Finalise</button></>}
           {l.status !== 'Draft' && l.status !== 'Void' && <button className={`btn ${l.status === 'Final' && !canSend ? 'btn-primary' : 'btn-light'}`} onClick={print}>Print</button>}
           {l.status !== 'Void' && <ExportButton label="Download PDF" formats={['pdf']} path={`/api/letters/${id}/pdf`} body={{}} />}
-          {canSend && <button className="btn btn-primary" onClick={() => act(() => api(`/api/letters/${id}/send`, { body: {} }))}>Send to {l.practice!.name} via HealthLink</button>}
+          {canSend && <button className="btn btn-primary" onClick={() => { setConfirmSend(true); setOverride(''); }}>Send to {l.practice!.name} via HealthLink</button>}
+          {canWrite && (l.status === 'Sent' || l.status === 'Acknowledged') && !l.wrongRecipientAt && <button className="btn btn-link danger" onClick={() => setWrong(true)}>Sent to the wrong person</button>}
           {canWrite && (l.status === 'Draft' || l.status === 'Final' || l.status === 'Failed') && <button className="btn btn-link danger" onClick={() => setVoiding(true)}>Void</button>}
         </div>
       </div>
       {msg && <p className="notice no-print" role="status">{msg}</p>}
       {errors.length > 0 && <div className="error no-print" role="alert">{errors.map((e) => <div key={e}>{e}</div>)}</div>}
       {l.voidReason && <p className="warn-box">Void: {l.voidReason}</p>}
+      {l.wrongRecipientAt && <p className="warn-box no-print">Reported as sent to the wrong person {nzDateTime(l.wrongRecipientAt)}: {l.wrongRecipientReason}. A privacy incident was opened and a retraction letter drafted.</p>}
+      {l.correctionForId && <p className="notice no-print">Retraction for <Link to={`/letters/${l.correctionForId}`}>the letter sent in error</Link>.</p>}
+      {confirmSend && l.practice && (
+        <div className="card subtle stack no-print" role="dialog" aria-label="Confirm sending">
+          <p><strong>Send {l.patientName}'s letter “{l.subject}” to {l.recipientName || l.practice.name} ({l.practice.name}) via HealthLink?</strong></p>
+          {errors.some((e) => e.includes('GP of record')) && <label>Reason for sending to this practice<input value={override} onChange={(e) => setOverride(e.target.value)} /></label>}
+          <div className="row"><button className="btn btn-primary" onClick={() => act(() => api(`/api/letters/${id}/send${override ? `?overrideReason=${encodeURIComponent(override)}` : ''}`, { body: {} })).then(() => setConfirmSend(false))}>Yes, send it</button>
+            <button className="btn btn-light" onClick={() => setConfirmSend(false)}>Cancel</button></div>
+        </div>
+      )}
+      {wrong && (
+        <div className="card subtle stack no-print"><p>This opens a privacy incident for the Privacy Officer and drafts a letter asking the recipient to destroy it.</p>
+          <label>What happened?<input value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+          <div className="row"><button className="btn btn-warn" onClick={() => act(async () => { const r = await api<any>(`/api/outbox/letters/${id}/wrong-recipient`, { body: { reason } }); setWrong(false); return { message: `Privacy incident opened. Retraction letter ${r.number} drafted – check and send it.` }; })}>Report and draft the retraction</button>
+            <button className="btn btn-light" onClick={() => setWrong(false)}>Cancel</button></div></div>
+      )}
       {l.channel === 'HealthLink' && <p className={`no-print ${l.status === 'Failed' ? 'error' : 'notice'}`}>HealthLink {l.messageControlId}: {l.ackText ?? 'waiting for acknowledgement'}{l.ackAt ? ` (${nzDateTime(l.ackAt)})` : ''}</p>}
       {l.recipient !== 'Patient' && !l.practice?.healthLinkEdi && l.status === 'Final' && <p className="hint no-print">This recipient has no HealthLink account recorded – print and post the letter.</p>}
       {voiding && (

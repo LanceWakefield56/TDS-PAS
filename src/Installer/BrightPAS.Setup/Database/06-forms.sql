@@ -176,3 +176,191 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE TABLE [forms].[Designs] (
+        [Id] uniqueidentifier NOT NULL,
+        [Code] nvarchar(30) NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [Category] nvarchar(24) NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [CreatedBy] nvarchar(100) NOT NULL,
+        CONSTRAINT [PK_Designs] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE TABLE [forms].[DesignVersions] (
+        [Id] uniqueidentifier NOT NULL,
+        [DesignId] uniqueidentifier NOT NULL,
+        [Version] int NOT NULL,
+        [Status] nvarchar(12) NOT NULL,
+        [Source] nvarchar(10) NOT NULL,
+        [Header] nvarchar(500) NULL,
+        [Footer] nvarchar(500) NULL,
+        [ThirdParty] bit NOT NULL,
+        [LicenceNote] nvarchar(500) NULL,
+        [ApprovedBy] nvarchar(100) NULL,
+        [ApprovedAt] datetimeoffset NULL,
+        [ApprovalNote] nvarchar(1000) NULL,
+        [PublishedAt] datetimeoffset NULL,
+        [RetiredAt] datetimeoffset NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        [UpdatedBy] nvarchar(100) NOT NULL,
+        CONSTRAINT [PK_DesignVersions] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_DesignVersions_Designs_DesignId] FOREIGN KEY ([DesignId]) REFERENCES [forms].[Designs] ([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE TABLE [forms].[Entries] (
+        [Id] uniqueidentifier NOT NULL,
+        [VersionId] uniqueidentifier NOT NULL,
+        [PatientId] uniqueidentifier NULL,
+        [BookingId] uniqueidentifier NULL,
+        [Status] nvarchar(12) NOT NULL,
+        [StartedBy] nvarchar(100) NOT NULL,
+        [StartedAt] datetimeoffset NOT NULL,
+        [CompletedBy] nvarchar(100) NULL,
+        [CompletedAt] datetimeoffset NULL,
+        [VoidReason] nvarchar(500) NULL,
+        CONSTRAINT [PK_Entries] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_Entries_DesignVersions_VersionId] FOREIGN KEY ([VersionId]) REFERENCES [forms].[DesignVersions] ([Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE TABLE [forms].[Fields] (
+        [VersionId] uniqueidentifier NOT NULL,
+        [Key] nvarchar(40) NOT NULL,
+        [Sequence] int NOT NULL,
+        [Section] nvarchar(100) NULL,
+        [Label] nvarchar(300) NOT NULL,
+        [Type] nvarchar(12) NOT NULL,
+        [Required] bit NOT NULL,
+        [Min] decimal(12,3) NULL,
+        [Max] decimal(12,3) NULL,
+        [ShowIfKey] nvarchar(40) NULL,
+        [ShowIfValue] nvarchar(100) NULL,
+        [Calculation] nvarchar(200) NULL,
+        [MapsTo] nvarchar(30) NULL,
+        [Help] nvarchar(500) NULL,
+        CONSTRAINT [PK_Fields] PRIMARY KEY ([VersionId], [Key]),
+        CONSTRAINT [FK_Fields_DesignVersions_VersionId] FOREIGN KEY ([VersionId]) REFERENCES [forms].[DesignVersions] ([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE TABLE [forms].[EntryValues] (
+        [EntryId] uniqueidentifier NOT NULL,
+        [FieldKey] nvarchar(40) NOT NULL,
+        [Value] nvarchar(4000) NOT NULL,
+        CONSTRAINT [PK_EntryValues] PRIMARY KEY ([EntryId], [FieldKey]),
+        CONSTRAINT [FK_EntryValues_Entries_EntryId] FOREIGN KEY ([EntryId]) REFERENCES [forms].[Entries] ([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE TABLE [forms].[FieldOptions] (
+        [VersionId] uniqueidentifier NOT NULL,
+        [FieldKey] nvarchar(40) NOT NULL,
+        [Sequence] int NOT NULL,
+        [Value] nvarchar(200) NOT NULL,
+        [Score] int NULL,
+        CONSTRAINT [PK_FieldOptions] PRIMARY KEY ([VersionId], [FieldKey], [Sequence]),
+        CONSTRAINT [FK_FieldOptions_Fields_VersionId_FieldKey] FOREIGN KEY ([VersionId], [FieldKey]) REFERENCES [forms].[Fields] ([VersionId], [Key]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Designs_Code] ON [forms].[Designs] ([Code]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_DesignVersions_DesignId_Version] ON [forms].[DesignVersions] ([DesignId], [Version]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UX_DesignVersions_OnePublished] ON [forms].[DesignVersions] ([DesignId]) WHERE [Status] = ''Published''');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE INDEX [IX_Entries_BookingId] ON [forms].[Entries] ([BookingId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE INDEX [IX_Entries_PatientId] ON [forms].[Entries] ([PatientId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE INDEX [IX_Entries_VersionId] ON [forms].[Entries] ([VersionId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Fields_VersionId_Sequence] ON [forms].[Fields] ([VersionId], [Sequence]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [forms].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123181518_FormDesigner'
+)
+BEGIN
+    INSERT INTO [forms].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261123181518_FormDesigner', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

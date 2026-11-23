@@ -57,6 +57,9 @@ import DymoLabels from './pages/DymoLabels';
 import Estimates, { EstimateEdit, EstimatesOutbox } from './pages/Estimates';
 import EstimatesAdmin from './pages/EstimatesAdmin';
 import DayBoard from './pages/DayBoard';
+import Outbox from './pages/Outbox';
+import FormDesigner, { FormEntryPage, FormVersionEditor } from './pages/FormDesigner';
+import Research, { ResearchExtract } from './pages/Research';
 import FollowUp, { FollowUpContact, FollowUpPlans, FollowUpReport, PatientCheckIn, SsiCase, SsiList } from './pages/FollowUp';
 import Triage, { TriageAssessment, TriageReport, TriageRules } from './pages/Triage';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
@@ -143,6 +146,12 @@ export default function App() {
           <Route path="/followup/plans" element={allowed(mod('followup') && followAny, <FollowUpPlans />)} />
           <Route path="/followup/report" element={allowed(mod('followup') && can(Perm.FollowUpReport), <FollowUpReport />)} />
           <Route path="/followup/:id" element={allowed(mod('followup') && followAny, <FollowUpContact />)} />
+          <Route path="/research" element={allowed(mod('reporting') && (can(Perm.ResearchBuild) || can(Perm.ResearchApprove)), <Research />)} />
+          <Route path="/research/:id" element={allowed(mod('reporting') && (can(Perm.ResearchBuild) || can(Perm.ResearchApprove)), <ResearchExtract />)} />
+          <Route path="/forms/designer" element={allowed(mod('forms') && (can(Perm.FormsDesign) || can(Perm.FormsApprove) || can(Perm.FormsFill)), <FormDesigner />)} />
+          <Route path="/forms/designer/:id" element={allowed(mod('forms') && (can(Perm.FormsDesign) || can(Perm.FormsApprove) || can(Perm.FormsFill)), <FormVersionEditor />)} />
+          <Route path="/forms/entry/:id" element={allowed(mod('forms') && (can(Perm.FormsDesign) || can(Perm.FormsApprove) || can(Perm.FormsFill)), <FormEntryPage />)} />
+          <Route path="/outbox" element={allowed((mod('reminders') && can(Perm.RemindersView)) || (mod('letters') && can(Perm.LettersView)), <Outbox />)} />
           <Route path="/day" element={allowed(mod('theatre') && can(Perm.TheatreView), <DayBoard />)} />
           <Route path="/triage" element={allowed(mod('triage') && triageAny, <Triage />)} />
           <Route path="/triage/rules" element={allowed(mod('triage') && triageAny, <TriageRules />)} />

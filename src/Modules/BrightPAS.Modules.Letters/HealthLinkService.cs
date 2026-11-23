@@ -39,12 +39,41 @@ public sealed class HealthLinkService(LettersDbContext db, PatientsDbContext pat
         return errors;
     }
 
-    public async Task<(bool Ok, string Message)> SendAsync(Guid letterId, string user, CancellationToken ct = default)
+    /// <summary>
+    /// Right recipient (spec 7.20.1): a letter for the GP going to a practice that is not the patient's GP of record, or a letter whose attachment is for
+    /// another patient, is stopped. A different practice can be confirmed with a reason (logged as an overridden warning – a near-miss indicator).
+    /// </summary>
+    public async Task<string?> RecipientCheckAsync(Letter l, string? overrideReason, string user, CancellationToken ct)
+    {
+        var patient = await patients.Patients.AsNoTracking().SingleAsync(p => p.Id == l.PatientId, ct);
+        var att = await db.Attachments.AsNoTracking().Where(a => a.LetterId == l.Id).Select(a => a.FileName).ToListAsync(ct);
+        foreach (var f in att)
+            if (patient.Nhi is { } nhi && System.Text.RegularExpressions.Regex.Match(f, @"\b[A-HJ-NP-Z]{3}\d{2}[0-9A-HJ-NP-Z]{2}\b") is { Success: true } m && !m.Value.Equals(nhi, StringComparison.OrdinalIgnoreCase))
+            {
+                await audit.WriteAsync(user, "SendBlocked", "Letter", l.Id.ToString(), l.PatientId.ToString(), reason: $"{l.Number}: attachment {f} names another NHI", ct: ct);
+                return $"Stopped: the attachment {f} appears to be for another patient ({m.Value}). Check it before sending.";
+            }
+        if (l.Recipient != RecipientType.Gp || l.GpPracticeId is null) return null;
+        var practice = await db.Practices.AsNoTracking().SingleAsync(p => p.Id == l.GpPracticeId, ct);
+        if (patient.GpPracticeHpiFacilityId is null || string.Equals(practice.HpiFacilityId, patient.GpPracticeHpiFacilityId, StringComparison.OrdinalIgnoreCase)) return null;
+        if (string.IsNullOrWhiteSpace(overrideReason))
+        {
+            await audit.WriteAsync(user, "SendBlocked", "Letter", l.Id.ToString(), l.PatientId.ToString(), reason: $"{l.Number}: {practice.Name} is not the patient's GP of record", ct: ct);
+            return $"{practice.Name} is not this patient's GP of record. Check the recipient, or give a reason to send it there.";
+        }
+        await audit.WriteAsync(user, "SendWarningOverridden", "Letter", l.Id.ToString(), l.PatientId.ToString(), reason: $"{l.Number} to {practice.Name} (not GP of record): {overrideReason}", ct: ct);
+        return null;
+    }
+
+    public async Task<(bool Ok, string Message)> SendAsync(Guid letterId, string user, CancellationToken ct = default) => await SendAsync(letterId, user, null, ct);
+
+    public async Task<(bool Ok, string Message)> SendAsync(Guid letterId, string user, string? overrideReason, CancellationToken ct = default)
     {
         var l = await db.Letters.SingleOrDefaultAsync(x => x.Id == letterId, ct);
         if (l is null) return (false, "Letter not found.");
         if (l.Status != LetterStatus.Final && l.Status != LetterStatus.Failed) return (false, l.Status == LetterStatus.Draft ? "Finalise the letter first." : "This letter has already been sent.");
         var practice = l.GpPracticeId is { } pid ? await db.Practices.AsNoTracking().SingleOrDefaultAsync(p => p.Id == pid, ct) : null;
+        if (await RecipientCheckAsync(l, overrideReason, user, ct) is { } stop) return (false, stop);
         if (practice?.HealthLinkEdi is null) return (false, "The recipient has no HealthLink EDI account. Add it under Letter templates › GP practices, or print the letter.");
         var s = await db.Settings.SingleOrDefaultAsync(x => x.Id == 1, ct) ?? db.Settings.Add(new HealthLinkSettings()).Entity;
         if (s.Mode == HealthLinkMode.Off) return (false, "HealthLink sending is switched off (Letter templates › HealthLink).");

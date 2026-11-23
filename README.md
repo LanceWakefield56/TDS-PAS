@@ -3,7 +3,7 @@
 Tasman Day Surgery's locally hosted patient administration system, with eMR, billing, rostering, assets/CSSD, quality management, endoscopy, and a TDS-developed messaging and workflow engine.
 
 - **Specification:** v1.9 (BrightPAS). The master copy is kept as section files in the TDS-PAS OneDrive folder (`Specification\v1.9\`); Appendix C there records what each release has built. Earlier Word versions are in `docs/spec/`.
-- **Status:** release 0.24.0 – a test build on demonstration data. **Nothing is live.** Every module still needs sandbox testing on Windows, an independent security review and clinical sign-off before real patient data (see "Before production" below).
+- **Status:** release 0.25.0 – a test build on demonstration data. **Nothing is live.** Every module still needs sandbox testing on Windows, an independent security review and clinical sign-off before real patient data (see "Before production" below).
 - **Owner:** Tasman Day Surgery. Product owner: Lance Wakefield.
 - **What is built:** see `CHANGELOG.md` (one entry per release), `docs/adr/` (one decision record per module or design decision) and `docs/spec-traceability.md` (every specification section → code → tests, and where the build differs from the specification).
 

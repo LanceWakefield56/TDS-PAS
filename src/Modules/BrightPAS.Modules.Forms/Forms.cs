@@ -21,6 +21,7 @@ public sealed class FormsModule : IPasModule
     {
         services.AddDbContext<FormsDbContext>((sp, o) => sp.GetRequiredService<PasDatabaseOptions>().Configure(o, FormsDbContext.Schema));
         services.AddScoped<FormService>();
+        services.AddScoped<FormDesignerService>();
     }
 }
 
@@ -78,6 +79,12 @@ public sealed class FormsDbContext(DbContextOptions<FormsDbContext> options) : D
     public DbSet<FormRequest> Requests => Set<FormRequest>();
     public DbSet<FormAnswer> Answers => Set<FormAnswer>();
     public DbSet<FormFlagRow> Flags => Set<FormFlagRow>();
+    public DbSet<FormDesign> Designs => Set<FormDesign>();
+    public DbSet<FormDesignVersion> DesignVersions => Set<FormDesignVersion>();
+    public DbSet<FormField> Fields => Set<FormField>();
+    public DbSet<FieldOption> Options => Set<FieldOption>();
+    public DbSet<FormEntry> Entries => Set<FormEntry>();
+    public DbSet<EntryValue> EntryValues => Set<EntryValue>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
@@ -122,6 +129,7 @@ public sealed class FormsDbContext(DbContextOptions<FormsDbContext> options) : D
             e.Property(x => x.Level).HasMaxLength(10);
             e.Property(x => x.Text).HasMaxLength(300);
         });
+        FormDesignerModel.Configure(b);
     }
 }
 

@@ -348,7 +348,7 @@ public sealed class JourneyService(
 
     // ------------------------------------------------------------------ Today
     /// <summary>What this person needs to do now, across every module they can use, most urgent first.</summary>
-    public async Task<IReadOnlyList<TodayItem>> TodayAsync(Func<string, bool> can, CancellationToken ct = default)
+    public async Task<IReadOnlyList<TodayItem>> TodayAsync(Func<string, bool> can, CancellationToken ct = default, string me = "")
     {
         var today = NzTime.Today(clock);
         var items = new List<TodayItem>();
@@ -430,6 +430,13 @@ public sealed class JourneyService(
             var calls = await emr.Episodes.AsNoTracking().Where(e => e.Stage == EpisodeStage.Discharged && e.FollowUpCallOn != null && e.FollowUpCallOn <= today && e.FollowUpCallOn >= today.AddDays(-14)).Take(100).ToListAsync(ct);
             await Names(calls.Select(x => x.PatientId));
             foreach (var x in calls) Add("After surgery", x.PatientId, "Follow-up phone call", x.FollowUpCallOn < today ? "Overdue" : "Due today", x.FollowUpCallOn, new("Open the clinical record", $"/emr/{x.BookingId}", Permissions.EmrView), x.FollowUpCallOn < today ? 2 : 3);
+        }
+        if (On("reminders") && can(Permissions.RemindersView))
+        {
+            var held = await reminders.Messages.AsNoTracking().Where(m => m.Status == MessageStatus.Queued && m.RequiresRelease && m.ReleasedAt == null && m.PatientId != null).Take(50).ToListAsync(ct);
+            await Names(held.Select(x => x.PatientId!.Value));
+            foreach (var m in held.Where(m => !string.Equals(m.CreatedBy, me, StringComparison.OrdinalIgnoreCase)))
+                Add("Before surgery", m.PatientId!.Value, "Release a message", $"{m.Kind} by {m.Channel} – written by {m.CreatedBy}, needs a second person", null, new("Open the outbox", "/outbox?tab=release", Permissions.RemindersView), 2);
         }
         if (On("followup") && (can(Permissions.FollowUpRecord) || can(Permissions.FollowUpSsi)))
         {

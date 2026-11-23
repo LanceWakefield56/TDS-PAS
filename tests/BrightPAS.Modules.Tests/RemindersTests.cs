@@ -147,6 +147,7 @@ public class RemindersTests
         var (h, _, booking) = await Setup();
         await using var _h = h;
         await Cycle(h);
+        h.Clock.Advance(TimeSpan.FromMinutes(11)); // bulk hold
         await Cycle(h);
         var msgs = await Messages(h);
         Assert.Equal(2, msgs.Count);
@@ -277,6 +278,7 @@ public class RemindersTests
         await using var s = h.Scope();
         var svc = s.ServiceProvider.GetRequiredService<ReminderService>();
         await svc.QueueFormLinkAsync(p.Id, null, "https://pas/q/TOPSECRETTOKEN", sms: true, email: true, "nurse");
+        h.Clock.Advance(TimeSpan.FromMinutes(3)); // past the outbox hold
         await svc.SendDueAsync();
         var links = (await svc.MessagesAsync(null, p.Id)).Where(m => m.Kind == "FormLink").ToList();
         Assert.Equal(2, links.Count);
@@ -329,5 +331,49 @@ public class RemindersTests
         Assert.Contains("Unknown placeholder", await svc.SaveTemplateAsync(MessageKind.BookingConfirmation, Channel.Sms, "en", null, "Hi {Procedure}", true, "admin"));
         Assert.Contains("{Link}", await svc.SaveTemplateAsync(MessageKind.FormLink, Channel.Sms, "en", null, "Please fill in our form", true, "admin"));
         Assert.Null(await svc.SaveTemplateAsync(MessageKind.BookingConfirmation, Channel.Sms, "mi", null, "Kia ora {FirstName} – {Date}", true, "admin"));
+    }
+
+    [Fact]
+    public async Task Outbox_holds_staff_messages_undo_second_person_release_and_wrong_recipient_correction()
+    {
+        var (h, p, _) = await Setup();
+        await using var _h = h;
+        await using var s = h.Scope();
+        var svc = s.ServiceProvider.GetRequiredService<ReminderService>();
+        var db = s.ServiceProvider.GetRequiredService<RemindersDbContext>();
+        // Held for 2 minutes: nothing goes straight away; undo stops it for good.
+        var first = Assert.Single(await svc.QueuePortalLinkAsync(p.Id, "https://pas/my/ONE", sms: true, email: false, "rec"));
+        await svc.SendDueAsync();
+        Assert.Equal(MessageStatus.Queued, (await db.Messages.AsNoTracking().SingleAsync(m => m.Id == first.Id)).Status);
+        Assert.NotNull(await svc.RecallAsync(first.Id, "", "rec"));
+        Assert.Null(await svc.RecallAsync(first.Id, "Wrong patient opened", "rec"));
+        h.Clock.Advance(TimeSpan.FromMinutes(3));
+        await svc.SendDueAsync();
+        var stopped = await db.Messages.AsNoTracking().SingleAsync(m => m.Id == first.Id);
+        Assert.Equal(MessageStatus.Cancelled, stopped.Status);
+        Assert.Null(stopped.SecretLink);
+        // Held for review: the writer cannot release it; a second person can.
+        Assert.Empty(await svc.SaveSafetyAsync(60, 600, "PortalLink", "admin"));
+        Assert.NotEmpty(await svc.SaveSafetyAsync(60, 600, "Nonsense", "admin"));
+        var second = Assert.Single(await svc.QueuePortalLinkAsync(p.Id, "https://pas/my/TWO", sms: true, email: false, "rec"));
+        Assert.True(second.RequiresRelease);
+        h.Clock.Advance(TimeSpan.FromMinutes(5));
+        await svc.SendDueAsync();
+        Assert.Equal(MessageStatus.Queued, (await db.Messages.AsNoTracking().SingleAsync(m => m.Id == second.Id)).Status);
+        Assert.NotNull(await svc.ReleaseAsync(second.Id, "rec"));
+        Assert.Null(await svc.ReleaseAsync(second.Id, "nurse"));
+        await svc.SendDueAsync();
+        Assert.Equal(MessageStatus.Sent, (await db.Messages.AsNoTracking().SingleAsync(m => m.Id == second.Id)).Status);
+        // Sent to the wrong person: a correction to the same number, no patient details; can't be reported twice.
+        var (recalled, correction, error) = await svc.WrongRecipientAsync(second.Id, "Mobile belonged to the previous patient", "rec");
+        Assert.Null(error); Assert.False(recalled); Assert.NotNull(correction);
+        var c = await db.Messages.AsNoTracking().SingleAsync(m => m.Id == correction);
+        Assert.Equal(second.Address, c.Address);
+        Assert.Equal(second.Id, c.CorrectionForId);
+        Assert.DoesNotContain(p.FamilyName, c.Body, StringComparison.Ordinal);
+        Assert.NotNull((await svc.WrongRecipientAsync(second.Id, "again", "rec")).Error);
+        // System replies are not held.
+        Assert.Equal(0, ReminderService.HoldFor(await svc.SettingsAsync(), MessageKind.ReplyConfirmed, ReminderService.SystemUser));
+        Assert.Equal(600, ReminderService.HoldFor(await svc.SettingsAsync(), MessageKind.DayBeforeReminder, ReminderService.SystemUser));
     }
 }

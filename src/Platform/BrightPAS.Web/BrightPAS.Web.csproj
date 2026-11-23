@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Estimates\BrightPAS.Modules.Estimates.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Triage\BrightPAS.Modules.Triage.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.FollowUp\BrightPAS.Modules.FollowUp.csproj" />
+    <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Research\BrightPAS.Modules.Research.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Portal\BrightPAS.Modules.Portal.csproj" />
     <ProjectReference Include="..\..\Modules\BrightPAS.Modules.Messaging\BrightPAS.Modules.Messaging.csproj" />
   </ItemGroup>

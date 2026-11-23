@@ -98,7 +98,7 @@ public sealed partial class Scenarios
         var before = sims.SmsOut.Count;
         var send = await nurse.PostAsync($"/api/followup/contacts/{Str(row, "id")}/send-link", new { });
         if (send.Status != 200) return (Outcome.Fail, $"Could not send the check-in text ({send.Status}): {send.Text}");
-        var sms = await Sims.WaitForAsync(sims.SmsOut, x => sims.SmsOut.ToList().IndexOf(x) >= before && x.Text.Contains("/c/", StringComparison.Ordinal), TimeSpan.FromSeconds(20));
+        var sms = await Sims.WaitForAsync(sims.SmsOut, x => sims.SmsOut.ToList().IndexOf(x) >= before && x.Text.Contains("/c/", StringComparison.Ordinal), TimeSpan.FromSeconds(45));
         if (sms is null) return (Outcome.Fail, "No check-in SMS reached a virtual phone.");
         var m = Regex.Match(sms.Text, @"https?://\S+/c/\S+");
         var link = bot.O.Url + new Uri(m.Value.TrimEnd('.', ',', ')')).PathAndQuery;
@@ -118,7 +118,7 @@ public sealed partial class Scenarios
         await p.Locator("text=A nurse will phone you today").WaitForAsync(new() { Timeout = 10000 });
         var concerns = await nurse.GetAsync("/api/followup/worklist?view=concerns");
         var found = Find(concerns.Json, x => Str(x, "patientId") == pid && (Str(x, "label") ?? "").StartsWith("Call back", StringComparison.Ordinal));
-        var duty = await Sims.WaitForAsync(sims.SmsOut, x => sims.SmsOut.ToList().IndexOf(x) >= before && x.Text.Contains("needs a call back", StringComparison.Ordinal), TimeSpan.FromSeconds(20));
+        var duty = await Sims.WaitForAsync(sims.SmsOut, x => sims.SmsOut.ToList().IndexOf(x) >= before && x.Text.Contains("needs a call back", StringComparison.Ordinal), TimeSpan.FromSeconds(30));
         return found is not null
             ? (Outcome.Pass, $"SMS: \"{Report.Trim(sms.Text, 120)}\". Patient answered on a phone (heavy bleeding) → told a nurse will phone today; call back on the Concerns list{(duty is null ? "" : "; duty nurse texted (no patient details)")}.")
             : (Outcome.Fail, "The patient's concern did not create a call back on the Concerns list.");

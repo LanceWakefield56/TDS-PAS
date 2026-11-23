@@ -284,6 +284,116 @@ public sealed class ReminderService(
     }
 
     /// <summary>Creates the SMS (and email, when available and allowed) for one patient. Returns the messages created.</summary>
+    /// <summary>
+    /// Outbox hold (spec 7.19.1): a message a person sends waits <see cref="ReminderSettings.HoldSeconds"/> so it can be undone; bulk reminders wait
+    /// <see cref="ReminderSettings.BulkHoldSeconds"/>; automatic replies and system messages go straight away.
+    /// </summary>
+    public static int HoldFor(ReminderSettings s, MessageKind kind, string user) => user switch
+    {
+        SystemUser => kind is MessageKind.BookingConfirmation or MessageKind.DayBeforeReminder ? Math.Max(0, s.BulkHoldSeconds) : 0,
+        "system" or "patient" or "patient-link" => 0,
+        _ => Math.Max(0, s.HoldSeconds)
+    };
+
+    public static bool NeedsRelease(ReminderSettings s, MessageKind kind, string user) =>
+        user is not (SystemUser or "system") && (s.ReviewKinds ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Contains(kind.ToString(), StringComparer.Ordinal);
+
+    // ------------------------------------------------------------------ send safety (7.19 / 7.20)
+    public async Task<IReadOnlyList<string>> SaveSafetyAsync(int holdSeconds, int bulkHoldSeconds, string? reviewKinds, string user, CancellationToken ct = default)
+    {
+        var errors = new List<string>();
+        if (holdSeconds is < 0 or > 3600) errors.Add("The hold for single messages must be 0 to 60 minutes.");
+        if (bulkHoldSeconds is < 0 or > 7200) errors.Add("The hold for bulk reminders must be 0 to 120 minutes.");
+        var kinds = (reviewKinds ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Distinct(StringComparer.Ordinal).ToList();
+        foreach (var k in kinds) if (!Enum.TryParse<MessageKind>(k, out _)) errors.Add($"Unknown message type: {k}.");
+        if (errors.Count > 0) return errors;
+        var s = await SettingsAsync(ct);
+        s.HoldSeconds = holdSeconds; s.BulkHoldSeconds = bulkHoldSeconds; s.ReviewKinds = kinds.Count == 0 ? null : string.Join(",", kinds);
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Update", "SendSafety", "1", reason: $"hold {holdSeconds}s, bulk {bulkHoldSeconds}s, review: {s.ReviewKinds ?? "none"}", ct: ct);
+        return [];
+    }
+
+    /// <summary>Undo send / recall while the message is still in the outbox.</summary>
+    public async Task<string?> RecallAsync(Guid id, string reason, string user, CancellationToken ct = default)
+    {
+        var m = await db.Messages.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (m is null) return "Message not found.";
+        if (string.IsNullOrWhiteSpace(reason)) return "Give a reason.";
+        if (m.Status != MessageStatus.Queued) return m.Status is MessageStatus.Sent or MessageStatus.Delivered ? "Already sent – use \"Sent to the wrong person\" to send a correction." : "This message is not waiting to be sent.";
+        m.Status = MessageStatus.Cancelled; m.RecalledBy = user; m.RecalledAt = clock.GetUtcNow(); m.RecallReason = reason.Trim().Length > 500 ? reason.Trim()[..500] : reason.Trim(); m.SecretLink = null;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Recall", "OutboundMessage", id.ToString(), m.PatientId?.ToString(), reason: reason, ct: ct);
+        return null;
+    }
+
+    /// <summary>A second person releases a message held for review (the person who wrote it cannot).</summary>
+    public async Task<string?> ReleaseAsync(Guid id, string user, CancellationToken ct = default)
+    {
+        var m = await db.Messages.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (m is null) return "Message not found.";
+        if (m.Status != MessageStatus.Queued || !m.RequiresRelease || m.ReleasedAt is not null) return "This message is not waiting for release.";
+        if (string.Equals(m.CreatedBy, user, StringComparison.OrdinalIgnoreCase)) return "A second person must release it.";
+        m.ReleasedBy = user; m.ReleasedAt = clock.GetUtcNow();
+        if (m.NextAttemptAt > clock.GetUtcNow()) m.NextAttemptAt = clock.GetUtcNow();
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Release", "OutboundMessage", id.ToString(), m.PatientId?.ToString(), ct: ct);
+        return null;
+    }
+
+    /// <summary>Clinically urgent: skip the hold (still needs release if held for review). Audited.</summary>
+    public async Task<string?> SendNowAsync(Guid id, string reason, string user, CancellationToken ct = default)
+    {
+        var m = await db.Messages.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (m is null) return "Message not found.";
+        if (m.Status != MessageStatus.Queued) return "This message is not waiting to be sent.";
+        if (string.IsNullOrWhiteSpace(reason)) return "Say why it must go now.";
+        m.NextAttemptAt = clock.GetUtcNow(); m.IgnoreQuietHours = true;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "SendNow", "OutboundMessage", id.ToString(), m.PatientId?.ToString(), reason: reason, ct: ct);
+        return null;
+    }
+
+    /// <summary>
+    /// "Sent to the wrong person" (7.20.3): recalls it if still held; otherwise sends a correction notice to the same address (no patient details)
+    /// and marks the message. The caller opens the privacy incident.
+    /// </summary>
+    public async Task<(bool Recalled, Guid? CorrectionId, string? Error)> WrongRecipientAsync(Guid id, string reason, string user, CancellationToken ct = default)
+    {
+        var m = await db.Messages.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (m is null) return (false, null, "Message not found.");
+        if (string.IsNullOrWhiteSpace(reason)) return (false, null, "Say what happened.");
+        if (m.WrongRecipientAt is not null) return (false, null, "Already reported.");
+        m.WrongRecipientAt = clock.GetUtcNow();
+        if (m.Status == MessageStatus.Queued)
+        {
+            m.Status = MessageStatus.Cancelled; m.RecalledBy = user; m.RecalledAt = clock.GetUtcNow(); m.RecallReason = "Wrong recipient: " + reason.Trim(); m.SecretLink = null;
+            await db.SaveChangesAsync(ct);
+            await audit.WriteAsync(user, "WrongRecipient", "OutboundMessage", id.ToString(), m.PatientId?.ToString(), reason: "Recalled before sending. " + reason, ct: ct);
+            return (true, null, null);
+        }
+        if (m.Status is not (MessageStatus.Sent or MessageStatus.Delivered)) { await db.SaveChangesAsync(ct); return (false, null, null); }
+        var s = await SettingsAsync(ct);
+        var when = (m.SentAt ?? m.CreatedAt).ToOffset(BrightPAS.Core.NzTime.Zone.GetUtcOffset((m.SentAt ?? m.CreatedAt).UtcDateTime));
+        var c = new OutboundMessage
+        {
+            Kind = MessageKind.Test,
+            Channel = m.Channel,
+            Address = m.Address,
+            CorrectionForId = m.Id,
+            IgnoreQuietHours = false,
+            NextAttemptAt = clock.GetUtcNow(),
+            CreatedAt = clock.GetUtcNow(),
+            CreatedBy = user,
+            Subject = m.Channel == Channel.Email ? $"Please disregard our earlier message – {s.ClinicName}" : null,
+            Body = $"{s.ClinicName}: we sent a message to this {(m.Channel == Channel.Sms ? "number" : "address")} on {when:d MMM} at {when:h:mm tt} in error. Please delete it and do not act on it. Sorry for the trouble. Questions: {s.ClinicPhone}"
+        };
+        db.Messages.Add(c);
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "WrongRecipient", "OutboundMessage", id.ToString(), m.PatientId?.ToString(), reason: $"Correction notice {c.Id} sent. {reason}", ct: ct);
+        return (false, c.Id, null);
+    }
+
     private async Task<List<OutboundMessage>> QueueAsync(ReminderSettings s, Patient p, MessageKind kind, Appointment? a, string? link, string dedupePrefix,
         bool sms, bool email, bool ignoreQuiet, string user, CancellationToken ct, bool bypassOptOut = false)
     {
@@ -318,7 +428,8 @@ public sealed class ReminderService(
                 Status = suppressed is null ? MessageStatus.Queued : MessageStatus.Suppressed,
                 LastError = suppressed,
                 IgnoreQuietHours = ignoreQuiet,
-                NextAttemptAt = now,
+                NextAttemptAt = now.AddSeconds(HoldFor(s, kind, user)),
+                RequiresRelease = NeedsRelease(s, kind, user),
                 DedupeKey = dedupe,
                 CreatedAt = now,
                 CreatedBy = user
@@ -458,7 +569,7 @@ public sealed class ReminderService(
             if (stuck.NextAttemptAt < now.AddMinutes(-10)) { stuck.Status = MessageStatus.Failed; stuck.LastError = "Interrupted while sending – it may or may not have been delivered. Check before retrying."; }
         await db.SaveChangesAsync(ct);
 
-        var due = await db.Messages.Where(m => m.Status == MessageStatus.Queued && m.NextAttemptAt <= now).OrderBy(m => m.CreatedAt).Take(100).ToListAsync(ct);
+        var due = await db.Messages.Where(m => m.Status == MessageStatus.Queued && m.NextAttemptAt <= now && (!m.RequiresRelease || m.ReleasedAt != null)).OrderBy(m => m.CreatedAt).Take(100).ToListAsync(ct);
         int sent = 0, failed = 0;
         foreach (var m in due)
         {

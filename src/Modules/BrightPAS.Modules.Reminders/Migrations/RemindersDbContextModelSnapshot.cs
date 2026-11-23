@@ -246,6 +246,9 @@ namespace BrightPAS.Modules.Reminders.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<Guid?>("CorrectionForId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -287,6 +290,27 @@ namespace BrightPAS.Modules.Reminders.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("RecallReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset?>("RecalledAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("RecalledBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("ReleasedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ReleasedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("RequiresRelease")
+                        .HasColumnType("bit");
+
                     b.Property<string>("SecretLink")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -303,9 +327,14 @@ namespace BrightPAS.Modules.Reminders.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<DateTimeOffset?>("WrongRecipientAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BookingId");
+
+                    b.HasIndex("CorrectionForId");
 
                     b.HasIndex("DedupeKey")
                         .IsUnique()
@@ -328,6 +357,9 @@ namespace BrightPAS.Modules.Reminders.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("ArrivalLeadMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BulkHoldSeconds")
                         .HasColumnType("int");
 
                     b.Property<string>("ClinicName")
@@ -377,6 +409,9 @@ namespace BrightPAS.Modules.Reminders.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<int>("HoldSeconds")
+                        .HasColumnType("int");
+
                     b.Property<string>("ModicaApplication")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -399,6 +434,10 @@ namespace BrightPAS.Modules.Reminders.Migrations
 
                     b.Property<TimeOnly>("QuietStart")
                         .HasColumnType("time");
+
+                    b.Property<string>("ReviewKinds")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
 
                     b.Property<bool>("SendBookingConfirmation")
                         .HasColumnType("bit");
@@ -455,6 +494,14 @@ namespace BrightPAS.Modules.Reminders.Migrations
                         .WithMany()
                         .HasForeignKey("MatchedMessageId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Reminders.OutboundMessage", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Reminders.OutboundMessage", null)
+                        .WithMany()
+                        .HasForeignKey("CorrectionForId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 #pragma warning restore 612, 618
         }

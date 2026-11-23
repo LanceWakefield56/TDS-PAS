@@ -29,6 +29,7 @@ public sealed class QualityIndicatorCalculators(IServiceProvider sp, LicenceCach
         ("count", "Count discrepancies (clinical record)"), ("ews", "Early warning score ≥ 5 (clinical record)"), ("inc1000", "Incidents per 1,000 episodes"),
         ("fall1000", "Falls per 1,000 episodes"), ("sac12", "SAC 1–2 incidents"), ("cmpack", "Complaints acknowledged within 5 working days"),
         ("cir", "Caecal intubation (endoscopy)"), ("adr", "Adenoma detection (endoscopy)"),
+        ("misdirect", "Misdirection near misses and wrong-recipient reports (sends stopped, warnings overridden)"),
         ("ssi", "Surgical site infections (confirmed, per operation under surveillance)"), ("fucomplete", "Follow-up contacts completed"),
     ];
 
@@ -42,6 +43,15 @@ public sealed class QualityIndicatorCalculators(IServiceProvider sp, LicenceCach
         bool In(DateTimeOffset? t) => t is { } x && Day(x) >= from && Day(x) <= to;
         switch (key)
         {
+            case "misdirect":
+                {
+                    var start = NzTime.StartOfDay(@from); var end = NzTime.StartOfDay(to.AddDays(1));
+                    var ev = await s.GetRequiredService<BrightPAS.Core.Data.PasDbContext>().AuditEvents.AsNoTracking()
+                        .Where(a => a.OccurredAt >= start && a.OccurredAt < end && (a.Action == "SendBlocked" || a.Action == "SendWarningOverridden" || a.Action == "WrongRecipient"))
+                        .Select(a => new { a.OccurredAt, a.Action, a.EntityType, a.EntityId }).ToListAsync(ct);
+                    // Counted per event (rate per day on the chart). Patient details are not shown on the indicator.
+                    return ev.Select(a => new IndicatorCase(NzTime.NzDate(a.OccurredAt), true, 1, $"{NzTime.ToNz(a.OccurredAt):d MMM HH:mm} {a.Action} ({a.EntityType})", a.EntityType == "Letter" ? $"/letters/{a.EntityId}" : "/outbox", "Not stated")).ToList();
+                }
             case "ssi":
                 {
                     if (!Has(BrightPAS.Modules.FollowUp.FollowUpModule.Id)) return null;

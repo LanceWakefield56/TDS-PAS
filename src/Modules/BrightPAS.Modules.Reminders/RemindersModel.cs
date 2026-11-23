@@ -41,6 +41,12 @@ public sealed class ReminderSettings
     public SmsProvider SmsProvider { get; set; } = SmsProvider.Modica;
     public EmailProvider EmailProvider { get; set; } = EmailProvider.Smtp;
     public bool SendBookingConfirmation { get; set; } = true;
+    /// <summary>Seconds a message sent by a person waits in the outbox (undo possible). Spec 7.19.1 default 2 minutes.</summary>
+    public int HoldSeconds { get; set; } = 120;
+    /// <summary>Seconds bulk reminders (confirmations, day-before) wait before release. Default 10 minutes.</summary>
+    public int BulkHoldSeconds { get; set; } = 600;
+    /// <summary>Message kinds (comma separated) that a second person must release before they go.</summary>
+    public string? ReviewKinds { get; set; }
     public bool SendDayBeforeReminder { get; set; } = true;
     public bool SendEmailCopies { get; set; } = true;
     /// <summary>Local hour (0–23) from which next-day reminders are sent.</summary>
@@ -143,6 +149,15 @@ public sealed class OutboundMessage
     public string CreatedBy { get; set; } = "";
     public DateTimeOffset? SentAt { get; set; }
     public DateTimeOffset? DeliveredAt { get; set; }
+    // 0.25.0 send safety (spec 7.19/7.20): second-person release, recall while held, wrong-recipient correction.
+    public bool RequiresRelease { get; set; }
+    public string? ReleasedBy { get; set; }
+    public DateTimeOffset? ReleasedAt { get; set; }
+    public string? RecalledBy { get; set; }
+    public DateTimeOffset? RecalledAt { get; set; }
+    public string? RecallReason { get; set; }
+    public DateTimeOffset? WrongRecipientAt { get; set; }
+    public Guid? CorrectionForId { get; set; }
 }
 
 public sealed class InboundMessage
@@ -212,6 +227,7 @@ public sealed class RemindersDbContext(DbContextOptions<RemindersDbContext> opti
             e.Property(x => x.FromName).HasMaxLength(100);
             e.Property(x => x.WebhookKeyProtected).HasMaxLength(1000);
             e.Property(x => x.UpdatedBy).HasMaxLength(100);
+            e.Property(x => x.ReviewKinds).HasMaxLength(300);
         });
         b.Entity<MessageTemplate>(e =>
         {
@@ -238,6 +254,9 @@ public sealed class RemindersDbContext(DbContextOptions<RemindersDbContext> opti
         });
         b.Entity<OutboundMessage>(e =>
         {
+            e.Property(x => x.ReleasedBy).HasMaxLength(100); e.Property(x => x.RecalledBy).HasMaxLength(100); e.Property(x => x.RecallReason).HasMaxLength(500);
+            e.HasIndex(x => x.CorrectionForId);
+            e.HasOne<OutboundMessage>().WithMany().HasForeignKey(x => x.CorrectionForId).OnDelete(DeleteBehavior.NoAction);
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(30);
             e.Property(x => x.Channel).HasConversion<string>().HasMaxLength(10);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);

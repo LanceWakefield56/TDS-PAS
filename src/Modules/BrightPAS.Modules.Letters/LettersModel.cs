@@ -91,6 +91,10 @@ public sealed class Letter
     public DateTimeOffset? FinalisedAt { get; set; }
     public string? FinalisedBy { get; set; }
     public DateTimeOffset? SentAt { get; set; }
+    /// <summary>Reported as sent to the wrong person (spec 7.20.3) – a privacy incident is opened and a retraction letter drafted.</summary>
+    public DateTimeOffset? WrongRecipientAt { get; set; }
+    public string? WrongRecipientReason { get; set; }
+    public Guid? CorrectionForId { get; set; }
     public string? SentBy { get; set; }
 }
 
@@ -180,6 +184,9 @@ public sealed class LettersDbContext(DbContextOptions<LettersDbContext> options)
             e.Property(x => x.Recipient).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.RecipientName).HasMaxLength(200);
             e.Property(x => x.RecipientAddress).HasMaxLength(500);
+            e.Property(x => x.WrongRecipientReason).HasMaxLength(500);
+            e.HasIndex(x => x.CorrectionForId);
+            e.HasOne<Letter>().WithMany().HasForeignKey(x => x.CorrectionForId).OnDelete(DeleteBehavior.NoAction);
             e.Property(x => x.Subject).HasMaxLength(200);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Channel).HasConversion<string>().HasMaxLength(20);

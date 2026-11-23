@@ -60,6 +60,7 @@ public class DocumentTextAndPortalLinkTests
         await svc.QueuePortalLinkAsync(p.Id, "https://pas/my/OLDSECRET", sms: true, email: false, "rec");
         var list = await svc.QueuePortalLinkAsync(p.Id, "https://pas/my/NEWSECRET", sms: true, email: false, "rec");
         Assert.Single(list);
+        h.Clock.Advance(TimeSpan.FromMinutes(3));
         await svc.SendDueAsync();
         var msgs = (await svc.MessagesAsync(null, p.Id)).Where(m => m.Kind == "PortalLink").ToList();
         Assert.Contains(msgs, m => m.Status == "Cancelled");

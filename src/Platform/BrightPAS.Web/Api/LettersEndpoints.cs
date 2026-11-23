@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using BrightPAS.Identity;
 using BrightPAS.Modules.Letters;
@@ -21,10 +22,11 @@ public static class LettersEndpoints
         var g = app.MapGroup("/api/letters").RequireModule(LettersModule.Id);
         g.MapGet("/", async (string? view, Guid? patientId, LetterService svc) => Results.Ok(await svc.ListAsync(view ?? "recent", patientId)))
             .RequireAuthorization(Permissions.LettersView);
-        g.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal u, HttpContext http, LetterService svc) =>
+        g.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal u, HttpContext http, LetterService svc, BrightPAS.Modules.Patients.PatientsDbContext patients) =>
         {
             var l = await svc.GetAsync(id, Me(u), AuthEndpoints.Workstation(http));
             if (l is null) return Results.NotFound();
+            var pt = await patients.Patients.AsNoTracking().Where(p => p.Id == l.PatientId).Select(p => new { p.GivenNames, p.FamilyName }).SingleAsync();
             var practices = await svc.PracticesAsync();
             var practice = practices.FirstOrDefault(p => p.Id == l.GpPracticeId);
             return Results.Ok(new
@@ -32,6 +34,10 @@ public static class LettersEndpoints
                 l.Id,
                 l.Number,
                 l.PatientId,
+                patientName = $"{pt.GivenNames} {pt.FamilyName}",
+                l.WrongRecipientAt,
+                l.WrongRecipientReason,
+                l.CorrectionForId,
                 kind = l.Kind.ToString(),
                 recipient = l.Recipient.ToString(),
                 l.RecipientName,
@@ -69,9 +75,9 @@ public static class LettersEndpoints
             .RequireAuthorization(Permissions.LettersWrite);
         g.MapPost("/{id:guid}/printed", async (Guid id, ClaimsPrincipal u, LetterService svc) => Done(await svc.RecordPrintAsync(id, Me(u))))
             .RequireAuthorization(Permissions.LettersWrite);
-        g.MapPost("/{id:guid}/send", async (Guid id, ClaimsPrincipal u, HealthLinkService hl) =>
+        g.MapPost("/{id:guid}/send", async (Guid id, string? overrideReason, ClaimsPrincipal u, HealthLinkService hl) =>
         {
-            var (ok, message) = await hl.SendAsync(id, Me(u));
+            var (ok, message) = await hl.SendAsync(id, Me(u), overrideReason);
             return ok ? Results.Ok(new { message }) : Results.BadRequest(new { errors = new[] { message } });
         }).RequireAuthorization(Permissions.LettersWrite);
         // Letter as a PDF (AES-256 password-protected unless the export policy allows otherwise).

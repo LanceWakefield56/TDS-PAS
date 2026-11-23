@@ -51,7 +51,7 @@ builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs
     new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule(),
     new BrightPAS.Modules.Referrals.ReferralsModule(), new BrightPAS.Modules.Letters.LettersModule(),
     new BrightPAS.Modules.Rostering.RosteringModule(), new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(),
-    new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.FollowUp.FollowUpModule()]);
+    new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.FollowUp.FollowUpModule(), new BrightPAS.Modules.Research.ResearchModule()]);
 builder.Services.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
 builder.Services.AddScoped<RoleAdminService>();
 builder.Services.AddScoped<BrightPAS.Core.Setup.SettingsService>();
@@ -92,6 +92,10 @@ if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedSer
 // Patient triage (0.22.0, ADR 0035): booking hold until sign-off, re-triage scan.
 builder.Services.AddScoped<BrightPAS.Core.Modules.IBookingConfirmGate, BrightPAS.Web.Integration.TriageBookingGate>();
 builder.Services.AddScoped<BrightPAS.Modules.FollowUp.IOperationFacts, BrightPAS.Web.Integration.OperationFactsProvider>();
+builder.Services.AddScoped<BrightPAS.Modules.Forms.IFormDataSink, BrightPAS.Web.Integration.FormDataSink>();
+builder.Services.AddScoped<BrightPAS.Modules.Research.IDatasetSource, BrightPAS.Web.Reporting.EpisodesDataset>();
+builder.Services.AddScoped<BrightPAS.Modules.Research.IDatasetSource, BrightPAS.Web.Reporting.SsiDataset>();
+builder.Services.AddScoped<BrightPAS.Modules.Research.IDatasetSource, BrightPAS.Web.Reporting.FollowUpDataset>();
 builder.Services.AddScoped<BrightPAS.Web.Journey.JourneyService>();
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.TriageWorker>();
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.FollowUpWorker>();
@@ -231,6 +235,9 @@ app.MapEstimatesEndpoints();
 app.MapTriageEndpoints();
 app.MapFollowUpEndpoints();
 app.MapJourneyEndpoints();
+app.MapOutboxEndpoints();
+app.MapResearchEndpoints();
+app.MapFormDesignerEndpoints();
 app.MapMcpAndAiEndpoints();
 
 // Unknown /api routes return 404; everything else serves the single-page app.

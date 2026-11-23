@@ -156,6 +156,9 @@ namespace BrightPAS.Modules.Letters.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<Guid?>("CorrectionForId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -240,9 +243,18 @@ namespace BrightPAS.Modules.Letters.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<DateTimeOffset?>("WrongRecipientAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("WrongRecipientReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BookingId");
+
+                    b.HasIndex("CorrectionForId");
 
                     b.HasIndex("GpPracticeId");
 
@@ -342,6 +354,11 @@ namespace BrightPAS.Modules.Letters.Migrations
 
             modelBuilder.Entity("BrightPAS.Modules.Letters.Letter", b =>
                 {
+                    b.HasOne("BrightPAS.Modules.Letters.Letter", null)
+                        .WithMany()
+                        .HasForeignKey("CorrectionForId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("BrightPAS.Modules.Letters.GpPractice", null)
                         .WithMany()
                         .HasForeignKey("GpPracticeId")
