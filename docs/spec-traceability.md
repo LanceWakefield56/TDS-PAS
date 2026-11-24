@@ -28,7 +28,7 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 | 6 table – HealthLink | REF^I12 letters with PDF | Built | Letters module, `HealthLinkService` (ADR 0016) | AdminAndLettersTests, robot virtual HealthLink |
 | 6 table – Modica, SMTP | SMS and email | Built | Reminders module gateways (ADR 0012) | RemindersTests, robot virtual phones and inbox |
 | 6 table – Xero | Bills and payroll exports | Partial | CSV exports built; API push planned | Robot exports |
-| 6 table – NZePS, ACC, insurers, EFTPOS, NHI/HPI live | – | Planned | – | – |
+| 6 table – ACC, insurers, EFTPOS, NHI/HPI, Xero | – | Built with file/manual fallbacks (0.26.0); direct connections need agreements; NZePS planned | Modules/BrightPAS.Modules.Claims, Web/Integration/HealthIdentity.cs, Web/Integration/ClaimsIntegration.cs; ADR 0039 | ClaimsTests, robot Claims |
 | 6 table – Medow, cloud AI | Optional scribe and drafting | Foundations | Scribe module (ADR 0028) | ScribeTests, robot Medow and cloud drafting |
 | 6.1 | DICOM C-ECHO, MWL, MPPS, C-STORE | Built | Endoscopy DICOM node (ADR 0027); engine DICOM listener | EndoscopyDicomTests, robot virtual Olympus tower |
 | 6.1 | Storage commitment, query/retrieve | Planned | – | – |
@@ -61,6 +61,7 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 | 7.18 | Endoscopy (Endobase replacement) | Built | Endoscopy (ADR 0027) | EndoscopyTests, EndoscopyDicomTests, robot |
 | 7.19–7.21 | Delayed send, right recipient, de-identified reporting | Partial (0.21.0: estimate emails only – hold period, stop, right-recipient checks) | Estimates (ADR 0034) | EstimatesTests |
 | 7.22 | BrightPAS Scribe | Foundations | Scribe (ADR 0028) | ScribeTests, robot virtual speech server |
+| 7.12 (claims) | ACC and insurer claims, payments, Xero | Built (0.26.0) | ClaimsService, XeroService, TerminalService, Web/Api/ClaimsEndpoints.cs, pages/Claims.tsx | ClaimsTests, robot Claims |
 | 7.23 | Form designer and import | Planned | – | – |
 | 7.19 | Delayed send and recall | Built (0.25.0) | Reminders hold/RecallAsync/ReleaseAsync/SendNowAsync/WrongRecipientAsync, Web/Api/OutboxEndpoints.cs, pages/Outbox.tsx; ADR 0038 | RemindersTests.Outbox_*, robot Send safety |
 | 7.20 | Right information, right person | Built (0.25.0; patient banner and filing checks from earlier releases) | HealthLinkService.RecipientCheckAsync, LetterService.WrongRecipientAsync, indicator misdirect | robot Send safety |

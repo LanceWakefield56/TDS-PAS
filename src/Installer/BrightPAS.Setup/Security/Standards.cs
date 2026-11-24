@@ -168,5 +168,8 @@ public static class ModuleSuites
             [("POST", "api/triage/run", "{}"), ("POST", $"api/triage/assessments/{Guid.Empty}/sign-off", "{}"), ("POST", $"api/triage/rulesets/{Guid.Empty}/approve", "{}"), ("PUT", "api/triage/settings", "{}")]),
         new("followup", "Post-op follow-up and SSI surveillance", ["api/followup/worklist", "api/followup/meta", $"api/followup/contacts/{Guid.Empty}", "api/followup/ssi", "api/followup/plans", "api/followup/report"],
             [($"POST", $"api/followup/contacts/{Guid.Empty}/record", "{}"), ("POST", "api/followup/ssi", "{}"), ("POST", $"api/followup/ssi/{Guid.Empty}/confirm", "{}"), ("PUT", "api/followup/settings", "{}"), ("POST", "api/followup/plans", "{}")]),
+        new("claims", "Claims & payments", ["api/claims/", "api/claims/meta", $"api/claims/{Guid.Empty}", "api/claims/approvals", "api/claims/remittances", "api/claims/xero/settings", "api/identity/settings"],
+            [("POST", "api/claims/", "{}"), ("POST", "api/claims/batches", "{}"), ("POST", "api/claims/remittances", "{}"), ("POST", "api/claims/terminal", "{}"), ("PUT", "api/claims/xero/settings", "{}"),
+             ("POST", $"api/identity/nhi/{Guid.Empty}/accept", "{}")]),
     ];
 }

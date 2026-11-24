@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.26.0 – 2026-11-24 – **Claims, Xero, EFTPOS and NHI/HPI**
+- **Claims & payments module (spec 7.12, ADR 0039, guide H33)** – permissions View / Manage / Settings, Take payments, NHI & HPI lookups; "ACC & insurer claims" under After surgery.
+  - **Prior approvals:** request, record the funder's answer (approved, part approved, declined with reason), valid-until; expired automatically.
+  - **Claims from invoices:** one click from an issued ACC/insurer invoice; plain-English checks that say how to fix each problem (NHI, ACC claim number, membership number, prior approval granted, still valid, covers the amount); claim file per funder (encrypted) or "sent on the portal"; funder's answer; close without payment.
+  - **Remittances:** import the funder's CSV – paid lines are recorded on the invoice, declined lines reject the claim, unmatched lines are kept to follow up; a file can't be imported twice. Aged claims by funder.
+  - **Xero:** file of issued invoices to import in Xero, or a direct connection that sends invoices and payments; each goes once; earlier files can be downloaded again.
+  - **EFTPOS:** take payment on the invoice – stand-alone terminal (record the receipt) or training simulator; only the last four digits are kept; daily settlement.
+  - **NHI & HPI:** "Check with the NHI" on the patient page (accept address/contact changes; name and date of birth need an identity correction); find practitioners and GP practices in the HPI; import the GP practice list from a file when there's no connection.
+- Journey: the "Paid" step for funder invoices follows the claim; My list shows claims to fix and approvals to send.
+- **Security testing (report: "BrightPAS 0.26.0 – Security test report"):** new authenticated penetration and denial-of-service test `tools/security/pentest.py` (63 tests) alongside the Setup self-test. Fixed: sign-in and set-up rate limits now per client address (one attacker could block everyone's sign-in); signing out revokes the session (a copied cookie no longer works); each authenticator code works once per account; NHI/HPI connection settings readable only with Claims Settings.
+- Demo data: completed EMR records are written as at 5 pm so loading the demo late in the morning no longer fails ("time cannot be in the future").
+- Demo: funders with provider numbers, approvals, claims at every stage, a remittance, an EFTPOS payment, Xero in file mode, training terminal and NHI simulator.
+
 ## 0.25.0 – 2026-11-24 – **Send safety, de-identified reports, form designer**
 - **Outbox (spec 7.19, ADR 0038, guide H32):** messages wait 2 minutes (bulk reminders 10) so they can be stopped – **Undo send**; chosen message types need a second person to release them; **Send now** for urgent messages (audited); Outbox page with what's waiting and what went in the last 7 days.
 - **Sent to the wrong person (7.20.3):** recall if still waiting, otherwise a correction notice to the same number/email (no patient details); letters get a retraction letter drafted; a privacy incident opens in Quality for the Privacy Officer's notifiable-breach assessment.

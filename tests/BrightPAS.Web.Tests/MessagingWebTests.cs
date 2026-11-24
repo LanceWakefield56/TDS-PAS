@@ -224,7 +224,6 @@ public class TestBuildLicensingTests
         Assert.Equal(BrightPAS.Licensing.LicenceHealth.Valid, s.Health);
         Assert.Null(s.Licence);
         foreach (var m in BrightPAS.Licensing.ProductModules.All.Where(m => m.Available)) Assert.Equal(BrightPAS.Licensing.ModuleAccess.Full, s.AccessTo(m.Id));
-        Assert.Equal(BrightPAS.Licensing.ModuleAccess.None, s.AccessTo("claims")); // not built yet
     }
 }
 

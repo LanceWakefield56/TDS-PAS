@@ -34,6 +34,7 @@ public static class IdentityServiceCollectionExtensions
         services.AddScoped<RoleSeeder>();
         services.AddScoped<PasClaimsFactory>();
         services.AddScoped<MfaService>();
+        services.AddSingleton<TotpReplayGuard>();
         services.AddScoped<SignInService>();
         services.AddScoped<BreakGlassService>();
         services.AddScoped<FirstAdminService>();

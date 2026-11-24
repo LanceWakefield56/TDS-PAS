@@ -60,6 +60,7 @@ import DayBoard from './pages/DayBoard';
 import Outbox from './pages/Outbox';
 import FormDesigner, { FormEntryPage, FormVersionEditor } from './pages/FormDesigner';
 import Research, { ResearchExtract } from './pages/Research';
+import Claims, { ClaimPage, ClaimsSettings, EftposDay, XeroPage } from './pages/Claims';
 import FollowUp, { FollowUpContact, FollowUpPlans, FollowUpReport, PatientCheckIn, SsiCase, SsiList } from './pages/FollowUp';
 import Triage, { TriageAssessment, TriageReport, TriageRules } from './pages/Triage';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
@@ -146,6 +147,11 @@ export default function App() {
           <Route path="/followup/plans" element={allowed(mod('followup') && followAny, <FollowUpPlans />)} />
           <Route path="/followup/report" element={allowed(mod('followup') && can(Perm.FollowUpReport), <FollowUpReport />)} />
           <Route path="/followup/:id" element={allowed(mod('followup') && followAny, <FollowUpContact />)} />
+          <Route path="/claims" element={allowed(mod('claims') && (can(Perm.ClaimsView) || can(Perm.ClaimsManage) || can(Perm.ClaimsAdmin)), <Claims />)} />
+          <Route path="/claims/settings" element={allowed(mod('claims') && (can(Perm.ClaimsAdmin) || can(Perm.LettersTemplates)), <ClaimsSettings />)} />
+          <Route path="/claims/xero" element={allowed(mod('claims') && can(Perm.ClaimsManage), <XeroPage />)} />
+          <Route path="/claims/eftpos" element={allowed(mod('claims') && (can(Perm.PaymentsTake) || can(Perm.ClaimsManage)), <EftposDay />)} />
+          <Route path="/claims/:id" element={allowed(mod('claims') && (can(Perm.ClaimsView) || can(Perm.ClaimsManage) || can(Perm.ClaimsAdmin)), <ClaimPage />)} />
           <Route path="/research" element={allowed(mod('reporting') && (can(Perm.ResearchBuild) || can(Perm.ResearchApprove)), <Research />)} />
           <Route path="/research/:id" element={allowed(mod('reporting') && (can(Perm.ResearchBuild) || can(Perm.ResearchApprove)), <ResearchExtract />)} />
           <Route path="/forms/designer" element={allowed(mod('forms') && (can(Perm.FormsDesign) || can(Perm.FormsApprove) || can(Perm.FormsFill)), <FormDesigner />)} />

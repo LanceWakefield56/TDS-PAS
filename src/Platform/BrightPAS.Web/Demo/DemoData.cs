@@ -132,6 +132,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await TriageAsync(ct);
         await FollowUpAsync(ct);
         await SafetyFormsResearchAsync(ct);
+        await ClaimsAsync(ct);
         await RemindersAsync(ct);
         await CompleteModuleSetupAsync(ct);
 
@@ -494,6 +495,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         // Completed records for recent finished cases.
         foreach (var (b, sess, _) in _done.OrderByDescending(x => x.Session.Date).Take(6))
         {
+            using var late = At(sess.Date, 17); // the record is written after the list, whatever time the demo is loaded
             var e = await svc.EpisodeAsync(b.Id, b.PatientId, Actor, ct);
             var sed = b.Anaesthetic is not (AnaestheticType.Local or AnaestheticType.None);
             Ok((await svc.AssessAsync(e.Id, new Emr.AssessmentRequest(Emr.AssessmentKind.NursingAdmission, new Dictionary<string, string> { ["id_band"] = "yes", ["allergies_checked"] = "None known", ["fasting_from"] = "02:00", ["escort_name"] = "Family member" }, null), Actor, ct)).Errors, "nursing admission");
@@ -1306,6 +1308,86 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await rx.ReleaseAsync(agg!.Id, "quality", ct);
         Ok((await rx.CreateAsync(new("Hernia outcomes study", "episodes", BrightPAS.Modules.Research.DeidLevel.Pseudonymised, _today.AddDays(-365), _today, BrightPAS.Modules.Research.ExtractPurpose.Research,
             "Dr Ben Hall (investigator)", "HDEC 2026 FULL 0001 (DEMONSTRATION)", null, 5, false, ["date_of_birth", "sex", "procedure", "operation_date", "outcome", "triage_outcome"]), "quality", ct)).Errors, "research extract");
+    }
+
+    private async Task ClaimsAsync(CancellationToken ct)
+    {
+        var cl = S<BrightPAS.Modules.Claims.ClaimsService>();
+        await cl.SeedFundersAsync(ct);
+        var funders = await cl.FundersAsync(true, ct);
+        foreach (var f in funders)
+            Ok((await cl.SaveFunderAsync(new(f.Id, f.Code, f.Name, f.Kind, f.SubmitBy, f.PriorApprovalRequired, f.Kind == BrightPAS.Modules.Claims.FunderKind.Acc ? null : $"claims@{f.Code.ToLowerInvariant()}.example.nz",
+                $"TDS-{f.Code}-0042", true, "DEMONSTRATION provider number"), "admin", ct)).Error, "funder");
+        Guid Funder(string? payerName) => funders.Single(f => f.Code == (payerName switch { "Southern Cross" => "SX", "nib" => "NIB", "AIA" => "AIA", "Partners Life" => "PL", "ACC" => "ACC", _ => "HNZ" })).Id;
+        Ok(await S<BrightPAS.Modules.Claims.XeroService>().SaveSettingsAsync(new(BrightPAS.Modules.Claims.XeroMode.File, "200", "OUTPUT2", "NONE", null, null, null, null, null), "admin", ct), "xero");
+        Ok(await S<BrightPAS.Modules.Claims.TerminalService>().SaveSettingsAsync(BrightPAS.Modules.Claims.TerminalProvider.Simulator, "DEMO-T1", "admin", ct), "terminal");
+        Ok(await S<BrightPAS.Web.Integration.HealthIdentityService>().SaveSettingsAsync(new(BrightPAS.Modules.Claims.IdentityMode.Simulator, null, null, null, null, null), "admin", ct), "identity");
+
+        // Claims for insurer/ACC invoices still owing: approval → claim → ready; most sent in a claim file; one paid by remittance, one declined.
+        var owing = await S<BillingDbContext>().Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments)
+            .Where(d => d.Kind == DocumentKind.Invoice && (d.Payer == Payer.Insurer || d.Payer == Payer.Acc) && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid))
+            .OrderBy(d => d.IssuedOn).Take(8).ToListAsync(ct);
+        var made = new List<(BrightPAS.Modules.Claims.Claim Claim, Guid Funder)>();
+        var n = 0;
+        foreach (var d in owing)
+        {
+            n++;
+            var fid = Funder(d.PayerName);
+            var bal = BillingService.Calculate(d).Balance;
+            var issued = d.IssuedOn ?? _today;
+            using (At(issued.AddDays(-14), 10))
+            {
+                var (pa, e) = await cl.CreateApprovalAsync(new(d.PatientId, d.BookingId, fid, d.Payer == Payer.Insurer ? d.PayerReference : null, d.Payer == Payer.Acc ? $"DM{4100000 + n}" : null,
+                    d.Lines.FirstOrDefault()?.Description ?? "Day surgery", bal, null), "reception", ct);
+                Ok(e, "prior approval");
+                Ok(await cl.MarkRequestedAsync(pa!.Id, "reception", ct), "approval requested");
+                Ok(await cl.DecideApprovalAsync(pa.Id, new(BrightPAS.Modules.Claims.ApprovalStatus.Approved, $"APP-{60000 + n}", bal, _today.AddDays(60), null), "finance", ct), "approval decided");
+                if (n == 8) continue; // one invoice without a claim yet – shows on the journey as "make the claim"
+                using (At(issued, 15))
+                {
+                    var (c, ce) = await cl.CreateFromInvoiceAsync(d.Id, fid, null, d.Payer == Payer.Acc ? $"DM{4100000 + n}" : null, pa.Id, "finance", ct);
+                    Ok(ce, "claim");
+                    if (n != 7) Ok((await cl.MarkReadyAsync(c!.Id, null, null, null, "finance", ct)).Error, "claim ready");
+                    made.Add((c!, fid));
+                }
+            }
+        }
+        using (At(_today.AddDays(-5), 9))
+            foreach (var fid in made.Take(5).Select(m => m.Funder).Distinct())
+                await cl.BuildBatchAsync(fid, "finance", ct); // no-op when none of that funder's claims are ready
+        var sent = (await cl.ClaimsAsync(BrightPAS.Modules.Claims.ClaimStatus.Submitted, null, null, ct)).OrderBy(r => r.Claim.Number).ToList();
+        if (sent.Count >= 2)
+            using (At(_today.AddDays(-1), 11))
+            {
+                var paid = sent[0].Claim; var declined = sent[1].Claim;
+                var csv = $"Claim Reference,Amount Paid,Outcome,Reason\n{paid.Number},{paid.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)},Paid,\n";
+                Ok((await cl.ImportRemittanceAsync(paid.FunderId, "remittance-demo-1.csv", csv, "finance", ct)).Errors, "remittance");
+                if (declined.FunderId == paid.FunderId)
+                    Ok((await cl.ImportRemittanceAsync(declined.FunderId, "remittance-demo-2.csv", $"Claim Reference,Amount Paid,Outcome,Reason\n{declined.Number},0,Declined,Pre-existing condition – policy exclusion 4.2\n", "finance", ct)).Errors, "decline");
+                else Ok(await cl.RecordResponseAsync(declined.Id, false, "Pre-existing condition – policy exclusion 4.2", "finance", ct), "decline");
+            }
+
+        // Prior approvals waiting for upcoming insurer bookings.
+        var k = 0;
+        foreach (var (b, _, _) in _upcoming.Where(u => u.Booking.Payment == PaymentType.Insurer).Take(3))
+        {
+            k++;
+            var (pa, e) = await cl.CreateApprovalAsync(new(b.PatientId, b.Id, Funder("Southern Cross"), $"SX{55000 + k}", null, b.Procedure, 2800m + k * 150, null), "reception", ct);
+            Ok(e, "upcoming approval");
+            if (k > 1) Ok(await cl.MarkRequestedAsync(pa!.Id, "reception", ct), "upcoming approval requested");
+        }
+
+        // A self-funded invoice paid at the desk by EFTPOS (simulator), and one waiting at the terminal.
+        var self = await S<BillingDbContext>().Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments)
+            .Where(d => d.Kind == DocumentKind.Invoice && d.Payer == Payer.SelfFunded && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid)).OrderBy(d => d.IssuedOn).Take(1).ToListAsync(ct);
+        var term = S<BrightPAS.Modules.Claims.TerminalService>();
+        foreach (var d in self)
+            using (At(_today, 9, 30))
+            {
+                var bal = BillingService.Calculate(d).Balance;
+                var (t, e) = await term.StartAsync(d.Id, Math.Min(200m, bal), "reception", ct);
+                Ok(e, "eftpos");
+            }
     }
 
     private async Task FollowUpAsync(CancellationToken ct)

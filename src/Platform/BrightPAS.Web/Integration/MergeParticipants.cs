@@ -162,3 +162,11 @@ public sealed class FollowUpMerge(BrightPAS.Modules.FollowUp.FollowUpDbContext d
         await db.Contacts.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
         + await db.SsiCases.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
 }
+
+public sealed class ClaimsMerge(BrightPAS.Modules.Claims.ClaimsDbContext db) : IPatientMergeParticipant
+{
+    public string Name => "Claims";
+    public async Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) =>
+        await db.Claims.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
+        + await db.Approvals.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
+}

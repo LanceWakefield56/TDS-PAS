@@ -71,11 +71,13 @@ export default function Shell() {
             {mod('devices') && (can(Perm.DevicesUse) || can(Perm.DevicesManage)) && <NavLink to="/devices">Monitors &amp; SaferSleep</NavLink>}
             {mod('assets') && can(Perm.AssetsView) && <NavLink to="/cssd">Sterile services (CSSD)</NavLink>}
           </Group>
-          <Group title="After surgery" paths={['/labs', '/billing', '/coding', '/followup/ssi', '/followup/report']}>
+          <Group title="After surgery" paths={['/labs', '/billing', '/claims', '/coding', '/followup/ssi', '/followup/report']}>
             {mod('labs') && can(Perm.LabsView) && <NavLink to="/labs">Lab results</NavLink>}
             {mod('followup') && (can(Perm.FollowUpView) || can(Perm.FollowUpSsi)) && <NavLink to="/followup/ssi">SSI surveillance</NavLink>}
             {mod('followup') && can(Perm.FollowUpReport) && <NavLink to="/followup/report">Follow-up report</NavLink>}
             {mod('billing') && can(Perm.BillingView) && <NavLink to="/billing">Invoices &amp; payments</NavLink>}
+            {mod('claims') && (can(Perm.ClaimsView) || can(Perm.ClaimsManage) || can(Perm.ClaimsAdmin)) && <NavLink to="/claims" end>ACC &amp; insurer claims</NavLink>}
+            {mod('claims') && can(Perm.PaymentsTake) && !can(Perm.ClaimsView) && <NavLink to="/claims/eftpos">EFTPOS today</NavLink>}
             {mod('reporting') && (can(Perm.CodingCode) || can(Perm.CodingSubmit) || can(Perm.CodingManage)) && <NavLink to="/coding">Coding &amp; reporting</NavLink>}
           </Group>
           <Group title="Running TDS" paths={['/roster', '/assets', '/stock', '/credentialing', '/quality', '/admin/identity', '/research']}>

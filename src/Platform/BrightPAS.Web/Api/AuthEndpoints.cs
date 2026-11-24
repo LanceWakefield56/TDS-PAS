@@ -67,6 +67,7 @@ public static class AuthEndpoints
         g.MapPost("/logout", async (HttpContext http, BrightPAS.Core.Audit.AuditWriter audit) =>
         {
             var name = http.User.Identity?.IsAuthenticated == true ? http.User.Identity.Name : null;
+            if (http.User.FindFirstValue(PasAuthentication.SessionClaim) is { } sid) http.RequestServices.GetRequiredService<BrightPAS.Web.Security.SessionRevocations>().Revoke(sid);
             await http.SignOutAsync(PasAuthentication.Scheme);
             await http.SignOutAsync(PasAuthentication.PendingScheme);
             if (name is not null) await audit.WriteAsync(name, "Logout", "User", name, workstation: Workstation(http));
@@ -102,7 +103,9 @@ public static class AuthEndpoints
     private static async Task CompleteSignIn(HttpContext http, PasUser user, PasClaimsFactory claims)
     {
         await http.SignOutAsync(PasAuthentication.PendingScheme);
-        await http.SignInAsync(PasAuthentication.Scheme, await claims.CreateAsync(user, PasAuthentication.Scheme),
+        var principal = await claims.CreateAsync(user, PasAuthentication.Scheme);
+        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(PasAuthentication.SessionClaim, Guid.NewGuid().ToString("N")));
+        await http.SignInAsync(PasAuthentication.Scheme, principal,
             new AuthenticationProperties { IsPersistent = false, IssuedUtc = DateTimeOffset.UtcNow });
     }
 

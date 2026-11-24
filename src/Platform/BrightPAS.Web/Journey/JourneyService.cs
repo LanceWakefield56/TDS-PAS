@@ -46,7 +46,7 @@ public sealed record DayCard(Guid BookingId, Guid PatientId, string Patient, str
 public sealed class JourneyService(
     PatientsDbContext patients, TheatreDbContext theatre, ReferralsDbContext referrals, FormsDbContext forms, TriageDbContext triage,
     EstDbContext estimates, BillingDbContext billing, EmrDbContext emr, CodingDbContext coding, RemindersDbContext reminders, FollowUpDbContext followup,
-    LicenceCache licence, TimeProvider clock)
+    BrightPAS.Modules.Claims.ClaimsDbContext claimsDb, LicenceCache licence, TimeProvider clock)
 {
     private bool On(string module) => licence.Status.AccessTo(module) != ModuleAccess.None;
 
@@ -69,6 +69,7 @@ public sealed class JourneyService(
         var tri = On("triage") ? await triage.Assessments.AsNoTracking().Where(a => a.PatientId == patientId && a.Status != AssessmentStatus.Superseded).ToListAsync(ct) : [];
         var ests = On("estimates") ? await estimates.Estimates.AsNoTracking().Where(e => e.PatientId == patientId && e.Status != EstimateStatus.Cancelled).ToListAsync(ct) : [];
         var docs = On("billing") ? await billing.Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments).Where(d => d.PatientId == patientId && d.Status != DocumentStatus.Void).ToListAsync(ct) : [];
+        var claimRows = On("claims") ? await claimsDb.Claims.AsNoTracking().Where(c => c.PatientId == patientId).ToListAsync(ct) : [];
         var eps = On("emr") ? await emr.Episodes.AsNoTracking().Where(e => e.PatientId == patientId).ToListAsync(ct) : [];
         var coded = On("reporting") || On("coding") ? await coding.Episodes.AsNoTracking().Where(c => c.PatientId == patientId).ToListAsync(ct) : [];
         var fus = On("followup") ? await followup.Contacts.AsNoTracking().Where(c => c.PatientId == patientId && c.Status != ContactStatus.Cancelled).ToListAsync(ct) : [];
@@ -99,7 +100,7 @@ public sealed class JourneyService(
             var ep = eps.FirstOrDefault(e => e.BookingId == b.Id);
             stages.AddRange(DayStages(b.Id, b.Status, b.Date, ep, today));
             stages.Add(On("followup") ? FollowUpPlanStage(fus.Where(c => c.BookingId == b.Id).ToList(), b.Status, ep, today) : FollowUpStage(ep, b.Status, today));
-            stages.Add(BillingStage(docs, b.Id, b.Status, patientId));
+            stages.Add(BillingStage(docs, b.Id, b.Status, patientId, claimRows));
             stages.Add(CodingStage(coded, b.Id, b.Status, ep));
             cases.Add(Build(b.Id.ToString(), b.Procedure, b.Date, StatusLabel(b.Status, b.Date, today), stages));
         }
@@ -294,7 +295,7 @@ public sealed class JourneyService(
         return new("followup", "Follow-up", state, $"{label} ({done} of {mine.Count} done)", null, new(n.Method == ContactMethod.PatientForm ? "Open the follow-up" : "Make the call", $"/followup/{n.Id}", Permissions.FollowUpRecord));
     }
 
-    private JourneyStage BillingStage(List<BillingDocument> docs, Guid bookingId, BookingStatus st, Guid patientId)
+    private JourneyStage BillingStage(List<BillingDocument> docs, Guid bookingId, BookingStatus st, Guid patientId, List<BrightPAS.Modules.Claims.Claim> claimRows)
     {
         if (!On("billing")) return Skip("billing", "Paid", null);
         var inv = docs.Where(d => d.Kind == DocumentKind.Invoice && d.BookingId == bookingId).OrderByDescending(d => d.CreatedAt).FirstOrDefault();
@@ -306,8 +307,23 @@ public sealed class JourneyService(
         {
             DocumentStatus.Paid => new("billing", "Paid", StageState.Done, $"{inv.Number} paid", null, new("Open the invoice", $"/billing/{inv.Id}", Permissions.BillingView)),
             DocumentStatus.Draft => new("billing", "Paid", StageState.Now, "Invoice is a draft", inv.CreatedAt, new("Finish and issue the invoice", $"/billing/{inv.Id}", Permissions.BillingManage)),
+            _ when On("claims") && inv.Payer is Payer.Acc or Payer.Insurer or Payer.HealthNz => ClaimStage(inv, claimRows),
             _ => new("billing", "Paid", inv.DueOn is { } due && due < NzTime.Today(clock) ? StageState.Blocked : StageState.Waiting, $"{inv.Number} {(inv.Status == DocumentStatus.PartPaid ? "part paid" : "issued")}{(inv.DueOn is { } d ? $" · due {NzDate(d)}" : "")}", inv.CreatedAt,
                 new("Record a payment", $"/billing/{inv.Id}", Permissions.BillingManage))
+        };
+    }
+
+    /// <summary>Owed by ACC or an insurer: the claim is the next step until the funder pays.</summary>
+    private JourneyStage ClaimStage(BillingDocument inv, List<BrightPAS.Modules.Claims.Claim> claimRows)
+    {
+        var c = claimRows.Where(x => x.InvoiceId == inv.Id && x.Status != BrightPAS.Modules.Claims.ClaimStatus.WrittenOff).OrderByDescending(x => x.CreatedAt).FirstOrDefault();
+        if (c is null) return new("billing", "Paid", StageState.Now, $"{inv.Number} – claim not made yet", inv.CreatedAt, new("Make the claim", $"/billing/{inv.Id}", Permissions.ClaimsManage));
+        return c.Status switch
+        {
+            BrightPAS.Modules.Claims.ClaimStatus.Draft => new("billing", "Paid", StageState.Blocked, $"Claim {c.Number} needs fixing", c.CreatedAt, new("Fix the claim", $"/claims/{c.Id}", Permissions.ClaimsManage)),
+            BrightPAS.Modules.Claims.ClaimStatus.Rejected => new("billing", "Paid", StageState.Blocked, $"Claim {c.Number} rejected{(c.ResponseText is null ? "" : ": " + c.ResponseText)}", c.ResponseAt, new("Open the claim", $"/claims/{c.Id}", Permissions.ClaimsManage)),
+            BrightPAS.Modules.Claims.ClaimStatus.Ready => new("billing", "Paid", StageState.Now, $"Claim {c.Number} ready to send", c.CreatedAt, new("Send the claim", "/claims", Permissions.ClaimsManage)),
+            _ => new("billing", "Paid", StageState.Waiting, $"Claim {c.Number} with the funder{(c.Paid > 0 ? $" · {c.Paid:0.00} paid" : "")}", c.SubmittedAt, new("Open the claim", $"/claims/{c.Id}", Permissions.ClaimsView)),
         };
     }
 
@@ -475,6 +491,15 @@ public sealed class JourneyService(
             var overdue = await billing.Documents.AsNoTracking().Where(d => d.Kind == DocumentKind.Invoice && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid) && d.DueOn != null && d.DueOn < today).Take(100).ToListAsync(ct);
             await Names(overdue.Select(x => x.PatientId));
             foreach (var x in overdue) Add("After surgery", x.PatientId, "Invoice overdue", x.Number, x.DueOn, new("Open the invoice", $"/billing/{x.Id}", Permissions.BillingManage), 3);
+        }
+        if (On("claims") && can(Permissions.ClaimsManage))
+        {
+            var fix = await claimsDb.Claims.AsNoTracking().Where(c => c.Status == BrightPAS.Modules.Claims.ClaimStatus.Draft || c.Status == BrightPAS.Modules.Claims.ClaimStatus.Rejected).Take(100).ToListAsync(ct);
+            await Names(fix.Select(x => x.PatientId));
+            foreach (var x in fix) Add("After surgery", x.PatientId, x.Status == BrightPAS.Modules.Claims.ClaimStatus.Rejected ? "Claim rejected" : "Fix the claim", x.Number, x.CreatedAt.NzDate(), new("Open the claim", $"/claims/{x.Id}", Permissions.ClaimsManage), 3);
+            var send = await claimsDb.Approvals.AsNoTracking().Where(a => a.Status == BrightPAS.Modules.Claims.ApprovalStatus.Draft).Take(100).ToListAsync(ct);
+            await Names(send.Select(x => x.PatientId));
+            foreach (var x in send) Add("Before surgery", x.PatientId, "Send the prior approval request", $"{x.Number} · {x.Procedure}", x.CreatedAt.NzDate(), new("Open prior approvals", "/claims?tab=approvals", Permissions.ClaimsManage), 3);
         }
         if ((On("reporting") || On("coding")) && can(Permissions.CodingCode))
         {

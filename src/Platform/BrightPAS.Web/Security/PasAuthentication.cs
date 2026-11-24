@@ -14,6 +14,8 @@ public static class PasAuthentication
     public const string PendingScheme = "PasPending";
     public const string StageClaim = "pas:stage";
     public const string CsrfHeader = "X-BrightPAS-Request";
+    /// <summary>Per-sign-in session id, so signing out revokes that cookie even if a copy was kept (security test 0.26.0).</summary>
+    public const string SessionClaim = "pas:sid";
 
     public static IServiceCollection AddPasAuthentication(this IServiceCollection services, IWebHostEnvironment env)
     {
@@ -60,6 +62,13 @@ public static class PasAuthentication
     /// <summary>Re-checks the account every 2 minutes: deactivated users or changed security stamps are signed out.</summary>
     private static async Task ValidateAsync(CookieValidatePrincipalContext ctx)
     {
+        var sid = ctx.Principal?.FindFirstValue(SessionClaim);
+        if (sid is null || ctx.HttpContext.RequestServices.GetRequiredService<SessionRevocations>().IsRevoked(sid))
+        {
+            ctx.RejectPrincipal();
+            await ctx.HttpContext.SignOutAsync(Scheme);
+            return;
+        }
         var issued = ctx.Properties.IssuedUtc;
         var last = ctx.Properties.Items.TryGetValue("pas:checked", out var v) && DateTimeOffset.TryParse(v, out var t) ? t : issued;
         if (last is not null && DateTimeOffset.UtcNow - last < TimeSpan.FromMinutes(2)) return;
@@ -98,4 +107,28 @@ public static class PasAuthentication
         }
         await next();
     });
+}
+
+
+/// <summary>
+/// Sessions ended by signing out (checked on every request). Kept in memory for the longest a cookie can live; after a server restart a
+/// copied cookie could only be replayed within its 15-minute idle window – deactivation and password changes are enforced by the security stamp.
+/// </summary>
+public sealed class SessionRevocations(TimeProvider clock)
+{
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> _revoked = new(StringComparer.Ordinal);
+    private DateTimeOffset _nextPrune = DateTimeOffset.MinValue;
+
+    public void Revoke(string sid)
+    {
+        var now = clock.GetUtcNow();
+        _revoked[sid] = now.AddHours(13);
+        if (now > _nextPrune)
+        {
+            foreach (var kv in _revoked.Where(kv => kv.Value < now)) _revoked.TryRemove(kv.Key, out _);
+            _nextPrune = now.AddHours(1);
+        }
+    }
+
+    public bool IsRevoked(string sid) => _revoked.TryGetValue(sid, out var until) && until > clock.GetUtcNow();
 }

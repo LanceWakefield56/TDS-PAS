@@ -51,9 +51,12 @@ builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs
     new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule(),
     new BrightPAS.Modules.Referrals.ReferralsModule(), new BrightPAS.Modules.Letters.LettersModule(),
     new BrightPAS.Modules.Rostering.RosteringModule(), new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(),
-    new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.FollowUp.FollowUpModule(), new BrightPAS.Modules.Research.ResearchModule()]);
+    new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.FollowUp.FollowUpModule(), new BrightPAS.Modules.Research.ResearchModule(), new BrightPAS.Modules.Claims.ClaimsModule()]);
 builder.Services.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
 builder.Services.AddScoped<RoleAdminService>();
+builder.Services.AddSingleton<BrightPAS.Web.Security.SessionRevocations>();
+// Authenticator codes work once per account; only the automated test host turns this off (it signs one account in many times per window).
+builder.Services.AddSingleton(sp => new BrightPAS.Identity.TotpReplayGuard(sp.GetRequiredService<TimeProvider>()) { Enabled = builder.Configuration.GetValue("Security:TotpReplayProtection", true) });
 builder.Services.AddScoped<BrightPAS.Core.Setup.SettingsService>();
 builder.Services.AddScoped<BrightPAS.Web.Security.SecureExportService>();
 builder.Services.AddSingleton<BrightPAS.Modules.Patients.IDocumentCipher, BrightPAS.Web.Security.DataProtectionDocumentCipher>();
@@ -64,7 +67,7 @@ builder.Services.AddScoped<BrightPAS.Modules.Patients.IDocumentTextExtractor, Br
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.DocumentTextWorker>();
 foreach (var t in new[] { typeof(BrightPAS.Web.Integration.TheatreMerge), typeof(BrightPAS.Web.Integration.FormsMerge), typeof(BrightPAS.Web.Integration.BillingMerge),
     typeof(BrightPAS.Web.Integration.LabsMerge), typeof(BrightPAS.Web.Integration.ReferralsMerge), typeof(BrightPAS.Web.Integration.LettersMerge),
-    typeof(BrightPAS.Web.Integration.RemindersMerge), typeof(BrightPAS.Web.Integration.PortalMerge), typeof(BrightPAS.Web.Integration.MessagingMerge), typeof(BrightPAS.Web.Integration.AssetsMerge), typeof(BrightPAS.Web.Integration.EmrMerge), typeof(BrightPAS.Web.Integration.EndoscopyMerge), typeof(BrightPAS.Web.Integration.ScribeMerge), typeof(BrightPAS.Web.Integration.DevicesMerge), typeof(BrightPAS.Web.Integration.QualityMerge), typeof(BrightPAS.Web.Integration.CodingMerge), typeof(BrightPAS.Web.Integration.EstimatesMerge), typeof(BrightPAS.Web.Integration.TriageMerge), typeof(BrightPAS.Web.Integration.FollowUpMerge) })
+    typeof(BrightPAS.Web.Integration.RemindersMerge), typeof(BrightPAS.Web.Integration.PortalMerge), typeof(BrightPAS.Web.Integration.MessagingMerge), typeof(BrightPAS.Web.Integration.AssetsMerge), typeof(BrightPAS.Web.Integration.EmrMerge), typeof(BrightPAS.Web.Integration.EndoscopyMerge), typeof(BrightPAS.Web.Integration.ScribeMerge), typeof(BrightPAS.Web.Integration.DevicesMerge), typeof(BrightPAS.Web.Integration.QualityMerge), typeof(BrightPAS.Web.Integration.CodingMerge), typeof(BrightPAS.Web.Integration.EstimatesMerge), typeof(BrightPAS.Web.Integration.TriageMerge), typeof(BrightPAS.Web.Integration.FollowUpMerge), typeof(BrightPAS.Web.Integration.ClaimsMerge) })
     builder.Services.AddScoped(typeof(BrightPAS.Modules.Patients.IPatientMergeParticipant), t);
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.HealthLinkWorker>();
 builder.Services.AddScoped<BrightPAS.Web.Licensing.ModuleSetupService>();
@@ -101,6 +104,13 @@ if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedSer
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.FollowUpWorker>();
 builder.Services.AddHttpClient("messaging", c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient("ai", c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient("xero", c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient("identity", c => c.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddSingleton<BrightPAS.Modules.Claims.IXeroApi, BrightPAS.Web.Integration.HttpXeroApi>();
+builder.Services.AddSingleton<BrightPAS.Web.Integration.HealthNzIdentityClient>();
+builder.Services.AddScoped<BrightPAS.Web.Integration.SimulatorIdentityClient>();
+builder.Services.AddScoped<BrightPAS.Web.Integration.HealthIdentityService>();
+if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.ClaimsWorker>();
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.MessagingHost>();
 builder.Services.AddSingleton<BrightPAS.Web.Integration.EndoscopyDicomHost>();
 builder.Services.AddSingleton<BrightPAS.Web.Integration.ScribeEngines>();
@@ -113,8 +123,12 @@ builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Ad
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    o.AddFixedWindowLimiter("setup", w => { w.PermitLimit = 10; w.Window = TimeSpan.FromMinutes(1); w.QueueLimit = 0; });
-    o.AddFixedWindowLimiter("auth", w => { w.PermitLimit = 30; w.Window = TimeSpan.FromMinutes(1); w.QueueLimit = 0; });
+    // Sign-in and set-up: per client IP (security test 0.26.0 – a single shared window let one attacker block every user's sign-in).
+    // Per-account guessing is stopped separately by lockout after 5 failures.
+    o.AddPolicy("setup", ctx => RateLimitPartition.GetFixedWindowLimiter("setup:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter("auth:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     // Patient-facing questionnaire links: per client IP. Kept separate from vendor callbacks so a burst of
     // SMS delivery receipts can never lock patients out of their forms (and vice versa).
     o.AddPolicy("patient-links", ctx => RateLimitPartition.GetFixedWindowLimiter("links:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
@@ -131,6 +145,9 @@ builder.Services.AddRateLimiter(o =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     o.AddPolicy("integration-in", ctx => RateLimitPartition.GetFixedWindowLimiter("in:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 600, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // NHI/HPI lookups: per signed-in user, protecting the Health NZ quota and limiting bulk look-ups of identities.
+    o.AddPolicy("lookups", ctx => RateLimitPartition.GetFixedWindowLimiter("nhi:" + (ctx.User.Identity?.Name ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
 var app = builder.Build();
@@ -234,6 +251,7 @@ app.MapCodingEndpoints();
 app.MapEstimatesEndpoints();
 app.MapTriageEndpoints();
 app.MapFollowUpEndpoints();
+app.MapClaimsEndpoints();
 app.MapJourneyEndpoints();
 app.MapOutboxEndpoints();
 app.MapResearchEndpoints();

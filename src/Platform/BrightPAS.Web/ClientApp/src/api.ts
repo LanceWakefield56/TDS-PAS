@@ -50,6 +50,7 @@ export const Perm = {
   EstimatesBuild: 'estimates.build', EstimatesManage: 'estimates.manage',
   FormsDesign: 'forms.design', FormsApprove: 'forms.approve', FormsFill: 'forms.fill',
   ResearchBuild: 'research.build', ResearchApprove: 'research.approve',
+  ClaimsView: 'claims.view', ClaimsManage: 'claims.manage', ClaimsAdmin: 'claims.admin', PaymentsTake: 'payments.take', IdentityLookup: 'identity.lookup',
   FollowUpView: 'followup.view', FollowUpRecord: 'followup.record', FollowUpPlans: 'followup.plans', FollowUpSsi: 'followup.ssi', FollowUpReport: 'followup.report',
   TriageView: 'triage.view', TriageAssess: 'triage.assess', TriageReview: 'triage.review', TriageRules: 'triage.rules', TriageApprove: 'triage.approve',
   EndoView: 'endoscopy.view', EndoWrite: 'endoscopy.write', EndoSign: 'endoscopy.sign', EndoManage: 'endoscopy.manage',

@@ -94,7 +94,9 @@ public class IdentityTests
 
         var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
         Assert.Equal(SignInStep.NeedsMfaCode, await signIn.CheckPasswordAsync("nurse.b", GoodPassword));
-        Assert.Equal(SignInStep.Success, await signIn.CheckMfaAsync("nurse.b", TestAuthenticator.Code(enrol.SharedKey), "PACU-01"));
+        // The enrolment code can't be used again (replay); the next code works.
+        Assert.Equal(SignInStep.Failed, await signIn.CheckMfaAsync("nurse.b", TestAuthenticator.Code(enrol.SharedKey), "PACU-01"));
+        Assert.Equal(SignInStep.Success, await signIn.CheckMfaAsync("nurse.b", TestAuthenticator.Code(enrol.SharedKey, DateTimeOffset.UtcNow.AddSeconds(30)), "PACU-01"));
 
         var core = scope.ServiceProvider.GetRequiredService<PasDbContext>();
         var events = await core.AuditEvents.OrderBy(e => e.Sequence).ToListAsync();

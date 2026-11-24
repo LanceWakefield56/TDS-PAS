@@ -5,6 +5,7 @@ import { useSession } from '../App';
 import PatientModules from '../components/PatientModules';
 import JourneyPanel from '../components/Journey';
 import PatientRecords from '../components/PatientRecords';
+import { NhiCheck } from './Claims';
 
 export default function PatientView() {
   const { id } = useParams();
@@ -126,6 +127,7 @@ export default function PatientView() {
             <dt>Email</dt><dd>{p.email ?? '—'}</dd>
             <dt>Address</dt><dd>{address || '—'}</dd>
           </dl>
+          {mod('claims') && can(Perm.IdentityLookup) && <NhiCheck patientId={p.id} onChanged={load} />}
         </section>
         <section className="card">
           <h2>Details</h2>

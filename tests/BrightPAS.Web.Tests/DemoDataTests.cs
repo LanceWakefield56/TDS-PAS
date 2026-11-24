@@ -41,6 +41,7 @@ public sealed class InstallerScriptWebFactory : WebApplicationFactory<Program>, 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing"); // no background workers: the test runs the loader itself
+        builder.UseSetting("Security:TotpReplayProtection", "false");
         builder.UseSetting("ConnectionStrings:Pas", ConnectionString);
         builder.UseSetting("Licensing:MachineId", "test-machine");
         builder.UseSetting("DataProtection:KeysPath", Path.Combine(Path.GetTempPath(), _db, "keys"));
@@ -85,6 +86,14 @@ public class DemoDataTests(InstallerScriptWebFactory factory) : IClassFixture<In
             Assert.True((await scope.ServiceProvider.GetRequiredService<BrightPAS.Core.Audit.AuditQueryService>().VerifyAsync()).Intact, "audit chain");
             // A test SMS (no patient) is stored – the 0.12.3 fix for the reminders foreign key.
             Assert.True(await scope.ServiceProvider.GetRequiredService<BrightPAS.Modules.Reminders.RemindersDbContext>().Messages.AnyAsync(m => m.PatientId == null));
+            // Claims: funders, approvals, claims at each stage, a remittance and an EFTPOS payment.
+            var cdb = scope.ServiceProvider.GetRequiredService<BrightPAS.Modules.Claims.ClaimsDbContext>();
+            Assert.Equal(8, await cdb.Funders.CountAsync());
+            Assert.True(await cdb.Approvals.CountAsync() >= 5);
+            Assert.True(await cdb.Claims.CountAsync() >= 4, "claims");
+            Assert.True(await cdb.Claims.AnyAsync(c => c.Status == BrightPAS.Modules.Claims.ClaimStatus.Submitted), "submitted claim");
+            Assert.True(await cdb.Remittances.AnyAsync(), "remittance");
+            Assert.True(await cdb.Terminal.AnyAsync(t => t.PaymentRecorded), "eftpos");
 
             // 0.23.0: the patient journey reads every module for every demo patient without a SQL translation error, and the demo covers every stage.
             var journey = scope.ServiceProvider.GetRequiredService<BrightPAS.Web.Journey.JourneyService>();

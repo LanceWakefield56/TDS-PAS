@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { api, errText, formatDate, money, PatientDetail, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import { docStatusClass, payerText, Totals } from './Billing';
+import { InvoiceClaim, TakePayment } from './Claims';
 
 interface Doc {
   id: string; kind: string; number: string | null; patientId: string; sourceEstimateId: string | null; payer: string; payerName: string | null; payerReference: string | null;
@@ -15,7 +16,7 @@ interface Doc {
 export default function BillingDocument() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { can, writable } = useSession();
+  const { can, writable, mod } = useSession();
   const [d, setD] = useState<Doc | null>(null);
   const [p, setP] = useState<PatientDetail | null>(null);
   const [settings, setSettings] = useState<{ gstNumber: string | null; bankAccount: string | null } | null>(null);
@@ -77,6 +78,9 @@ export default function BillingDocument() {
         <dl className="facts"><dt>Surgeon</dt><dd>{money(d.totals.surgeonShare)}</dd><dt>Anaesthetist</dt><dd>{money(d.totals.anaesthetistShare)}</dd><dt>Facility</dt><dd>{money(d.totals.facilityShare)}</dd></dl>
         <p className="hint">Excluding GST. Procedure fees only; facility fees and consumables go to the facility.</p>
       </section>
+
+      {isInv && mod('claims') && <InvoiceClaim invoiceId={d.id} payer={d.payer} payerName={d.payerName} status={d.status} />}
+      {isInv && mod('claims') && can(Perm.PaymentsTake) && ['Issued', 'PartPaid'].includes(d.status) && <TakePayment invoiceId={d.id} balance={d.totals.balance} onPaid={() => void load()} />}
 
       {isInv && d.payments.length > 0 && (
         <section className="card"><h2>Payments</h2>

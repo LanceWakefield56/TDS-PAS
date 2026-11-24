@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "followup"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "followup", "claims"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -74,6 +74,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "estimates" => await EstimatesChecksAsync(ct),
         "triage" => await TriageChecksAsync(ct),
         "followup" => await FollowUpChecksAsync(ct),
+        "claims" => await ClaimsChecksAsync(ct),
         _ => []
     };
 
@@ -290,6 +291,31 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 users > 0, $"{users} user(s).", false, "Open roles", "/admin/roles", Permissions.UsersManage),
             new("safersleep", "SaferSleep interface", "Optional: switch on SaferSleep, with an outbound MLLP interface (patient and booking to SaferSleep) and an inbound one with the handler 'SaferSleep anaesthetic record'. Confirm the message profile with SaferSleep.",
                 s.SaferSleepEnabled && ssIn && ssOut, !s.SaferSleepEnabled ? "Off." : $"Out: {(ssOut ? s.SaferSleepOutCode : "missing")}; in: {(ssIn ? "set up" : "missing")}.", true, "Open device settings", "/devices?tab=settings", Permissions.DevicesManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> ClaimsChecksAsync(CancellationToken ct)
+    {
+        var claims = Svc<BrightPAS.Modules.Claims.ClaimsService>();
+        var funders = await claims.FundersAsync(true, ct);
+        var withNumber = funders.Count(f => f.ProviderNumber is not null);
+        var xero = await Svc<BrightPAS.Modules.Claims.XeroService>().SettingsAsync(ct);
+        var term = await Svc<BrightPAS.Modules.Claims.TerminalService>().SettingsAsync(ct);
+        var id = await Svc<BrightPAS.Web.Integration.HealthIdentityService>().SettingsAsync(ct);
+        var staff = await UsersWithAsync(Permissions.ClaimsManage, ct);
+        var desk = await UsersWithAsync(Permissions.PaymentsTake, ct);
+        return
+        [
+            new("funders", "Funders and provider numbers", "Check the funder list (ACC and the insurers TDS claims from) and enter TDS's provider number with each. Mark which need prior approval.",
+                funders.Count > 0 && withNumber > 0, funders.Count == 0 ? "No funders yet." : $"{funders.Count} funder(s), {withNumber} with a provider number.", false, "Open funders", "/claims/settings", Permissions.ClaimsAdmin),
+            new("people", "Who claims and who takes payments", "Finance makes claims and imports remittances; reception takes EFTPOS payments (Finance and Reception roles, or adjust roles).",
+                staff > 0 && desk > 0, $"{staff} can claim, {desk} can take payments.", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("xero", "Xero", "Choose file mode (export a CSV to import in Xero) or API mode (connect a Xero app). Set the sales account and GST tax types to match TDS's chart of accounts.",
+                xero.Mode != BrightPAS.Modules.Claims.XeroMode.Off, xero.Mode == BrightPAS.Modules.Claims.XeroMode.Off ? "Off." : $"{xero.Mode} mode, sales account {xero.SalesAccountCode}.", true, "Open Xero settings", "/claims/settings?tab=xero", Permissions.ClaimsAdmin),
+            new("terminal", "EFTPOS terminal", "Manual: staff key the amount into the terminal and record the result. A direct terminal integration needs a merchant agreement (Windcave/Verifone).",
+                true, $"{term.TerminalProvider}{(term.TerminalId is null ? "" : " – " + term.TerminalId)}.", true, "Open terminal settings", "/claims/settings?tab=terminal", Permissions.ClaimsAdmin),
+            new("nhi", "NHI and HPI lookups", "Live lookups need a Health NZ integration agreement (client ID and secret, test then production). Until then, check NHIs on the Health NZ portal and import the GP practice list from a file.",
+                id.Mode == BrightPAS.Modules.Claims.IdentityMode.Live, id.Mode.ToString() + (id.LastError is null ? "" : " – last error: " + id.LastError), true, "Open identity settings", "/claims/settings?tab=identity", Permissions.ClaimsAdmin),
         ];
     }
 

@@ -88,6 +88,8 @@ public sealed class PasWebFactory : WebApplicationFactory<Program>, IAsyncLifeti
             await x.Database.MigrateAsync();
         await using (var x = new BrightPAS.Modules.Research.ResearchDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Research.ResearchDbContext>().Also(o => Sql(o, "research")).Options))
             await x.Database.MigrateAsync();
+        await using (var x = new BrightPAS.Modules.Claims.ClaimsDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Claims.ClaimsDbContext>().Also(o => Sql(o, "claims")).Options))
+            await x.Database.MigrateAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -96,6 +98,7 @@ public sealed class PasWebFactory : WebApplicationFactory<Program>, IAsyncLifeti
         builder.UseSetting("ConnectionStrings:Pas", ConnectionString);
         builder.UseSetting("Licensing:MachineId", "test-machine");
         builder.UseSetting("Licensing:Enforce", "true"); // licence enforcement is tested; test builds run with it off
+        builder.UseSetting("Security:TotpReplayProtection", "false"); // tests sign the same account in many times within one 30-second window
     }
 
     public HttpClient NewClient()

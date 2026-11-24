@@ -29,4 +29,5 @@ dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Triage -o "$out/23-triage.sql"
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.FollowUp -o "$out/24-followup.sql"
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Research -o "$out/25-research.sql"
+dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Claims -o "$out/26-claims.sql"
 echo "Schema scripts written to $out"
