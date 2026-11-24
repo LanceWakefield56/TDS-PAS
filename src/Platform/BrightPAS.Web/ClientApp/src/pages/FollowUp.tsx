@@ -216,7 +216,7 @@ export function FollowUpContact() {
       {d.ssiCaseId && <p><Link to={`/followup/ssi/${d.ssiCaseId}`}>Open the SSI surveillance record for this operation</Link></p>}
       <section className="card">
         <h2>This operation's follow-up</h2>
-        <table className="results compact"><tbody>{d.history.map((h: Row) => (
+        <table className="results compact"><thead><tr><th>Contact</th><th>Due</th><th>Status</th><th>Concern</th></tr></thead><tbody>{d.history.map((h: Row) => (
           <tr key={h.id} className={h.id === c.id ? 'current' : ''}><td><Link to={`/followup/${h.id}`}>{h.label}</Link></td><td>{formatDate(h.dueOn)}</td><td>{STATUS[h.status]}</td><td className="small">{h.concern ? `⚠ ${h.concernText}` : ''}</td></tr>))}</tbody></table>
       </section>
     </div>

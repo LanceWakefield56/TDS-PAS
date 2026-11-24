@@ -98,7 +98,7 @@ public sealed partial class Scenarios
         var before = sims.SmsOut.Count;
         var send = await nurse.PostAsync($"/api/followup/contacts/{Str(row, "id")}/send-link", new { });
         if (send.Status != 200) return (Outcome.Fail, $"Could not send the check-in text ({send.Status}): {send.Text}");
-        var sms = await Sims.WaitForAsync(sims.SmsOut, x => sims.SmsOut.ToList().IndexOf(x) >= before && x.Text.Contains("/c/", StringComparison.Ordinal), TimeSpan.FromSeconds(45));
+        var sms = await Sims.WaitForAsync(sims.SmsOut, x => sims.SmsOut.ToList().IndexOf(x) >= before && x.Text.Contains("/c/", StringComparison.Ordinal), TimeSpan.FromSeconds(100)); // outbox hold + the sender's one-minute cycle
         if (sms is null) return (Outcome.Fail, "No check-in SMS reached a virtual phone.");
         var m = Regex.Match(sms.Text, @"https?://\S+/c/\S+");
         var link = bot.O.Url + new Uri(m.Value.TrimEnd('.', ',', ')')).PathAndQuery;

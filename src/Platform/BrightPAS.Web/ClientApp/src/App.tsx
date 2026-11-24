@@ -154,7 +154,7 @@ export default function App() {
           <Route path="/claims/:id" element={allowed(mod('claims') && (can(Perm.ClaimsView) || can(Perm.ClaimsManage) || can(Perm.ClaimsAdmin)), <ClaimPage />)} />
           <Route path="/research" element={allowed(mod('reporting') && (can(Perm.ResearchBuild) || can(Perm.ResearchApprove)), <Research />)} />
           <Route path="/research/:id" element={allowed(mod('reporting') && (can(Perm.ResearchBuild) || can(Perm.ResearchApprove)), <ResearchExtract />)} />
-          <Route path="/forms/designer" element={allowed(mod('forms') && (can(Perm.FormsDesign) || can(Perm.FormsApprove) || can(Perm.FormsFill)), <FormDesigner />)} />
+          <Route path="/forms/designer" element={allowed(mod('forms') && (can(Perm.FormsDesign) || can(Perm.FormsApprove)), <FormDesigner />)} />
           <Route path="/forms/designer/:id" element={allowed(mod('forms') && (can(Perm.FormsDesign) || can(Perm.FormsApprove) || can(Perm.FormsFill)), <FormVersionEditor />)} />
           <Route path="/forms/entry/:id" element={allowed(mod('forms') && (can(Perm.FormsDesign) || can(Perm.FormsApprove) || can(Perm.FormsFill)), <FormEntryPage />)} />
           <Route path="/outbox" element={allowed((mod('reminders') && can(Perm.RemindersView)) || (mod('letters') && can(Perm.LettersView)), <Outbox />)} />

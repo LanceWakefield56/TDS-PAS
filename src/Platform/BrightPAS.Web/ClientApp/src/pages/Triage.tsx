@@ -80,9 +80,15 @@ export function TriageAssessment() {
       const x = await api<any>(`/api/triage/assessments/${id}`);
       setA(x); setInputs(x.staff ?? {}); setReasons({});
       setSign({ outcome: x.suggested, asa: x.confirmedAsa ? String(x.confirmedAsa) : '', precautions: x.precautions ?? '', notes: '', overrideReason: '' });
-      setHistory(await api<any[]>(`/api/triage/patients/${x.patientId}`));
+      const hist = await api<any[]>(`/api/triage/patients/${x.patientId}`);
+      setHistory(hist);
+      // A link to a triage that has since been re-run (e.g. new answers arrived) opens the current one instead.
+      if (x.status === 'Superseded') {
+        const current = hist.filter((h) => h.status === 'Open' && h.procedure === x.procedure).sort((p, q) => String(q.createdAt).localeCompare(String(p.createdAt)))[0];
+        if (current && current.id !== x.id) { navigate(`/triage/${current.id}`, { replace: true }); setMsg('This triage was re-run since the link was made – showing the current one.'); }
+      }
     } catch (e) { setErrors(errs(e)); }
-  }, [id]);
+  }, [id, navigate]);
   useEffect(() => { void load(); }, [load]);
   if (!a || !meta) return <p>{errors.length ? errors.join(' ') : 'Loading…'}</p>;
   const open = a.status === 'Open';

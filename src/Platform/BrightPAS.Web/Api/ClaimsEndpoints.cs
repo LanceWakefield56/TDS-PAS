@@ -103,7 +103,7 @@ public static class ClaimsEndpoints
         })).RequireAuthorization(Permissions.AnyOf(Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.ClaimsAdmin));
         // EFTPOS staff need the card types without seeing claims.
         g.MapGet("/terminal/meta", async (TerminalService term) => Results.Ok(new { cardTypes = TerminalService.Cards, terminal = (await term.SettingsAsync()).TerminalProvider.ToString() }))
-            .RequireAuthorization(Permissions.AnyOf(Permissions.ClaimsManage, Permissions.PaymentsTake));
+            .RequireAuthorization(Permissions.AnyOf(Permissions.ClaimsManage, Permissions.PaymentsTake, Permissions.ClaimsAdmin));
 
         // Funders
         g.MapPost("/funders", async (FunderEdit e, ClaimsPrincipal u, ClaimsService svc) =>
@@ -253,7 +253,7 @@ public static class ClaimsEndpoints
         {
             var (rows, error) = await s.FacilitiesAsync(q ?? "", Me(u));
             return Results.Ok(new { rows, error });
-        }).RequireAuthorization(Permissions.IdentityLookup).RequireRateLimiting("lookups");
+        }).RequireAuthorization(Permissions.AnyOf(Permissions.IdentityLookup, Permissions.LettersTemplates)).RequireRateLimiting("lookups");
         id.MapPost("/hpi/facilities/add", async (HpiFacility f, ClaimsPrincipal u, HealthIdentityService s) => Errs(await s.AddPracticeAsync(f, Me(u))))
             .RequireAuthorization(Permissions.LettersTemplates);
         id.MapPost("/practices/import", async (ImportRequest r, ClaimsPrincipal u, HealthIdentityService s) =>

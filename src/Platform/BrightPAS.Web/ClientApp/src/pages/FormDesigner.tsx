@@ -41,7 +41,7 @@ export default function FormDesigner() {
         {!forms ? <p>Loading…</p> : forms.length === 0 ? <p className="muted">No forms yet.</p> : (
           <table className="results"><thead><tr><th>Form</th><th>Type</th><th>Versions</th></tr></thead>
             <tbody>{forms.map((f) => <tr key={f.id}><td><strong>{f.name}</strong> <span className="muted small">{f.code}</span></td><td>{CAT[f.category]}</td>
-              <td><div className="row wrap">{f.versions.map((v: any) => <Link key={v.id} to={`/forms/designer/${v.id}`} className={`pill ${v.status === 'Published' ? 'green' : v.status === 'Retired' ? 'muted' : 'amber'}`}>v{v.version} {STATUS[v.status]}</Link>)}</div></td></tr>)}</tbody></table>
+              <td><div className="row wrap">{f.versions.map((v: any) => <Link key={v.id} to={`/forms/designer/${v.id}`} className={`pill pill-link ${v.status === 'Published' ? 'green' : v.status === 'Retired' ? 'muted' : 'amber'}`}>v{v.version} {STATUS[v.status]}</Link>)}</div></td></tr>)}</tbody></table>
         )}
       </section>
       {meta?.canDesign && (

@@ -506,7 +506,7 @@ function Report({ r, t, act, write }: Ctx) {
           <button className="btn btn-light" onClick={() => act(() => api(`/api/endoscopy/procedures/${p.id}/save-to-record`, { body: { kind: 'patient' } }), 'Patient report saved to the patient record (Documents).')}>Save patient report to patient record</button></>}
       </div>
       {mod('letters') && <div className="stack"><h2>Send to the GP</h2>
-        {r.gpLetter ? <p>Sent as letter <strong>{r.gpLetter.number}</strong> to {r.gpLetter.recipientName} – {r.gpLetter.status}{r.gpLetter.sentAt ? `, ${nzDateTime(r.gpLetter.sentAt)}` : ''}{r.gpLetter.ackText ? ` (${r.gpLetter.ackText})` : ''}.</p>
+        {r.gpLetter ? <p>Sent as letter <strong>{r.gpLetter.number}</strong> to {r.gpLetter.recipientName} – {r.gpLetter.status}{r.gpLetter.sentAt ? `, ${nzDateTime(r.gpLetter.sentAt)}` : ''}{r.gpLetter.ackText ? ` – HealthLink says: ${r.gpLetter.ackText}` : ''}.</p>
           : p.status === 'Signed' && can(Perm.EndoSign) ? <div><button className="btn btn-primary" onClick={() => act(() => api(`/api/endoscopy/procedures/${p.id}/send-to-gp`, { body: {} }), (x) => x.message)}>Send report to GP by HealthLink</button></div>
           : <p className="muted">Sign the report to send it to the patient's GP by HealthLink (the PDF with pictures goes with a covering letter).</p>}</div>}
       <p className="hint">Pictures ticked "Clinical report" or "Patient report" in the Pictures & video tab are printed in that report. Patient report wording is set in Endoscopy › Settings.</p>

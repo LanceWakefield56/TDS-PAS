@@ -10,6 +10,8 @@
   - **NHI & HPI:** "Check with the NHI" on the patient page (accept address/contact changes; name and date of birth need an identity correction); find practitioners and GP practices in the HPI; import the GP practice list from a file when there's no connection.
 - Journey: the "Paid" step for funder invoices follows the claim; My list shows claims to fix and approvals to send.
 - **Security testing (report: "BrightPAS 0.26.0 – Security test report"):** new authenticated penetration and denial-of-service test `tools/security/pentest.py` (63 tests) alongside the Setup self-test. Fixed: sign-in and set-up rate limits now per client address (one attacker could block everyone's sign-in); signing out revokes the session (a copied cookie no longer works); each authenticator code works once per account; NHI/HPI connection settings readable only with Claims Settings.
+- Full robot run fixes: Claims settings opens for administrators (terminal card types); Form designer is only reachable by designers/approvers (fillers use their forms from the patient page); version links are 24 px tall; coding checks read "Must fix" / "Check" instead of "Error"; follow-up check-in scenario waits for the outbox hold and send cycle.
+- Triage: a link to a triage that has since been re-run (new answers arrived) opens the current one instead of a read-only old record.
 - Demo data: completed EMR records are written as at 5 pm so loading the demo late in the morning no longer fails ("time cannot be in the future").
 - Demo: funders with provider numbers, approvals, claims at every stage, a remittance, an EFTPOS payment, Xero in file mode, training terminal and NHI simulator.
 

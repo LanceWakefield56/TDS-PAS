@@ -5,7 +5,7 @@ import { useSession } from '../App';
 import ExportButton from '../components/ExportButton';
 
 const STATUS: Record<string, string> = { ToCode: 'To code', InProgress: 'In progress', Coded: 'Coded – ready to send', Submitted: 'Sent', Rejected: 'Returned by Health NZ', NotReportable: 'Not reported by TDS' };
-const LEVEL: Record<string, string> = { Error: 'error', Warning: 'warn-box', Advice: 'muted' };
+const LEVEL: Record<string, string> = { Error: 'check-must', Warning: 'warn-box', Advice: 'muted' };
 
 function Msg({ error, ok }: { error: string | null; ok: string | null }) {
   return <>{error && <p className="error" role="alert">{error}</p>}{ok && <p className="ok-text" role="status">{ok}</p>}</>;
@@ -14,7 +14,7 @@ function Msg({ error, ok }: { error: string | null; ok: string | null }) {
 function Checks({ checks }: { checks: any[] }) {
   if (!checks?.length) return <p className="ok-text">No edit-check problems.</p>;
   return <ul className="stack-sm" aria-label="Edit checks">{checks.map((c, i) =>
-    <li key={i} className={LEVEL[c.level] ?? ''}><strong>{c.level === 'Advice' ? 'Advice' : c.level} – {c.rule}:</strong> {c.message}</li>)}</ul>;
+    <li key={i} className={LEVEL[c.level] ?? ''}><strong>{c.level === 'Error' ? 'Must fix' : c.level === 'Warning' ? 'Check' : 'Advice'} – {c.rule}:</strong> {c.message}</li>)}</ul>;
 }
 
 // ------------------------------------------------------------------ main page with tabs
