@@ -118,6 +118,12 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_quality_Incidents_Booking', N'[qu
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_quality_Incidents_Equipment', N'[quality].[Incidents]', N'EquipmentId', N'[assets].[Equipment]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_quality_Complaints_Patient', N'[quality].[Complaints]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_quality_Risks_Equipment', N'[quality].[Risks]', N'EquipmentId', N'[assets].[Equipment]';
+-- Medicines and medicine safety (0.27.0)
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_meds_Checks_Patient', N'[meds].[Checks]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_meds_Checks_Episode', N'[meds].[Checks]', N'EpisodeId', N'[emr].[Episodes]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_meds_Checks_Medication', N'[meds].[Checks]', N'MedicationId', N'[emr].[MedicationsGiven]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_meds_AllergyLinks_Patient', N'[meds].[AllergyLinks]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_meds_AllergyLinks_Alert', N'[meds].[AllergyLinks]', N'AlertId', N'[patients].[Alerts]';
 GO
 
 -- ---------------------------------------------------------------------------------------------------------------

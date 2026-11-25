@@ -18,6 +18,10 @@ public sealed class AuditWriter(PasDbContext db, TimeProvider clock)
             try
             {
                 await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, token);
+                // 0.27.0: queue audit writers on one application lock first. Two serialisable writers that both read the last
+                // event and then insert would otherwise deadlock under load (seen as occasional failed page loads in the robot).
+                if (db.Database.IsSqlServer())
+                    await db.Database.ExecuteSqlRawAsync("EXEC sp_getapplock @Resource = N'brightpas-audit-chain', @LockMode = N'Exclusive', @LockOwner = N'Transaction', @LockTimeout = 30000", token);
                 var last = await db.AuditEvents.AsNoTracking().OrderByDescending(x => x.Sequence).FirstOrDefaultAsync(token);
                 e = AuditChain.Seal(new AuditEvent
                 {

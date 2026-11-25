@@ -26,6 +26,7 @@ using Msg = BrightPAS.Modules.Messaging;
 using Por = BrightPAS.Modules.Portal;
 using Rem = BrightPAS.Modules.Reminders;
 using Ros = BrightPAS.Modules.Rostering;
+using Meds = BrightPAS.Modules.Medicines;
 
 namespace BrightPAS.Web.Demo;
 
@@ -121,6 +122,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await PortalAsync(ct);
         await RosterActivityAsync(ct);
         await AssetsAsync(ct);
+        await MedicinesAsync(ct);
         await EmrAsync(ct);
         await EndoscopyAsync(ct);
         await ScribeAsync(ct);
@@ -479,6 +481,32 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
     }
 
     // ------------------------------------------------------------------ Clinical record (0.14.0)
+    // ------------------------------------------------------------------ Medicines and medicine safety (0.27.0)
+    private async Task MedicinesAsync(CancellationToken ct)
+    {
+        var cat = S<Meds.MedicineCatalogue>();
+        await cat.LoadStarterAsync(Actor, ct);
+        Ok((await cat.SaveAsync(null, new Meds.MedicineEdit("Cefazolin 2 g injection (Kefzol pack, demo barcode)", null, "injection", "IV", false, true, [new("cefazolin", 2000, "mg", null)], ["09400000000016"]), Actor, ct)).Errors, "demo barcode medicine");
+        var rules = S<Meds.MedicineRulesService>();
+        var rs = await rules.SeedExampleAsync("fgrant", ct) ?? throw new InvalidOperationException("Demo data – medicine rules already exist.");
+        Ok(await rules.ApproveAsync(rs.Id, "fgrant", "Anaesthetist", "DEMONSTRATION ONLY – not a clinical approval. TDS's anaesthetists and pharmacist must check every rule before real use.", ct), "approve demo medicine rules");
+        var safety = S<Meds.MedicineSafetyService>();
+        // The penicillin allergy is linked to the penicillin group; the codeine one is left to be read from its words.
+        var pen = _patients[2];
+        var alert = await S<PatientsDbContext>().Alerts.AsNoTracking().SingleAsync(a => a.PatientId == pen.Id && a.Type == AlertType.Allergy, ct);
+        Ok(await safety.LinkAsync(alert.Id, pen.Id, "group:PEN", "nurse", ct), "link allergy");
+        // A few checks for the report: a stop overridden with a reason, and a warning.
+        var facts = S<BrightPAS.Web.Integration.MedicineFactsProvider>();
+        var now = _clock.GetUtcNow();
+        var r1 = await safety.CheckAsync(new Meds.SafetyRequest(pen.Id, null, "Amoxicillin 500 mg capsule", "1 capsule", "Oral", now, null, null, null, null, "nurse", true), await facts.ForAsync(pen.Id, now, ct), ct);
+        if (r1.Result != Meds.CheckResult.Warnings) throw new InvalidOperationException("Demo data – expected the penicillin check to warn.");
+        var r2 = await safety.CheckAsync(new Meds.SafetyRequest(pen.Id, null, "Flucloxacillin 500 mg capsule", "1 capsule", "Oral", now, null, null, null, "Allergy service letter 2024: penicillin skin test negative", "fgrant", true), await facts.ForAsync(pen.Id, now, ct), ct);
+        if (r2.Result != Meds.CheckResult.Overridden) throw new InvalidOperationException("Demo data – expected the flucloxacillin check to be recorded as an override.");
+        await safety.CheckAsync(new Meds.SafetyRequest(pen.Id, null, "Cefazolin 2 g injection", "2 g", "IV", now, null, null, null, null, "nurse", true), await facts.ForAsync(pen.Id, now, ct), ct);
+        var cod = _patients[25];
+        await safety.CheckAsync(new Meds.SafetyRequest(cod.Id, null, "Oxycodone 5 mg capsule", "1 capsule", "Oral", now, null, null, null, null, "nurse", true), await facts.ForAsync(cod.Id, now, ct), ct);
+    }
+
     private async Task EmrAsync(CancellationToken ct)
     {
         var svc = S<Emr.EmrService>();

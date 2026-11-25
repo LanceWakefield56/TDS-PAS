@@ -83,6 +83,8 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Procedure estimates (TDS Estimates v1.5 moved in): builder, price list, add-ons, templates, PDF, email with hold and right-recipient checks, Incisive, imports – 0.21.0 (ADR 0034)
 - ☐ Estimates next: follow-up statuses (accepted, declined, deposit paid, booked, prior approval, expiry list), estimate → Billing invoice, reports, layout builder; standalone app on a shared library; open business items (Incisive naming, SMTP, Veins/skin graft/Dr Butcher/MyoSure fees, costing defaults)
 - ☑ Triage & suitability (spec 7.25): risk profile and scores, versioned rules with clinical approval, re-triage, sign-off, booking hold – 0.22.0 (ADR 0035)
+- ☑ Medicines & medicine safety: medicines list (starter list, TDS list and NZULM import with saved layouts, barcodes), versioned clinician-approved dose limits / allergy groups / cross-reactions / interactions, checks when charting (Advise/Enforce, override reasons), allergy links, report – 0.27.0 (ADR 0040)
+- ☐ Medicines next: barcode medicine administration (BCMA) using the pack barcodes; NZePS e-prescriptions; NZ Formulary licence check; TDS clinicians approve the medicine rules; confirm the NZULM file layout
 - ☐ Triage next: TDS's anaesthetists agree and approve the rules; NEWS2/early-warning scores on the day (with EMR observations); anaesthetist video/phone review booking
 - ☑ Patient journey, My list, theatre day board, simpler menu – 0.23.0 (ADR 0036)
 - ☑ Post-op follow-up and SSI surveillance (spec 7.26) – 0.24.0 (ADR 0037)

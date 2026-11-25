@@ -521,3 +521,30 @@ Cross-schema references (not enforced as keys): PatientId → patients.Patients;
 - **claims.XeroSettings** (single row): Mode (Off, File, Api), SalesAccountCode, GstTaxType, NoGstTaxType, PaymentAccountCode, TenantId, ClientId, ClientSecretProtected, RefreshTokenProtected (protected; rotated each use), LastSyncAt, LastError. **claims.XeroExports** (Mode, Invoices, Payments, FileName, Errors, CreatedAt/By). **claims.XeroLinks** (SourceType Invoice/Payment + SourceId key; ExportId, XeroId, ExportedAt).
 - **claims.TerminalTransactions**: InvoiceId, Amount, Provider (Manual, Simulator), TerminalId, MerchantReference (unique), Status (Pending, Approved, Declined, Cancelled, Failed), AuthCode, CardType, Last4 (4 digits only – never a card number), ResponseText, StartedAt/By, CompletedAt, PaymentRecorded.
 - **claims.IdentitySettings** (single row): Mode (Off, Simulator, Live), NhiBaseUrl, HpiBaseUrl, TokenUrl (https), ClientId, ClientSecretProtected, LastOkAt, LastError. **claims.Settings** (single row): NextClaim, NextApproval, TerminalProvider, TerminalId.
+
+## 0.27.0 – Medicines and medicine safety (schema `meds`)
+| Table | Purpose | Key columns |
+|---|---|---|
+| Ingredients | Active ingredients (NZMT substance names, lower case, unique) | Id, Name, NzmtId |
+| IngredientAliases | Other names for an ingredient (brand, older, overseas), unique | Id, IngredientId → Ingredients, Alias |
+| Medicines | Products as given: name/strength/form, usual route, source TDS/NZULM/Example, on the TDS list, active | Id, Name, NzmtId (unique when set), Source, OnFormulary, IsActive |
+| MedicineIngredients | Ingredient strength per dose unit, or per PerMl mL for liquids | (MedicineId, IngredientId), Amount, Unit, PerMl |
+| MedicineGtins | Pack barcodes (GTIN-14) | Gtin, MedicineId |
+| ImportProfiles | Saved column layouts for monthly file imports | Id, Name (unique), Source, *Column, DeactivateMissing |
+| ImportRuns | Each file import: rows, added, updated, made inactive, problems | Id, FileName, Source, ImportedAt |
+| RuleSets | Versioned medicine rules; one Approved (filtered unique index) | Id, Version (unique), Status, IsExample, ApprovedBy/At, ApprovalNote |
+| DoseRules | Dose limits per ingredient, route and age band | Id, RuleSetId, Code, Ingredient, Route, MinAgeYears, MaxAgeYears, Unit, MaxSingle, MaxDaily, MaxSinglePerKg, MaxDailyPerKg, MinIntervalHours, Severity |
+| Groups | Allergy and interaction classes | Id, RuleSetId, Code, Name, AllergyClass, SameGroupSeverity |
+| GroupMembers | Ingredient members and keywords of a group | (GroupId, Term), IsKeyword |
+| CrossReactions | Allergy to one group that may apply to another | Id, RuleSetId, FromGroup, ToGroup, Severity, Message |
+| Interactions | Two ingredients/groups with an effect and advice | Id, RuleSetId, Code, TermA, TermB, Severity, Effect, Advice |
+| AllergyLinks | Patient allergy alert → ingredient or group:CODE | AlertId → patients.Alerts, PatientId → patients.Patients, Term |
+| Settings | Single row: Mode (Off/Advise/Enforce), CheckRegularMedicines, DuplicateWithinMinutes | Id = 1 |
+| Checks | Each check of a medicine for a patient | Id, PatientId → patients.Patients, EpisodeId → emr.Episodes, MedicationId → emr.MedicationsGiven, MedicineId → Medicines, Result, OverrideReason, RuleSetVersion, Mode, CheckedAt, CheckedBy |
+| CheckFindings | What a check found | (CheckId, Sequence), Kind, Severity, Text, RuleRef |
+| NzfReleases | Each imported NZF/NZFC PDF; one current per edition | Id, Edition, ReleaseNumber, ReleaseDate, Sha256, IsCurrent, ImportedAt |
+| NzfMonographs | Drug monographs of the current releases | Id, ReleaseId, Name, BaseName, Synonyms, Indications … PatientAdvice, OtherSections |
+| NzfDoses | Dosing lines as published, with limits read from them | (MonographId, Sequence), Indication, Route, RouteCodes, Population, Dose, ages, weights, MaxSingle, MaxSinglePerKg, MaxDaily, MaxDailyPerKg, IntervalHours |
+| NzfPreparations | Forms and strengths listed in a monograph | (MonographId, Sequence), Form, Strength, Subsidy |
+| NzfSettings | Single row: download addresses, automatic download, watched folder, last check | Id = 1 |
+DoseRules also has MinWeightKg / MaxWeightKg (body-weight band).

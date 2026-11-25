@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting', 'estimates', 'triage', 'followup'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting', 'estimates', 'triage', 'medicines', 'followup', 'claims'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -63,9 +63,10 @@ export default function Shell() {
             {mod('portal') && can(Perm.PortalSpecialist) && <NavLink to="/portal" end>My TDS patients</NavLink>}
             {mod('portal') && can(Perm.PortalManage) && <NavLink to="/portal/requests">Portal requests</NavLink>}
           </Group>
-          <Group title="Day of surgery" paths={['/theatre', '/emr', '/endoscopy', '/scribe', '/devices', '/cssd']}>
+          <Group title="Day of surgery" paths={['/theatre', '/emr', '/medicines', '/endoscopy', '/scribe', '/devices', '/cssd']}>
             {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/theatre" end>Theatre lists</NavLink>}
             {mod('emr') && can(Perm.EmrView) && <NavLink to="/emr">Clinical record</NavLink>}
+            {mod('medicines') && (can(Perm.MedicinesView) || can(Perm.MedicinesCatalogue) || can(Perm.MedicinesRules) || can(Perm.MedicinesApprove)) && <NavLink to="/medicines">Medicines</NavLink>}
             {mod('endoscopy') && can(Perm.EndoView) && <NavLink to="/endoscopy">Endoscopy</NavLink>}
             {mod('scribe') && (can(Perm.ScribeUse) || can(Perm.ScribeManage) || can(Perm.ScribeApprove)) && <NavLink to="/scribe">Scribe</NavLink>}
             {mod('devices') && (can(Perm.DevicesUse) || can(Perm.DevicesManage)) && <NavLink to="/devices">Monitors &amp; SaferSleep</NavLink>}

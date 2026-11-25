@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "followup", "claims"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "medicines", "followup", "claims"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -73,6 +73,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "reporting" => await CodingChecksAsync(ct),
         "estimates" => await EstimatesChecksAsync(ct),
         "triage" => await TriageChecksAsync(ct),
+        "medicines" => await MedicinesChecksAsync(ct),
         "followup" => await FollowUpChecksAsync(ct),
         "claims" => await ClaimsChecksAsync(ct),
         _ => []
@@ -357,6 +358,32 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 true, s.HoldBookingUntilSignedOff ? $"On for {(s.HoldProcedures ?? "all procedures")}." : "Off.", true, "Open settings", "/triage/rules?tab=settings", Permissions.TriageRules),
             new("questionnaire", "Pre-admission questionnaire", "Triage reads the patient's questionnaire (PAQ-2). Send links from the booking or the patient record (Forms module).",
                 true, "PAQ-2 in use.", true, "Open forms", "/forms", Permissions.FormsSend),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> MedicinesChecksAsync(CancellationToken ct)
+    {
+        var db = Svc<BrightPAS.Modules.Medicines.MedicinesDbContext>();
+        var formulary = await db.Medicines.CountAsync(m => m.IsActive && m.OnFormulary, ct);
+        var all = await db.Medicines.CountAsync(m => m.IsActive, ct);
+        var nzulm = await db.ImportRuns.Where(r => r.Source == "NZULM").OrderByDescending(r => r.ImportedAt).Select(r => (DateTimeOffset?)r.ImportedAt).FirstOrDefaultAsync(ct);
+        var approved = await db.RuleSets.AsNoTracking().Where(r => r.Status == BrightPAS.Modules.Medicines.MedRuleSetStatus.Approved).Select(r => new { r.Version, r.ApprovedBy, r.ApprovedAt }).SingleOrDefaultAsync(ct);
+        var anyRules = await db.RuleSets.AnyAsync(ct);
+        var approvers = await UsersWithAsync(Permissions.MedicinesApprove, ct);
+        var s = await Svc<BrightPAS.Modules.Medicines.MedicineSafetyService>().SettingsAsync(ct);
+        static string D(DateTimeOffset at) => BrightPAS.Core.NzTime.ToNz(at).ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        return
+        [
+            new("list", "TDS medicines list", "The medicines TDS gives, with strengths, so doses can be worked out. Load the starter list and edit it, or import TDS's own list (Medicines › Medicines list).",
+                formulary > 0, $"{formulary} on the TDS list, {all} in total.", false, "Open medicines", "/medicines", Permissions.MedicinesCatalogue),
+            new("nzulm", "NZULM monthly file", "Optional: the free NZ Universal List of Medicines (request the monthly files from NZULM), imported with a saved column layout. Gives every NZ medicine name and NZMT code.",
+                nzulm is not null, nzulm is { } n ? $"Last imported {D(n)}." : "Not imported.", true, "Open import", "/medicines?tab=import", Permissions.MedicinesCatalogue),
+            new("rules", "Medicine rules reviewed and approved", "Start from the example rules and check every dose limit, allergy group and interaction against the NZ Formulary and data sheets with the anaesthetists and pharmacist, then approve (Medicines › Rules). Until then only allergies to the same medicine are checked.",
+                approved is not null, approved is null ? (anyRules ? "A draft exists – not yet approved." : "No rule set yet.") : $"Version {approved.Version} approved by {approved.ApprovedBy} {(approved.ApprovedAt is { } at ? D(at) : "")}.",
+                false, "Open rules", "/medicines?tab=rules", Permissions.MedicinesRules),
+            new("people", "Rule approvers", "Anaesthetists approve the medicine rules by default (adjust in roles).", approvers > 0, $"{approvers} can approve.", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("mode", "How strict the checks are", "Advise shows what the checks find; Enforce also needs a reason before giving a medicine the checks stop. Start with Advise, then Enforce once the rules are approved.",
+                s.Mode != BrightPAS.Modules.Medicines.CheckMode.Off, s.Mode.ToString() + ".", true, "Open settings", "/medicines?tab=settings", Permissions.MedicinesApprove),
         ];
     }
 

@@ -116,12 +116,17 @@ public static class Permissions
     public const string ClaimsAdmin = "claims.admin";
     public const string PaymentsTake = "payments.take";
     public const string IdentityLookup = "identity.lookup";
+    // Medicines and medicine safety (0.27.0)
+    public const string MedicinesView = "medicines.view";
+    public const string MedicinesCatalogue = "medicines.catalogue";
+    public const string MedicinesRules = "medicines.rules";
+    public const string MedicinesApprove = "medicines.approve";
 
     /// <summary>Policy name allowing ANY of the given permissions (0.12.4), e.g. forms listed for staff who send OR triage them. Registered in <see cref="AnyOfPolicies"/>.</summary>
     public static string AnyOf(params string[] permissions) => string.Join('|', permissions);
 
     /// <summary>Every "any of" policy used by an endpoint; each part must be a real permission (checked by the endpoint security test).</summary>
-    public static readonly IReadOnlyList<string> AnyOfPolicies = [AnyOf(FormsSend, FormsTriage), AnyOf(ScribeUse, ScribeApprove, ScribeManage), AnyOf(DevicesUse, DevicesManage), AnyOf(QualityView, QualityManage), AnyOf(CodingCode, CodingSubmit, CodingManage), AnyOf(EstimatesBuild, EstimatesManage), AnyOf(TriageView, TriageAssess, TriageReview, TriageRules), AnyOf(FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport), AnyOf(RemindersView, LettersView), AnyOf(ResearchBuild, ResearchApprove), AnyOf(FormsDesign, FormsFill, FormsApprove), AnyOf(FormsDesign, FormsApprove), AnyOf(ClaimsView, ClaimsManage, ClaimsAdmin), AnyOf(ClaimsManage, PaymentsTake), AnyOf(ClaimsManage, ClaimsAdmin), AnyOf(ClaimsManage, PaymentsTake, ClaimsAdmin), AnyOf(IdentityLookup, LettersTemplates)];
+    public static readonly IReadOnlyList<string> AnyOfPolicies = [AnyOf(FormsSend, FormsTriage), AnyOf(ScribeUse, ScribeApprove, ScribeManage), AnyOf(DevicesUse, DevicesManage), AnyOf(QualityView, QualityManage), AnyOf(CodingCode, CodingSubmit, CodingManage), AnyOf(EstimatesBuild, EstimatesManage), AnyOf(TriageView, TriageAssess, TriageReview, TriageRules), AnyOf(FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport), AnyOf(RemindersView, LettersView), AnyOf(ResearchBuild, ResearchApprove), AnyOf(FormsDesign, FormsFill, FormsApprove), AnyOf(FormsDesign, FormsApprove), AnyOf(ClaimsView, ClaimsManage, ClaimsAdmin), AnyOf(ClaimsManage, PaymentsTake), AnyOf(ClaimsManage, ClaimsAdmin), AnyOf(ClaimsManage, PaymentsTake, ClaimsAdmin), AnyOf(IdentityLookup, LettersTemplates), AnyOf(MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove), AnyOf(MedicinesRules, MedicinesApprove)];
     /// <summary>Claims, approvals and remittances can be read by anyone with a claims permission.</summary>
     public static string ClaimsAny => AnyOf(ClaimsView, ClaimsManage, ClaimsAdmin);
     /// <summary>Scribe templates and dictionary can be read by clinicians, approvers and scribe administrators.</summary>
@@ -137,6 +142,10 @@ public static class Permissions
     public static string TriageAny => AnyOf(TriageView, TriageAssess, TriageReview, TriageRules);
     /// <summary>Follow-up worklists can be read by anyone with a follow-up permission.</summary>
     public static string FollowUpAny => AnyOf(FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport);
+    /// <summary>The medicines list and the rules can be read by anyone with a medicines permission.</summary>
+    public static string MedicinesAny => AnyOf(MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove);
+    /// <summary>The check report is for rule editors and approvers.</summary>
+    public static string MedicinesGovern => AnyOf(MedicinesRules, MedicinesApprove);
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -146,7 +155,7 @@ public static class Permissions
         BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage,
         CredentialingView, CredentialingManage, PortalSpecialist, PortalManage, MessagingView,
         AssetsView, AssetsManage, CssdProcess, CssdRelease, StockManage, PurchasingApprove, EmrView, EmrWrite, EmrControlledDrugs,
-        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage, EstimatesBuild, EstimatesManage, TriageView, TriageAssess, TriageReview, TriageRules, TriageApprove, FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport, ResearchBuild, ResearchApprove, FormsDesign, FormsApprove, FormsFill, ClaimsView, ClaimsManage, ClaimsAdmin, PaymentsTake, IdentityLookup
+        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage, EstimatesBuild, EstimatesManage, TriageView, TriageAssess, TriageReview, TriageRules, TriageApprove, FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport, ResearchBuild, ResearchApprove, FormsDesign, FormsApprove, FormsFill, ClaimsView, ClaimsManage, ClaimsAdmin, PaymentsTake, IdentityLookup, MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove
     ];
 }
 
@@ -177,7 +186,7 @@ public static class DefaultRoles
         {
             [SystemAdministrator] = ("Manages users, organisation set-up and modules. No routine clinical access.",
                 [Permissions.UsersManage, Permissions.OrganisationManage, Permissions.ModulesManage, Permissions.TheatreManage, Permissions.RemindersView, Permissions.RemindersManage,
-                 Permissions.LettersTemplates, Permissions.CredentialingView, Permissions.CredentialingManage, Permissions.AssetsView, Permissions.AssetsManage, Permissions.EndoManage, Permissions.ScribeManage, Permissions.DevicesManage, Permissions.QualityReport, Permissions.CodingManage, Permissions.ClaimsAdmin]),
+                 Permissions.LettersTemplates, Permissions.CredentialingView, Permissions.CredentialingManage, Permissions.AssetsView, Permissions.AssetsManage, Permissions.EndoManage, Permissions.ScribeManage, Permissions.DevicesManage, Permissions.QualityReport, Permissions.CodingManage, Permissions.ClaimsAdmin, Permissions.MedicinesCatalogue]),
             [PrivacyOfficer] = ("Reviews break-glass use and audit reports; handles privacy requests; second-person check for identity corrections and merges.",
                 [Permissions.AuditView, Permissions.BreakGlassReview, Permissions.PatientView, Permissions.PatientMerge, Permissions.QualityReport, Permissions.QualityView, Permissions.ResearchBuild, Permissions.ResearchApprove]),
             [Reception] = ("Registers patients and manages bookings.",
@@ -186,10 +195,10 @@ public static class DefaultRoles
                  Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.PortalManage, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.PaymentsTake, Permissions.IdentityLookup]),
             [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.IdentityLookup, Permissions.FormsFill, Permissions.TriageView, Permissions.TriageAssess, Permissions.FollowUpView, Permissions.FollowUpRecord, Permissions.PatientRegister, Permissions.TheatreBook, Permissions.FormsSend,
                  Permissions.FormsTriage, Permissions.LabsMatch, Permissions.RemindersView, Permissions.ReferralsView, Permissions.ReferralsManage,
-                 Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.AssetsView, Permissions.CssdProcess, Permissions.StockManage, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs, Permissions.EndoView, Permissions.EndoWrite, Permissions.ScribeUse, Permissions.DevicesUse]),
-            [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsFill, Permissions.FormsApprove, Permissions.FollowUpView, Permissions.TriageView, Permissions.TriageAssess, Permissions.TriageReview, Permissions.TriageRules, Permissions.TriageApprove, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs, Permissions.EndoView, Permissions.ScribeUse, Permissions.DevicesUse, Permissions.FormsTriage, Permissions.ReferralsView, Permissions.LettersView, Permissions.RosterView, Permissions.PortalSpecialist]),
+                 Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.AssetsView, Permissions.CssdProcess, Permissions.StockManage, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs, Permissions.EndoView, Permissions.EndoWrite, Permissions.ScribeUse, Permissions.DevicesUse, Permissions.MedicinesView]),
+            [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsFill, Permissions.FormsApprove, Permissions.FollowUpView, Permissions.TriageView, Permissions.TriageAssess, Permissions.TriageReview, Permissions.TriageRules, Permissions.TriageApprove, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs, Permissions.EndoView, Permissions.ScribeUse, Permissions.DevicesUse, Permissions.FormsTriage, Permissions.ReferralsView, Permissions.LettersView, Permissions.RosterView, Permissions.PortalSpecialist, Permissions.MedicinesView, Permissions.MedicinesCatalogue, Permissions.MedicinesRules, Permissions.MedicinesApprove]),
             [Surgeon] = ("Clinical access for surgeons and endoscopists.", [.. Clinical, Permissions.FormsFill, Permissions.FollowUpView, Permissions.FollowUpRecord, Permissions.TriageView, Permissions.EmrView, Permissions.EmrWrite, Permissions.EndoView, Permissions.EndoWrite, Permissions.EndoSign, Permissions.ScribeUse, Permissions.ScribeApprove, Permissions.TheatreBook, Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.ReferralsTriage,
-                 Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist]),
+                 Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist, Permissions.MedicinesView]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",
                 [Permissions.PatientView, Permissions.FormsFill, Permissions.RosterView, Permissions.AssetsView, Permissions.AssetsManage, Permissions.CssdProcess, Permissions.CssdRelease, Permissions.StockManage, Permissions.QualityReport]),
             [Finance] = ("Billing, invoices and payments; procedure estimates and the estimates price list.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees, Permissions.AssetsView, Permissions.PurchasingApprove, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.EstimatesManage, Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.ClaimsAdmin, Permissions.PaymentsTake, Permissions.IdentityLookup]),

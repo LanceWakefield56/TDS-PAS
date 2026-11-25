@@ -12,7 +12,8 @@ public sealed record CountRequest(CountStage Stage, string Item, int Expected, i
 public sealed record SpecimenRequest(string Site, string Test, string? Container);
 public sealed record ObservationRequest(DateTimeOffset? At, int? RespiratoryRate, int? SpO2, bool OnOxygen, decimal? OxygenLitres, int? SystolicBp, int? DiastolicBp, int? HeartRate,
     decimal? TemperatureC, string? Consciousness, int? Pain, int? Sedation, string Source = "Manual", Guid? DeviceId = null);
-public sealed record MedicationRequest(string Medicine, string Dose, string Route, DateTimeOffset? GivenAt, string? Barcode, Guid? ControlledDrugId, string? WitnessedBy, string? Notes);
+public sealed record MedicationRequest(string Medicine, string Dose, string Route, DateTimeOffset? GivenAt, string? Barcode, Guid? ControlledDrugId, string? WitnessedBy, string? Notes,
+    string? OverrideReason = null, Guid? MedicineId = null, decimal? WeightKg = null);
 public sealed record CdRequest(Guid ControlledDrugId, CdMovement Movement, int Quantity, string WitnessedBy, string? Reference);
 public sealed record FluidRequest(DateTimeOffset? At, bool IsInput, string Kind, int Millilitres);
 public sealed record BloodRequest(string UnitNumber, string Product, DateTimeOffset ReceivedAt, bool ColdChainOk, string CheckedBy1, string CheckedBy2);
@@ -23,7 +24,7 @@ public sealed record DischargeRequest(string? EscortName, string? EscortPhone, s
 public sealed record ScoreResult(int Score, string Risk, string Advice);
 
 /// <summary>The perioperative and clinical record for an episode (one theatre booking). Every write is audited against the patient.</summary>
-public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider clock)
+public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider clock, IEnumerable<BrightPAS.Core.Modules.IMedicineSafetyCheck> medicineChecks)
 {
     // ---------------------------------------------------------------- checklist content (WHO / HQSC Surgical Safety Checklist)
     public static readonly IReadOnlyDictionary<CheckPhase, (string Key, string Text)[]> CheckItems = new Dictionary<CheckPhase, (string, string)[]>
@@ -391,16 +392,36 @@ public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider 
     // ---------------------------------------------------------------- medicines, controlled drugs, fluids, blood
     public async Task<(MedicationGiven? Med, string? Error)> GiveAsync(Guid episodeId, MedicationRequest r, string user, CancellationToken ct = default)
     {
+        var (med, error, _) = await GiveCheckedAsync(episodeId, r, user, ct);
+        return (med, error);
+    }
+
+    /// <summary>
+    /// Charts a medicine as given after the medicine safety checks (0.27.0): allergies, dose limits, what was already given and interactions.
+    /// When the checks are enforced, a Stop finding needs <see cref="MedicationRequest.OverrideReason"/>. The findings are returned for the screen.
+    /// </summary>
+    public async Task<(MedicationGiven? Med, string? Error, IReadOnlyList<BrightPAS.Core.Modules.MedicineCheckNote> Findings)> GiveCheckedAsync(Guid episodeId, MedicationRequest r, string user, CancellationToken ct = default)
+    {
         var e = await OpenAsync(episodeId, ct);
-        if (string.IsNullOrWhiteSpace(r.Medicine) || string.IsNullOrWhiteSpace(r.Dose) || string.IsNullOrWhiteSpace(r.Route)) return (null, "Enter the medicine, dose and route.");
-        if (r.GivenAt is { } at && at > clock.GetUtcNow().AddMinutes(5)) return (null, "The time cannot be in the future.");
+        if (string.IsNullOrWhiteSpace(r.Medicine) || string.IsNullOrWhiteSpace(r.Dose) || string.IsNullOrWhiteSpace(r.Route)) return (null, "Enter the medicine, dose and route.", []);
+        if (r.GivenAt is { } at && at > clock.GetUtcNow().AddMinutes(5)) return (null, "The time cannot be in the future.", []);
         ControlledDrug? cd = null;
         if (r.ControlledDrugId is { } cid)
         {
             cd = await db.ControlledDrugs.SingleOrDefaultAsync(x => x.Id == cid && x.IsActive, ct);
-            if (cd is null) return (null, "Choose the controlled drug from the register.");
-            if (string.IsNullOrWhiteSpace(r.WitnessedBy) || string.Equals(r.WitnessedBy.Trim(), user, StringComparison.OrdinalIgnoreCase)) return (null, "Controlled drugs need a second person to witness – name them.");
-            if (cd.Balance < 1) return (null, $"The register shows no {cd.Name} {cd.Strength} in stock – check the balance.");
+            if (cd is null) return (null, "Choose the controlled drug from the register.", []);
+            if (string.IsNullOrWhiteSpace(r.WitnessedBy) || string.Equals(r.WitnessedBy.Trim(), user, StringComparison.OrdinalIgnoreCase)) return (null, "Controlled drugs need a second person to witness – name them.", []);
+            if (cd.Balance < 1) return (null, $"The register shows no {cd.Name} {cd.Strength} in stock – check the balance.", []);
+        }
+        var givenAt = r.GivenAt ?? clock.GetUtcNow();
+        var findings = new List<BrightPAS.Core.Modules.MedicineCheckNote>();
+        var checkIds = new List<Guid>();
+        foreach (var check in medicineChecks)
+        {
+            var o = await check.CheckAsync(new(e.PatientId, e.Id, r.Medicine.Trim(), r.Dose.Trim(), r.Route.Trim(), givenAt, Clip(r.Barcode, 60), r.MedicineId, r.WeightKg, Clip(r.OverrideReason, 500), user), ct);
+            findings.AddRange(o.Findings);
+            if (o.CheckId is { } chk) checkIds.Add(chk);
+            if (!o.Allowed) return (null, o.Error ?? "The medicine check stopped this – give a reason to go ahead.", findings);
         }
         var row = new MedicationGiven
         {
@@ -408,7 +429,7 @@ public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider 
             Medicine = Clip(r.Medicine, 150)!,
             Dose = Clip(r.Dose, 60)!,
             Route = Clip(r.Route, 30)!,
-            GivenAt = r.GivenAt ?? clock.GetUtcNow(),
+            GivenAt = givenAt,
             GivenBy = user,
             WitnessedBy = Clip(r.WitnessedBy, 100),
             Barcode = Clip(r.Barcode, 60),
@@ -435,7 +456,9 @@ public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider 
         }
         await db.SaveChangesAsync(ct);
         await Audit(user, "Medication", "Episode", e, $"{row.Medicine} {row.Dose} {row.Route}{(cd is null ? "" : " (CD, witnessed " + row.WitnessedBy + ")")}", ct);
-        return (row, null);
+        foreach (var chk in checkIds)
+            foreach (var check in medicineChecks) await check.LinkAsync(chk, row.Id, ct);
+        return (row, null, findings);
     }
 
     /// <summary>

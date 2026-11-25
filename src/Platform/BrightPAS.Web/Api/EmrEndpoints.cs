@@ -123,8 +123,10 @@ public static class EmrEndpoints
         })).RequireAuthorization(Permissions.EmrWrite);
         g.MapPost("/episodes/{id:guid}/medications", (Guid id, MedicationRequest r, ClaimsPrincipal u, EmrService svc) => Guard(async () =>
         {
-            var (row, error) = await svc.GiveAsync(id, r, Me(u));
-            return error is not null ? Done(error) : Results.Ok(new { row!.Id });
+            // 0.27.0: the medicine checks run inside; when they stop it the findings come back so the screen can ask for a reason.
+            var (row, error, findings) = await svc.GiveCheckedAsync(id, r, Me(u));
+            var notes = findings.Select(MedicinesEndpoints.NoteView).ToList();
+            return error is not null ? Results.BadRequest(new { errors = new[] { error }, findings = notes, stopped = findings.Any(f => f.Severity == "Stop") }) : Results.Ok(new { row!.Id, findings = notes });
         })).RequireAuthorization(Permissions.EmrWrite);
         g.MapPost("/episodes/{id:guid}/fluids", (Guid id, FluidRequest r, ClaimsPrincipal u, EmrService svc) => Guard(async () => Done(await svc.FluidAsync(id, r, Me(u)))))
             .RequireAuthorization(Permissions.EmrWrite);
@@ -194,6 +196,8 @@ public static class EmrEndpoints
         var checks = await db.SafetyChecks.AsNoTracking().Include(c => c.Team).Where(c => c.EpisodeId == id).ToListAsync();
         var fluids = await db.Fluids.AsNoTracking().Where(f => f.EpisodeId == id).OrderBy(f => f.At).ToListAsync();
         var drugs = await db.ControlledDrugs.AsNoTracking().Where(d => d.IsActive).ToDictionaryAsync(d => d.Id);
+        var meds = await db.Medications.AsNoTracking().Where(m => m.EpisodeId == id).OrderByDescending(m => m.GivenAt).ToListAsync();
+        var medChecks = await MedicinesEndpoints.ChecksByMedicationAsync(sp.GetRequiredService<BrightPAS.Modules.Medicines.MedicinesDbContext>(), [.. meds.Select(m => m.Id)]);
         return new
         {
             header,
@@ -206,8 +210,22 @@ public static class EmrEndpoints
             countProblems = await svc.CountProblemsAsync(id),
             specimens = (await db.Specimens.AsNoTracking().Where(s => s.EpisodeId == id).OrderBy(s => s.Number).ToListAsync()).Select(s => new { s.Id, s.Number, s.Site, s.Test, s.Container, s.CollectedAt, s.CollectedBy, status = s.Status.ToString(), s.SentAt, s.SentBy, s.Courier, s.ReceivedAt }),
             observations = await db.Observations.AsNoTracking().Where(o => o.EpisodeId == id).OrderByDescending(o => o.At).Take(200).ToListAsync(),
-            medications = (await db.Medications.AsNoTracking().Where(m => m.EpisodeId == id).OrderByDescending(m => m.GivenAt).ToListAsync())
-                .Select(m => new { m.Id, m.Medicine, m.Dose, m.Route, m.GivenAt, m.GivenBy, m.WitnessedBy, m.Barcode, m.Notes, m.Source, controlled = m.ControlledDrugId is { } c && drugs.ContainsKey(c) }),
+            medications = meds.Select(m => new
+            {
+                m.Id,
+                m.Medicine,
+                m.Dose,
+                m.Route,
+                m.GivenAt,
+                m.GivenBy,
+                m.WitnessedBy,
+                m.Barcode,
+                m.Notes,
+                m.Source,
+                controlled = m.ControlledDrugId is { } c && drugs.ContainsKey(c),
+                check = medChecks.TryGetValue(m.Id, out var chk) ? chk.Result : null,
+                overrideReason = medChecks.TryGetValue(m.Id, out var chk2) ? chk2.Reason : null,
+            }),
             fluids = new { entries = fluids, totalIn = fluids.Where(f => f.IsInput).Sum(f => f.Millilitres), totalOut = fluids.Where(f => !f.IsInput).Sum(f => f.Millilitres) },
             blood = await db.BloodUnits.AsNoTracking().Where(b => b.EpisodeId == id).OrderBy(b => b.ReceivedAt).ToListAsync(),
             notes = (await db.Notes.AsNoTracking().Where(n => n.EpisodeId == id).OrderByDescending(n => n.At).ToListAsync()).Select(n => new { n.Id, kind = n.Kind.ToString(), n.Text, n.Author, n.At, n.Signed, n.AmendsNoteId }),

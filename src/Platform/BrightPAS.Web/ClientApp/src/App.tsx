@@ -63,6 +63,7 @@ import Research, { ResearchExtract } from './pages/Research';
 import Claims, { ClaimPage, ClaimsSettings, EftposDay, XeroPage } from './pages/Claims';
 import FollowUp, { FollowUpContact, FollowUpPlans, FollowUpReport, PatientCheckIn, SsiCase, SsiList } from './pages/FollowUp';
 import Triage, { TriageAssessment, TriageReport, TriageRules } from './pages/Triage';
+import Medicines from './pages/Medicines';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
 import { FlowEditor, MessagingFlows } from './pages/FlowDesigner';
 import { MappingEditor, MessagingMappings } from './pages/MappingDesigner';
@@ -117,6 +118,7 @@ export default function App() {
   const allowed = (ok: boolean, page: React.ReactElement) => ok ? page
     : <div className="card"><h1>Not available to you</h1><p>Your account does not include this page. If you need it for your work, ask your BrightPAS administrator.</p></div>;
   const triageAny = ['triage.view', 'triage.assess', 'triage.review', 'triage.rules', 'triage.approve'].some(can);
+  const medsAny = ['medicines.view', 'medicines.catalogue', 'medicines.rules', 'medicines.approve'].some(can);
   const followAny = ['followup.view', 'followup.record', 'followup.plans', 'followup.ssi', 'followup.report'].some(can);
   const publicPaths = ['/signin', '/setup'];
   if (needsSetup && location.pathname !== '/setup') return <Navigate to="/setup" replace />;
@@ -160,6 +162,7 @@ export default function App() {
           <Route path="/outbox" element={allowed((mod('reminders') && can(Perm.RemindersView)) || (mod('letters') && can(Perm.LettersView)), <Outbox />)} />
           <Route path="/day" element={allowed(mod('theatre') && can(Perm.TheatreView), <DayBoard />)} />
           <Route path="/triage" element={allowed(mod('triage') && triageAny, <Triage />)} />
+          <Route path="/medicines" element={allowed(mod('medicines') && medsAny, <Medicines />)} />
           <Route path="/triage/rules" element={allowed(mod('triage') && triageAny, <TriageRules />)} />
           <Route path="/triage/report" element={allowed(mod('triage') && triageAny, <TriageReport />)} />
           <Route path="/triage/:id" element={allowed(mod('triage') && triageAny, <TriageAssessment />)} />

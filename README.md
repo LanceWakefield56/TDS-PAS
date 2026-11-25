@@ -3,7 +3,7 @@
 Tasman Day Surgery's locally hosted patient administration system, with eMR, billing, rostering, assets/CSSD, quality management, endoscopy, and a TDS-developed messaging and workflow engine.
 
 - **Specification:** v1.9 (BrightPAS). The master copy is kept as section files in the TDS-PAS OneDrive folder (`Specification\v1.9\`); Appendix C there records what each release has built. Earlier Word versions are in `docs/spec/`.
-- **Status:** release 0.26.0 – a test build on demonstration data. **Nothing is live.** Every module still needs sandbox testing on Windows, an independent security review and clinical sign-off before real patient data (see "Before production" below).
+- **Status:** release 0.27.0 – a test build on demonstration data. **Nothing is live.** Every module still needs sandbox testing on Windows, an independent security review and clinical sign-off before real patient data (see "Before production" below).
 - **Owner:** Tasman Day Surgery. Product owner: Lance Wakefield.
 - **What is built:** see `CHANGELOG.md` (one entry per release), `docs/adr/` (one decision record per module or design decision) and `docs/spec-traceability.md` (every specification section → code → tests, and where the build differs from the specification).
 
@@ -47,7 +47,8 @@ The automated tests and the test robot prove the build behaves as designed on de
 - Installation and the test robot run on the Windows sandbox, then a restore-tested backup and TDE (spec 4.6).
 - An independent penetration test and code signing of the installer (spec Appendix C.2).
 - Real-device checks: Olympus CV-1500 DICOM options, GE CARESCAPE Gateway and SaferSleep message layouts, Zebra/DYMO stock, HealthLink, Modica, the laboratory.
-- Clinical governance sign-off: early warning score bands, checklists, monitor chart intervals, scribe templates, endoscopy wording.
+- Clinical governance sign-off: early warning score bands, checklists, monitor chart intervals, scribe templates, endoscopy wording, and the medicine rules (dose limits, allergy groups, interactions) checked against current NZ references.
+- The NZULM monthly medicines file (free, requested from NZULM) imported with a confirmed column layout; a licensed drug database if TDS wants broader interaction cover.
 - Privacy impact assessment for each module that handles health information, and the production licence key pair.
 
 ## Interim source control (until Azure DevOps)
