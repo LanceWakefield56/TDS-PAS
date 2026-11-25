@@ -11,6 +11,7 @@ export default function Home() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [sessions, setSessions] = useState<DaySession[] | null>(null);
   const [labCount, setLabCount] = useState<number | null>(null);
+  const [roomsCount, setRoomsCount] = useState<number | null>(null);
   const [version, setVersion] = useState('');
   const SETUP = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe'];
   const setupNeeded = me && can(Perm.ModulesManage) ? SETUP.filter((id) => me.modules[id] === 'Full' && !me.moduleSetup?.[id]).length : 0;
@@ -19,6 +20,7 @@ export default function Home() {
     api<Location[]>('/api/organisation/locations').then(setLocations).catch(() => setLocations([]));
     api<{ version: string }>('/health').then((h) => setVersion(h.version)).catch(() => undefined);
     if (theatreOn) api<DaySession[]>(`/api/theatre/sessions?from=${todayIso()}`).then(setSessions).catch(() => setSessions([]));
+    if (mod('ebookings') && can(Perm.EBookingsManage)) api<{ waiting: number }>('/api/ebookings/count').then((r) => setRoomsCount(r.waiting)).catch(() => undefined);
     if (mod('labs') && can(Perm.LabsView)) api<{ unacknowledged: number }>('/api/labs/count').then((r) => setLabCount(r.unacknowledged)).catch(() => undefined);
   }, [theatreOn, mod, can]);
   const today = new Date().toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -39,6 +41,9 @@ export default function Home() {
               {can(Perm.PatientRegister) && <Link className="btn btn-light btn-big" to="/patients/new">Register new</Link>}
             </div>
           </section>
+        )}
+        {roomsCount !== null && roomsCount > 0 && (
+          <section className="card action"><h2>Bookings from rooms</h2><p><Link to="/rooms-bookings"><strong>{roomsCount}</strong> booking request{roomsCount === 1 ? '' : 's'} to check</Link></p></section>
         )}
         {labCount !== null && labCount > 0 && (
           <section className="card action"><h2>Lab results</h2><p><Link to="/labs"><strong>{labCount}</strong> result{labCount === 1 ? '' : 's'} to acknowledge</Link></p></section>

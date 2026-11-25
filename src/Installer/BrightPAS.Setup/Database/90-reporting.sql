@@ -124,6 +124,13 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_meds_Checks_Episode', N'[meds].[C
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_meds_Checks_Medication', N'[meds].[Checks]', N'MedicationId', N'[emr].[MedicationsGiven]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_meds_AllergyLinks_Patient', N'[meds].[AllergyLinks]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_meds_AllergyLinks_Alert', N'[meds].[AllergyLinks]', N'AlertId', N'[patients].[Alerts]';
+-- Bookings from specialists' rooms (0.28.0)
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_ebookings_Requests_Patient', N'[ebookings].[Requests]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_ebookings_Requests_Specialist', N'[ebookings].[Requests]', N'SpecialistId', N'[core].[Clinicians]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_ebookings_Requests_Procedure', N'[ebookings].[Requests]', N'ProcedureItemId', N'[core].[Procedures]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_ebookings_Requests_Referral', N'[ebookings].[Requests]', N'ReferralId', N'[referrals].[Referrals]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_ebookings_Requests_Waitlist', N'[ebookings].[Requests]', N'WaitlistEntryId', N'[referrals].[Waitlist]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_ebookings_Files_Document', N'[ebookings].[Files]', N'PatientDocumentId', N'[patients].[Documents]';
 GO
 
 -- ---------------------------------------------------------------------------------------------------------------

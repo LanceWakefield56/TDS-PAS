@@ -27,6 +27,7 @@ using Por = BrightPAS.Modules.Portal;
 using Rem = BrightPAS.Modules.Reminders;
 using Ros = BrightPAS.Modules.Rostering;
 using Meds = BrightPAS.Modules.Medicines;
+using EB = BrightPAS.Modules.EBookings;
 
 namespace BrightPAS.Web.Demo;
 
@@ -120,6 +121,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await LettersAsync(ct);
         await PatientRecordsAsync(ct);
         await PortalAsync(ct);
+        await EBookingsAsync(ct);
         await RosterActivityAsync(ct);
         await AssetsAsync(ct);
         await MedicinesAsync(ct);
@@ -493,7 +495,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         var safety = S<Meds.MedicineSafetyService>();
         // The penicillin allergy is linked to the penicillin group; the codeine one is left to be read from its words.
         var pen = _patients[2];
-        var alert = await S<PatientsDbContext>().Alerts.AsNoTracking().SingleAsync(a => a.PatientId == pen.Id && a.Type == AlertType.Allergy, ct);
+        var alert = await S<PatientsDbContext>().Alerts.AsNoTracking().Where(a => a.PatientId == pen.Id && a.Type == AlertType.Allergy).OrderBy(a => a.RecordedAt).FirstAsync(ct);
         Ok(await safety.LinkAsync(alert.Id, pen.Id, "group:PEN", "nurse", ct), "link allergy");
         // A few checks for the report: a stop overridden with a reason, and a warning.
         var facts = S<BrightPAS.Web.Integration.MedicineFactsProvider>();
@@ -1645,6 +1647,92 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
                 City: original.City, ConfirmedNotDuplicate: true), "reception2", ct);
             var dup = Must(r.Patient, r.Errors, "duplicate registration");
             Ok((await ids.RequestMergeAsync(new MergeRequest(original.Id, dup.Id, "Registered twice at front desk – same DOB, mobile and address"), "reception", ct)).Errors, "merge request");
+        }
+    }
+
+    // ------------------------------------------------------------------ bookings from specialists' rooms (0.28.0)
+
+    private async Task EBookingsAsync(CancellationToken ct)
+    {
+        var svc = S<EB.EBookingService>();
+        var reid = _clin["reid"]; var whitaker = _clin["whitaker"];
+        var mine = new[] { reid, whitaker };
+        var lh = new Pdf.LetterheadData("Nelson Surgical Rooms (demo)", "12 Hardy Street, Nelson 7010", "03 555 0300", "bookings@nelsonsurgical.demo.brightpas.nz");
+        string Letter(string to, string re, string text, string from) => Convert.ToBase64String(Pdf.PdfReports.Letter(lh,
+            new Pdf.LetterData("ROOMS", to, "Tasman Day Surgery", "Booking request", $"Re: {re}\n\n{text}\n\nKind regards\n\n{from}", _clock.GetUtcNow(), false, from), null));
+        var newNhis = TestNhis().Where((_, i) => i % 3 == 1).Take(3).ToList();
+        EB.EBookingInput Input(Guid spec, string? nhi, string family, string given, DateOnly dob, BirthSex sex, string procedure, int minutes, Funder funder, string? funderRef, string? insurer,
+            int asa, decimal weight, decimal height, string? allergies, bool consent, string notes, Laterality side = Laterality.NotApplicable, bool anticoag = false, string? files = null) =>
+            new(spec, "Nelson Surgical Rooms (demo)", "Rachel Moore", "03 555 0300", "bookings@nelsonsurgical.demo.brightpas.nz", nhi, family, given, dob, sex, "021 555 0" + dob.Day.ToString("00", System.Globalization.CultureInfo.InvariantCulture) + "1",
+                null, "4 Demo Street", "Stoke", "Nelson", "7011", null, ServiceType.Surgical, null, procedure, side, AnaestheticType.General, minutes, Priority.Routine, funder, funderRef, insurer,
+                _today.AddDays(10), _today.AddDays(70), "Prefers mornings; away the week of " + _today.AddDays(30).ToString("d MMM", System.Globalization.CultureInfo.InvariantCulture), notes,
+                weight, height, asa, false, false, anticoag, anticoag ? "Apixaban 5 mg twice daily" : null, allergies, asa > 1 ? "Hypertension" : null, true, consent, consent ? _today.AddDays(-12) : null,
+                null, files is null ? null : [new EB.EBookingFileInput(DocumentCategory.Referral, "booking-letter.pdf", files)]);
+
+        // 1. A new patient, waiting for the booking office (with the rooms' letter).
+        using (At(_today.AddDays(-1), 9, 40))
+        {
+            var r = await svc.SubmitAsync(Input(reid, newNhis[0], "Hollis", "Margaret Anne", new DateOnly(1961, 4, 18), BirthSex.Female, "Laparoscopic cholecystectomy", 75, Funder.Insurer, "SX-448120", "Southern Cross",
+                2, 84, 165, null, true, "Recurrent biliary colic, ultrasound-proven gallstones. Fit and well otherwise.",
+                files: Letter("Tasman Day Surgery booking office", "Margaret Hollis – laparoscopic cholecystectomy", "Please book Mrs Hollis for a laparoscopic cholecystectomy. Southern Cross approval attached.", "Dr Hamish Reid")),
+                EB.EBookingSource.Portal, "pa", mine, ct);
+            Ok(r.Errors, "booking request 1");
+        }
+        // 2. An existing patient – the booking office has asked about the blood thinner.
+        var known = _patients[8];
+        using (At(_today.AddDays(-3), 14, 5))
+        {
+            var r = await svc.SubmitAsync(Input(whitaker, known.Nhi, known.FamilyName, known.GivenNames, known.DateOfBirth, known.Sex, "Carpal tunnel release", 30, Funder.SelfPay, null, null,
+                3, 96, 172, "Penicillin – rash", true, "Severe right carpal tunnel syndrome, nerve conduction confirmed.", Laterality.Right, anticoag: true), EB.EBookingSource.Portal, "pa", mine, ct);
+            var req = Must(r.Request, r.Errors, "booking request 2");
+            using (At(_today.AddDays(-2), 10, 15))
+                Ok(await svc.AddMessageAsync(req.Id, "Thanks – who is managing the apixaban stopping plan, and has a cardiologist been involved? We need this before booking.", true, "reception", null, ct), "query");
+        }
+        // 3. Accepted onto the waitlist (matched to the registered patient, letter filed).
+        var acc = _patients[11];
+        using (At(_today.AddDays(-6), 11, 0))
+        {
+            var r = await svc.SubmitAsync(Input(reid, acc.Nhi, acc.FamilyName, acc.GivenNames, acc.DateOfBirth, acc.Sex, "Inguinal hernia repair (laparoscopic)", 60, Funder.Acc, "ACC-7731045", null,
+                1, 78, 180, null, true, "Right inguinal hernia after lifting at work. ACC claim accepted.", Laterality.Right,
+                files: Letter("Tasman Day Surgery booking office", $"{acc.GivenNames} {acc.FamilyName} – hernia repair", "ACC claim accepted. Please book at the next available list.", "Dr Hamish Reid")),
+                EB.EBookingSource.Portal, "pa", mine, ct);
+            var req = Must(r.Request, r.Errors, "booking request 3");
+            using (At(_today.AddDays(-5), 9, 30))
+            {
+                Ok(await svc.MatchPatientAsync(req.Id, acc.Id, "reception", ct), "match patient");
+                var (_, errors) = await svc.AcceptAsync(req.Id, new EB.EBookingAccept(null, Laterality.Right, AnaestheticType.General, 60, Priority.Routine, "Booked from rooms request"), "reception", ct);
+                Ok(errors, "accept booking request");
+            }
+        }
+        // 4. Declined.
+        using (At(_today.AddDays(-8), 15, 20))
+        {
+            var r = await svc.SubmitAsync(Input(whitaker, newNhis[1], "Brennan", "Owen", new DateOnly(1948, 9, 2), BirthSex.Male, "Total shoulder replacement", 150, Funder.Insurer, null, "nib",
+                4, 121, 178, null, false, "Severe glenohumeral arthritis. Home oxygen at night."), EB.EBookingSource.Portal, "pa", mine, ct);
+            var req = Must(r.Request, r.Errors, "booking request 4");
+            using (At(_today.AddDays(-7), 9, 10))
+                Ok(await svc.DeclineAsync(req.Id, "ASA 4 with home oxygen – not suitable for day surgery at TDS. Please refer to Nelson Hospital.", "reception", ct), "decline");
+        }
+        // 5. From a practice system: an HL7 REF^I12 dropped into the folder (imported here directly).
+        using (At(_today, 7, 50))
+        {
+            var dob = new DateOnly(1979, 11, 23);
+            var hl7 = string.Join("\r", [
+                $"MSH|^~\\&|GASTROPMS|TASMAN GASTRO|BRIGHTPAS|TDS|{_today:yyyyMMdd}0745||REF^I12^REF_I12|GP{_today:yyyyMMdd}01|P|2.4",
+                $"RF1|A|R|SURG|||TG-55120|{_today:yyyyMMdd}||||TG-55120",
+                $"PRD|RP|Lindqvist^Sarah^^^Dr|||03 555 0410^^^gastro@demo.brightpas.nz||15DEME",
+                $"PRD|RT|Lindqvist^Sarah^^^Dr|||||15DEME",
+                $"PID|1||{newNhis[2]}^^^NHI^NH||Tane^Wiremu^James||{dob:yyyyMMdd}|M|||22 Example Road^^Richmond^^7020||021 555 0123",
+                "PR1|1||COLON^Colonoscopy",
+                "DG1|1||K92.1^Iron deficiency anaemia",
+                "AL1|1|DA|^Latex",
+                "OBX|1|NM|29463-7^Body weight||88|kg",
+                "OBX|2|NM|8302-2^Body height||176|cm",
+                "NTE|1||Positive FIT from the bowel screening programme.",
+                "IN1|1|SC|SX|Southern Cross||||||||||PA-90210",
+            ]);
+            var imp = await S<EB.EBookingImporter>().ImportAsync("tasman-gastro-20261125.hl7", System.Text.Encoding.UTF8.GetBytes(hl7), "", ct);
+            Ok(imp.Problems, "HL7 booking import");
         }
     }
 

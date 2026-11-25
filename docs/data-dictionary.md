@@ -548,3 +548,11 @@ Cross-schema references (not enforced as keys): PatientId → patients.Patients;
 | NzfPreparations | Forms and strengths listed in a monograph | (MonographId, Sequence), Form, Strength, Subsidy |
 | NzfSettings | Single row: download addresses, automatic download, watched folder, last check | Id = 1 |
 DoseRules also has MinWeightKg / MaxWeightKg (body-weight band).
+
+## 0.28.0 – Bookings from specialists' rooms (schema `ebookings`)
+| Table | Purpose | Key columns |
+|---|---|---|
+| Requests | Booking requests from the rooms: patient as sent, specialist, procedure, funding, dates, pre-op details, status, decision | Id, Number (unique), Status, Source (Portal/File/Hl7), ExternalRef, SpecialistId → core.Clinicians, PatientId → patients.Patients (once matched), ProcedureItemId → core.Procedures, ReferralId → referrals.Referrals, WaitlistEntryId → referrals.Waitlist |
+| Files | Letters, consent and results sent with a request, encrypted at rest; filed in the patient record on acceptance | Id, RequestId → Requests, Category, FileName, ContentType, SizeBytes, Content, PatientDocumentId → patients.Documents |
+| Messages | Questions and answers between the booking office and the rooms | Id, RequestId → Requests, FromTds, Author, Text, At |
+| Settings | Next number, watched folder, email the rooms, largest file, instructions for the rooms, last folder check | Id = 1 |

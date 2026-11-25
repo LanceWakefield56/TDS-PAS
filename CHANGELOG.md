@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.28.0 – 2026-11-25 – **Bookings from specialists' rooms**
+- **Bookings from rooms module (ADR 0041, guide H35)** – licence "ebookings"; permissions Send booking requests (Surgeon, PA, Specialist portal) and Manage booking requests (Reception / Booking); "Bookings from rooms" under Before surgery.
+  - **Portal:** specialists and PAs send a booking request from the specialist portal – patient, procedure (from TDS's list or typed), side, anaesthetic, minutes, urgency, funding and approval/claim number, dates wanted and days to avoid, clinical notes, pre-op details (weight, height, BMI, ASA, diabetes, sleep apnoea, blood thinners, allergies, responsible adult, consent) and up to 8 letters/scans. They see each request's status, answer TDS's questions, add files, withdraw, and see the waitlist status and booked date once accepted. A possible duplicate must be confirmed.
+  - **Booking office:** list by To do / Waiting for the rooms / Accepted / Declined; "points to check" for day-surgery suitability and missing paperwork; ask the rooms a question; match the patient (same NHI or same date of birth and name – a different NHI is refused) or register them from the request; **accept onto the waitlist** (referral and waitlist entry created, the rooms' dates and pre-op details in the waitlist notes, files filed in the patient record) or decline with a reason. Requests received by phone or fax can be entered here. My list shows requests to check.
+  - **Files from practice systems:** BrightPAS booking JSON (example file to give practices) or HL7 v2 REF^I12 referrals – upload, or a watched share/USB folder checked every two minutes; the same rooms reference is never imported twice.
+  - Optional email to the rooms contact when TDS asks, accepts or declines (no patient details; uses the Reminders email settings).
+  - Set-up wizard, demo data (requests at every stage, an HL7 import), patient merge, self-test entries, reporting foreign keys.
+- IIS upload limit raised from 50 MB to 130 MB (web.config and Setup) so NZ Formulary PDFs up to 120 MB import on IIS; other pages keep the app's normal 30 MB limit.
+- Demo data: the medicines step picks the patient's original penicillin allergy (a second, date-dependent alert from the questionnaire made loading fail on some days).
+- Test robot: **Bookings from rooms** steps (PA answers a question, sends a request with a letter; booking office registers and accepts; HL7 import; PA can't see the office list or another specialist's request).
+
 ## 0.27.0 – 2026-11-25 – **Medicines and medicine safety: dose limits, allergy groups and interactions**
 - **Medicines module (ADR 0040, guide H34)** – licence "medicines"; permissions View / Medicines list / Rules / Approve rules; Medicines under Day of surgery.
   - **Medicines list:** starter list of about 45 day-surgery medicines with strengths, TDS's own entries (ingredients, strength per tablet/vial or per mL, usual route, pack barcodes), other names for ingredients (Panadol, lignocaine, Augmentin…). **Import** the free NZULM monthly file (or TDS's own list) with a column layout chosen once and saved; medicines missing from a full file are made inactive.

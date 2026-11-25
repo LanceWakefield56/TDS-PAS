@@ -515,3 +515,11 @@ a.pill.pill-link { display: inline-flex; align-items: center; min-height: 24px; 
 .med-finding.sev-info { color: #455a64; padding-left: .5rem; }
 .med-record { order: 2; }
 .nzf-text { white-space: pre-line; margin: 0; }
+
+/* Bookings from rooms (0.28.0) */
+.pre-wrap { white-space: pre-wrap; }
+.msg-tds, .msg-rooms { border-left: 4px solid var(--line); padding: .4rem .7rem; border-radius: 6px; }
+.msg-tds { border-left-color: var(--navy); background: var(--light); }
+.msg-rooms { border-left-color: var(--warn); }
+fieldset.stack { border: 1px solid var(--line); border-radius: 8px; padding: .75rem 1rem; }
+fieldset.stack legend { font-weight: 700; color: var(--navy); padding: 0 .3rem; }

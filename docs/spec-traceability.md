@@ -46,7 +46,7 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 | 7.1 | Patient administration | Built | `BrightPAS.Modules.Patients`; merge participants | PatientServiceTests, PatientsSqlServerTests, robot |
 | 7.2 | Referrals, waitlist, booking | Built | Referrals, Theatre (ADR 0017) | ReferralsTests, CalendarAndRosterTests |
 | 7.3 | Questionnaires and triage | Built | Forms (ADR 0011) | ModuleTests, robot portal |
-| 7.4 | Specialist, PA and patient portals | Built | Portal (ADR 0018, 0020) | PatientRecordsTests, robot portal on a phone |
+| 7.4 | Specialist, PA and patient portals | Built | Portal (ADR 0018, 0020); booking requests from the rooms (EBookings, ADR 0041) | PatientRecordsTests, EBookingsTests, robot portal on a phone, robot Bookings from rooms |
 | 7.5 | Theatre and sessions | Built | Theatre | ModuleTests, CalendarAndRosterTests |
 | 7.6 | Clinical record (eMR) | Partial | Emr (ADR 0026); monitor feed and SaferSleep filing (ADR 0029); medicine safety checks when charting (Medicines, ADR 0040) | EmrTests, DevicesTests, MedicinesTests, robot "Medicines & medicine safety". Gaps: NZePS, barcode medicine administration |
 | 7.7 | Billing | Partial | Billing | ModuleTests. Gaps: ACC/insurer claims, Xero sync, EFTPOS |
@@ -92,3 +92,4 @@ Nothing is live. Every row still needs sandbox testing, security review and clin
 | HL7 layouts (GE, SaferSleep) | BrightPAS interface profiles built from the standards | Confirm with real captures before go-live; mapping changes only |
 | Import from file (0.18.0) | Added at TDS's request; spec v1.9 does not describe a file fallback | Add to spec 6.2.1 / 4.7 (spec changelog 2026-11-16) |
 | Medicines list and medicine checks (0.27.0) | Added at TDS's request (no MIMS): NZULM import with a saved layout, TDS's own versioned dose/allergy-group/interaction rules, checks when charting (Advise/Enforce), allergy links. NZULM has no decision support, so the rules are TDS-owned | Add to spec 7.6 and Appendix C (spec changelog 2026-11-25); licensed source (NZ Formulary) later |
+| Bookings from specialists' rooms (0.28.0) | Added at TDS's request (competitor review, 25 Nov 2026): portal booking requests, booking office review onto the waitlist, JSON/HL7 REF^I12 file import | Spec 7.2/7.4 updated in the v1.9 working copy; ADR 0041 |

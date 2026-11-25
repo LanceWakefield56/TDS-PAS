@@ -121,6 +121,9 @@ public static class Permissions
     public const string MedicinesCatalogue = "medicines.catalogue";
     public const string MedicinesRules = "medicines.rules";
     public const string MedicinesApprove = "medicines.approve";
+    // Bookings from specialists' rooms (0.28.0)
+    public const string EBookingsSend = "ebookings.send";
+    public const string EBookingsManage = "ebookings.manage";
 
     /// <summary>Policy name allowing ANY of the given permissions (0.12.4), e.g. forms listed for staff who send OR triage them. Registered in <see cref="AnyOfPolicies"/>.</summary>
     public static string AnyOf(params string[] permissions) => string.Join('|', permissions);
@@ -155,7 +158,7 @@ public static class Permissions
         BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage,
         CredentialingView, CredentialingManage, PortalSpecialist, PortalManage, MessagingView,
         AssetsView, AssetsManage, CssdProcess, CssdRelease, StockManage, PurchasingApprove, EmrView, EmrWrite, EmrControlledDrugs,
-        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage, EstimatesBuild, EstimatesManage, TriageView, TriageAssess, TriageReview, TriageRules, TriageApprove, FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport, ResearchBuild, ResearchApprove, FormsDesign, FormsApprove, FormsFill, ClaimsView, ClaimsManage, ClaimsAdmin, PaymentsTake, IdentityLookup, MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove
+        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage, EstimatesBuild, EstimatesManage, EBookingsSend, EBookingsManage, TriageView, TriageAssess, TriageReview, TriageRules, TriageApprove, FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport, ResearchBuild, ResearchApprove, FormsDesign, FormsApprove, FormsFill, ClaimsView, ClaimsManage, ClaimsAdmin, PaymentsTake, IdentityLookup, MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove
     ];
 }
 
@@ -192,25 +195,25 @@ public static class DefaultRoles
             [Reception] = ("Registers patients and manages bookings.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.PatientEdit, Permissions.TheatreView, Permissions.TheatreBook,
                  Permissions.TheatreManage, Permissions.FormsSend, Permissions.BillingView, Permissions.BillingManage, Permissions.LabsMatch, Permissions.RemindersView,
-                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.PortalManage, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.PaymentsTake, Permissions.IdentityLookup]),
+                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.PortalManage, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.PaymentsTake, Permissions.IdentityLookup, Permissions.EBookingsManage]),
             [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.IdentityLookup, Permissions.FormsFill, Permissions.TriageView, Permissions.TriageAssess, Permissions.FollowUpView, Permissions.FollowUpRecord, Permissions.PatientRegister, Permissions.TheatreBook, Permissions.FormsSend,
                  Permissions.FormsTriage, Permissions.LabsMatch, Permissions.RemindersView, Permissions.ReferralsView, Permissions.ReferralsManage,
                  Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.AssetsView, Permissions.CssdProcess, Permissions.StockManage, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs, Permissions.EndoView, Permissions.EndoWrite, Permissions.ScribeUse, Permissions.DevicesUse, Permissions.MedicinesView]),
             [Anaesthetist] = ("Clinical access for anaesthetists.", [.. Clinical, Permissions.FormsFill, Permissions.FormsApprove, Permissions.FollowUpView, Permissions.TriageView, Permissions.TriageAssess, Permissions.TriageReview, Permissions.TriageRules, Permissions.TriageApprove, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs, Permissions.EndoView, Permissions.ScribeUse, Permissions.DevicesUse, Permissions.FormsTriage, Permissions.ReferralsView, Permissions.LettersView, Permissions.RosterView, Permissions.PortalSpecialist, Permissions.MedicinesView, Permissions.MedicinesCatalogue, Permissions.MedicinesRules, Permissions.MedicinesApprove]),
             [Surgeon] = ("Clinical access for surgeons and endoscopists.", [.. Clinical, Permissions.FormsFill, Permissions.FollowUpView, Permissions.FollowUpRecord, Permissions.TriageView, Permissions.EmrView, Permissions.EmrWrite, Permissions.EndoView, Permissions.EndoWrite, Permissions.EndoSign, Permissions.ScribeUse, Permissions.ScribeApprove, Permissions.TheatreBook, Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.ReferralsTriage,
-                 Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist, Permissions.MedicinesView]),
+                 Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist, Permissions.MedicinesView, Permissions.EBookingsSend]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",
                 [Permissions.PatientView, Permissions.FormsFill, Permissions.RosterView, Permissions.AssetsView, Permissions.AssetsManage, Permissions.CssdProcess, Permissions.CssdRelease, Permissions.StockManage, Permissions.QualityReport]),
             [Finance] = ("Billing, invoices and payments; procedure estimates and the estimates price list.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees, Permissions.AssetsView, Permissions.PurchasingApprove, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.EstimatesManage, Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.ClaimsAdmin, Permissions.PaymentsTake, Permissions.IdentityLookup]),
             [PracticeAssistant] = ("Specialist's practice assistant: bookings for their specialist's patients.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.TheatreView, Permissions.TheatreBook, Permissions.FormsSend, Permissions.LabsView,
-                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist]),
+                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist, Permissions.EBookingsSend]),
             [IntegrationAdministrator] = ("Manages interfaces, message flows, mappings and translation tables; sees message content (audited).",
                 [Permissions.IntegrationManage, Permissions.MessagingView, Permissions.LettersView, Permissions.QualityReport]),
             [RosterManager] = ("Writes the staff roster and approves leave (no patient access).",
                 [Permissions.RosterView, Permissions.RosterManage, Permissions.QualityReport]),
-            [SpecialistPortal] = ("Visiting specialist or PA: sees only their own TDS patients' lists, appointments, waitlist and documents (read-only).",
-                [Permissions.PortalSpecialist]),
+            [SpecialistPortal] = ("Visiting specialist or PA: sees only their own TDS patients' lists, appointments, waitlist and documents, and sends booking requests.",
+                [Permissions.PortalSpecialist, Permissions.EBookingsSend]),
             [QualityManager] = ("Runs the quality system: triages and investigates incidents, handles complaints, keeps the risk, hazard, action and policy registers and the quality indicators.",
                 [Permissions.QualityReport, Permissions.QualityView, Permissions.QualityManage, Permissions.PatientView, Permissions.AssetsView, Permissions.FollowUpView, Permissions.FollowUpPlans, Permissions.FollowUpSsi, Permissions.FollowUpReport, Permissions.ResearchBuild, Permissions.FormsDesign, Permissions.FormsApprove, Permissions.FormsFill]),
             [ClinicalCoder] = ("Codes discharged events in ICD-10-AM/ACHI/ACS, prepares and sends the NMDS and NBRS files to Health NZ and corrects returned errors (reads the clinical record).",

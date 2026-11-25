@@ -7,6 +7,7 @@
     <Project Path="src/Modules/BrightPAS.Modules.Assets/BrightPAS.Modules.Assets.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Billing/BrightPAS.Modules.Billing.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Credentialing/BrightPAS.Modules.Credentialing.csproj" />
+    <Project Path="src/Modules/BrightPAS.Modules.EBookings/BrightPAS.Modules.EBookings.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Emr/BrightPAS.Modules.Emr.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Endoscopy/BrightPAS.Modules.Endoscopy.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Scribe/BrightPAS.Modules.Scribe.csproj" />

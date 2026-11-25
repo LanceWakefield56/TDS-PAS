@@ -105,7 +105,7 @@ public static class PortalEndpoints
 
     // ================================================================== specialist / PA portal
     /// <summary>The clinician-register entries this user is (linked by user name) or works for (PA delegation).</summary>
-    private static async Task<List<Guid>> MyClinicianIdsAsync(ClaimsPrincipal u, PasDbContext core, PortalService portal)
+    internal static async Task<List<Guid>> MyClinicianIdsAsync(ClaimsPrincipal u, PasDbContext core, PortalService portal)
     {
         var delegated = await portal.DelegatedCliniciansAsync(Me(u));
         var me = Me(u);

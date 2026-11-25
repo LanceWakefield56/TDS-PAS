@@ -56,7 +56,7 @@ public static class PowerShellScripts
         Set-WebConfigurationProperty -PSPath $psPath -Filter 'system.webServer/security/requestFiltering' -Name 'removeServerHeader' -Value $true
         Set-WebConfigurationProperty -PSPath $psPath -Filter 'system.webServer/security/requestFiltering' -Name 'allowDoubleEscaping' -Value $false
         Set-WebConfigurationProperty -PSPath $psPath -Filter 'system.webServer/security/requestFiltering' -Name 'allowHighBitCharacters' -Value $false
-        Set-WebConfigurationProperty -PSPath $psPath -Filter 'system.webServer/security/requestFiltering/requestLimits' -Name 'maxAllowedContentLength' -Value 52428800
+        Set-WebConfigurationProperty -PSPath $psPath -Filter 'system.webServer/security/requestFiltering/requestLimits' -Name 'maxAllowedContentLength' -Value 136314880
         Set-WebConfigurationProperty -PSPath $psPath -Filter 'system.webServer/security/requestFiltering/requestLimits' -Name 'maxUrl' -Value 4096
         Set-WebConfigurationProperty -PSPath $psPath -Filter 'system.webServer/security/requestFiltering/requestLimits' -Name 'maxQueryString' -Value 2048
         foreach ($verb in 'TRACE','TRACK','OPTIONS') {

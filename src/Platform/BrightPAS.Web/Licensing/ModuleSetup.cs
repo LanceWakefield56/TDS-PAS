@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "medicines", "followup", "claims"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "medicines", "followup", "claims", "ebookings"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -74,6 +74,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "estimates" => await EstimatesChecksAsync(ct),
         "triage" => await TriageChecksAsync(ct),
         "medicines" => await MedicinesChecksAsync(ct),
+        "ebookings" => await EBookingsChecksAsync(ct),
         "followup" => await FollowUpChecksAsync(ct),
         "claims" => await ClaimsChecksAsync(ct),
         _ => []
@@ -358,6 +359,25 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 true, s.HoldBookingUntilSignedOff ? $"On for {(s.HoldProcedures ?? "all procedures")}." : "Off.", true, "Open settings", "/triage/rules?tab=settings", Permissions.TriageRules),
             new("questionnaire", "Pre-admission questionnaire", "Triage reads the patient's questionnaire (PAQ-2). Send links from the booking or the patient record (Forms module).",
                 true, "PAQ-2 in use.", true, "Open forms", "/forms", Permissions.FormsSend),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> EBookingsChecksAsync(CancellationToken ct)
+    {
+        var s = await Svc<BrightPAS.Modules.EBookings.EBookingService>().SettingsAsync(ct);
+        var office = await UsersWithAsync(Permissions.EBookingsManage, ct);
+        var rooms = await UsersWithAsync(Permissions.EBookingsSend, ct);
+        var linked = await Svc<PasDbContext>().Clinicians.CountAsync(c => c.IsActive && c.UserName != null, ct)
+                     + await Svc<BrightPAS.Modules.Portal.PortalDbContext>().Delegates.Select(d => d.ClinicianId).Distinct().CountAsync(ct);
+        return
+        [
+            new("office", "Booking office", "Who reviews the requests (Reception / Booking by default – adjust in roles).", office > 0, $"{office} can review requests.", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("rooms", "Specialists and practice assistants", "Give each specialist or PA a BrightPAS account with the Specialist (portal only), Surgeon or PA role, then link the specialist to their account on the clinician register, or the PA to their specialist in the portal (Portal › Delegates).",
+                rooms > 0 && linked > 0, $"{rooms} accounts can send requests; {linked} specialist link(s).", false, "Open users", "/admin/users", Permissions.UsersManage),
+            new("folder", "Folder for practice-system files", "Optional: practices whose own system can export a booking (BrightPAS JSON or HL7 REF^I12) save files into this shared folder; BrightPAS imports them every two minutes.",
+                s.WatchFolder is not null, s.WatchFolder ?? "Not set.", true, "Open settings", "/rooms-bookings?tab=settings", Permissions.EBookingsManage),
+            new("email", "Email the rooms", "Optional: email the rooms contact (no patient details) when the booking office asks a question, accepts or declines. Needs Reminders email set up.",
+                s.EmailRooms, s.EmailRooms ? "On." : "Off.", true, "Open settings", "/rooms-bookings?tab=settings", Permissions.EBookingsManage),
         ];
     }
 

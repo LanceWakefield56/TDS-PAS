@@ -64,6 +64,7 @@ import Claims, { ClaimPage, ClaimsSettings, EftposDay, XeroPage } from './pages/
 import FollowUp, { FollowUpContact, FollowUpPlans, FollowUpReport, PatientCheckIn, SsiCase, SsiList } from './pages/FollowUp';
 import Triage, { TriageAssessment, TriageReport, TriageRules } from './pages/Triage';
 import Medicines from './pages/Medicines';
+import RoomsBookings from './pages/RoomsBookings';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
 import { FlowEditor, MessagingFlows } from './pages/FlowDesigner';
 import { MappingEditor, MessagingMappings } from './pages/MappingDesigner';
@@ -162,6 +163,7 @@ export default function App() {
           <Route path="/outbox" element={allowed((mod('reminders') && can(Perm.RemindersView)) || (mod('letters') && can(Perm.LettersView)), <Outbox />)} />
           <Route path="/day" element={allowed(mod('theatre') && can(Perm.TheatreView), <DayBoard />)} />
           <Route path="/triage" element={allowed(mod('triage') && triageAny, <Triage />)} />
+          <Route path="/rooms-bookings" element={allowed(mod('ebookings') && can(Perm.EBookingsManage), <RoomsBookings />)} />
           <Route path="/medicines" element={allowed(mod('medicines') && medsAny, <Medicines />)} />
           <Route path="/triage/rules" element={allowed(mod('triage') && triageAny, <TriageRules />)} />
           <Route path="/triage/report" element={allowed(mod('triage') && triageAny, <TriageReport />)} />
