@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "medicines", "followup", "claims", "ebookings"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "medicines", "followup", "claims", "ebookings", "consent"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -75,6 +75,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "triage" => await TriageChecksAsync(ct),
         "medicines" => await MedicinesChecksAsync(ct),
         "ebookings" => await EBookingsChecksAsync(ct),
+        "consent" => await ConsentChecksAsync(ct),
         "followup" => await FollowUpChecksAsync(ct),
         "claims" => await ClaimsChecksAsync(ct),
         _ => []
@@ -359,6 +360,29 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 true, s.HoldBookingUntilSignedOff ? $"On for {(s.HoldProcedures ?? "all procedures")}." : "Off.", true, "Open settings", "/triage/rules?tab=settings", Permissions.TriageRules),
             new("questionnaire", "Pre-admission questionnaire", "Triage reads the patient's questionnaire (PAQ-2). Send links from the booking or the patient record (Forms module).",
                 true, "PAQ-2 in use.", true, "Open forms", "/forms", Permissions.FormsSend),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> ConsentChecksAsync(CancellationToken ct)
+    {
+        var svc = Svc<BrightPAS.Modules.Consent.ConsentService>();
+        var s = await svc.SettingsAsync(ct);
+        var published = await Svc<BrightPAS.Modules.Consent.ConsentDbContext>().Sheets.CountAsync(x => x.Status == BrightPAS.Modules.Consent.SheetStatus.Published, ct);
+        var approvers = await UsersWithAsync(Permissions.ConsentApprove, ct);
+        var confirmers = await UsersWithAsync(Permissions.ConsentConfirm, ct);
+        var reminders = await Svc<BrightPAS.Modules.Reminders.ReminderService>().SettingsAsync(ct);
+        return
+        [
+            new("sheets", "Procedure information sheets", "Write an information sheet for each common procedure (what it is, benefits, risks and how often they happen, alternatives, recovery, videos). A second clinician approves each one before it is used.",
+                published > 0, $"{published} published.", false, "Open sheets", "/consent?tab=sheets", Permissions.ConsentSheets),
+            new("approvers", "Clinicians who approve sheets and confirm consent", "Surgeons approve sheets; surgeons, anaesthetists and nurses confirm consent with the patient on the day (adjust in roles).",
+                approvers > 0 && confirmers > 0, $"{approvers} can approve sheets; {confirmers} can confirm on the day.", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("url", "Public web address for patient links", "The address patients use from home to open their consent link (the same published address as the patient portal).",
+                s.PublicUrl is not null, s.PublicUrl ?? "Not set.", false, "Open settings", "/consent?tab=settings", Permissions.ConsentSheets),
+            new("sending", "Text and email sending", "Consent links are sent by text and email through Reminders. Without it, staff copy the link and give it to the patient.",
+                reminders.SmsProvider is not (BrightPAS.Modules.Reminders.SmsProvider.TestOutbox or BrightPAS.Modules.Reminders.SmsProvider.Off) || reminders.EmailProvider is not (BrightPAS.Modules.Reminders.EmailProvider.TestOutbox or BrightPAS.Modules.Reminders.EmailProvider.Off), "Uses the Reminders settings.", true, "Open reminders", "/reminders", Permissions.RemindersManage),
+            new("gate", "Require signed consent before confirming a booking", "Optional: theatre cannot confirm a booking until the consent is signed. Off by default.",
+                s.RequireBeforeConfirm, s.RequireBeforeConfirm ? "On." : "Off.", true, "Open settings", "/consent?tab=settings", Permissions.ConsentSheets),
         ];
     }
 

@@ -42,6 +42,12 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         ("/api/c/{token}/", "Patient follow-up check-in: secret link + date of birth, lockout after 5 attempts.", true),
         ("/api/c/{token}/open", "Patient follow-up check-in.", true),
         ("/api/c/{token}/submit", "Patient follow-up check-in.", true),
+        ("/api/e/{token}/", "Patient e-consent: secret link + date of birth, lockout after 5 attempts.", true),
+        ("/api/e/{token}/open", "Patient e-consent: read the information sheet.", true),
+        ("/api/e/{token}/read", "Patient e-consent: mark a section as read.", true),
+        ("/api/e/{token}/ask", "Patient e-consent: ask the surgeon a question.", true),
+        ("/api/e/{token}/sign", "Patient e-consent: sign.", true),
+        ("/api/e/{token}/withdraw", "Patient e-consent: withdraw consent.", true),
         ("/api/scribe/inbound", "External scribe (Medow) returning a draft: bearer token, SHA-256 stored, constant-time check; licence checked; draft stays unsigned.", true),
         ("/api/hooks/sms/{key}/inbound", "SMS vendor callback: secret key in URL, constant-time check.", true),
         ("/api/hooks/sms/{key}/status", "SMS vendor callback: secret key in URL, constant-time check.", true),
@@ -63,7 +69,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
     private static readonly (string Prefix, string? Module)[] Areas =
     [
         ("/api/labs", "labs"), ("/api/theatre", "theatre"), ("/api/forms", "forms"), ("/api/q/", "forms"), ("/api/billing", "billing"),
-        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/ebookings", "ebookings"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/mcp", "messaging"), ("/api/assets", "assets"), ("/api/emr", "emr"), ("/api/endoscopy", "endoscopy"), ("/api/scribe", "scribe"), ("/api/devices", "devices"), ("/api/imports/labs", "labs"), ("/api/imports/monitors", "devices"), ("/api/imports/safersleep", "devices"), ("/api/quality", "quality"), ("/api/coding", "reporting"), ("/api/estimates", "estimates"), ("/api/triage", "triage"), ("/api/medicines", "medicines"), ("/api/followup", "followup"), ("/api/c/", "followup"), ("/api/journey", null), ("/api/outbox", null), ("/api/research", "reporting"), ("/api/claims", "claims"), ("/api/identity", "claims"), ("/api/export-policy", null),
+        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/ebookings", "ebookings"), ("/api/consent", "consent"), ("/api/e/", "consent"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/mcp", "messaging"), ("/api/assets", "assets"), ("/api/emr", "emr"), ("/api/endoscopy", "endoscopy"), ("/api/scribe", "scribe"), ("/api/devices", "devices"), ("/api/imports/labs", "labs"), ("/api/imports/monitors", "devices"), ("/api/imports/safersleep", "devices"), ("/api/quality", "quality"), ("/api/coding", "reporting"), ("/api/estimates", "estimates"), ("/api/triage", "triage"), ("/api/medicines", "medicines"), ("/api/followup", "followup"), ("/api/c/", "followup"), ("/api/journey", null), ("/api/outbox", null), ("/api/research", "reporting"), ("/api/claims", "claims"), ("/api/identity", "claims"), ("/api/export-policy", null),
         ("/api/patients", null), ("/api/admin", null), ("/api/audit", null), ("/api/auth", null), ("/api/setup", null), ("/api/me", null),
         ("/api/organisation", null), ("/api/{**rest}", null), ("/health", null), ("/{*path", null),
     ];

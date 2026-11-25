@@ -32,4 +32,5 @@ dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Claims -o "$out/26-claims.sql"
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Medicines -o "$out/27-medicines.sql"
 dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.EBookings -o "$out/28-ebookings.sql"
+dotnet ef migrations script --idempotent --project src/Modules/BrightPAS.Modules.Consent -o "$out/29-consent.sql"
 echo "Schema scripts written to $out"

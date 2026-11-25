@@ -131,6 +131,11 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_ebookings_Requests_Procedure', N'
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_ebookings_Requests_Referral', N'[ebookings].[Requests]', N'ReferralId', N'[referrals].[Referrals]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_ebookings_Requests_Waitlist', N'[ebookings].[Requests]', N'WaitlistEntryId', N'[referrals].[Waitlist]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_ebookings_Files_Document', N'[ebookings].[Files]', N'PatientDocumentId', N'[patients].[Documents]';
+-- E-consent and patient education (0.29.0)
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_consent_Consents_Patient', N'[consent].[Consents]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_consent_Consents_Booking', N'[consent].[Consents]', N'BookingId', N'[theatre].[Bookings]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_consent_Consents_Clinician', N'[consent].[Consents]', N'ClinicianId', N'[core].[Clinicians]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_consent_Consents_Document', N'[consent].[Consents]', N'DocumentId', N'[patients].[Documents]';
 GO
 
 -- ---------------------------------------------------------------------------------------------------------------
