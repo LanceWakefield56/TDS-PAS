@@ -556,3 +556,13 @@ DoseRules also has MinWeightKg / MaxWeightKg (body-weight band).
 | Files | Letters, consent and results sent with a request, encrypted at rest; filed in the patient record on acceptance | Id, RequestId → Requests, Category, FileName, ContentType, SizeBytes, Content, PatientDocumentId → patients.Documents |
 | Messages | Questions and answers between the booking office and the rooms | Id, RequestId → Requests, FromTds, Author, Text, At |
 | Settings | Next number, watched folder, email the rooms, largest file, instructions for the rooms, last folder check | Id = 1 |
+
+## 0.29.0 – E-consent and patient education (schema `consent`)
+| Table | Purpose | Key columns |
+|---|---|---|
+| Sheets | Procedure information sheets, one row per version | Id, Code + Version (unique), Status (Draft/Published/Retired), Name, ProcedureWords, About, Benefits, Alternatives, NoTreatment, Anaesthetic, Preparation, Recovery, UpdatedBy, ApprovedBy/At, RetiredAt |
+| Risks | Risks on a sheet | Id, SheetId → Sheets, Order, Text, Frequency (Common/Uncommon/Rare/VeryRare), Serious |
+| Links | Videos and web pages on a sheet | Id, SheetId → Sheets, Order, Title, Url |
+| Consents | Consent for one booking: the sheet as read (Snapshot JSON), link, signature, confirmation, withdrawal | Id, Number (unique), PatientId → patients.Patients, BookingId → theatre.Bookings, SheetId → Sheets, Status, Method (Online/Paper), ClinicianId → core.Clinicians, ExtraRisks, TokenHash, LinkExpiresAt, FailedAttempts, LockedUntil, SectionsRead, Signer, SignerName, SignerRelationship, Interpreter, SignatureImage (encrypted), SignedAt, DocumentId → patients.Documents, ConfirmedAt/By, WithdrawnAt/By/Reason |
+| Questions | Patient questions and the team's answers | Id, ConsentId → Consents, Text, AskedAt, Answer, AnsweredAt, AnsweredBy |
+| Settings | Next number, public web address, link days, booking gate, days ahead for "To prepare" | Id = 1 |

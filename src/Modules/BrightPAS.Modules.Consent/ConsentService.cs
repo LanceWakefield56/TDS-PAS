@@ -162,8 +162,10 @@ public sealed class ConsentService(ConsentDbContext db, TheatreDbContext theatre
         var rows = await q.ToListAsync(ct);
         var names = await PatientNamesAsync(rows.Select(r => r.PatientId), ct);
         var bookingIds = rows.Select(r => r.BookingId).ToList();
-        var dates = await (from b in theatre.Bookings.AsNoTracking() join x in theatre.Sessions.AsNoTracking() on b.SessionId equals x.Id
-                           where bookingIds.Contains(b.Id) select new { b.Id, x.Date }).ToDictionaryAsync(b => b.Id, b => b.Date, ct);
+        var dates = await (from b in theatre.Bookings.AsNoTracking()
+                           join x in theatre.Sessions.AsNoTracking() on b.SessionId equals x.Id
+                           where bookingIds.Contains(b.Id)
+                           select new { b.Id, x.Date }).ToDictionaryAsync(b => b.Id, b => b.Date, ct);
         var ages = await patients.Patients.AsNoTracking().Where(p => rows.Select(r => r.PatientId).Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.DateOfBirth, ct);
         return rows.Select(c =>
         {
@@ -207,8 +209,10 @@ public sealed class ConsentService(ConsentDbContext db, TheatreDbContext theatre
     // ------------------------------------------------------------------ prepare and send
     private async Task<(TheatreBooking? Booking, DateOnly Date, Guid SurgeonId)> BookingAsync(Guid bookingId, CancellationToken ct)
     {
-        var x = await (from b in theatre.Bookings.AsNoTracking() join s in theatre.Sessions.AsNoTracking() on b.SessionId equals s.Id
-                       where b.Id == bookingId select new { b, s.Date, s.SurgeonId }).SingleOrDefaultAsync(ct);
+        var x = await (from b in theatre.Bookings.AsNoTracking()
+                       join s in theatre.Sessions.AsNoTracking() on b.SessionId equals s.Id
+                       where b.Id == bookingId
+                       select new { b, s.Date, s.SurgeonId }).SingleOrDefaultAsync(ct);
         return x is null ? (null, default, default) : (x.b, x.Date, x.SurgeonId);
     }
 

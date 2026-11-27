@@ -440,8 +440,10 @@ public sealed class JourneyService(
         if (On("consent") && (can(Permissions.ConsentManage) || can(Permissions.ConsentConfirm)))
         {
             var cq = await consentDb.Consents.AsNoTracking().Where(c => c.Status != ConsentStatus.Withdrawn && c.Questions.Any(q => q.AnsweredAt == null)).Take(50).ToListAsync(ct);
-            var bookingIds = await (from b in theatre.Bookings.AsNoTracking() join x in theatre.Sessions.AsNoTracking() on b.SessionId equals x.Id
-                                    where x.Date == today && !x.IsCancelled select b.Id).ToListAsync(ct);
+            var bookingIds = await (from b in theatre.Bookings.AsNoTracking()
+                                    join x in theatre.Sessions.AsNoTracking() on b.SessionId equals x.Id
+                                    where x.Date == today && !x.IsCancelled
+                                    select b.Id).ToListAsync(ct);
             var toConfirm = await consentDb.Consents.AsNoTracking().Where(c => c.Status == ConsentStatus.Signed && bookingIds.Contains(c.BookingId)).ToListAsync(ct);
             await Names(cq.Concat(toConfirm).Select(c => c.PatientId));
             foreach (var c in cq) Add("Before surgery", c.PatientId, "Answer the patient's consent question", $"{c.Number} {c.Procedure}", null, new("Open the consent", $"/consent/{c.Id}", Permissions.ConsentManage), 2);

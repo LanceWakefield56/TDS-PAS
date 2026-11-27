@@ -89,6 +89,7 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         await TriageStepsAsync();
         await MedicinesStepsAsync();
         await EBookingsStepsAsync();
+        await ConsentStepsAsync();
         await JourneyStepsAsync();
         await FollowUpStepsAsync();
         await SafetyStepsAsync();
