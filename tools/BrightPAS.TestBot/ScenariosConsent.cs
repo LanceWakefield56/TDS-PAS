@@ -49,14 +49,14 @@ public sealed partial class Scenarios
         await p.GotoAsync(link);
         await p.Locator("input[type=date]").FillAsync(Str(patient, "dateOfBirth")![..10]);
         await p.GetByRole(AriaRole.Button, new() { Name = "Open" }).ClickAsync();
-        await p.Locator("h1:has-text('Kia ora')").WaitForAsync(new() { Timeout = 15000 });
         var boxes = p.GetByLabel("I have read this");
+        await boxes.First.WaitForAsync(new() { Timeout = 15000 }); // the date-of-birth step also says "Kia ora", so wait for the sections
         var n = await boxes.CountAsync();
         for (var i = 0; i < n; i++) { await boxes.Nth(i).CheckAsync(); await Assertions.Expect(boxes.Nth(i)).ToBeDisabledAsync(new() { Timeout = 10000 }); }
         await p.GetByLabel("Type your full name").FillAsync($"{Str(patient, "givenNames")} {Str(patient, "familyName")}");
-        await p.GetByLabel(new System.Text.RegularExpressions.Regex("^I have read the information")).CheckAsync();
-        await p.GetByLabel(new System.Text.RegularExpressions.Regex("^I have had the chance")).CheckAsync();
-        await p.GetByLabel(new System.Text.RegularExpressions.Regex("^I agree to have")).CheckAsync();
+        await p.GetByLabel(new System.Text.RegularExpressions.Regex("I have read the information")).CheckAsync();
+        await p.GetByLabel(new System.Text.RegularExpressions.Regex("I have had the chance")).CheckAsync();
+        await p.GetByLabel(new System.Text.RegularExpressions.Regex("I agree to have")).CheckAsync();
         var shot = await phone.ShotAsync("consent-phone", fullPage: true);
         R.Gallery("/e/:token — patient e-consent on a phone", shot);
         foreach (var u in await Usability.CheckAsync(p, null, 0, desktop: false)) R.Add("screens", "patient", "/e (e-consent, phone)", u.Check, u.Outcome, u.Detail, u.Outcome == Outcome.Warn ? shot : null);
