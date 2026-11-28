@@ -157,8 +157,8 @@ public sealed partial class Scenarios
 
         // Credit note on screen on an invoice with money owing.
         var owing = await fin.GetAsync("/api/billing/documents?kind=Invoice&outstanding=true");
-        var inv = Find(owing.Json, d => Str(d, "payer") == "SelfFunded" && Str(d, "status") is "Issued" or "PartPaid");
-        if (inv is null) return (Outcome.Skip, "No self-funded invoice owing for a credit note.");
+        var inv = Find(owing.Json, d => Str(d, "payer") == "SelfFunded" && Str(d, "status") is "Issued" or "PartPaid" && d.GetProperty("totals").GetProperty("balance").GetDecimal() >= 20m);
+        if (inv is null) return (Outcome.Skip, "No self-funded invoice owing $20 or more for a credit note.");
         var page = fin.Page;
         await page.GotoAsync($"{bot.O.Url}/billing/{Str(inv.Value, "id")}");
         await page.GetByRole(AriaRole.Button, new() { Name = "Credit note", Exact = true }).ClickAsync();
