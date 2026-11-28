@@ -106,7 +106,7 @@ function Settings() {
       <label>Watched network folder (optional)<input value={s.importFolder ?? ''} placeholder="\\xray-pc\export or D:\Imaging-in" onChange={(e) => setS({ ...s, importFolder: e.target.value })} /></label>
       <p className="hint">The X-ray or scanning machine, or a radiology provider, saves DICOM files here. BrightPAS takes them in every minute and moves each to processed\ or failed\. The BrightPAS service account needs Modify rights on the share.</p>
       {f?.folder && <p className="small">Last checked {f.lastRun ? nzDateTime(f.lastRun) : 'not yet'}{f.lastImport && ` · last image ${nzDateTime(f.lastImport)}`} · {f.stored} stored, {f.failed} failed since the website started.</p>}
-      {f?.problem && <p className="error" role="alert">{f.problem}</p>}
+      {f?.problem && <p className="warn-box">{f.problem}</p>}
       <label className="check"><input type="checkbox" checked={s.autoFile} onChange={(e) => setS({ ...s, autoFile: e.target.checked })} /> File images by themselves when the NHI or MRN and the date of birth in the images match one patient</label>
       <p className="hint">Images with a BrightPAS request number are always filed to that request's patient. Untick to have staff check every other study.</p>
       <p className="hint">Connecting a GE (or other) X-ray machine or PACS directly over the network is the next step once the device is chosen; the watched folder and upload stay as the fallback.</p>
@@ -237,7 +237,7 @@ export function ImagingStudy() {
             {d.referringPhysician && <><dt>Referrer</dt><dd>{d.referringPhysician}</dd></>}
             {d.request && <><dt>Request</dt><dd>{d.request.accessionNumber}: {d.request.examination} ({d.request.requestedBy})</dd></>}
           </dl>
-          {d.birthDateMismatch && <p className="error" role="alert">The date of birth in the images is not this patient's. Check this is the right patient.</p>}
+          {d.birthDateMismatch && <p className="warn-box">The date of birth in the images is not this patient's. Check this is the right patient.</p>}
           {can(Perm.ImagingImport) && <div className="row">
             <button className="btn btn-light btn-small" onClick={() => setFiling(true)}>{s.patientId ? 'File to another patient or episode' : 'File to a patient'}</button>
           </div>}
@@ -289,7 +289,7 @@ function FileForm({ study, onClose, onDone }: { study: any; onClose: () => void;
       <form className="stack" onSubmit={save}>
         <p>In the images: <strong>{s.filePatientName ?? '—'}</strong>, ID {s.filePatientId ?? '—'}{s.fileBirthDate ? `, born ${formatDate(s.fileBirthDate)}` : ''}</p>
         <PatientPicker value={who} onChange={setWho} label={s.patientId ? 'Move to another patient (leave empty to keep this patient)' : 'Patient'} />
-        {mismatch && <p className="error" role="alert">This patient's date of birth ({formatDate(who!.dateOfBirth)}) is not the one in the images.</p>}
+        {mismatch && <p className="warn-box">This patient's date of birth ({formatDate(who!.dateOfBirth)}) is not the one in the images.</p>}
         {mismatch && <label className="check"><input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} /> I have checked these are this patient's images</label>}
         <label>Episode<select value={bookingId} onChange={(e) => setBookingId(e.target.value)}><option value="">Not linked to a booking</option>{episodes.map((x) => <option key={x.bookingId} value={x.bookingId}>{formatDate(x.date)} {x.procedure}</option>)}</select></label>
         <Errors list={errors} />

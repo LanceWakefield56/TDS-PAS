@@ -24,7 +24,7 @@ public sealed partial class Crawler(Bot bot)
         "/theatre/templates", "/calendar", "/roster", "/letters", "/letters/new", "/admin/letters", "/waitlist", "/admin/interfaces", "/messaging", "/messaging/interfaces",
         "/messaging/messages", "/messaging/flows", "/messaging/mappings", "/messaging/tables", "/messaging/settings", "/labs", "/theatre", "/forms", "/billing", "/billing/new",
         "/reminders", "/admin/identity", "/credentialing", "/portal", "/portal/requests", "/admin/security", "/waitlist/nbrs", "/cssd", "/assets", "/stock", "/emr", "/endoscopy", "/scribe", "/devices",
-        "/quality", "/quality/report", "/quality/mine", "/coding", "/estimates", "/estimates/new", "/estimates/outbox", "/estimates/admin", "/triage", "/triage/rules", "/triage/report", "/medicines", "/rooms-bookings", "/consent", "/payments", "/imaging", "/imaging?tab=unmatched", "/imaging?tab=requests", "/day", "/followup", "/followup/ssi", "/followup/plans", "/followup/report", "/outbox", "/research", "/forms/designer", "/claims", "/claims/settings", "/claims/xero", "/claims/eftpos",
+        "/quality", "/quality/report", "/quality/mine", "/coding", "/estimates", "/estimates/new", "/estimates/outbox", "/estimates/admin", "/triage", "/triage/rules", "/triage/report", "/medicines", "/rooms-bookings", "/consent", "/payments", "/imaging", "/day", "/followup", "/followup/ssi", "/followup/plans", "/followup/report", "/outbox", "/research", "/forms/designer", "/claims", "/claims/settings", "/claims/xero", "/claims/eftpos",
     ];
 
     // Buttons the robot never presses while exploring: they sign out, destroy, send for real, or change security. The scripted device tests cover sending.
