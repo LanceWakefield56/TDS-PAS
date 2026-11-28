@@ -52,7 +52,7 @@ public sealed partial class Scenarios
         await p.GotoAsync(bot.O.Url + new Uri(_payLink).PathAndQuery);
         await p.Locator("input[type=date]").FillAsync(Str(patient, "dateOfBirth")![..10]);
         await p.GetByRole(AriaRole.Button, new() { Name = "Open" }).ClickAsync();
-        await p.Locator("h1:has-text('Kia ora')").WaitForAsync(new() { Timeout = 15000 });
+        await p.GetByText("Total owing").WaitForAsync(new() { Timeout = 15000 }); // the date-of-birth step also says "Kia ora"
         var shot = await phone.ShotAsync("pay-phone", fullPage: true);
         R.Gallery("/pay/:token — patient pays online on a phone", shot);
         foreach (var u in await Usability.CheckAsync(p, null, 0, desktop: false)) R.Add("screens", "patient", "/pay (online payment, phone)", u.Check, u.Outcome, u.Detail, u.Outcome == Outcome.Warn ? shot : null);
