@@ -1498,11 +1498,12 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
     {
         var svc = S<BrightPAS.Modules.Payments.PaymentLinkService>();
         Ok(await svc.SaveSettingsAsync(new(BrightPAS.Modules.Payments.GatewayProvider.Simulator, "https://localhost:5001", 30, 10m, null, null, null, 5m,
-            "Demonstration system – invented data only."), "admin", ct), "payment settings");
+            "Demonstration system – invented data only.", 0, false, 14, 28, true, 2), "admin", ct), "payment settings");
         var owing = await S<BillingDbContext>().Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments)
             .Where(d => d.Kind == DocumentKind.Invoice && d.Payer == Payer.SelfFunded && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid))
             .OrderBy(d => d.IssuedOn).ThenBy(d => d.Number).Skip(1).Take(4).ToListAsync(ct);
         var pdb = S<PatientsDbContext>();
+        Guid? refundable = null;
         for (var k = 0; k < owing.Count; k++)
         {
             var inv = owing[k];
@@ -1516,7 +1517,17 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             var (url, se) = await svc.StartAsync(token, dob, amount, ct);
             Ok(se, "start online payment");
             Ok((await svc.SimulateAsync(token, url!.Split("ref=")[1], k == 3 ? "decline" : "approve", ct)).Error, "simulated payment");
+            if (k == 2) refundable = inv.Id;
         }
+        // 0.32.0: a part refund back to the card, and a payment plan for the oldest self-funded balance.
+        if (refundable is { } rid && (await svc.PaymentsAsync("approved", rid, ct)).FirstOrDefault() is { } paid)
+            Ok((await S<BrightPAS.Modules.Payments.RefundService>().RefundAsync(paid.Id, Math.Min(20m, paid.Amount), "Charged for a test that was not done (demo)", "finance", ct)).Error, "refund");
+        var first = await S<BillingDbContext>().Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments)
+            .Where(d => d.Kind == DocumentKind.Invoice && d.Payer == Payer.SelfFunded && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid))
+            .OrderBy(d => d.IssuedOn).ThenBy(d => d.Number).FirstOrDefaultAsync(ct);
+        if (first is not null && BillingService.Calculate(first).Balance >= 40m)
+            Ok((await S<BrightPAS.Modules.Payments.PlanService>().CreateAsync(new(first.PatientId, [first.Id], Math.Ceiling(BillingService.Calculate(first).Balance / 4m), BrightPAS.Modules.Payments.PlanFrequency.Fortnightly,
+                _today.AddDays(7), "Agreed with the patient by phone (demo)"), "finance", ct)).Errors, "payment plan");
         var st = S<BrightPAS.Modules.Payments.StatementService>();
         var (run, re) = await st.PrepareAsync(_today, "finance", ct);
         if (run is null) return; // nothing owing (should not happen with the demo invoices)

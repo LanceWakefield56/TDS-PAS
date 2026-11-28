@@ -163,6 +163,13 @@ public sealed class TestWindcave : BrightPAS.Modules.Payments.IWindcaveApi
         Queries++;
         return Task.FromResult(Results.TryGetValue(sessionId, out var r) ? r : new BrightPAS.Modules.Payments.GatewayResult(false, false, false, null, null, null, null, null));
     }
+    public List<(string TransactionId, decimal Amount, string Reference)> Refunds { get; } = [];
+    public bool RefundOk { get; set; } = true;
+    public Task<BrightPAS.Modules.Payments.GatewayRefund> RefundAsync(string baseUrl, string user, string key, string transactionId, decimal amount, string merchantReference, CancellationToken ct)
+    {
+        Refunds.Add((transactionId, amount, merchantReference));
+        return Task.FromResult(RefundOk ? new BrightPAS.Modules.Payments.GatewayRefund(true, $"R{Refunds.Count}", null) : new BrightPAS.Modules.Payments.GatewayRefund(false, null, "DECLINED"));
+    }
 }
 
 public sealed class TestStatementPdf : BrightPAS.Modules.Payments.IStatementPdf

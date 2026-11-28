@@ -164,6 +164,14 @@ public sealed class ReminderService(
             "{ClinicName}: your statement is ready. See it and pay securely online: {Link} You will need your date of birth. Questions? Phone {ClinicPhone}."),
         (MessageKind.Statement, Channel.Email, "Your statement from {ClinicName}",
             "Kia ora {FirstName},\n\nYour statement is ready. You can see what is owing, download the statement and pay securely by card here:\n\n{Link}\n\nYou will need your date of birth to open it. Please keep this link private. If you have already paid, thank you – please ignore this message.\n\nIf you have any questions about your account, phone us on {ClinicPhone}.\n\nNgā mihi,\n{ClinicName}"),
+        (MessageKind.OverdueReminder, Channel.Sms, null,
+            "{ClinicName}: a reminder that invoice {InvoiceNumber} ({Amount}) was due on {Date}. Pay securely online: {Link} You will need your date of birth. Can't pay right now? Phone {ClinicPhone} about a payment plan."),
+        (MessageKind.OverdueReminder, Channel.Email, "Payment reminder – {ClinicName}",
+            "Kia ora {FirstName},\n\nOur records show that invoice {InvoiceNumber} ({Amount} owing) was due on {Date}. You can see your account and pay securely by card here:\n\n{Link}\n\nYou will need your date of birth to open it. Please keep this link private. If you have already paid, thank you – please ignore this message.\n\nIf paying all at once is hard, phone us on {ClinicPhone} and we can set up a payment plan.\n\nNgā mihi,\n{ClinicName}"),
+        (MessageKind.PlanInstalment, Channel.Sms, null,
+            "{ClinicName}: your payment plan instalment of {Amount} is due on {Date}. Pay securely online: {Link} You will need your date of birth. Questions? Phone {ClinicPhone}."),
+        (MessageKind.PlanInstalment, Channel.Email, "Your payment plan instalment – {ClinicName}",
+            "Kia ora {FirstName},\n\nYour next payment plan instalment of {Amount} is due on {Date}. You can pay it securely by card here:\n\n{Link}\n\nYou will need your date of birth to open it. Please keep this link private. If you have already paid, thank you – please ignore this message.\n\nNgā mihi,\n{ClinicName}"),
         (MessageKind.ReplyConfirmed, Channel.Sms, null, "Thank you, your appointment on {Date} is confirmed. {ClinicName}"),
         (MessageKind.ReplyCancelRequested, Channel.Sms, null, "Thank you for letting us know. Our team will phone you about your appointment. {ClinicName} {ClinicPhone}"),
         (MessageKind.OptOutConfirmed, Channel.Sms, null, "You will no longer get text messages from {ClinicName}. Reply START to get them again."),
@@ -188,7 +196,7 @@ public sealed class ReminderService(
             .Select(t => new TemplateRow(t.Id, t.Kind.ToString(), t.Channel.ToString(), t.Language, t.Subject, t.Body, t.IsActive, t.UpdatedAt, t.UpdatedBy)).ToList();
     }
 
-    public static readonly string[] Placeholders = ["{FirstName}", "{ClinicName}", "{ClinicPhone}", "{Date}", "{ArrivalTime}", "{Location}", "{Surgeon}", "{Link}"];
+    public static readonly string[] Placeholders = ["{FirstName}", "{ClinicName}", "{ClinicPhone}", "{Date}", "{ArrivalTime}", "{Location}", "{Surgeon}", "{Link}", "{Amount}", "{InvoiceNumber}"];
 
     public async Task<string?> SaveTemplateAsync(MessageKind kind, Channel channel, string language, string? subject, string body, bool active, string user, CancellationToken ct = default)
     {
@@ -196,7 +204,7 @@ public sealed class ReminderService(
         if (string.IsNullOrWhiteSpace(body)) return "The message text is empty.";
         if (body.Length > (channel == Channel.Sms ? 612 : 4000)) return channel == Channel.Sms ? "SMS text is too long (612 characters = 4 SMS parts maximum)." : "Email text is too long.";
         if (channel == Channel.Email && string.IsNullOrWhiteSpace(subject)) return "Enter an email subject.";
-        if (kind is MessageKind.FormLink or MessageKind.PortalLink or MessageKind.FollowUpCheckIn or MessageKind.ConsentLink or MessageKind.PaymentLink or MessageKind.Statement && !body.Contains("{Link}", StringComparison.Ordinal)) return "This message must contain {Link}.";
+        if (kind is MessageKind.FormLink or MessageKind.PortalLink or MessageKind.FollowUpCheckIn or MessageKind.ConsentLink or MessageKind.PaymentLink or MessageKind.Statement or MessageKind.OverdueReminder or MessageKind.PlanInstalment && !body.Contains("{Link}", StringComparison.Ordinal)) return "This message must contain {Link}.";
         var unknown = System.Text.RegularExpressions.Regex.Matches(body + subject, @"\{[A-Za-z]+\}").Select(m => m.Value).Where(p => !Placeholders.Contains(p)).Distinct().ToList();
         if (unknown.Count > 0) return $"Unknown placeholder(s): {string.Join(", ", unknown)}. Allowed: {string.Join(" ", Placeholders)}";
         var t = await db.Templates.SingleOrDefaultAsync(x => x.Kind == kind && x.Channel == channel && x.Language == language, ct);
@@ -407,7 +415,7 @@ public sealed class ReminderService(
     }
 
     private async Task<List<OutboundMessage>> QueueAsync(ReminderSettings s, Patient p, MessageKind kind, Appointment? a, string? link, string dedupePrefix,
-        bool sms, bool email, bool ignoreQuiet, string user, CancellationToken ct, bool bypassOptOut = false)
+        bool sms, bool email, bool ignoreQuiet, string user, CancellationToken ct, bool bypassOptOut = false, IReadOnlyDictionary<string, string?>? extra = null)
     {
         var created = new List<OutboundMessage>();
         var pref = await db.Preferences.AsNoTracking().SingleOrDefaultAsync(x => x.PatientId == p.Id, ct) ?? new ContactPreference { PatientId = p.Id };
@@ -426,6 +434,7 @@ public sealed class ReminderService(
             var tpl = await TemplateAsync(kind, channel, pref.Language, ct);
             if (tpl is null) { if (channel == Channel.Email) continue; suppressed ??= "No active message template."; }
             var values = Values(s, p, a, link is null ? null : "{Link}");
+            if (extra is not null) foreach (var (k, v) in extra) values[k] = v;
             var m = new OutboundMessage
             {
                 PatientId = p.Id,
@@ -509,16 +518,18 @@ public sealed class ReminderService(
     }
 
     /// <summary>Payment link or statement (0.30.0): SMS and/or email with the patient's secret payment link.</summary>
-    public async Task<IReadOnlyList<OutboundMessage>> QueuePaymentLinkAsync(Guid patientId, MessageKind kind, string link, string dedupeKey, string user, CancellationToken ct = default)
+    public async Task<IReadOnlyList<OutboundMessage>> QueuePaymentLinkAsync(Guid patientId, MessageKind kind, string link, string dedupeKey, string user, CancellationToken ct = default,
+        IReadOnlyDictionary<string, string?>? extra = null)
     {
-        if (kind is not (MessageKind.PaymentLink or MessageKind.Statement)) throw new ArgumentOutOfRangeException(nameof(kind));
+        if (kind is not (MessageKind.PaymentLink or MessageKind.Statement or MessageKind.OverdueReminder or MessageKind.PlanInstalment)) throw new ArgumentOutOfRangeException(nameof(kind));
         var s = await SettingsAsync(ct);
         await EnsureTemplatesAsync(ct);
         var p = await patients.Patients.AsNoTracking().SingleOrDefaultAsync(x => x.Id == patientId, ct);
         if (p is null) return [];
-        var list = await QueueAsync(s, p, kind, null, link, dedupeKey, true, true, ignoreQuiet: false, user, ct);
+        var list = await QueueAsync(s, p, kind, null, link, dedupeKey, true, true, ignoreQuiet: false, user, ct, extra: extra);
         await db.SaveChangesAsync(ct);
-        await audit.WriteAsync(user, "Queue", "OutboundMessage", string.Join(",", list.Select(m => m.Id)), patientId.ToString(), reason: kind == MessageKind.Statement ? "Statement" : "Payment link", ct: ct);
+        await audit.WriteAsync(user, "Queue", "OutboundMessage", string.Join(",", list.Select(m => m.Id)), patientId.ToString(),
+            reason: kind switch { MessageKind.Statement => "Statement", MessageKind.OverdueReminder => "Overdue reminder", MessageKind.PlanInstalment => "Payment plan reminder", _ => "Payment link" }, ct: ct);
         return list;
     }
 
@@ -673,7 +684,7 @@ public sealed class ReminderService(
 
     private static string Problem(ISmsGateway? g, ReminderSettings s, string what) => g?.ConfigurationProblem(s) ?? $"No {what} sender is available for {s.SmsProvider}.";
 
-    private static string LinkPlaceholder(MessageKind kind) => kind switch { MessageKind.PortalLink => "[portal link]", MessageKind.FollowUpCheckIn => "[check-in link]", MessageKind.ConsentLink => "[consent link]", MessageKind.PaymentLink or MessageKind.Statement => "[payment link]", _ => "[questionnaire link]" };
+    private static string LinkPlaceholder(MessageKind kind) => kind switch { MessageKind.PortalLink => "[portal link]", MessageKind.FollowUpCheckIn => "[check-in link]", MessageKind.ConsentLink => "[consent link]", MessageKind.PaymentLink or MessageKind.Statement or MessageKind.OverdueReminder or MessageKind.PlanInstalment => "[payment link]", _ => "[questionnaire link]" };
 
     private static void Close(OutboundMessage m, MessageStatus status, string why) { m.Status = status; m.LastError = why; m.SecretLink = null; }
 
@@ -838,7 +849,7 @@ public sealed class ReminderService(
         var m = await db.Messages.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (m is null) return "Message not found.";
         if (m.Status is not (MessageStatus.Failed or MessageStatus.Suppressed)) return "Only failed or held messages can be retried.";
-        if (m.Kind is MessageKind.FormLink or MessageKind.PortalLink or MessageKind.FollowUpCheckIn or MessageKind.ConsentLink or MessageKind.PaymentLink or MessageKind.Statement && m.SecretLink is null) return "Secure links cannot be resent (the link is not stored). Create a new link instead.";
+        if (m.Kind is MessageKind.FormLink or MessageKind.PortalLink or MessageKind.FollowUpCheckIn or MessageKind.ConsentLink or MessageKind.PaymentLink or MessageKind.Statement or MessageKind.OverdueReminder or MessageKind.PlanInstalment && m.SecretLink is null) return "Secure links cannot be resent (the link is not stored). Create a new link instead.";
         m.Status = MessageStatus.Queued; m.Attempts = 0; m.NextAttemptAt = clock.GetUtcNow(); m.IgnoreQuietHours = true; m.LastError = null;
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Retry", "OutboundMessage", m.Id.ToString(), m.PatientId?.ToString(), ct: ct);

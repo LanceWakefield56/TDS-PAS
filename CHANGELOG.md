@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.32.0 – 2026-11-28 – **Refunds, payment plans and automatic statements**
+- **Online payments extras (ADR 0045, guide H39)**:
+  - **Refunds:** refund part or all of an online payment back to the card (Windcave refund, or the simulator). Money that never went on an invoice goes back first (and clears Needs attention); the rest comes off the invoices it paid. New permission "Refund online payments" (Finance). Refunds tab.
+  - **Payment plans:** weekly, fortnightly or monthly instalments for one or more invoices (up to 24). Any payment on those invoices counts – desk, online or bank. Shows what is paid, what is still to pay, the next date and whether the patient is behind; completes itself when paid off. Reminder with a payment link before each instalment.
+  - **Every day, automatically** (after 9 am, or "Run the daily round now"): statements prepared (and sent if wanted) on a chosen day of the month; first and second overdue reminders after the due date, once each per invoice; payment plan reminders. All off until switched on.
+  - **Insurer shortfalls** (optional): what is left on an insurer invoice after the insurer has paid goes on statements, reminders and plans.
+  - Patients keeping up with a payment plan are left off statements and overdue reminders.
+- Reminders: new message kinds "Overdue reminder" and "Payment plan reminder"; templates can use {Amount} and {InvoiceNumber}.
+- Billing: refunds recorded as negative payments.
+- Demo data: a refund and a payment plan; overdue reminders at 14 and 28 days; shortfalls on.
+- Test robot: refund through the simulator, payment plan instalments, reception cannot refund or make plans.
+
 ## 0.31.0 – 2026-11-28 – **Prescribing and barcode medicine checks**
 - **Prescribing module (ADR 0044, guide H38)** – licence "prescribing"; permissions View / Prescribe / Manage (Anaesthetist all three, Surgeon View and Prescribe, Nurse View, System administrator Manage); "Prescribing" under Day of surgery.
   - **Medicine chart:** prescribers order medicines on the episode (once, regular or as needed, how often, what for); nurses press Give to chart against an order; once-only orders are then Given; stop with a reason.

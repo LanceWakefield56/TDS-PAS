@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { api, ApiError, downloadPost, errText, formatDate, money, nzDateTime, Perm, todayIso } from '../api';
 import { useSession } from '../App';
+import Modal from '../components/Modal';
+import PatientPicker from '../components/PatientPicker';
 
 /** Online payments and statements (0.30.0, ADR 0043). */
 const errs = (e: unknown) => (e instanceof ApiError && e.body?.errors ? e.body.errors as string[] : [errText(e)]);
@@ -19,7 +21,7 @@ export default function Payments() {
   const [params, setParams] = useSearchParams();
   const { can } = useSession();
   const tab = params.get('tab') ?? 'online';
-  const tabs: [string, string][] = [['online', 'Online payments'], ['attention', 'Needs attention'], ['links', 'Payment links'], ['statements', 'Statements']];
+  const tabs: [string, string][] = [['online', 'Online payments'], ['attention', 'Needs attention'], ['links', 'Payment links'], ['statements', 'Statements'], ['plans', 'Payment plans'], ['refunds', 'Refunds'], ['overdue', 'Overdue reminders']];
   if (can(Perm.OnlinePaySettings)) tabs.push(['settings', 'Settings']);
   return (
     <div className="stack-lg">
@@ -28,6 +30,9 @@ export default function Payments() {
       {(tab === 'online' || tab === 'attention') && <OnlineList view={tab === 'attention' ? 'attention' : 'all'} />}
       {tab === 'links' && <LinkList />}
       {tab === 'statements' && <Statements />}
+      {tab === 'plans' && <Plans />}
+      {tab === 'refunds' && <Refunds />}
+      {tab === 'overdue' && <Overdue />}
       {tab === 'settings' && <Settings />}
     </div>
   );
@@ -39,12 +44,14 @@ function OnlineList({ view }: { view: string }) {
   const [errors, setErrors] = useState<string[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [note, setNote] = useState<Record<string, string>>({});
+  const [refunding, setRefunding] = useState<any | null>(null);
   const load = () => api<any[]>(`/api/payments/online?view=${view}`).then(setRows).catch((e) => setErrors(errs(e)));
   useEffect(() => { setRows(null); void load(); }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
   const act = async (fn: () => Promise<unknown>, done: string) => { setErrors([]); setMsg(null); try { await fn(); setMsg(done); await load(); } catch (e) { setErrors(errs(e)); } };
   return (
     <section className="card stack">
-      {view === 'attention' && <p className="muted">Money taken online that could not all be put on an invoice (for example the invoice was paid at the desk meanwhile). Refund it in the payment provider's portal or apply it by hand, then say what you did.</p>}
+      {view === 'attention' && <p className="muted">Money taken online that could not all be put on an invoice (for example the invoice was paid at the desk meanwhile). Refund it to the card with Refund, or apply it by hand and say what you did.</p>}
+      {refunding && <RefundForm payment={refunding} onClose={() => setRefunding(null)} onDone={(m) => { setRefunding(null); setMsg(m); void load(); }} />}
       {msg && <p className="notice" role="status">{msg}</p>}
       <Errors list={errors} />
       {!rows ? <p>Loading…</p> : rows.length === 0 ? <p className="muted">Nothing here.</p> : (
@@ -55,7 +62,8 @@ function OnlineList({ view }: { view: string }) {
               <tr key={r.id}>
                 <td>{nzDateTime(r.startedAt)}</td>
                 <td><Link to={`/patients/${r.patientId}`}>{r.patient}</Link></td>
-                <td>{money(r.amount)}</td>
+                <td>{money(r.amount)}{r.refunded > 0 && <div className="small muted">Refunded {money(r.refunded)}</div>}
+                  {r.status === 'Approved' && r.amount - r.refunded > 0 && can(Perm.OnlinePayRefund) && <div><button className="btn btn-link" onClick={() => setRefunding(r)}>Refund</button></div>}</td>
                 <td><span className={PAY_PILL[r.status]}>{PAY_TEXT[r.status]}</span>{r.status !== 'Approved' && r.responseText && <div className="small muted">{r.responseText}</div>}
                   {r.status === 'Started' && can(Perm.OnlinePayManage) && <div><button className="btn btn-link" onClick={() => void act(() => api(`/api/payments/online/${r.id}/check`, { body: {} }), 'Checked with the payment provider.')}>Check now</button></div>}
                   {r.needsAttention && <div className="stack-sm"><span className="pill red">Needs attention</span><div className="small">{r.attentionReason}</div>
@@ -65,6 +73,203 @@ function OnlineList({ view }: { view: string }) {
                 <td>{r.card ?? '—'}{r.authCode && <div className="small muted">Auth {r.authCode}</div>}</td>
                 <td className="small">{r.appliedTo.length ? r.appliedTo.join(', ') : '—'}</td>
                 <td className="small">{r.merchantReference}{r.provider === 'Simulator' && <div className="muted">Simulator</div>}</td>
+              </tr>))}</tbody>
+          </table>
+        </div>)}
+    </section>
+  );
+}
+
+function RefundForm({ payment, onClose, onDone }: { payment: any; onClose: () => void; onDone: (msg: string) => void }) {
+  const [amount, setAmount] = useState(String((payment.amount - payment.refunded).toFixed(2)));
+  const [reason, setReason] = useState('');
+  const [errors, setErrors] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    setErrors([]); setBusy(true);
+    try {
+      const r = await api<any>(`/api/payments/online/${payment.id}/refund`, { body: { amount: Number(amount), reason } });
+      onDone(`Refund ${r.number} sent back to the card.${r.appliedTo ? ` Taken off: ${r.appliedTo}.` : ''}`);
+    } catch (e) { setErrors(errs(e)); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title={`Refund to ${payment.card ?? 'the card'}`} onClose={onClose}>
+      <p className="small muted">{payment.patient} paid {money(payment.amount)} online{payment.refunded > 0 ? `, ${money(payment.refunded)} already refunded` : ''}. Money that was never put on an invoice is refunded first; the rest comes off the invoices it paid.</p>
+      <label>Amount to refund ($)<input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} /></label>
+      <label>Why<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="For example paid twice, or procedure cancelled" /></label>
+      <Errors list={errors} />
+      <div className="row"><button className="btn btn-primary" disabled={busy} onClick={() => void go()}>Refund now</button><button className="btn btn-light" onClick={onClose}>Cancel</button></div>
+    </Modal>
+  );
+}
+
+const PLAN_TEXT: Record<string, string> = { Active: 'Active', Completed: 'Paid off', Cancelled: 'Cancelled' };
+const FREQ_TEXT: Record<string, string> = { Weekly: 'weekly', Fortnightly: 'fortnightly', Monthly: 'monthly' };
+
+function Plans() {
+  const { can } = useSession();
+  const [view, setView] = useState('active');
+  const [rows, setRows] = useState<any[] | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [open, setOpen] = useState<any | null>(null);
+  const load = () => api<any[]>(`/api/payments/plans?view=${view}`).then(setRows).catch((e) => setErrors(errs(e)));
+  useEffect(() => { setRows(null); void load(); }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <section className="card stack">
+      <p className="muted">A payment plan lets a patient pay their balance off in regular amounts. Any payment on the plan's invoices counts – at the desk, online or by bank. Patients get a reminder with a payment link before each instalment, and are left off statements and overdue reminders while they keep up.</p>
+      <div className="row">
+        <label>Show<select value={view} onChange={(e) => setView(e.target.value)}><option value="active">Active plans</option><option value="behind">Behind with payments</option><option value="all">All plans</option></select></label>
+        {can(Perm.OnlinePayManage) && <button className="btn btn-primary" onClick={() => setAdding(true)}>New payment plan</button>}
+      </div>
+      {msg && <p className="notice" role="status">{msg}</p>}
+      <Errors list={errors} />
+      {adding && <NewPlan onClose={() => setAdding(false)} onDone={(m) => { setAdding(false); setMsg(m); void load(); }} />}
+      {open && <PlanView id={open.id} onClose={() => setOpen(null)} onChange={(m) => { setOpen(null); setMsg(m); void load(); }} />}
+      {!rows ? <p>Loading…</p> : rows.length === 0 ? <p className="muted">No payment plans here.</p> : (
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Payment plans">
+          <table className="results">
+            <thead><tr><th>Plan</th><th>Patient</th><th>Amount</th><th>Instalments</th><th>Paid so far</th><th>Still to pay</th><th>Next due</th><th>Status</th></tr></thead>
+            <tbody>{rows.map((r) => (
+              <tr key={r.id}>
+                <td><button className="btn btn-link" onClick={() => setOpen(r)}>{r.number}</button><div className="small muted">{r.invoices.join(', ')}</div></td>
+                <td><Link to={`/patients/${r.patientId}`}>{r.patient}</Link></td>
+                <td>{money(r.total)}</td>
+                <td>{money(r.instalment)} {FREQ_TEXT[r.frequency]}</td>
+                <td>{money(r.paidSoFar)}</td>
+                <td>{money(r.remaining)}</td>
+                <td>{r.nextDue ? formatDate(r.nextDue) : '—'}</td>
+                <td><span className={r.status === 'Active' ? (r.behind > 0 ? 'pill red' : 'pill green') : 'pill'}>{r.status === 'Active' && r.behind > 0 ? `Behind ${money(r.behind)}` : PLAN_TEXT[r.status]}</span>
+                  {r.endReason && <div className="small muted">{r.endReason}</div>}</td>
+              </tr>))}</tbody>
+          </table>
+        </div>)}
+    </section>
+  );
+}
+
+function NewPlan({ onClose, onDone }: { onClose: () => void; onDone: (msg: string) => void }) {
+  const [patient, setPatient] = useState<any | null>(null);
+  const [options, setOptions] = useState<any[] | null>(null);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [instalment, setInstalment] = useState('');
+  const [frequency, setFrequency] = useState('Fortnightly');
+  const [firstDue, setFirstDue] = useState(todayIso());
+  const [note, setNote] = useState('');
+  const [errors, setErrors] = useState<string[]>([]);
+  useEffect(() => {
+    setOptions(null); setChosen([]);
+    if (patient) api<any[]>(`/api/payments/plans/options/${patient.id}`).then((o) => { setOptions(o); setChosen(o.map((x) => x.invoiceId)); }).catch((e) => setErrors(errs(e)));
+  }, [patient]);
+  const total = (options ?? []).filter((o) => chosen.includes(o.invoiceId)).reduce((t, o) => t + o.balance, 0);
+  const count = Number(instalment) > 0 ? Math.ceil(total / Number(instalment)) : 0;
+  const save = async () => {
+    setErrors([]);
+    try {
+      const r = await api<any>('/api/payments/plans', { body: { patientId: patient?.id, invoiceIds: chosen, instalment: Number(instalment), frequency, firstDue, note: note || null } });
+      onDone(`Payment plan ${r.number} set up.`);
+    } catch (e) { setErrors(errs(e)); }
+  };
+  return (
+    <Modal title="New payment plan" onClose={onClose} wide>
+      <PatientPicker value={patient} onChange={setPatient} />
+      {patient && options && (options.length === 0 ? <p className="muted">This patient has no balance that can go on a plan.</p> : <>
+        <fieldset><legend>Invoices on the plan</legend>
+          {options.map((o) => <label key={o.invoiceId} className="check"><input type="checkbox" checked={chosen.includes(o.invoiceId)} onChange={(e) => setChosen(e.target.checked ? [...chosen, o.invoiceId] : chosen.filter((x) => x !== o.invoiceId))} /> {o.number} – {money(o.balance)} owing</label>)}
+        </fieldset>
+        <div className="form-grid">
+          <label>Each instalment ($)<input value={instalment} inputMode="decimal" onChange={(e) => setInstalment(e.target.value)} /></label>
+          <label>How often<select value={frequency} onChange={(e) => setFrequency(e.target.value)}><option value="Weekly">Weekly</option><option value="Fortnightly">Fortnightly</option><option value="Monthly">Monthly</option></select></label>
+          <label>First instalment due<input type="date" value={firstDue} onChange={(e) => setFirstDue(e.target.value)} /></label>
+          <label className="span-all">Note (optional)<input value={note} onChange={(e) => setNote(e.target.value)} placeholder="For example agreed by phone with the patient" /></label>
+        </div>
+        <p className="small">Total {money(total)}{count > 0 && ` – ${count} instalment${count === 1 ? '' : 's'}`}.</p>
+      </>)}
+      <Errors list={errors} />
+      <div className="row"><button className="btn btn-primary" disabled={!patient || chosen.length === 0} onClick={() => void save()}>Set up plan</button><button className="btn btn-light" onClick={onClose}>Cancel</button></div>
+    </Modal>
+  );
+}
+
+function PlanView({ id, onClose, onChange }: { id: string; onClose: () => void; onChange: (msg: string) => void }) {
+  const { can } = useSession();
+  const [d, setD] = useState<any | null>(null);
+  const [reason, setReason] = useState('');
+  const [errors, setErrors] = useState<string[]>([]);
+  useEffect(() => { api<any>(`/api/payments/plans/${id}`).then(setD).catch((e) => setErrors(errs(e))); }, [id]);
+  const cancel = async () => {
+    setErrors([]);
+    try { await api(`/api/payments/plans/${id}/cancel`, { body: { note: reason } }); onChange('Payment plan cancelled.'); } catch (e) { setErrors(errs(e)); }
+  };
+  return (
+    <Modal title={d ? `Payment plan ${d.plan.number}` : 'Payment plan'} onClose={onClose} wide>
+      {!d ? <p>{errors.join(' ') || 'Loading…'}</p> : <>
+        <p>{d.plan.patient}: {money(d.plan.total)} as {money(d.plan.instalment)} {FREQ_TEXT[d.plan.frequency]}. Paid so far {money(d.progress.paidSoFar)}, still to pay {money(d.progress.remaining)}.{d.plan.note && ` ${d.plan.note}`}</p>
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Instalments">
+          <table className="results">
+            <thead><tr><th>Instalment</th><th>Due</th><th>Amount</th><th>Paid</th></tr></thead>
+            <tbody>{d.progress.schedule.map((i: any) => <tr key={i.number}><td>{i.number}</td><td>{formatDate(i.dueOn)}</td><td>{money(i.amount)}</td><td>{i.paid ? 'Yes' : '—'}</td></tr>)}</tbody>
+          </table>
+        </div>
+        {d.plan.status === 'Active' && can(Perm.OnlinePayManage) && <div className="stack-sm">
+          <label>Reason for cancelling<input value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+          <div><button className="btn btn-light" onClick={() => void cancel()}>Cancel plan</button></div>
+        </div>}
+        <Errors list={errors} />
+      </>}
+    </Modal>
+  );
+}
+
+function Refunds() {
+  const [rows, setRows] = useState<any[] | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  useEffect(() => { api<any[]>('/api/payments/refunds').then(setRows).catch((e) => setErrors(errs(e))); }, []);
+  return (
+    <section className="card stack">
+      <p className="muted">Card refunds made from BrightPAS. Use Refund on an online payment to make one.</p>
+      <Errors list={errors} />
+      {!rows ? <p>Loading…</p> : rows.length === 0 ? <p className="muted">No refunds yet.</p> : (
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Refunds">
+          <table className="results">
+            <thead><tr><th>Refund</th><th>When</th><th>Patient</th><th>Amount</th><th>Result</th><th>Taken off</th><th>Why</th></tr></thead>
+            <tbody>{rows.map((r) => (
+              <tr key={r.id}>
+                <td>{r.number}<div className="small muted">{r.paymentReference}</div></td>
+                <td>{nzDateTime(r.createdAt)}<div className="small muted">{r.createdBy}</div></td>
+                <td><Link to={`/patients/${r.patientId}`}>{r.patient}</Link></td>
+                <td>{money(r.amount)}</td>
+                <td><span className={r.status === 'Done' ? 'pill green' : 'pill red'}>{r.status === 'Done' ? 'Refunded' : 'Did not go through'}</span>{r.error && <div className="small muted">{r.error}</div>}</td>
+                <td className="small">{r.appliedTo ?? '—'}</td>
+                <td className="small">{r.reason}</td>
+              </tr>))}</tbody>
+          </table>
+        </div>)}
+    </section>
+  );
+}
+
+function Overdue() {
+  const [rows, setRows] = useState<any[] | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  useEffect(() => { api<any[]>('/api/payments/overdue').then(setRows).catch((e) => setErrors(errs(e))); }, []);
+  return (
+    <section className="card stack">
+      <p className="muted">Reminders sent automatically for invoices that are past their due date (set the days in Settings). Each invoice gets each reminder once.</p>
+      <Errors list={errors} />
+      {!rows ? <p>Loading…</p> : rows.length === 0 ? <p className="muted">No overdue reminders sent yet.</p> : (
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Overdue reminders">
+          <table className="results">
+            <thead><tr><th>Sent</th><th>Patient</th><th>Invoice</th><th>Reminder</th><th>Owing then</th><th>Messages</th></tr></thead>
+            <tbody>{rows.map((r) => (
+              <tr key={r.id}>
+                <td>{nzDateTime(r.sentAt)}</td>
+                <td><Link to={`/patients/${r.patientId}`}>{r.patient}</Link></td>
+                <td><Link to={`/billing/${r.invoiceId}`}>{r.invoiceNumber}</Link></td>
+                <td>{r.stage === 1 ? 'First' : 'Second'}</td>
+                <td>{money(r.balance)}</td>
+                <td>{r.messages > 0 ? r.messages : <span className="pill amber">Not sent – no consent or contact details</span>}</td>
               </tr>))}</tbody>
           </table>
         </div>)}
@@ -188,7 +393,9 @@ function Settings() {
   const save = async () => {
     setErrors([]); setMsg(null);
     try {
-      await api('/api/payments/settings', { method: 'PUT', body: { provider: s.provider, publicUrl: s.publicUrl || null, linkDays: Number(s.linkDays), minimumPayment: Number(s.minimumPayment), windcaveUrl: s.windcaveUrl || null, windcaveUser: s.windcaveUser || null, windcaveKey: key || null, statementMinimum: Number(s.statementMinimum), statementMessage: s.statementMessage || null } });
+      await api('/api/payments/settings', { method: 'PUT', body: { provider: s.provider, publicUrl: s.publicUrl || null, linkDays: Number(s.linkDays), minimumPayment: Number(s.minimumPayment), windcaveUrl: s.windcaveUrl || null, windcaveUser: s.windcaveUser || null, windcaveKey: key || null, statementMinimum: Number(s.statementMinimum), statementMessage: s.statementMessage || null,
+        autoStatementDay: Number(s.autoStatementDay), autoSendStatements: !!s.autoSendStatements, overdueFirstDays: Number(s.overdueFirstDays), overdueSecondDays: Number(s.overdueSecondDays),
+        includeShortfalls: !!s.includeShortfalls, planReminderDays: Number(s.planReminderDays) } });
       setKey(''); setMsg('Settings saved.'); await load();
     } catch (e) { setErrors(errs(e)); }
   };
@@ -208,13 +415,37 @@ function Settings() {
         </>}
         <label>No statement for balances under ($)<input value={s.statementMinimum} inputMode="decimal" onChange={(e) => setS({ ...s, statementMinimum: e.target.value })} /></label>
         <label className="span-all">Message printed on every statement (optional)<input value={s.statementMessage ?? ''} onChange={(e) => setS({ ...s, statementMessage: e.target.value })} /></label>
+        <label className="check span-all"><input type="checkbox" checked={!!s.includeShortfalls} onChange={(e) => setS({ ...s, includeShortfalls: e.target.checked })} /> Include insurer shortfalls (what is left on an insurer invoice after the insurer has paid) on statements and reminders</label>
       </div>
+      <h3>Every day, automatically</h3>
+      <div className="form-grid">
+        <label>Prepare statements on day of the month (0 = only by hand)<input value={s.autoStatementDay} inputMode="numeric" onChange={(e) => setS({ ...s, autoStatementDay: e.target.value })} /></label>
+        <label className="check"><input type="checkbox" checked={!!s.autoSendStatements} onChange={(e) => setS({ ...s, autoSendStatements: e.target.checked })} /> Send them straight away (otherwise they wait for you to check and send)</label>
+        <label>First overdue reminder, days after the due date (0 = none)<input value={s.overdueFirstDays} inputMode="numeric" onChange={(e) => setS({ ...s, overdueFirstDays: e.target.value })} /></label>
+        <label>Second overdue reminder, days after the due date (0 = none)<input value={s.overdueSecondDays} inputMode="numeric" onChange={(e) => setS({ ...s, overdueSecondDays: e.target.value })} /></label>
+        <label>Payment plan reminders, days before each instalment<input value={s.planReminderDays} inputMode="numeric" onChange={(e) => setS({ ...s, planReminderDays: e.target.value })} /></label>
+      </div>
+      <p className="small muted">This runs once a day after 9 am{s.lastAutomationOn ? ` (last run ${formatDate(s.lastAutomationOn)})` : ''}. Patients keeping up with a payment plan are left off statements and overdue reminders.</p>
+      <RunNow />
       <p className="small muted">Card numbers never reach BrightPAS: patients type them on Windcave's own page. Use https://uat.windcave.com while testing and https://sec.windcave.com when live.</p>
       {msg && <p className="notice" role="status">{msg}</p>}
       <Errors list={errors} />
       <div><button className="btn btn-primary" onClick={() => void save()}>Save settings</button></div>
     </section>
   );
+}
+
+function RunNow() {
+  const [msg, setMsg] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const run = async () => {
+    setMsg(null); setErrors([]);
+    try {
+      const r = await api<any>('/api/payments/automation/run', { body: {} });
+      setMsg(`Done: ${r.statementCount} statement${r.statementCount === 1 ? '' : 's'} prepared (${r.statementsSent} sent), ${r.overdueSent} overdue reminder${r.overdueSent === 1 ? '' : 's'} sent${r.overdueNotSent ? ` (${r.overdueNotSent} could not be sent)` : ''}, ${r.planReminders} plan reminder${r.planReminders === 1 ? '' : 's'}, ${r.plansCompleted} plan${r.plansCompleted === 1 ? '' : 's'} paid off.`);
+    } catch (e) { setErrors(errs(e)); }
+  };
+  return <div className="stack-sm">{msg && <p className="notice" role="status">{msg}</p>}<Errors list={errors} /><div><button className="btn btn-light" onClick={() => void run()}>Run the daily round now</button></div></div>;
 }
 
 /** On the invoice page: send a payment link and see online payments for this invoice. */
