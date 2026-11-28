@@ -142,6 +142,11 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Links_Invoice', N'[payme
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Payments_Patient', N'[payments].[Payments]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Allocations_Invoice', N'[payments].[Allocations]', N'InvoiceId', N'[billing].[Documents]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Statements_Patient', N'[payments].[Statements]', N'PatientId', N'[patients].[Patients]';
+-- Imaging (PACS) (0.37.0)
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_imaging_Studies_Patient', N'[imaging].[Studies]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_imaging_Studies_Booking', N'[imaging].[Studies]', N'BookingId', N'[theatre].[Bookings]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_imaging_Requests_Patient', N'[imaging].[Requests]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_imaging_Requests_Booking', N'[imaging].[Requests]', N'BookingId', N'[theatre].[Bookings]';
 GO
 
 -- ---------------------------------------------------------------------------------------------------------------

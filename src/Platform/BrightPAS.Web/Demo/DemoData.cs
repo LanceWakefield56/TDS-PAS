@@ -137,6 +137,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await FollowUpAsync(ct);
         await ConsentAsync(ct);
         await PaymentsAsync(ct);
+        await ImagingAsync(ct);
         await SafetyFormsResearchAsync(ct);
         await ClaimsAsync(ct);
         await RemindersAsync(ct);
@@ -1521,6 +1522,55 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         if (run is null) return; // nothing owing (should not happen with the demo invoices)
         Ok(re, "prepare statements");
         Ok((await st.SendAsync(run.Id, "finance", ct)).Error, "send statements");
+    }
+
+    /// <summary>
+    /// Imaging (PACS): invented X-rays as real DICOM files – one filed by a request's accession number to a past episode (hand/wrist surgeon's patient),
+    /// one filed automatically by MRN and date of birth, one from an outside provider waiting in To match, and one request still waiting for images.
+    /// </summary>
+    private async Task ImagingAsync(CancellationToken ct)
+    {
+        var svc = S<BrightPAS.Modules.Pacs.ImagingService>();
+        Ok(await svc.SaveSettingsAsync(new(null, null, true), "admin", ct), "imaging settings");
+        var theatre = S<TheatreDbContext>();
+        var pdb = S<PatientsDbContext>();
+        var past = await (from b in theatre.Bookings.AsNoTracking()
+                          join se in theatre.Sessions.AsNoTracking() on b.SessionId equals se.Id
+                          where se.Date < _today && b.Status == BrightPAS.Modules.Theatre.BookingStatus.Discharged
+                          orderby se.Date descending, b.Order
+                          select new { b.Id, b.PatientId, se.Date, b.Procedure }).Take(2).ToListAsync(ct);
+        var next = await (from b in theatre.Bookings.AsNoTracking()
+                          join se in theatre.Sessions.AsNoTracking() on b.SessionId equals se.Id
+                          where se.Date > _today && b.Status != BrightPAS.Modules.Theatre.BookingStatus.Cancelled
+                          orderby se.Date, b.Order
+                          select new { b.Id, b.PatientId, se.Date, b.Procedure }).FirstOrDefaultAsync(ct);
+        if (past.Count < 2) return;
+        static BrightPAS.Modules.Pacs.DemoDicom.Patient Who(Patient p) =>
+            new(p.Nhi ?? p.Mrn, $"{p.FamilyName.ToUpperInvariant()}^{p.GivenNames}", p.DateOfBirth, p.Sex.ToString() switch { "Male" => "M", "Female" => "F", _ => "O" });
+
+        // 1. Requested in BrightPAS for a past episode; the pictures carry the accession number.
+        var p1 = await pdb.Patients.AsNoTracking().SingleAsync(p => p.Id == past[0].PatientId, ct);
+        var (req, errors) = await svc.CreateRequestAsync(new(p1.Id, past[0].Id, "DX", "Pre-operative X-ray (demonstration)", "HAND", "Demonstration request – invented.", null), "nurse", ct);
+        Ok(errors, "imaging request");
+        var study1 = BrightPAS.Modules.Pacs.ImagingDicom.NewUid();
+        var series1 = BrightPAS.Modules.Pacs.ImagingDicom.NewUid();
+        for (var i = 1; i <= 2; i++)
+            Ok((await svc.StoreAsync(BrightPAS.Modules.Pacs.DemoDicom.Xray(Who(p1), study1, series1, req!.AccessionNumber, past[0].Date.AddDays(-7), "DX", "HAND", "Hand and wrist (demonstration)", i, 10 + i), BrightPAS.Modules.Pacs.ImageSource.Demo, "demo data", ct)).Error, "imaging study 1");
+
+        // 2. From the radiology provider's share with the patient's NHI/MRN and date of birth: filed automatically.
+        var p2 = await pdb.Patients.AsNoTracking().SingleAsync(p => p.Id == past[1].PatientId, ct);
+        var r2 = await svc.StoreAsync(BrightPAS.Modules.Pacs.DemoDicom.Xray(Who(p2), BrightPAS.Modules.Pacs.ImagingDicom.NewUid(), BrightPAS.Modules.Pacs.ImagingDicom.NewUid(), "RAD1234", past[1].Date.AddDays(-14), "CR", "CHEST", "Chest PA (demonstration)", 1, 21),
+            BrightPAS.Modules.Pacs.ImageSource.Demo, "demo data", ct);
+        Ok(r2.Error, "imaging study 2");
+        if (r2.StudyId is { } sid2) Ok(await svc.SaveReportAsync(sid2, "Demonstration report – invented. Heart size normal. Lungs clear. No acute bony abnormality.", "hreid", ct), "imaging report");
+
+        // 3. An outside patient ID the system does not know: waits in To match.
+        Ok((await svc.StoreAsync(BrightPAS.Modules.Pacs.DemoDicom.Xray(new("EXT-44718", "PARATA^Hemi", new DateOnly(1971, 2, 28), "M"), BrightPAS.Modules.Pacs.ImagingDicom.NewUid(), BrightPAS.Modules.Pacs.ImagingDicom.NewUid(), null, _today.AddDays(-3), "DX", "KNEE", "Left knee (demonstration)", 1, 31),
+            BrightPAS.Modules.Pacs.ImageSource.Demo, "demo data", ct)).Error, "imaging study 3");
+
+        // 4. A request still waiting for images (for the next booking).
+        if (next is not null)
+            Ok((await svc.CreateRequestAsync(new(next.PatientId, next.Id, "DX", "Chest PA (demonstration)", "CHEST", "Demonstration request – invented.", null), "nurse", ct)).Errors, "imaging request 2");
     }
 
     /// <summary>A one-page PDF standing in for a scanned paper consent form.</summary>

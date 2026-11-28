@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using BrightPAS.Core.Data;
 using BrightPAS.Core.Modules;
 
-namespace BrightPAS.Modules.Imaging;
+namespace BrightPAS.Modules.Pacs;
 
 /// <summary>
 /// Imaging (PACS) (0.37.0, ADR 0050). Stores X-rays and scans (DICOM) linked to patients and episodes (theatre bookings) and shows them in the

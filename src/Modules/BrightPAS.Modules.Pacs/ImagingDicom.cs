@@ -4,7 +4,7 @@ using FellowOakDicom;
 using FellowOakDicom.Imaging;
 using FellowOakDicom.Imaging.Codec;
 
-namespace BrightPAS.Modules.Imaging;
+namespace BrightPAS.Modules.Pacs;
 
 /// <summary>What BrightPAS reads from one DICOM object's header.</summary>
 public sealed record DicomFacts(

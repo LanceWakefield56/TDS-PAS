@@ -51,7 +51,7 @@ builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs
     new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule(),
     new BrightPAS.Modules.Referrals.ReferralsModule(), new BrightPAS.Modules.Letters.LettersModule(),
     new BrightPAS.Modules.Rostering.RosteringModule(), new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(),
-    new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.Medicines.MedicinesModule(), new BrightPAS.Modules.EBookings.EBookingsModule(), new BrightPAS.Modules.FollowUp.FollowUpModule(), new BrightPAS.Modules.Research.ResearchModule(), new BrightPAS.Modules.Claims.ClaimsModule(), new BrightPAS.Modules.Consent.ConsentModule(), new BrightPAS.Modules.Payments.PaymentsModule(), new BrightPAS.Modules.Imaging.ImagingModule()]);
+    new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.Medicines.MedicinesModule(), new BrightPAS.Modules.EBookings.EBookingsModule(), new BrightPAS.Modules.FollowUp.FollowUpModule(), new BrightPAS.Modules.Research.ResearchModule(), new BrightPAS.Modules.Claims.ClaimsModule(), new BrightPAS.Modules.Consent.ConsentModule(), new BrightPAS.Modules.Payments.PaymentsModule(), new BrightPAS.Modules.Pacs.ImagingModule()]);
 builder.Services.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
 builder.Services.AddScoped<RoleAdminService>();
 builder.Services.AddSingleton<BrightPAS.Web.Security.SessionRevocations>();
@@ -108,7 +108,8 @@ builder.Services.AddSingleton<BrightPAS.Modules.Payments.IWindcaveApi, BrightPAS
 builder.Services.AddHttpClient("windcave", c => c.Timeout = TimeSpan.FromSeconds(30));
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.PaymentsWorker>();
 // Imaging (PACS) (0.37.0, ADR 0050): watched network folder for DICOM files (the vendor link comes later).
-if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.ImagingFolderWorker>();
+builder.Services.AddSingleton<BrightPAS.Web.Integration.ImagingFolderWorker>();
+if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService(sp => sp.GetRequiredService<BrightPAS.Web.Integration.ImagingFolderWorker>());
 // Bookings from specialists' rooms (0.28.0, ADR 0041): email the rooms contact when the booking office asks, accepts or declines; watched folder for practice-system files.
 builder.Services.AddScoped<BrightPAS.Modules.EBookings.IEBookingNotifier, BrightPAS.Web.Integration.EBookingEmailNotifier>();
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.EBookingFolderWorker>();

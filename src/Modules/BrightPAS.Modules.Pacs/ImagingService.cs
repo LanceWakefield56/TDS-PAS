@@ -7,7 +7,7 @@ using BrightPAS.Core.Setup;
 using BrightPAS.Modules.Patients;
 using BrightPAS.Modules.Theatre;
 
-namespace BrightPAS.Modules.Imaging;
+namespace BrightPAS.Modules.Pacs;
 
 public sealed record ImagingSettings(string StoragePath, string? ImportFolder, bool AutoFile);
 public sealed record ImagingSettingsInput(string? StoragePath, string? ImportFolder, bool AutoFile);
@@ -263,7 +263,7 @@ public sealed class ImagingService(ImagingDbContext db, PatientsDbContext patien
     {
         var img = await ImageAsync(imageId, ct);
         if (img is null || !img.Viewable || await store.ReadAsync(img, ct) is not { } bytes) return null;
-        try { return ImagingDicom.Render(ImagingDicom.Open(bytes).Dataset, frame, centre, width, invert, Math.Clamp(size, 64, 4096)); }
+        try { return ImagingDicom.Render(ImagingDicom.Open(bytes).Dataset, frame, centre, width, invert, Math.Clamp(size, 16, 4096)); }
         catch (Exception ex) when (ex is DicomException or InvalidOperationException or NotSupportedException or ArgumentException or IndexOutOfRangeException) { return null; }
     }
 

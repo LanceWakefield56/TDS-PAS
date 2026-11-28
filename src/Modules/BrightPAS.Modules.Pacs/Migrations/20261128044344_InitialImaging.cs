@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace BrightPAS.Modules.Imaging.Migrations
+namespace BrightPAS.Modules.Pacs.Migrations
 {
     /// <inheritdoc />
     public partial class InitialImaging : Migration

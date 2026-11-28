@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using BrightPAS.Core.Setup;
 
-namespace BrightPAS.Modules.Imaging;
+namespace BrightPAS.Modules.Pacs;
 
 /// <summary>
 /// Image files live in the imaging folder (setting imaging.storagePath; Setup's Imaging:StoragePath or C:\ProgramData\BrightPAS\Imaging on Windows).

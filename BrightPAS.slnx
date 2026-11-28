@@ -10,7 +10,7 @@
     <Project Path="src/Modules/BrightPAS.Modules.EBookings/BrightPAS.Modules.EBookings.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Consent/BrightPAS.Modules.Consent.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Payments/BrightPAS.Modules.Payments.csproj" />
-    <Project Path="src/Modules/BrightPAS.Modules.Imaging/BrightPAS.Modules.Imaging.csproj" />
+    <Project Path="src/Modules/BrightPAS.Modules.Pacs/BrightPAS.Modules.Pacs.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Emr/BrightPAS.Modules.Emr.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Endoscopy/BrightPAS.Modules.Endoscopy.csproj" />
     <Project Path="src/Modules/BrightPAS.Modules.Scribe/BrightPAS.Modules.Scribe.csproj" />

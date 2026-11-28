@@ -11,6 +11,7 @@ import { PatientTriage } from '../pages/Triage';
 import { PatientFollowUp } from '../pages/FollowUp';
 import { PatientForms } from '../pages/FormDesigner';
 import { PatientMedicines } from '../pages/Medicines';
+import { PatientImaging } from '../pages/Imaging';
 
 /** The licensed-module panels on a patient's record: bookings, lab results, pre-admission forms, billing. */
 export default function PatientModules({ patientId }: { patientId: string }) {
@@ -137,6 +138,7 @@ export default function PatientModules({ patientId }: { patientId: string }) {
       )}
       {mod('triage') && (can(Perm.TriageView) || can(Perm.TriageAssess) || can(Perm.TriageReview)) && <div id="triage"><PatientTriage patientId={patientId} /></div>}
       {mod('medicines') && (can(Perm.MedicinesView) || can(Perm.MedicinesRules)) && <PatientMedicines patientId={patientId} />}
+      {mod('imaging') && (can(Perm.ImagingView) || can(Perm.ImagingImport)) && <PatientImaging patientId={patientId} />}
       {mod('followup') && (can(Perm.FollowUpView) || can(Perm.FollowUpRecord)) && <PatientFollowUp patientId={patientId} />}
       {mod('forms') && (can(Perm.FormsFill) || can(Perm.FormsDesign)) && <PatientForms patientId={patientId} />}
       {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <PatientEstimates patientId={patientId} />}
