@@ -324,7 +324,7 @@ function Settings() {
       <p className="hint">Wristbands carry the NHI (or MRN) as a barcode. Medicine pack barcodes (GTIN) come from the medicines list. Start with Advise and check the report before enforcing.</p>
       <h2>Prescriptions to take home</h2>
       <label>Sending<select value={s.provider} onChange={(e) => setS({ ...s, provider: e.target.value })}>
-        <option value="Off">Print only</option><option value="Simulator">Simulator (training – nothing leaves BrightPAS)</option><option value="Nzeps">NZ ePrescription Service (NZePS)</option></select></label>
+        <option value="Off">Print only</option><option value="Simulator">Simulator (training – nothing leaves BrightPAS)</option><option value="Nzeps">NZ electronic prescription service (NZePS)</option></select></label>
       {s.provider === 'Nzeps' && <div className="form-grid">
         <label>NZePS web address<input value={s.nzepsUrl ?? ''} onChange={(e) => setS({ ...s, nzepsUrl: e.target.value })} placeholder="https://…" /></label>
         <label>Client id<input value={s.nzepsClientId ?? ''} onChange={(e) => setS({ ...s, nzepsClientId: e.target.value })} /></label>

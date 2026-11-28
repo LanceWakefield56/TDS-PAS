@@ -11,13 +11,13 @@ namespace BrightPAS.Modules.Prescribing;
 /// as needed); nurses give against an order. Barcode medicine administration (BCMA): before a medicine is charted the nurse scans the patient's
 /// wristband and the medicine pack (GS1 barcode: GTIN, expiry, batch); BrightPAS checks right patient, right medicine, in date, and that there is a
 /// current order – the check runs inside the clinical record's medicine checks (IMedicineSafetyCheck). Discharge prescriptions: printed with the
-/// NZePS barcode and, when connected, sent to the NZ ePrescription Service; a FHIR copy can be written to a folder as the fallback.
+/// NZePS barcode and, when connected, sent to the NZ electronic prescription service; a FHIR copy can be written to a folder as the fallback.
 /// </summary>
 public sealed class PrescribingModule : IPasModule
 {
     public const string Id = "prescribing";
     public ModuleManifest Manifest { get; } = new(Id, "Prescribing and barcode medicine checks", typeof(PrescribingModule).Assembly.GetName().Version ?? new Version(0, 0),
-        RxDbContext.Schema, ["emr", "medicines"], "Medicine orders, barcode checks when giving medicines, and NZ ePrescriptions.");
+        RxDbContext.Schema, ["emr", "medicines"], "Medicine orders, barcode checks when giving medicines, and NZ electronic prescriptions.");
 
     public void ConfigureServices(IServiceCollection services)
     {
@@ -31,7 +31,7 @@ public sealed class PrescribingModule : IPasModule
 /// <summary>Off: no barcode check. Advise: findings shown, never blocked. Enforce: a Stop needs a reason (wrong patient and expired always stop).</summary>
 public enum BcmaMode { Off = 0, Advise = 1, Enforce = 2 }
 
-/// <summary>Off: print only. Simulator: training (nothing leaves BrightPAS). Nzeps: the NZ ePrescription Service (Health NZ), once connected.</summary>
+/// <summary>Off: print only. Simulator: training (nothing leaves BrightPAS). Nzeps: the NZ electronic prescription service (Health NZ), once connected.</summary>
 public enum NzepsProvider { Off = 1, Simulator = 2, Nzeps = 3 }
 
 public enum OrderKind { Once = 1, Regular = 2, AsNeeded = 3 }
