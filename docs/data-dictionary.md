@@ -586,3 +586,9 @@ DoseRules also has MinWeightKg / MaxWeightKg (body-weight band).
 | Allocations | How an approved payment was split over invoices (one Billing payment each) | Id, OnlinePaymentId → Payments, InvoiceId → billing.Documents, InvoiceNumber, Amount |
 | Runs | Statement runs | Id, StatementDate, CreatedAt/By, Count, Total, SentAt/By |
 | Statements | One patient's statement: invoices owing on the statement date (Snapshot JSON) | Id, RunId → Runs, Number (unique, ST000001), PatientId → patients.Patients, StatementDate, TotalDue, Overdue, Delivery (Email/Sms/Post), Status (Prepared/Sent/Printed/NotSent), SentAt, Note |
+| Refunds (0.32.0) | Card refunds of online payments | Id, Number (unique, RF000001), OnlinePaymentId → Payments, PatientId → patients.Patients, Amount, FromUnapplied, Reason, Status (Done/Failed), ProviderReference, Error, AppliedTo, CreatedAt/By |
+| Plans (0.32.0) | Payment plans | Id, Number (unique, PP000001), PatientId → patients.Patients, Total, Instalment, Frequency (Weekly/Fortnightly/Monthly), FirstDue, PaidAtStart, Status (Active/Completed/Cancelled), Note, CreatedAt/By, EndedAt/By, EndReason, LastReminderFor |
+| PlanInvoices (0.32.0) | Invoices on a plan | Id, PlanId → Plans, InvoiceId → billing.Documents (unique per plan) |
+| Overdue (0.32.0) | Overdue reminders sent (once per invoice and stage) | Id, InvoiceId → billing.Documents, PatientId → patients.Patients, InvoiceNumber, Stage (1/2), Balance, SentAt, Messages |
+
+0.32.0 also adds: Settings – NextRefundNumber, NextPlanNumber, AutoStatementDay, AutoSendStatements, OverdueFirstDays, OverdueSecondDays, IncludeShortfalls, PlanReminderDays, LastAutomationOn; Links – PlanId → Plans; Payments – TransactionId, Refunded; Allocations – Refunded.

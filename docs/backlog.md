@@ -88,7 +88,8 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ E-consent and patient education: versioned clinician-approved information sheets, consent per booking sent by secure link, read/ask/sign (or representative, interpreter), paper scan, signed PDF in the record, confirm on the day (theatre check), withdraw, optional gate – 0.29.0 (ADR 0042)
 - ☐ Consent next: TDS surgeons write and approve their own sheets; translated sheets (te reo Māori and others); anaesthesia consent sheet; surgeon e-signature; consent started from the specialist portal; clinical and legal review of the wording and process
 - ☑ Online payments and statements: payment links (date of birth), Windcave hosted page or simulator, results read back from the provider, applied to invoices oldest first, needs-attention list, statement runs by email/text/post with payment links – 0.30.0 (ADR 0043)
-- ☐ Payments next: Windcave merchant agreement and UAT test; refunds from BrightPAS; payment plans; automatic monthly statement runs and overdue reminders; insurer shortfall statements
+- ☑ Refunds from BrightPAS, payment plans, automatic monthly statement runs, overdue reminders, insurer shortfall statements – 0.32.0 (ADR 0045)
+- ☐ Payments next: Windcave merchant agreement and UAT test (including the refund permission on the REST user)
 - ☐ Rooms bookings next: rooms pick a theatre slot from TDS's free time; HL7 ACK/RRI back to practice systems
 - ☑ Prescribing and barcode medicine checks: medicine chart (orders), barcode check when giving (wristband, GS1 pack, expiry, order; Off/Advise/Enforce), report, take-home prescriptions with NZePS barcode, NZePS client (FHIR) / simulator / folder copy – 0.31.0 (ADR 0044)
 - ☐ Prescribing next: Health NZ NZePS agreement, conformance testing and keys; confirm the prescription id generator; dispensed status back from NZePS; scan-to-chart from the pack barcode alone; regular-order dose times on the chart

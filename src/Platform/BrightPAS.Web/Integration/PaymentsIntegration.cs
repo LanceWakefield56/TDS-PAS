@@ -74,7 +74,30 @@ public sealed class HttpWindcaveApi(IHttpClientFactory http) : IWindcaveApi
             var number = Str(card, "cardNumber");
             if (number is { Length: >= 4 } && number[^4..].All(char.IsAsciiDigit)) last4 = number[^4..];
         }
-        return new(true, approved, false, cardType, last4, Str(t, "authCode"), Str(t, "responseText") ?? Str(t, "reCo"), amount);
+        return new(true, approved, false, cardType, last4, Str(t, "authCode"), Str(t, "responseText") ?? Str(t, "reCo"), amount, Str(t, "id"));
+    }
+
+    /// <summary>Refund transaction (0.32.0): POST /api/v1/transactions type "refund" against the original transaction id.</summary>
+    public async Task<GatewayRefund> RefundAsync(string baseUrl, string user, string key, string transactionId, decimal amount, string merchantReference, CancellationToken ct)
+    {
+        using var c = http.CreateClient("windcave");
+        using var req = Req(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/api/v1/transactions", user, key, new
+        {
+            type = "refund",
+            amount = amount.ToString("0.00", CultureInfo.InvariantCulture),
+            currency = "NZD",
+            merchantReference,
+            transactionId,
+        });
+        using var res = await c.SendAsync(req, ct);
+        var text = await res.Content.ReadAsStringAsync(ct);
+        if (!res.IsSuccessStatusCode && (int)res.StatusCode != 202) return new(false, null, $"Windcave answered {(int)res.StatusCode}");
+        using var doc = JsonDocument.Parse(text);
+        var root = doc.RootElement;
+        var ok = root.TryGetProperty("authorised", out var a) && a.ValueKind == JsonValueKind.True;
+        var id = root.TryGetProperty("id", out var i) && i.ValueKind == JsonValueKind.String ? i.GetString() : null;
+        var msg = root.TryGetProperty("responseText", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null;
+        return ok ? new(true, id, null) : new(false, id, msg ?? "Windcave declined the refund.");
     }
 }
 
@@ -92,6 +115,8 @@ public sealed class PaymentsWorker(IServiceScopeFactory scopes, LicenceCache lic
                 await using var scope = scopes.CreateAsyncScope();
                 var n = await scope.ServiceProvider.GetRequiredService<PaymentLinkService>().CheckUnfinishedAsync(stoppingToken);
                 if (n > 0) log.LogInformation("Online payments: {Count} unfinished payment(s) settled.", n);
+                var r = await scope.ServiceProvider.GetRequiredService<AutomationService>().RunAsync(false, ct: stoppingToken);
+                if (r.Ran) log.LogInformation("Accounts round: {Statements} statements, {Overdue} overdue reminders, {Plans} plan reminders.", r.StatementCount, r.OverdueSent, r.PlanReminders);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception ex) { log.LogError(ex, "Online payment check failed; it will run again in 10 minutes."); }

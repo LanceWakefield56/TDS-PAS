@@ -19,6 +19,7 @@ public static class PaymentsEndpoints
     public sealed record StartRequest(DateOnly DateOfBirth, decimal Amount);
     public sealed record SimRequest(string? Reference, string? Outcome);
     public sealed record CheckRequest(string? SessionId);
+    public sealed record RefundRequest(decimal Amount, string? Reason);
 
     private static object SettingsView(PaymentSettings s) => new
     {
@@ -31,6 +32,13 @@ public static class PaymentsEndpoints
         windcaveKeySet = s.WindcaveKeyProtected is not null,
         s.StatementMinimum,
         s.StatementMessage,
+        s.AutoStatementDay,
+        s.AutoSendStatements,
+        s.OverdueFirstDays,
+        s.OverdueSecondDays,
+        s.IncludeShortfalls,
+        s.PlanReminderDays,
+        s.LastAutomationOn,
         s.UpdatedAt,
         s.UpdatedBy,
     };
@@ -85,6 +93,26 @@ public static class PaymentsEndpoints
         }).RequireAuthorization(Permissions.OnlinePayAny);
 
         // ---- the patient's own link (no staff sign-in): secret link + date of birth; rate-limited per IP; locks after 5 wrong dates.
+        // 0.32.0 (ADR 0045): refunds, payment plans, the daily accounts round and overdue reminders
+        g.MapPost("/online/{id:guid}/refund", async (Guid id, RefundRequest r, ClaimsPrincipal u, RefundService svc) =>
+        {
+            var (refund, error) = await svc.RefundAsync(id, r.Amount, r.Reason, Me(u));
+            return error is null ? Results.Ok(new { refund!.Number, refund.ProviderReference, refund.AppliedTo }) : Results.BadRequest(new { errors = new[] { error } });
+        }).RequireAuthorization(Permissions.OnlinePayRefund);
+        g.MapGet("/refunds", async (Guid? paymentId, RefundService svc) => Results.Ok(await svc.ListAsync(paymentId))).RequireAuthorization(Permissions.OnlinePayAny);
+        g.MapGet("/plans", async (string? view, Guid? patientId, PlanService svc) => Results.Ok(await svc.ListAsync(view, patientId))).RequireAuthorization(Permissions.OnlinePayAny);
+        g.MapGet("/plans/{id:guid}", async (Guid id, PlanService svc) => await svc.GetAsync(id) is { } d ? Results.Ok(d) : Results.NotFound()).RequireAuthorization(Permissions.OnlinePayAny);
+        g.MapGet("/plans/options/{patientId:guid}", async (Guid patientId, PlanService svc) => Results.Ok(await svc.OptionsAsync(patientId))).RequireAuthorization(Permissions.OnlinePayPlans);
+        g.MapPost("/plans", async (PlanInput r, ClaimsPrincipal u, PlanService svc) =>
+        {
+            var (plan, errors) = await svc.CreateAsync(r, Me(u));
+            return plan is null ? Results.BadRequest(new { errors }) : Results.Ok(new { plan.Id, plan.Number });
+        }).RequireAuthorization(Permissions.OnlinePayPlans);
+        g.MapPost("/plans/{id:guid}/cancel", async (Guid id, NoteRequest r, ClaimsPrincipal u, PlanService svc) => Err(await svc.CancelAsync(id, r.Note, Me(u))))
+            .RequireAuthorization(Permissions.OnlinePayPlans);
+        g.MapGet("/overdue", async (AutomationService svc) => Results.Ok(await svc.OverdueAsync())).RequireAuthorization(Permissions.OnlinePayAny);
+        g.MapPost("/automation/run", async (ClaimsPrincipal u, AutomationService svc) => Results.Ok(await svc.RunAsync(true, Me(u)))).RequireAuthorization(Permissions.OnlinePaySettings);
+
         var p = app.MapGroup("/api/pay/{token}").RequireModule(PaymentsModule.Id).RequireRateLimiting("patient-links").AllowAnonymous();
         p.MapGet("/", async (string token, PaymentLinkService svc) => await svc.PublicStatusAsync(token) is var st && st != "closed" ? Results.Ok(new { status = st }) : Results.NotFound());
         p.MapPost("/open", async (string token, DobRequest r, PaymentLinkService svc) =>

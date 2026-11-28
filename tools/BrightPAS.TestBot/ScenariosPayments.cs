@@ -18,6 +18,58 @@ public sealed partial class Scenarios
         await Step(PayArea, "Patient pays by card on a phone; the invoice is paid", PayOnPhoneAsync);
         await Step(PayArea, "Finance prints the statements to post", PayStatementsAsync);
         await Step(PayArea, "Reception cannot change online payment settings", PayGuardAsync);
+        // 0.32.0
+        await Step(PayArea, "Finance refunds part of an online payment back to the card", PayRefundAsync);
+        await Step(PayArea, "Finance opens a payment plan and sees its instalments", PayPlanAsync);
+        await Step(PayArea, "Reception cannot refund or set up payment plans", PayExtrasGuardAsync);
+    }
+
+    private async Task<(Outcome, string)> PayRefundAsync()
+    {
+        var fin = await As("finance");
+        var pays = await fin.GetAsync("/api/payments/online?view=approved");
+        if (pays.Status != 200) return (Outcome.Skip, $"Online payments are not available (HTTP {pays.Status}).");
+        if (Find(pays.Json, x => x.GetProperty("amount").GetDecimal() - x.GetProperty("refunded").GetDecimal() >= 1m) is null) return (Outcome.Skip, "No approved online payment to refund.");
+        var page = fin.Page;
+        await page.GotoAsync($"{bot.O.Url}/payments?tab=online");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Refund", Exact = true }).First.ClickAsync();
+        var dialog = page.GetByRole(AriaRole.Dialog);
+        await dialog.GetByLabel("Amount to refund ($)").FillAsync("1.00");
+        await dialog.GetByLabel("Why").FillAsync("Robot test refund");
+        await dialog.GetByRole(AriaRole.Button, new() { Name = "Refund now" }).ClickAsync();
+        await page.GetByText("sent back to the card").WaitForAsync(new() { Timeout = 15000 });
+        var refunds = await fin.GetAsync("/api/payments/refunds");
+        return Find(refunds.Json, x => Str(x, "reason") == "Robot test refund" && Str(x, "status") == "Done") is { } r
+            ? (Outcome.Pass, $"Refund {Str(r, "number")} of $1.00 made through the simulator and taken off {Str(r, "appliedTo")}.")
+            : (Outcome.Fail, "The refund is not in the refunds list.");
+    }
+
+    private async Task<(Outcome, string)> PayPlanAsync()
+    {
+        var fin = await As("finance");
+        var plans = await fin.GetAsync("/api/payments/plans?view=all");
+        if (plans.Status != 200) return (Outcome.Skip, $"Payment plans are not available (HTTP {plans.Status}).");
+        var plan = Find(plans.Json, x => Str(x, "status") == "Active");
+        if (plan is null) return (Outcome.Skip, "No active payment plan in the demo.");
+        var page = fin.Page;
+        await page.GotoAsync($"{bot.O.Url}/payments?tab=plans");
+        await page.GetByRole(AriaRole.Button, new() { Name = Str(plan.Value, "number")!, Exact = true }).ClickAsync();
+        var table = page.GetByRole(AriaRole.Region, new() { Name = "Instalments" });
+        await table.WaitForAsync(new() { Timeout = 15000 });
+        var rows = await table.Locator("tbody tr").CountAsync();
+        var shot = await fin.ShotAsync("payment-plan");
+        R.Gallery("/payments?tab=plans — a payment plan's instalments", shot);
+        return rows >= 2 ? (Outcome.Pass, $"Plan {Str(plan.Value, "number")} shows {rows} instalments.") : (Outcome.Fail, $"Plan shows {rows} instalments.");
+    }
+
+    private async Task<(Outcome, string)> PayExtrasGuardAsync()
+    {
+        var reception = await As("reception");
+        var fin = await As("finance");
+        var pay = Find((await fin.GetAsync("/api/payments/online?view=approved")).Json, _ => true);
+        var refund = await reception.PostAsync($"/api/payments/online/{(pay is null ? Guid.Empty.ToString() : Str(pay.Value, "id"))}/refund", new { amount = 1, reason = "x" });
+        var plan = await reception.PostAsync("/api/payments/plans", new { patientId = Guid.Empty, instalment = 10, frequency = "Weekly", firstDue = "2030-01-01" });
+        return refund.Status == 403 && plan.Status == 403 ? (Outcome.Pass, "Refunds and new payment plans are refused for reception (403).") : (Outcome.Fail, $"Reception got HTTP {refund.Status} refunding and {plan.Status} making a plan.");
     }
 
     private async Task<(Outcome, string)> PaySendAsync()

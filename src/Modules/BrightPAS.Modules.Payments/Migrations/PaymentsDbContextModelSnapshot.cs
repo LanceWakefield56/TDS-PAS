@@ -71,6 +71,10 @@ namespace BrightPAS.Modules.Payments.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<decimal>("Refunded")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
                     b.Property<DateTimeOffset?>("ResolvedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -98,6 +102,10 @@ namespace BrightPAS.Modules.Payments.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("TransactionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MerchantReference")
@@ -112,6 +120,47 @@ namespace BrightPAS.Modules.Payments.Migrations
                     b.HasIndex("Status", "StartedAt");
 
                     b.ToTable("Payments", "payments");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Payments.OverdueNotice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Balance")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InvoiceNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("Messages")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Stage")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PatientId");
+
+                    b.HasIndex("SentAt");
+
+                    b.HasIndex("InvoiceId", "Stage")
+                        .IsUnique();
+
+                    b.ToTable("Overdue", "payments");
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Payments.PayLink", b =>
@@ -153,6 +202,9 @@ namespace BrightPAS.Modules.Payments.Migrations
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("StatementId")
                         .HasColumnType("uniqueidentifier");
 
@@ -171,6 +223,8 @@ namespace BrightPAS.Modules.Payments.Migrations
                     b.HasIndex("InvoiceId");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("PlanId");
 
                     b.HasIndex("StatementId");
 
@@ -200,6 +254,10 @@ namespace BrightPAS.Modules.Payments.Migrations
                     b.Property<Guid>("OnlinePaymentId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal>("Refunded")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("InvoiceId");
@@ -209,10 +267,97 @@ namespace BrightPAS.Modules.Payments.Migrations
                     b.ToTable("Allocations", "payments");
                 });
 
+            modelBuilder.Entity("BrightPAS.Modules.Payments.PaymentPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("EndReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("EndedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateOnly>("FirstDue")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("Instalment")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateOnly?>("LastReminderFor")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("PaidAtStart")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("PatientId");
+
+                    b.ToTable("Plans", "payments");
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Payments.PaymentSettings", b =>
                 {
                     b.Property<int>("Id")
                         .HasColumnType("int");
+
+                    b.Property<bool>("AutoSendStatements")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("AutoStatementDay")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IncludeShortfalls")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly?>("LastAutomationOn")
+                        .HasColumnType("date");
 
                     b.Property<int>("LinkDays")
                         .HasColumnType("int");
@@ -221,7 +366,22 @@ namespace BrightPAS.Modules.Payments.Migrations
                         .HasPrecision(12, 2)
                         .HasColumnType("decimal(12,2)");
 
+                    b.Property<int>("NextPlanNumber")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NextRefundNumber")
+                        .HasColumnType("int");
+
                     b.Property<int>("NextStatementNumber")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OverdueFirstDays")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OverdueSecondDays")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PlanReminderDays")
                         .HasColumnType("int");
 
                     b.Property<string>("Provider")
@@ -264,6 +424,95 @@ namespace BrightPAS.Modules.Payments.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Settings", "payments");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Payments.PlanInvoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("PlanId", "InvoiceId")
+                        .IsUnique();
+
+                    b.ToTable("PlanInvoices", "payments");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Payments.Refund", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("AppliedTo")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<decimal>("FromUnapplied")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("OnlinePaymentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProviderReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("OnlinePaymentId");
+
+                    b.HasIndex("PatientId");
+
+                    b.ToTable("Refunds", "payments");
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Payments.Statement", b =>
@@ -384,6 +633,24 @@ namespace BrightPAS.Modules.Payments.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("BrightPAS.Modules.Payments.PlanInvoice", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Payments.PaymentPlan", null)
+                        .WithMany("Invoices")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Payments.Refund", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Payments.OnlinePayment", null)
+                        .WithMany()
+                        .HasForeignKey("OnlinePaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Payments.Statement", b =>
                 {
                     b.HasOne("BrightPAS.Modules.Payments.StatementRun", null)
@@ -396,6 +663,11 @@ namespace BrightPAS.Modules.Payments.Migrations
             modelBuilder.Entity("BrightPAS.Modules.Payments.OnlinePayment", b =>
                 {
                     b.Navigation("Allocations");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Payments.PaymentPlan", b =>
+                {
+                    b.Navigation("Invoices");
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Payments.StatementRun", b =>

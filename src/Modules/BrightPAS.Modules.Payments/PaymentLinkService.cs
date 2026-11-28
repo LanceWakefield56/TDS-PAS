@@ -13,13 +13,18 @@ namespace BrightPAS.Modules.Payments;
 
 public sealed record GatewayStart(string? RedirectUrl, string? SessionId, string? Error);
 /// <summary>What the provider says about a payment session. Complete = the patient has finished (approved, declined or cancelled).</summary>
-public sealed record GatewayResult(bool Complete, bool Approved, bool Cancelled, string? CardType, string? Last4, string? AuthCode, string? ResponseText, decimal? Amount);
+public sealed record GatewayResult(bool Complete, bool Approved, bool Cancelled, string? CardType, string? Last4, string? AuthCode, string? ResponseText, decimal? Amount,
+    string? TransactionId = null);
+/// <summary>What the provider said about a refund.</summary>
+public sealed record GatewayRefund(bool Ok, string? Reference, string? Error);
 
 /// <summary>Windcave REST API (hosted payment page). Faked in tests; the real one lives in the web project.</summary>
 public interface IWindcaveApi
 {
     Task<GatewayStart> CreateSessionAsync(string baseUrl, string user, string key, decimal amount, string merchantReference, string returnUrl, string notificationUrl, CancellationToken ct);
     Task<GatewayResult> QuerySessionAsync(string baseUrl, string user, string key, string sessionId, CancellationToken ct);
+    /// <summary>Refunds part or all of an approved transaction back to the card (0.32.0).</summary>
+    Task<GatewayRefund> RefundAsync(string baseUrl, string user, string key, string transactionId, decimal amount, string merchantReference, CancellationToken ct);
 }
 
 public sealed record InvoiceDue(Guid InvoiceId, string Number, DateOnly? IssuedOn, DateOnly? DueOn, decimal Total, decimal Paid, decimal Balance);
@@ -29,9 +34,11 @@ public sealed record PublicPaymentRow(string Status, decimal Amount, DateTimeOff
 public sealed record LinkRow(Guid Id, Guid PatientId, string Patient, Guid? InvoiceId, string? InvoiceNumber, Guid? StatementId, string? StatementNumber, string Status,
     DateTimeOffset CreatedAt, string CreatedBy, DateTimeOffset ExpiresAt, DateTimeOffset? LastOpenedAt, bool Expired);
 public sealed record PaymentRow(Guid Id, Guid PatientId, string Patient, decimal Amount, string Status, string Provider, string MerchantReference, string? Card, string? AuthCode,
-    string? ResponseText, DateTimeOffset StartedAt, DateTimeOffset? CompletedAt, bool NeedsAttention, string? AttentionReason, string? ResolvedNote, IReadOnlyList<string> AppliedTo);
+    string? ResponseText, DateTimeOffset StartedAt, DateTimeOffset? CompletedAt, bool NeedsAttention, string? AttentionReason, string? ResolvedNote, IReadOnlyList<string> AppliedTo,
+    decimal Refunded = 0m);
 public sealed record SettingsInput(GatewayProvider Provider, string? PublicUrl, int LinkDays, decimal MinimumPayment, string? WindcaveUrl, string? WindcaveUser, string? WindcaveKey,
-    decimal StatementMinimum, string? StatementMessage);
+    decimal StatementMinimum, string? StatementMessage, int AutoStatementDay = 0, bool AutoSendStatements = false, int OverdueFirstDays = 0, int OverdueSecondDays = 0,
+    bool IncludeShortfalls = false, int PlanReminderDays = 2);
 
 /// <summary>
 /// Payment links and online card payments (0.30.0, ADR 0043). The patient pays on the provider's hosted page; BrightPAS never sees the card number.
@@ -65,6 +72,11 @@ public sealed class PaymentLinkService(PaymentsDbContext db, BillingDbContext bi
         if (r.LinkDays is < 2 or > 90) errors.Add("Links must last between 2 and 90 days.");
         if (r.MinimumPayment is < 1 or > 10000) errors.Add("The smallest part-payment must be between $1 and $10,000.");
         if (r.StatementMinimum is < 0 or > 10000) errors.Add("The smallest balance for a statement must be between $0 and $10,000.");
+        if (r.AutoStatementDay is < 0 or > 28) errors.Add("Automatic statements: choose a day from 1 to 28 (or 0 for none).");
+        if (r.OverdueFirstDays is < 0 or > 180 || r.OverdueSecondDays is < 0 or > 365) errors.Add("Overdue reminders: enter days after the due date (0 for none).");
+        if (r.OverdueSecondDays > 0 && r.OverdueSecondDays <= r.OverdueFirstDays) errors.Add("The second overdue reminder must come after the first.");
+        if (r.OverdueSecondDays > 0 && r.OverdueFirstDays == 0) errors.Add("Set the first overdue reminder before the second.");
+        if (r.PlanReminderDays is < 0 or > 14) errors.Add("Payment plan reminders: between 0 and 14 days before each instalment.");
         var wurl = string.IsNullOrWhiteSpace(r.WindcaveUrl) ? "https://uat.windcave.com" : r.WindcaveUrl.Trim().TrimEnd('/');
         if (!Uri.TryCreate(wurl, UriKind.Absolute, out var wu) || wu.Scheme != Uri.UriSchemeHttps) errors.Add("The Windcave address must start with https://.");
         var s = await SettingsAsync(ct);
@@ -79,9 +91,11 @@ public sealed class PaymentLinkService(PaymentsDbContext db, BillingDbContext bi
         s.WindcaveUrl = wurl; s.WindcaveUser = Blank(r.WindcaveUser);
         if (!string.IsNullOrWhiteSpace(r.WindcaveKey)) s.WindcaveKeyProtected = protector.Protect(r.WindcaveKey.Trim());
         s.StatementMinimum = BillingService.Money(r.StatementMinimum); s.StatementMessage = Blank(r.StatementMessage) is { } m ? Trunc(m, 300) : null;
+        s.AutoStatementDay = r.AutoStatementDay; s.AutoSendStatements = r.AutoSendStatements; s.OverdueFirstDays = r.OverdueFirstDays; s.OverdueSecondDays = r.OverdueSecondDays;
+        s.IncludeShortfalls = r.IncludeShortfalls; s.PlanReminderDays = r.PlanReminderDays;
         s.UpdatedAt = clock.GetUtcNow(); s.UpdatedBy = user;
         await db.SaveChangesAsync(ct);
-        await audit.WriteAsync(user, "Settings", "PaymentSettings", "1", reason: $"Provider {r.Provider}; links {r.LinkDays} days", ct: ct);
+        await audit.WriteAsync(user, "Settings", "PaymentSettings", "1", reason: $"Provider {r.Provider}; links {r.LinkDays} days; statements day {r.AutoStatementDay}; overdue {r.OverdueFirstDays}/{r.OverdueSecondDays}", ct: ct);
         return [];
     }
 
@@ -91,6 +105,7 @@ public sealed class PaymentLinkService(PaymentsDbContext db, BillingDbContext bi
     {
         List<Guid> ids;
         if (link.InvoiceId is { } one) ids = [one];
+        else if (link.PlanId is { } pid) ids = await db.PlanInvoices.AsNoTracking().Where(x => x.PlanId == pid).Select(x => x.InvoiceId).ToListAsync(ct);
         else if (link.StatementId is { } sid && await db.Statements.AsNoTracking().SingleOrDefaultAsync(s => s.Id == sid, ct) is { } st) ids = [.. StatementService.ReadSnapshot(st.Snapshot).Select(l => l.InvoiceId)];
         else ids = [];
         return await DueAsync(ids, ct);
@@ -139,6 +154,20 @@ public sealed class PaymentLinkService(PaymentsDbContext db, BillingDbContext bi
             (old.Status, old.CancelledAt, old.CancelledBy) = (PayLinkStatus.Cancelled, now, user);
         var (link, url) = NewLink(s, st.PatientId, user);
         link.StatementId = st.Id;
+        db.Links.Add(link);
+        await db.SaveChangesAsync(ct);
+        return url;
+    }
+
+    /// <summary>A link for a payment plan instalment (0.32.0). Older open links for the plan stop working.</summary>
+    public async Task<string> CreateForPlanAsync(Guid planId, Guid patientId, string user, CancellationToken ct = default)
+    {
+        var s = await SettingsAsync(ct);
+        var now = clock.GetUtcNow();
+        foreach (var old in await db.Links.Where(l => l.PlanId == planId && l.Status == PayLinkStatus.Open).ToListAsync(ct))
+            (old.Status, old.CancelledAt, old.CancelledBy) = (PayLinkStatus.Cancelled, now, user);
+        var (link, url) = NewLink(s, patientId, user);
+        link.PlanId = planId;
         db.Links.Add(link);
         await db.SaveChangesAsync(ct);
         return url;
@@ -194,7 +223,7 @@ public sealed class PaymentLinkService(PaymentsDbContext db, BillingDbContext bi
         var names = await Names(list.Select(p => p.PatientId), ct);
         return [.. list.Select(p => new PaymentRow(p.Id, p.PatientId, names.GetValueOrDefault(p.PatientId, ""), p.Amount, p.Status.ToString(), p.Provider.ToString(), p.MerchantReference,
             Card(p), p.AuthCode, p.ResponseText, p.StartedAt, p.CompletedAt, p.NeedsAttention && p.ResolvedAt == null, p.AttentionReason, p.ResolvedNote,
-            [.. p.Allocations.Select(a => $"{a.InvoiceNumber} ${a.Amount:0.00}")]))];
+            [.. p.Allocations.Select(a => $"{a.InvoiceNumber} ${a.Amount:0.00}")], p.Refunded))];
     }
 
     public Task<int> AttentionCountAsync(CancellationToken ct = default) => db.Payments.CountAsync(p => p.NeedsAttention && p.ResolvedAt == null, ct);
@@ -405,7 +434,8 @@ public sealed class PaymentLinkService(PaymentsDbContext db, BillingDbContext bi
         var won = await db.Payments.Where(p => p.Id == paymentId && p.Status == OnlinePaymentStatus.Started).ExecuteUpdateAsync(x => x
             .SetProperty(p => p.Status, status).SetProperty(p => p.CompletedAt, now)
             .SetProperty(p => p.CardType, r.CardType == null ? null : Trunc(r.CardType, 30)).SetProperty(p => p.Last4, last4)
-            .SetProperty(p => p.AuthCode, r.AuthCode == null ? null : Trunc(r.AuthCode, 20)).SetProperty(p => p.ResponseText, r.ResponseText == null ? null : Trunc(r.ResponseText, 300)), ct);
+            .SetProperty(p => p.AuthCode, r.AuthCode == null ? null : Trunc(r.AuthCode, 20))
+            .SetProperty(p => p.TransactionId, r.TransactionId == null ? null : Trunc(r.TransactionId, 100)).SetProperty(p => p.ResponseText, r.ResponseText == null ? null : Trunc(r.ResponseText, 300)), ct);
         if (won == 0) return await db.Payments.AsNoTracking().Where(p => p.Id == paymentId).Select(p => p.Status).SingleAsync(ct);
         var pay = await db.Payments.SingleAsync(p => p.Id == paymentId, ct);
         await db.Entry(pay).ReloadAsync(ct); // the row was changed by the atomic update above
@@ -454,7 +484,10 @@ public sealed class PaymentLinkService(PaymentsDbContext db, BillingDbContext bi
     public async Task<int> MergeAsync(Guid survivorId, Guid duplicateId, CancellationToken ct = default) =>
         await db.Links.Where(l => l.PatientId == duplicateId).ExecuteUpdateAsync(s => s.SetProperty(l => l.PatientId, survivorId), ct)
         + await db.Payments.Where(p => p.PatientId == duplicateId).ExecuteUpdateAsync(s => s.SetProperty(p => p.PatientId, survivorId), ct)
-        + await db.Statements.Where(p => p.PatientId == duplicateId).ExecuteUpdateAsync(s => s.SetProperty(p => p.PatientId, survivorId), ct);
+        + await db.Statements.Where(p => p.PatientId == duplicateId).ExecuteUpdateAsync(s => s.SetProperty(p => p.PatientId, survivorId), ct)
+        + await db.Refunds.Where(p => p.PatientId == duplicateId).ExecuteUpdateAsync(s => s.SetProperty(p => p.PatientId, survivorId), ct)
+        + await db.Plans.Where(p => p.PatientId == duplicateId).ExecuteUpdateAsync(s => s.SetProperty(p => p.PatientId, survivorId), ct)
+        + await db.Overdue.Where(p => p.PatientId == duplicateId).ExecuteUpdateAsync(s => s.SetProperty(p => p.PatientId, survivorId), ct);
 
     private static string? Blank(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
     private static string Trunc(string v, int max) => v.Length <= max ? v : v[..max];

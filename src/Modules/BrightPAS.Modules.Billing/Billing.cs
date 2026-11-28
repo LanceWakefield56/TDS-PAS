@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
+using BrightPAS.Core;
 using BrightPAS.Core.Audit;
 using BrightPAS.Core.Modules;
 using BrightPAS.Modules.Patients;
@@ -425,6 +426,25 @@ public sealed class BillingService(BillingDbContext db, PatientsDbContext patien
         d.Status = Calculate(d).Balance == 0 ? DocumentStatus.Paid : DocumentStatus.PartPaid;
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Payment", "Invoice", d.Id.ToString(), d.PatientId.ToString(), reason: $"{d.Number} {p.Method} {p.Amount:0.00}", ct: ct);
+        return null;
+    }
+
+    /// <summary>Money given back on an invoice (0.32.0, e.g. an online card refund): a negative payment. It cannot be more than has been paid.</summary>
+    public async Task<string?> RecordRefundAsync(Guid invoiceId, decimal amount, PaymentMethod method, string? reference, string user, CancellationToken ct = default)
+    {
+        var d = await db.Documents.Include(x => x.Payments).Include(x => x.Lines).SingleOrDefaultAsync(x => x.Id == invoiceId && x.Kind == DocumentKind.Invoice, ct);
+        if (d is null) return "Invoice not found.";
+        if (d.Status is not (DocumentStatus.Issued or DocumentStatus.PartPaid or DocumentStatus.Paid)) return "Refunds can only be recorded on an issued invoice.";
+        amount = Money(amount);
+        if (amount <= 0) return "Enter the amount refunded.";
+        var paid = Calculate(d).Paid;
+        if (amount > paid) return $"The refund is more than has been paid ({paid:0.00}).";
+        db.Payments.Add(new Payment { DocumentId = d.Id, PaidOn = NzTime.Today(clock), Amount = -amount, Method = method, Reference = Blank(reference), RecordedAt = clock.GetUtcNow(), RecordedBy = user });
+        await db.SaveChangesAsync(ct);
+        var t = Calculate(d);
+        d.Status = t.Balance == 0 ? DocumentStatus.Paid : t.Paid > 0 ? DocumentStatus.PartPaid : DocumentStatus.Issued;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(user, "Refund", "Invoice", d.Id.ToString(), d.PatientId.ToString(), reason: $"{d.Number} {method} -{amount:0.00}", ct: ct);
         return null;
     }
 
