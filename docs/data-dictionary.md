@@ -576,3 +576,11 @@ DoseRules also has MinWeightKg / MaxWeightKg (body-weight band).
 | Allocations | How an approved payment was split over invoices (one Billing payment each) | Id, OnlinePaymentId → Payments, InvoiceId → billing.Documents, InvoiceNumber, Amount |
 | Runs | Statement runs | Id, StatementDate, CreatedAt/By, Count, Total, SentAt/By |
 | Statements | One patient's statement: invoices owing on the statement date (Snapshot JSON) | Id, RunId → Runs, Number (unique, ST000001), PatientId → patients.Patients, StatementDate, TotalDue, Overdue, Delivery (Email/Sms/Post), Status (Prepared/Sent/Printed/NotSent), SentAt, Note |
+
+## 0.37.0 – Imaging (PACS) (schema `imaging`)
+| Table | Purpose | Key columns |
+|---|---|---|
+| Requests | Imaging requests made in BrightPAS (accession numbers for the radiology form or a later worklist) | Id, PatientId → patients.Patients, BookingId → theatre.Bookings, AccessionNumber (unique, X + yyMMdd + 4 digits), StudyInstanceUid, Modality, Examination, BodyPart, ClinicalNotes, WantedOn, Status (Requested/Done/Cancelled), StudyId, RequestedAt/By, CancelledAt/By |
+| Studies | One DICOM study | Id, StudyInstanceUid (unique), Status (Unmatched/Filed/Deleted), PatientId → patients.Patients, BookingId → theatre.Bookings, RequestId → Requests, MatchedBy (Accession/PatientIdAndBirthDate/Person), AccessionNumber, StudyDate, Description, Modalities, BodyPart, ReferringPhysician, Institution, FilePatientId/Name/BirthDate/Sex (as in the images), Source (Upload/Folder/Network/Demo), ReceivedAt/By, FiledAt/By, ImageCount, Bytes, Report, ReportAt/By, DeletedAt/By/Reason |
+| Series | DICOM series in a study | Id, StudyId → Studies, SeriesInstanceUid (unique), Modality, SeriesNumber, Description, BodyPart, ImageCount |
+| Images | One DICOM object; the original file is in the imaging folder | Id, StudyId, SeriesId → Series, SopInstanceUid (unique), SopClassUid, InstanceNumber, Rows, Columns, Frames, Photometric, TransferSyntax, Viewable, WindowCentre, WindowWidth, PixelSpacing, FileName, Bytes, Sha256, ReceivedAt |

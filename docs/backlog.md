@@ -127,3 +127,5 @@ Status: ☐ to do · ◐ in progress · ☑ done
 
 ## Later phases
 See the specification, section 11 (Delivery roadmap).
+- ☑ Imaging (PACS): DICOM X-rays/scans with patient and episode, upload/CD/ZIP and watched folder, matching by request number or NHI + date of birth, To match, requests, browser viewer, export – 0.37.0 (ADR 0050)
+- ☐ Imaging next: GE (or other) DICOM link – C-STORE in, Modality Worklist from requests, MPPS; fo-dicom.Codecs for JPEG lossless/2000; measuring with pixel spacing; radiology report import (HL7 ORU); send images to a GE PACS (C-STORE out) or query/retrieve

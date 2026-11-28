@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.37.0 – (not yet released) – **Imaging (PACS)**
+- **Imaging module (ADR 0050, guide H50)** – licence "imaging"; permissions View / File and request / Settings and delete (surgeons and nurses view and file, anaesthetists view, reception files, the system administrator has settings); "Imaging (X-ray, scans)" under Day of surgery.
+  - **X-rays and scans (DICOM)** kept as received in the imaging folder and linked to the patient and episode (booking). Each picture is kept once.
+  - **In from:** upload (files, a ZIP, or the whole folder of a CD/USB from a radiology provider) or a **watched network folder** checked every minute (files moved to processed\ or failed\).
+  - **Filed by itself** by an imaging request's number (accession), or by NHI/MRN with the same date of birth (can be switched off); anything else waits in **To match**, where staff file it (a different date of birth must be confirmed).
+  - **Imaging requests** give a number to write on the radiology form; images carrying it go straight to the patient and episode. Ready to serve a GE (or other) machine's worklist later.
+  - **Viewer** in the browser: series and thumbnails, scroll through a stack, brightness/contrast and CT presets, invert, zoom and pan. Report or note per study. Encrypted export of the original DICOM files. Delete keeps who/why.
+  - Patient record panel, set-up wizard, demo data (three invented X-rays and two requests), patient merge, self-test entries, reporting foreign keys.
+- Test robot: **Imaging (PACS)** steps (upload with a request number; unknown patient to match; viewer; reception and anaesthetist limits).
+
 ## 0.30.0 – 2026-11-28 – **Online payments and statements**
 - **Online payments module (ADR 0043, guide H37)** – licence "payments"; permissions View / Send links and statements / Settings (Finance all three; Reception View and Send); "Online payments" under After surgery.
   - **Payment links:** from an invoice (Pay online › Send payment link, or make a link to copy). The patient opens it on any device, enters their date of birth (five tries then a 30-minute lock), sees what is owing and pays all or part by card on the provider's own page – card numbers never reach BrightPAS.
