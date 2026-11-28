@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BrightPAS.Modules.Prescribing.Migrations
 {
     [DbContext(typeof(RxDbContext))]
-    [Migration("20261128044350_InitialPrescribing")]
+    [Migration("20261128062217_InitialPrescribing")]
     partial class InitialPrescribing
     {
         /// <inheritdoc />
@@ -197,6 +197,8 @@ namespace BrightPAS.Modules.Prescribing.Migrations
 
                     b.HasIndex("EpisodeId");
 
+                    b.HasIndex("MedicineId");
+
                     b.HasIndex("PatientId");
 
                     b.ToTable("Orders", "rx");
@@ -315,6 +317,8 @@ namespace BrightPAS.Modules.Prescribing.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("EpisodeId");
+
                     b.HasIndex("Number")
                         .IsUnique();
 
@@ -370,6 +374,8 @@ namespace BrightPAS.Modules.Prescribing.Migrations
                         .HasColumnType("nvarchar(30)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("MedicineId");
 
                     b.HasIndex("PrescriptionId");
 

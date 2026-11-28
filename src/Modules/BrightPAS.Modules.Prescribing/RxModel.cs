@@ -180,6 +180,15 @@ public sealed class RxDbContext(DbContextOptions<RxDbContext> options) : DbConte
     public DbSet<Prescription> Prescriptions => Set<Prescription>();
     public DbSet<PrescriptionItem> Items => Set<PrescriptionItem>();
 
+    protected override void ConfigureConventions(ModelConfigurationBuilder c)
+    {
+        if (Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+        {
+            c.Properties<DateTimeOffset>().HaveConversion<Microsoft.EntityFrameworkCore.Storage.ValueConversion.DateTimeOffsetToBinaryConverter>();
+            c.Properties<decimal>().HaveConversion<double>();
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema(Schema);
@@ -219,6 +228,7 @@ public sealed class RxDbContext(DbContextOptions<RxDbContext> options) : DbConte
             e.Property(x => x.StopReason).HasMaxLength(300);
             e.HasIndex(x => x.EpisodeId);
             e.HasIndex(x => x.PatientId);
+            e.HasIndex(x => x.MedicineId);
         });
         b.Entity<BcmaScan>(e =>
         {
@@ -250,6 +260,7 @@ public sealed class RxDbContext(DbContextOptions<RxDbContext> options) : DbConte
             e.Property(x => x.CancelledBy).HasMaxLength(100);
             e.Property(x => x.CancelReason).HasMaxLength(300);
             e.HasIndex(x => x.PatientId);
+            e.HasIndex(x => x.EpisodeId);
             e.HasOne<Prescriber>().WithMany().HasForeignKey(x => x.PrescriberId).OnDelete(DeleteBehavior.Restrict);
             e.HasMany(x => x.Items).WithOne().HasForeignKey(i => i.PrescriptionId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -260,6 +271,7 @@ public sealed class RxDbContext(DbContextOptions<RxDbContext> options) : DbConte
             e.Property(x => x.Directions).HasMaxLength(500);
             e.Property(x => x.Quantity).HasPrecision(9, 2);
             e.Property(x => x.Unit).HasMaxLength(30);
+            e.HasIndex(x => x.MedicineId);
         });
     }
 }

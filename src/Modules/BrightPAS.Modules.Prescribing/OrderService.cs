@@ -46,8 +46,18 @@ public sealed class OrderService(RxDbContext db, EmrDbContext emr, MedicinesDbCo
         if (errors.Count > 0) return (null, errors);
         var o = new MedOrder
         {
-            PatientId = e!.PatientId, EpisodeId = e.Id, MedicineId = r.MedicineId, Medicine = name!, Dose = Clip(r.Dose, 60)!, Route = Clip(r.Route, 30)!, Kind = r.Kind,
-            Frequency = Clip(r.Frequency, 100), Indication = Clip(r.Indication, 150), Notes = Clip(r.Notes, 300), PrescribedAt = clock.GetUtcNow(), PrescribedBy = user,
+            PatientId = e!.PatientId,
+            EpisodeId = e.Id,
+            MedicineId = r.MedicineId,
+            Medicine = name!,
+            Dose = Clip(r.Dose, 60)!,
+            Route = Clip(r.Route, 30)!,
+            Kind = r.Kind,
+            Frequency = Clip(r.Frequency, 100),
+            Indication = Clip(r.Indication, 150),
+            Notes = Clip(r.Notes, 300),
+            PrescribedAt = clock.GetUtcNow(),
+            PrescribedBy = user,
         };
         db.Orders.Add(o);
         await db.SaveChangesAsync(ct);
@@ -254,7 +264,7 @@ public sealed class BcmaService(RxDbContext db, PatientsDbContext patients, Medi
     {
         var start = NzTime.StartOfDay(from); var end = NzTime.StartOfDay(to.AddDays(1));
         var given = await emr.Medications.AsNoTracking().CountAsync(x => x.GivenAt >= start && x.GivenAt < end && x.Source == "Manual", ct);
-        var scans = await db.Scans.AsNoTracking().Where(x => x.At >= start && x.At < end && x.Mode != BcmaMode.Off).ToListAsync(ct);
+        var scans = (await db.Scans.AsNoTracking().Where(x => x.At >= start && x.At < end).ToListAsync(ct)).Where(x => x.Mode != BcmaMode.Off).ToList();
         var charted = scans.Where(x => x.MedicationId != null).ToList();
         var exceptions = scans.Where(x => x.Result is BcmaResult.Stopped or BcmaResult.Overridden).OrderByDescending(x => x.At).Take(200)
             .Select(x => new BcmaReportRow(x.Id, x.At, x.User, x.Medicine, x.Result.ToString(), x.OverrideReason, x.Findings)).ToList();

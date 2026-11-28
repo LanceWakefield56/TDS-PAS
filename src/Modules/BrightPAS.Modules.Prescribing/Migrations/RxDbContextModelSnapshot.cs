@@ -194,6 +194,8 @@ namespace BrightPAS.Modules.Prescribing.Migrations
 
                     b.HasIndex("EpisodeId");
 
+                    b.HasIndex("MedicineId");
+
                     b.HasIndex("PatientId");
 
                     b.ToTable("Orders", "rx");
@@ -312,6 +314,8 @@ namespace BrightPAS.Modules.Prescribing.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("EpisodeId");
+
                     b.HasIndex("Number")
                         .IsUnique();
 
@@ -367,6 +371,8 @@ namespace BrightPAS.Modules.Prescribing.Migrations
                         .HasColumnType("nvarchar(30)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("MedicineId");
 
                     b.HasIndex("PrescriptionId");
 

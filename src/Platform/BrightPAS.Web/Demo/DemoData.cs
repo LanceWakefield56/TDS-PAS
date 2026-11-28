@@ -137,6 +137,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await FollowUpAsync(ct);
         await ConsentAsync(ct);
         await PaymentsAsync(ct);
+        await PrescribingAsync(ct);
         await SafetyFormsResearchAsync(ct);
         await ClaimsAsync(ct);
         await RemindersAsync(ct);
@@ -1521,6 +1522,92 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         if (run is null) return; // nothing owing (should not happen with the demo invoices)
         Ok(re, "prepare statements");
         Ok((await st.SendAsync(run.Id, "finance", ct)).Error, "send statements");
+    }
+
+    // ------------------------------------------------------------------ Prescribing and barcode medicine checks (0.31.0)
+    private async Task PrescribingAsync(CancellationToken ct)
+    {
+        var rx = S<BrightPAS.Modules.Prescribing.PrescriptionService>();
+        Ok(await rx.SaveSettingsAsync(new(BrightPAS.Modules.Prescribing.BcmaMode.Advise, false, BrightPAS.Modules.Prescribing.NzepsProvider.Simulator, null, null, null, "F99999-D", null), "admin", ct), "prescribing settings");
+        foreach (var (user, name, cpn, scope) in new[] { ("hreid", "Dr Hamish Reid", "11HRDA", "Medical practitioner"), ("pnatarajan", "Dr Priya Natarajan", "22PNTA", "Medical practitioner"),
+                     ("fgrant", "Dr Fiona Grant", "33FGRA", "Medical practitioner"), ("bkowalski", "Dr Ben Kowalski", "44BKWA", "Medical practitioner") })
+            Ok((await rx.SavePrescriberAsync(null, new(user, name, cpn, "DEMO", scope, true), "admin", ct)).Errors, "prescriber " + user);
+        var emr = S<Emr.EmrDbContext>();
+        var episodes = await emr.Episodes.AsNoTracking().Where(e => e.Stage == Emr.EpisodeStage.Discharged).ToListAsync(ct);
+        episodes = [.. episodes.OrderByDescending(e => e.DischargedAt).Take(3)];
+        var db = S<BrightPAS.Modules.Prescribing.RxDbContext>();
+        var cef = await S<Meds.MedicinesDbContext>().Gtins.AsNoTracking().Where(g => g.Gtin == "09400000000016").Select(g => (Guid?)g.MedicineId).FirstOrDefaultAsync(ct);
+        var k = 0;
+        foreach (var e in episodes)
+        {
+            var at = e.AdmittedAt ?? e.DischargedAt ?? _clock.GetUtcNow();
+            // Orders written on the day (history): cefazolin once (given) and paracetamol as needed (stopped at discharge).
+            db.Orders.Add(new BrightPAS.Modules.Prescribing.MedOrder
+            {
+                PatientId = e.PatientId,
+                EpisodeId = e.Id,
+                MedicineId = cef,
+                Medicine = "Cefazolin 2 g injection",
+                Dose = "2 g",
+                Route = "IV",
+                Kind = BrightPAS.Modules.Prescribing.OrderKind.Once,
+                Indication = "Surgical prophylaxis",
+                Status = BrightPAS.Modules.Prescribing.OrderStatus.Given,
+                PrescribedAt = at,
+                PrescribedBy = "fgrant",
+                TimesGiven = 1,
+                LastGivenAt = at.AddMinutes(30)
+            });
+            db.Orders.Add(new BrightPAS.Modules.Prescribing.MedOrder
+            {
+                PatientId = e.PatientId,
+                EpisodeId = e.Id,
+                Medicine = "Paracetamol 1 g tablet",
+                Dose = "1 g",
+                Route = "Oral",
+                Kind = BrightPAS.Modules.Prescribing.OrderKind.AsNeeded,
+                Frequency = "6-hourly, max 4 g in 24 h",
+                Indication = "Pain",
+                Status = BrightPAS.Modules.Prescribing.OrderStatus.Stopped,
+                PrescribedAt = at,
+                PrescribedBy = "fgrant",
+                StoppedAt = e.DischargedAt,
+                StoppedBy = "hreid",
+                StopReason = "Discharged home"
+            });
+            var med = await emr.Medications.AsNoTracking().Where(m => m.EpisodeId == e.Id && m.Medicine == "Cefazolin").Select(m => (Guid?)m.Id).FirstOrDefaultAsync(ct);
+            db.Scans.Add(new BrightPAS.Modules.Prescribing.BcmaScan
+            {
+                PatientId = e.PatientId,
+                EpisodeId = e.Id,
+                MedicationId = med,
+                Medicine = "Cefazolin",
+                At = at.AddMinutes(30),
+                User = "nurse2",
+                Mode = BrightPAS.Modules.Prescribing.BcmaMode.Advise,
+                PatientScanned = true,
+                PatientMatched = true,
+                PackScanned = k != 1,
+                Gtin = k != 1 ? "09400000000016" : null,
+                Batch = k != 1 ? "DEMO" + (k + 1) : null,
+                Expiry = k != 1 ? _today.AddMonths(18) : null,
+                PackMatched = k != 1 ? true : null,
+                Result = k == 1 ? BrightPAS.Modules.Prescribing.BcmaResult.Warnings : BrightPAS.Modules.Prescribing.BcmaResult.Clear,
+                Findings = k == 1 ? "Info: Wristband scanned – right patient.\nWarn: The medicine pack was not scanned." : "Info: Wristband scanned – right patient.\nInfo: Pack scanned – Cefazolin 2 g injection."
+            });
+            k++;
+        }
+        await db.SaveChangesAsync(ct);
+        // Discharge prescriptions for the two most recent: one sent through the simulator, one still a draft for the prescriber to sign.
+        for (var i = 0; i < Math.Min(2, episodes.Count); i++)
+        {
+            var e = episodes[i];
+            var (p, errors) = await rx.CreateAsync(new(e.PatientId, e.Id, "DEMONSTRATION – invented prescription.",
+                [new(null, "Paracetamol 500 mg tablet", "Take 2 tablets every 6 hours when needed for pain. No more than 8 tablets in 24 hours.", 40, "tablet", 0, false),
+                 new(null, "Ibuprofen 400 mg tablet", "Take 1 tablet three times a day with food for 3 days, then when needed.", 15, "tablet", 0, false)]), "hreid", ct);
+            Ok(errors, "demo prescription");
+            if (i == 0) Ok((await rx.SignAsync(p!.Id, "hreid", ct)).Error, "sign demo prescription");
+        }
     }
 
     /// <summary>A one-page PDF standing in for a scanned paper consent form.</summary>

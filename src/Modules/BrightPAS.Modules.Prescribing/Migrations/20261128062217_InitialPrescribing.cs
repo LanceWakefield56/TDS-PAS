@@ -181,6 +181,12 @@ namespace BrightPAS.Modules.Prescribing.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Items_MedicineId",
+                schema: "rx",
+                table: "Items",
+                column: "MedicineId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Items_PrescriptionId",
                 schema: "rx",
                 table: "Items",
@@ -191,6 +197,12 @@ namespace BrightPAS.Modules.Prescribing.Migrations
                 schema: "rx",
                 table: "Orders",
                 column: "EpisodeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Orders_MedicineId",
+                schema: "rx",
+                table: "Orders",
+                column: "MedicineId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Orders_PatientId",
@@ -204,6 +216,12 @@ namespace BrightPAS.Modules.Prescribing.Migrations
                 table: "Prescribers",
                 column: "UserName",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Prescriptions_EpisodeId",
+                schema: "rx",
+                table: "Prescriptions",
+                column: "EpisodeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Prescriptions_Number",

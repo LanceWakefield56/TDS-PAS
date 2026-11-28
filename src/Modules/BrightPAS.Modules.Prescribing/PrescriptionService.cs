@@ -144,8 +144,17 @@ public sealed class PrescriptionService(RxDbContext db, BcmaService bcma, Patien
             if (it.Quantity <= 0 || it.Quantity > 10000) errors.Add($"Medicine {n}: enter the quantity to supply.");
             if (it.Repeats is < 0 or > 11) errors.Add($"Medicine {n}: repeats must be 0 to 11.");
             if (it.Controlled && it.Repeats > 0) errors.Add($"Medicine {n}: controlled drugs cannot have repeats on this prescription.");
-            items.Add(new PrescriptionItem { MedicineId = it.MedicineId, Medicine = name ?? "", NzmtId = nzmt, Directions = Clip(it.Directions, 500) ?? "", Quantity = it.Quantity,
-                Unit = Clip(it.Unit, 30) ?? "tablet", Repeats = it.Repeats, Controlled = it.Controlled });
+            items.Add(new PrescriptionItem
+            {
+                MedicineId = it.MedicineId,
+                Medicine = name ?? "",
+                NzmtId = nzmt,
+                Directions = Clip(it.Directions, 500) ?? "",
+                Quantity = it.Quantity,
+                Unit = Clip(it.Unit, 30) ?? "tablet",
+                Repeats = it.Repeats,
+                Controlled = it.Controlled
+            });
         }
         if (errors.Count > 0) return (null, errors);
         var strategy = db.Database.CreateExecutionStrategy();
@@ -157,8 +166,14 @@ public sealed class PrescriptionService(RxDbContext db, BcmaService bcma, Patien
             var s = await bcma.SettingsAsync(ct);
             rx = new Prescription
             {
-                Number = $"RX{s.NextNumber++:D6}", NzepsId = NzepsId.New(), PatientId = r.PatientId, EpisodeId = r.EpisodeId, PrescriberId = prescriber!.Id, Note = Clip(r.Note, 300),
-                CreatedAt = clock.GetUtcNow(), CreatedBy = user,
+                Number = $"RX{s.NextNumber++:D6}",
+                NzepsId = NzepsId.New(),
+                PatientId = r.PatientId,
+                EpisodeId = r.EpisodeId,
+                PrescriberId = prescriber!.Id,
+                Note = Clip(r.Note, 300),
+                CreatedAt = clock.GetUtcNow(),
+                CreatedBy = user,
             };
             foreach (var i in items) { i.PrescriptionId = rx.Id; rx.Items.Add(i); }
             db.Prescriptions.Add(rx);

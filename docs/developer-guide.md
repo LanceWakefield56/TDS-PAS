@@ -80,6 +80,12 @@ Edit and add forms go in `<Modal title=… onClose=…>` (`components/Modal.tsx`
 - Web: `Api/ConsentEndpoints.cs` (`/api/consent/*`, public `/api/e/{token}`), `Integration/ConsentIntegration.cs` (`ConsentBookingGate`, only when licensed and the setting is on), `ConsentMerge`, journey `ConsentStage` + My list. UI: `pages/Consent.tsx` (lists, detail, sheet editor, settings, patient page `/e/:token` with `SignaturePad`).
 - Tests: `ConsentTests` (sheets, link flow, paper/withdraw/gate/merge, patient withdrawal), `ConsentPdfTests`. Robot: `ScenariosConsent.cs`.
 
+## Prescribing and barcode medicine checks (0.31.0, ADR 0044)
+- `src/Modules/BrightPAS.Modules.Prescribing`: `RxModel.cs` (schema `rx`), `Barcodes.cs` (`Gs1` pack barcode reader, `NzepsId` with ISO 7064 Mod 37,2 check character), `OrderService.cs` (medicine chart; `BcmaService` – the barcode check, lookup, link to the charted medicine, report), `PrescriptionService.cs` (prescribers, prescriptions, sign/send/cancel, FHIR bundle, PDF model).
+- The barcode check is an `IMedicineSafetyCheck` (`Web/Integration/PrescribingIntegration.cs` `BcmaGate`, registered after the 0.27 gate); `MedicineGiveCheck`/`MedicationRequest` carry `PatientBarcode` and `OrderId`. `INzepsApi` → `HttpNzepsApi` (endpoints to be confirmed with Health NZ); `IPrescriptionPdf` → `Web/Pdf/PrescriptionPdf.cs` (barcode via `Pdf/BarcodePng.cs`).
+- Web: `Api/PrescribingEndpoints.cs` (`/api/prescribing/*`), `PrescribingMerge`. UI: `pages/Prescribing.tsx` (page; `MedicineChart`, `ScanFields` and `DischargeRx` used in `EmrEpisode.tsx`).
+- Tests: `PrescribingTests`, `PrescriptionPdfTests`. Robot: `ScenariosPrescribing.cs`.
+
 ## Online payments and statements (0.30.0, ADR 0043)
 - `src/Modules/BrightPAS.Modules.Payments`: `PaymentsModel.cs` (schema `payments`), `PaymentLinkService.cs` (settings, links, public view/start/check/simulator, `CompleteAsync` – one atomic Started→result update decides who applies the money – allocation oldest first through `BillingService.RecordPaymentAsync`, needs attention, background check, merge), `StatementService.cs` (runs, send, posting batch, PDFs).
 - Never trust the browser's return: `CheckAsync`/`QueryAsync` always read the session from the provider. `IWindcaveApi` → `Web/Integration/PaymentsIntegration.cs` (`HttpWindcaveApi`, `PaymentsWorker` every 10 minutes); `IStatementPdf` → `Web/Pdf/StatementPdf.cs`. Reminders `QueuePaymentLinkAsync` (kinds PaymentLink, Statement).
