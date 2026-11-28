@@ -356,6 +356,9 @@ public class TriageTests
         Assert.StartsWith("https://meet.example.nz/tds-", r!.JoinLink, StringComparison.Ordinal);
         Assert.Equal(15, r.Minutes);
         Assert.NotEmpty((await rv.BookAsync(new(a.Id, kate.Id, ReviewMode.Phone, now.AddMinutes(35), null, "021 555 0100", null), "nurse")).Errors); // clash + already booked
+        // Re-running triage keeps the review with the booking.
+        var rerun = await svc.RunAsync(pid, bid, TriageTrigger.Manual, "Re-run", "nurse");
+        Assert.Equal(r.Id, (await rv.ListAsync(null, 1, null, rerun.Id)).Single().Id);
         Assert.NotNull(await rv.FinishAsync(r.Id, new(ReviewStatus.Done, null), "kford"));
         Assert.Null(await rv.FinishAsync(r.Id, new(ReviewStatus.Done, "Reviewed by video: anxious, obs settling. Proceed with precautions."), "kford"));
         Assert.NotNull(await rv.FinishAsync(r.Id, new(ReviewStatus.Cancelled, "x"), "kford"));

@@ -55,7 +55,7 @@ public sealed class ReviewService(TriageDbContext db, PasDbContext core, Patient
             var clash = await db.Reviews.AsNoTracking().Where(r => r.AnaesthetistId == e.AnaesthetistId && r.Status == ReviewStatus.Booked && r.StartsAt < end)
                 .Select(r => new { r.StartsAt, r.Minutes }).ToListAsync(ct);
             if (clash.Exists(r => r.StartsAt.AddMinutes(r.Minutes) > start)) errors.Add($"{doc!.Name} already has a review at that time.");
-            if (await db.Reviews.AnyAsync(r => r.AssessmentId == a.Id && r.Status == ReviewStatus.Booked, ct)) errors.Add("A review is already booked for this assessment – cancel it first.");
+            if (await db.Reviews.AnyAsync(r => r.Status == ReviewStatus.Booked && (r.AssessmentId == a.Id || (a.BookingId != null && r.PatientId == a.PatientId && r.BookingId == a.BookingId)), ct)) errors.Add("A review is already booked for this assessment – cancel it first.");
         }
         if (errors.Count > 0) return (null, errors);
         var code = Convert.ToHexString(RandomNumberGenerator.GetBytes(5)).ToLowerInvariant();
@@ -99,7 +99,13 @@ public sealed class ReviewService(TriageDbContext db, PasDbContext core, Patient
     public async Task<List<ReviewRow>> ListAsync(DateOnly? from, int days, Guid? anaesthetistId, Guid? assessmentId, CancellationToken ct = default)
     {
         var q = db.Reviews.AsNoTracking();
-        if (assessmentId is { } aid) q = q.Where(r => r.AssessmentId == aid);
+        if (assessmentId is { } aid)
+        {
+            // Reviews follow the patient's booking, so they still show after triage is re-run.
+            var a = await db.Assessments.AsNoTracking().Where(x => x.Id == aid).Select(x => new { x.PatientId, x.BookingId }).SingleOrDefaultAsync(ct);
+            if (a is null) return [];
+            q = a.BookingId is { } bid ? q.Where(r => r.PatientId == a.PatientId && r.BookingId == bid) : q.Where(r => r.AssessmentId == aid);
+        }
         else
         {
             var start = NzTime.StartOfDay(from ?? NzTime.Today(clock));
