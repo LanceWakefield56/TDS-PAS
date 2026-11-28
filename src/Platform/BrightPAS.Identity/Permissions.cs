@@ -130,12 +130,16 @@ public static class Permissions
     public const string ConsentConfirm = "consent.confirm";
     public const string ConsentSheets = "consent.sheets";
     public const string ConsentApprove = "consent.approve";
+    // Online payments and statements (0.30.0)
+    public const string OnlinePayView = "onlinepay.view";
+    public const string OnlinePayManage = "onlinepay.manage";
+    public const string OnlinePaySettings = "onlinepay.settings";
 
     /// <summary>Policy name allowing ANY of the given permissions (0.12.4), e.g. forms listed for staff who send OR triage them. Registered in <see cref="AnyOfPolicies"/>.</summary>
     public static string AnyOf(params string[] permissions) => string.Join('|', permissions);
 
     /// <summary>Every "any of" policy used by an endpoint; each part must be a real permission (checked by the endpoint security test).</summary>
-    public static readonly IReadOnlyList<string> AnyOfPolicies = [AnyOf(FormsSend, FormsTriage), AnyOf(ScribeUse, ScribeApprove, ScribeManage), AnyOf(DevicesUse, DevicesManage), AnyOf(QualityView, QualityManage), AnyOf(CodingCode, CodingSubmit, CodingManage), AnyOf(EstimatesBuild, EstimatesManage), AnyOf(TriageView, TriageAssess, TriageReview, TriageRules), AnyOf(FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport), AnyOf(RemindersView, LettersView), AnyOf(ResearchBuild, ResearchApprove), AnyOf(FormsDesign, FormsFill, FormsApprove), AnyOf(FormsDesign, FormsApprove), AnyOf(ClaimsView, ClaimsManage, ClaimsAdmin), AnyOf(ClaimsManage, PaymentsTake), AnyOf(ClaimsManage, ClaimsAdmin), AnyOf(ClaimsManage, PaymentsTake, ClaimsAdmin), AnyOf(IdentityLookup, LettersTemplates), AnyOf(MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove), AnyOf(MedicinesRules, MedicinesApprove), AnyOf(ConsentView, ConsentManage, ConsentConfirm, ConsentSheets, ConsentApprove), AnyOf(ConsentSheets, ConsentApprove)];
+    public static readonly IReadOnlyList<string> AnyOfPolicies = [AnyOf(FormsSend, FormsTriage), AnyOf(ScribeUse, ScribeApprove, ScribeManage), AnyOf(DevicesUse, DevicesManage), AnyOf(QualityView, QualityManage), AnyOf(CodingCode, CodingSubmit, CodingManage), AnyOf(EstimatesBuild, EstimatesManage), AnyOf(TriageView, TriageAssess, TriageReview, TriageRules), AnyOf(FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport), AnyOf(RemindersView, LettersView), AnyOf(ResearchBuild, ResearchApprove), AnyOf(FormsDesign, FormsFill, FormsApprove), AnyOf(FormsDesign, FormsApprove), AnyOf(ClaimsView, ClaimsManage, ClaimsAdmin), AnyOf(ClaimsManage, PaymentsTake), AnyOf(ClaimsManage, ClaimsAdmin), AnyOf(ClaimsManage, PaymentsTake, ClaimsAdmin), AnyOf(IdentityLookup, LettersTemplates), AnyOf(MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove), AnyOf(MedicinesRules, MedicinesApprove), AnyOf(ConsentView, ConsentManage, ConsentConfirm, ConsentSheets, ConsentApprove), AnyOf(ConsentSheets, ConsentApprove), AnyOf(OnlinePayView, OnlinePayManage, OnlinePaySettings)];
     /// <summary>Claims, approvals and remittances can be read by anyone with a claims permission.</summary>
     public static string ClaimsAny => AnyOf(ClaimsView, ClaimsManage, ClaimsAdmin);
     /// <summary>Scribe templates and dictionary can be read by clinicians, approvers and scribe administrators.</summary>
@@ -153,6 +157,7 @@ public static class Permissions
     /// <summary>Consents and sheets can be read by anyone with a consent permission.</summary>
     public static string ConsentAny => AnyOf(ConsentView, ConsentManage, ConsentConfirm, ConsentSheets, ConsentApprove);
     public static string ConsentSheetsAny => AnyOf(ConsentSheets, ConsentApprove);
+    public static string OnlinePayAny => AnyOf(OnlinePayView, OnlinePayManage, OnlinePaySettings);
     public static string FollowUpAny => AnyOf(FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport);
     /// <summary>The medicines list and the rules can be read by anyone with a medicines permission.</summary>
     public static string MedicinesAny => AnyOf(MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove);
@@ -167,7 +172,7 @@ public static class Permissions
         BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage,
         CredentialingView, CredentialingManage, PortalSpecialist, PortalManage, MessagingView,
         AssetsView, AssetsManage, CssdProcess, CssdRelease, StockManage, PurchasingApprove, EmrView, EmrWrite, EmrControlledDrugs,
-        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage, EstimatesBuild, EstimatesManage, EBookingsSend, EBookingsManage, ConsentView, ConsentManage, ConsentConfirm, ConsentSheets, ConsentApprove, TriageView, TriageAssess, TriageReview, TriageRules, TriageApprove, FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport, ResearchBuild, ResearchApprove, FormsDesign, FormsApprove, FormsFill, ClaimsView, ClaimsManage, ClaimsAdmin, PaymentsTake, IdentityLookup, MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove
+        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage, EstimatesBuild, EstimatesManage, EBookingsSend, EBookingsManage, ConsentView, ConsentManage, ConsentConfirm, ConsentSheets, ConsentApprove, OnlinePayView, OnlinePayManage, OnlinePaySettings, TriageView, TriageAssess, TriageReview, TriageRules, TriageApprove, FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport, ResearchBuild, ResearchApprove, FormsDesign, FormsApprove, FormsFill, ClaimsView, ClaimsManage, ClaimsAdmin, PaymentsTake, IdentityLookup, MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove
     ];
 }
 
@@ -204,7 +209,7 @@ public static class DefaultRoles
             [Reception] = ("Registers patients and manages bookings.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.PatientEdit, Permissions.TheatreView, Permissions.TheatreBook,
                  Permissions.TheatreManage, Permissions.FormsSend, Permissions.BillingView, Permissions.BillingManage, Permissions.LabsMatch, Permissions.RemindersView,
-                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.PortalManage, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.PaymentsTake, Permissions.IdentityLookup, Permissions.EBookingsManage, Permissions.ConsentView, Permissions.ConsentManage]),
+                 Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.PortalManage, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.PaymentsTake, Permissions.IdentityLookup, Permissions.EBookingsManage, Permissions.ConsentView, Permissions.ConsentManage, Permissions.OnlinePayView, Permissions.OnlinePayManage]),
             [Nurse] = ("Clinical nursing access.", [.. Clinical, Permissions.IdentityLookup, Permissions.FormsFill, Permissions.TriageView, Permissions.TriageAssess, Permissions.FollowUpView, Permissions.FollowUpRecord, Permissions.PatientRegister, Permissions.TheatreBook, Permissions.FormsSend,
                  Permissions.FormsTriage, Permissions.LabsMatch, Permissions.RemindersView, Permissions.ReferralsView, Permissions.ReferralsManage,
                  Permissions.LettersView, Permissions.LettersWrite, Permissions.RosterView, Permissions.AssetsView, Permissions.CssdProcess, Permissions.StockManage, Permissions.EmrView, Permissions.EmrWrite, Permissions.EmrControlledDrugs, Permissions.EndoView, Permissions.EndoWrite, Permissions.ScribeUse, Permissions.DevicesUse, Permissions.MedicinesView, Permissions.ConsentView, Permissions.ConsentManage, Permissions.ConsentConfirm]),
@@ -213,7 +218,7 @@ public static class DefaultRoles
                  Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist, Permissions.MedicinesView, Permissions.EBookingsSend, Permissions.ConsentView, Permissions.ConsentManage, Permissions.ConsentConfirm, Permissions.ConsentSheets, Permissions.ConsentApprove]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",
                 [Permissions.PatientView, Permissions.FormsFill, Permissions.RosterView, Permissions.AssetsView, Permissions.AssetsManage, Permissions.CssdProcess, Permissions.CssdRelease, Permissions.StockManage, Permissions.QualityReport]),
-            [Finance] = ("Billing, invoices and payments; procedure estimates and the estimates price list.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees, Permissions.AssetsView, Permissions.PurchasingApprove, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.EstimatesManage, Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.ClaimsAdmin, Permissions.PaymentsTake, Permissions.IdentityLookup]),
+            [Finance] = ("Billing, invoices and payments; procedure estimates and the estimates price list.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees, Permissions.AssetsView, Permissions.PurchasingApprove, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.EstimatesManage, Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.ClaimsAdmin, Permissions.PaymentsTake, Permissions.IdentityLookup, Permissions.OnlinePayView, Permissions.OnlinePayManage, Permissions.OnlinePaySettings]),
             [PracticeAssistant] = ("Specialist's practice assistant: bookings for their specialist's patients.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.TheatreView, Permissions.TheatreBook, Permissions.FormsSend, Permissions.LabsView,
                  Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist, Permissions.EBookingsSend, Permissions.ConsentView, Permissions.ConsentManage]),

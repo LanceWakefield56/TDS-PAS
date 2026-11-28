@@ -90,6 +90,8 @@ public sealed class PasWebFactory : WebApplicationFactory<Program>, IAsyncLifeti
             await x.Database.MigrateAsync();
         await using (var x = new BrightPAS.Modules.Consent.ConsentDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Consent.ConsentDbContext>().Also(o => Sql(o, "consent")).Options))
             await x.Database.MigrateAsync();
+        await using (var x = new BrightPAS.Modules.Payments.PaymentsDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Payments.PaymentsDbContext>().Also(o => Sql(o, "payments")).Options))
+            await x.Database.MigrateAsync();
         await using (var x = new BrightPAS.Modules.FollowUp.FollowUpDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.FollowUp.FollowUpDbContext>().Also(o => Sql(o, "followup")).Options))
             await x.Database.MigrateAsync();
         await using (var x = new BrightPAS.Modules.Research.ResearchDbContext(new DbContextOptionsBuilder<BrightPAS.Modules.Research.ResearchDbContext>().Also(o => Sql(o, "research")).Options))

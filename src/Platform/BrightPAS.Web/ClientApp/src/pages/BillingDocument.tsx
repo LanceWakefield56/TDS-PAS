@@ -4,6 +4,7 @@ import { api, errText, formatDate, money, PatientDetail, Perm, todayIso } from '
 import { useSession } from '../App';
 import { docStatusClass, payerText, Totals } from './Billing';
 import { InvoiceClaim, TakePayment } from './Claims';
+import { InvoicePayOnline } from './Payments';
 
 interface Doc {
   id: string; kind: string; number: string | null; patientId: string; sourceEstimateId: string | null; payer: string; payerName: string | null; payerReference: string | null;
@@ -80,6 +81,7 @@ export default function BillingDocument() {
       </section>
 
       {isInv && mod('claims') && <InvoiceClaim invoiceId={d.id} payer={d.payer} payerName={d.payerName} status={d.status} />}
+      {isInv && mod('payments') && [Perm.OnlinePayView, Perm.OnlinePayManage].some(can) && d.payer === 'SelfFunded' && d.status !== 'Draft' && d.status !== 'Void' && <InvoicePayOnline invoiceId={d.id} status={d.status} onChange={() => void load()} />}
       {isInv && mod('claims') && can(Perm.PaymentsTake) && ['Issued', 'PartPaid'].includes(d.status) && <TakePayment invoiceId={d.id} balance={d.totals.balance} onPaid={() => void load()} />}
 
       {isInv && d.payments.length > 0 && (

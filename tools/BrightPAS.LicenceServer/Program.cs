@@ -60,7 +60,7 @@ app.MapPost("/api/activate", async (ActivateRequest req, ILogger<Program> log) =
         if (map.TryGetValue(req.LicenceId, out var bound) && bound != code)
             return Results.Conflict(new { error = "This licence is already active on another installation. Contact the vendor to move it." });
         map[req.LicenceId] = code;
-        File.WriteAllText(path, JsonSerializer.Serialize(map, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(path, JsonSerializer.Serialize(map, LicenceServerJson.Indented));
     }
     finally { gate.Release(); }
 
@@ -78,3 +78,8 @@ app.MapPost("/api/activate", async (ActivateRequest req, ILogger<Program> log) =
 app.Run();
 
 internal sealed record ActivateRequest(string? LicenceId, string? InstallationCode, string? Product, string? Version);
+
+internal static class LicenceServerJson
+{
+    public static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
+}

@@ -136,6 +136,12 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_consent_Consents_Patient', N'[con
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_consent_Consents_Booking', N'[consent].[Consents]', N'BookingId', N'[theatre].[Bookings]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_consent_Consents_Clinician', N'[consent].[Consents]', N'ClinicianId', N'[core].[Clinicians]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_consent_Consents_Document', N'[consent].[Consents]', N'DocumentId', N'[patients].[Documents]';
+-- Online payments and statements (0.30.0)
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Links_Patient', N'[payments].[Links]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Links_Invoice', N'[payments].[Links]', N'InvoiceId', N'[billing].[Documents]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Payments_Patient', N'[payments].[Payments]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Allocations_Invoice', N'[payments].[Allocations]', N'InvoiceId', N'[billing].[Documents]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Statements_Patient', N'[payments].[Statements]', N'PatientId', N'[patients].[Patients]';
 GO
 
 -- ---------------------------------------------------------------------------------------------------------------

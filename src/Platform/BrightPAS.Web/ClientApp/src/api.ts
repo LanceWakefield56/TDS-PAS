@@ -55,6 +55,7 @@ export const Perm = {
   MedicinesView: 'medicines.view', MedicinesCatalogue: 'medicines.catalogue', MedicinesRules: 'medicines.rules', MedicinesApprove: 'medicines.approve',
   EBookingsSend: 'ebookings.send', EBookingsManage: 'ebookings.manage',
   ConsentView: 'consent.view', ConsentManage: 'consent.manage', ConsentConfirm: 'consent.confirm', ConsentSheets: 'consent.sheets', ConsentApprove: 'consent.approve',
+  OnlinePayView: 'onlinepay.view', OnlinePayManage: 'onlinepay.manage', OnlinePaySettings: 'onlinepay.settings',
   TriageView: 'triage.view', TriageAssess: 'triage.assess', TriageReview: 'triage.review', TriageRules: 'triage.rules', TriageApprove: 'triage.approve',
   EndoView: 'endoscopy.view', EndoWrite: 'endoscopy.write', EndoSign: 'endoscopy.sign', EndoManage: 'endoscopy.manage',
   EmrView: 'emr.view', EmrWrite: 'emr.write', EmrControlledDrugs: 'emr.controlled-drugs',

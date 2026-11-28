@@ -136,6 +136,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await TriageAsync(ct);
         await FollowUpAsync(ct);
         await ConsentAsync(ct);
+        await PaymentsAsync(ct);
         await SafetyFormsResearchAsync(ct);
         await ClaimsAsync(ct);
         await RemindersAsync(ct);
@@ -1489,6 +1490,37 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             Ok(await svc.SignAsync(token, dob, new(BrightPAS.Modules.Consent.SignerKind.Patient, name, null, null, null, true, true, true), ct), "sign consent");
             if (k == 4 && r.SurgeryDate == _today) Ok(await svc.ConfirmAsync(c.Id, "Gone through with the patient on admission.", "nurse", ct), "confirm consent");
         }
+    }
+
+    /// <summary>Online payments (simulator) and one statement run: an open link, a part payment, a full payment, a declined card.</summary>
+    private async Task PaymentsAsync(CancellationToken ct)
+    {
+        var svc = S<BrightPAS.Modules.Payments.PaymentLinkService>();
+        Ok(await svc.SaveSettingsAsync(new(BrightPAS.Modules.Payments.GatewayProvider.Simulator, "https://localhost:5001", 30, 10m, null, null, null, 5m,
+            "Demonstration system – invented data only."), "admin", ct), "payment settings");
+        var owing = await S<BillingDbContext>().Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments)
+            .Where(d => d.Kind == DocumentKind.Invoice && d.Payer == Payer.SelfFunded && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid))
+            .OrderBy(d => d.IssuedOn).ThenBy(d => d.Number).Skip(1).Take(4).ToListAsync(ct);
+        var pdb = S<PatientsDbContext>();
+        for (var k = 0; k < owing.Count; k++)
+        {
+            var inv = owing[k];
+            var (link, _, error) = await svc.CreateForInvoiceAsync(inv.Id, true, "finance", ct);
+            Ok(error, "payment link");
+            if (k == 0) continue; // sent, not paid yet
+            var token = link!.Split("/pay/")[1];
+            var dob = (await pdb.Patients.AsNoTracking().SingleAsync(p => p.Id == inv.PatientId, ct)).DateOfBirth;
+            var balance = BillingService.Calculate(inv).Balance;
+            var amount = k == 1 ? Math.Min(50m, balance) : balance;
+            var (url, se) = await svc.StartAsync(token, dob, amount, ct);
+            Ok(se, "start online payment");
+            Ok((await svc.SimulateAsync(token, url!.Split("ref=")[1], k == 3 ? "decline" : "approve", ct)).Error, "simulated payment");
+        }
+        var st = S<BrightPAS.Modules.Payments.StatementService>();
+        var (run, re) = await st.PrepareAsync(_today, "finance", ct);
+        if (run is null) return; // nothing owing (should not happen with the demo invoices)
+        Ok(re, "prepare statements");
+        Ok((await st.SendAsync(run.Id, "finance", ct)).Error, "send statements");
     }
 
     /// <summary>A one-page PDF standing in for a scanned paper consent form.</summary>

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.30.0 – 2026-11-28 – **Online payments and statements**
+- **Online payments module (ADR 0043, guide H37)** – licence "payments"; permissions View / Send links and statements / Settings (Finance all three; Reception View and Send); "Online payments" under After surgery.
+  - **Payment links:** from an invoice (Pay online › Send payment link, or make a link to copy). The patient opens it on any device, enters their date of birth (five tries then a 30-minute lock), sees what is owing and pays all or part by card on the provider's own page – card numbers never reach BrightPAS.
+  - **Providers:** Windcave hosted payment page (REST API, key stored protected) or the Simulator for training. The result is always read back from the provider; a background check settles payments the patient never came back from.
+  - **Applied automatically** to the invoice(s), oldest first, exactly once; money that cannot be applied (e.g. paid at the desk meanwhile) is listed under **Needs attention** to refund or apply by hand.
+  - **Statements:** prepare a run for all self-funded balances, check it, then send – by email or text with a payment link, or in one PDF to print and post (each with its own payment link). Statement PDF for staff and for the patient through their link.
+  - Set-up wizard, demo data (simulator payments and a statement run), patient merge, self-test entries, reporting foreign keys.
+- Reminders: new message kinds "Payment link" and "Statement" (text and email templates).
+- Fixed (0.29.0): the consent booking gate caused a start-up loop in the web app's services (found by running the tests against SQL Server).
+- Test robot: **Online payments** steps (Finance sends a link; patient pays on a phone through the simulator; statements to post print; reception cannot change the settings).
+
 ## 0.29.0 – 2026-11-25 – **E-consent and patient education**
 - **E-consent module (ADR 0042, guide H36)** – licence "consent"; permissions View / Prepare and send / Confirm on the day / Write sheets / Approve sheets; "Consent" under Before surgery.
   - **Information sheets:** what the procedure is, benefits, risks with how often they happen (serious risks first), alternatives, without the procedure, anaesthetic, getting ready, recovery, videos and web pages. Versioned; a second clinician approves before patients see a sheet; approved sheets never change (new version instead). Three example sheets (example wording only).

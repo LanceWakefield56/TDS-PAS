@@ -87,7 +87,9 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Bookings from specialists' rooms: portal requests with files, booking office review (points to check, questions, patient match/register, accept onto the waitlist, decline), JSON/HL7 REF^I12 file import and watched folder, optional rooms email – 0.28.0 (ADR 0041)
 - ☑ E-consent and patient education: versioned clinician-approved information sheets, consent per booking sent by secure link, read/ask/sign (or representative, interpreter), paper scan, signed PDF in the record, confirm on the day (theatre check), withdraw, optional gate – 0.29.0 (ADR 0042)
 - ☐ Consent next: TDS surgeons write and approve their own sheets; translated sheets (te reo Māori and others); anaesthesia consent sheet; surgeon e-signature; consent started from the specialist portal; clinical and legal review of the wording and process
-- ☐ Rooms bookings next: rooms pick a theatre slot from TDS's free time; HL7 ACK/RRI back to practice systems; online payments and statements (0.30)
+- ☑ Online payments and statements: payment links (date of birth), Windcave hosted page or simulator, results read back from the provider, applied to invoices oldest first, needs-attention list, statement runs by email/text/post with payment links – 0.30.0 (ADR 0043)
+- ☐ Payments next: Windcave merchant agreement and UAT test; refunds from BrightPAS; payment plans; automatic monthly statement runs and overdue reminders; insurer shortfall statements
+- ☐ Rooms bookings next: rooms pick a theatre slot from TDS's free time; HL7 ACK/RRI back to practice systems
 - ☐ Medicines next: barcode medicine administration (BCMA) using the pack barcodes; NZePS e-prescriptions; NZ Formulary licence check; TDS clinicians approve the medicine rules; confirm the NZULM file layout
 - ☐ Triage next: TDS's anaesthetists agree and approve the rules; NEWS2/early-warning scores on the day (with EMR observations); anaesthetist video/phone review booking
 - ☑ Patient journey, My list, theatre day board, simpler menu – 0.23.0 (ADR 0036)

@@ -42,6 +42,7 @@
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Medicines\BrightPAS.Modules.Medicines.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.EBookings\BrightPAS.Modules.EBookings.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Consent\BrightPAS.Modules.Consent.csproj" />
+    <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Payments\BrightPAS.Modules.Payments.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.FollowUp\BrightPAS.Modules.FollowUp.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Research\BrightPAS.Modules.Research.csproj" />
     <ProjectReference Include="..\..\src\Modules\BrightPAS.Modules.Claims\BrightPAS.Modules.Claims.csproj" />

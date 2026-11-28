@@ -41,13 +41,16 @@ public sealed class ModulesHost : IAsyncDisposable
         s.AddSingleton<ISecretProtector, ReversibleTestProtector>();
         s.AddSingleton(new ReminderDefaults(SmsProvider.TestOutbox, EmailProvider.TestOutbox));
         s.AddPasModules([new PatientsModule(), new LabsModule(), new TheatreModule(), new FormsModule(), new BillingModule(), new RemindersModule(), new ReferralsModule(), new LettersModule(), new RosteringModule(),
-            new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(), new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.Medicines.MedicinesModule(), new BrightPAS.Modules.EBookings.EBookingsModule(), new BrightPAS.Modules.FollowUp.FollowUpModule(), new BrightPAS.Modules.Research.ResearchModule(), new BrightPAS.Modules.Claims.ClaimsModule(), new BrightPAS.Modules.Consent.ConsentModule()]);
+            new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(), new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.Medicines.MedicinesModule(), new BrightPAS.Modules.EBookings.EBookingsModule(), new BrightPAS.Modules.FollowUp.FollowUpModule(), new BrightPAS.Modules.Research.ResearchModule(), new BrightPAS.Modules.Claims.ClaimsModule(), new BrightPAS.Modules.Consent.ConsentModule(), new BrightPAS.Modules.Payments.PaymentsModule()]);
         s.AddLogging();
         s.AddSingleton<BrightPAS.Modules.Estimates.IEstimatePdf, TestEstimatePdf>();
         s.AddSingleton<TestEstimateMailer>();
         s.AddSingleton<BrightPAS.Modules.Estimates.IEstimateMailer>(sp => sp.GetRequiredService<TestEstimateMailer>());
         s.AddSingleton<IDocumentCipher, TestDocumentCipher>();
         s.AddSingleton<BrightPAS.Modules.Consent.IConsentPdf, TestConsentPdf>();
+        s.AddSingleton<TestWindcave>();
+        s.AddSingleton<BrightPAS.Modules.Payments.IWindcaveApi>(sp => sp.GetRequiredService<TestWindcave>());
+        s.AddSingleton<BrightPAS.Modules.Payments.IStatementPdf, TestStatementPdf>();
         s.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
         Services = s.BuildServiceProvider();
         using var scope = Services.CreateScope();
@@ -55,7 +58,7 @@ public sealed class ModulesHost : IAsyncDisposable
         foreach (DbContext db in new DbContext[] { sp.GetRequiredService<PasDbContext>(), sp.GetRequiredService<PatientsDbContext>(), sp.GetRequiredService<LabsDbContext>(),
                      sp.GetRequiredService<TheatreDbContext>(), sp.GetRequiredService<FormsDbContext>(), sp.GetRequiredService<BillingDbContext>(),
                      sp.GetRequiredService<RemindersDbContext>(), sp.GetRequiredService<ReferralsDbContext>(), sp.GetRequiredService<LettersDbContext>(), sp.GetRequiredService<RosterDbContext>(),
-                     sp.GetRequiredService<BrightPAS.Modules.Credentialing.CredDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Portal.PortalDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Messaging.MsgDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Assets.AssetsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Emr.EmrDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Endoscopy.EndoDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Scribe.ScribeDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Devices.DevicesDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Quality.QualityDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Coding.CodingDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Estimates.EstDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Triage.TriageDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Medicines.MedicinesDbContext>(), sp.GetRequiredService<BrightPAS.Modules.EBookings.EBookingsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.FollowUp.FollowUpDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Research.ResearchDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Claims.ClaimsDbContext>() , sp.GetRequiredService<BrightPAS.Modules.Consent.ConsentDbContext>()})
+                     sp.GetRequiredService<BrightPAS.Modules.Credentialing.CredDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Portal.PortalDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Messaging.MsgDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Assets.AssetsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Emr.EmrDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Endoscopy.EndoDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Scribe.ScribeDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Devices.DevicesDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Quality.QualityDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Coding.CodingDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Estimates.EstDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Triage.TriageDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Medicines.MedicinesDbContext>(), sp.GetRequiredService<BrightPAS.Modules.EBookings.EBookingsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.FollowUp.FollowUpDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Research.ResearchDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Claims.ClaimsDbContext>() , sp.GetRequiredService<BrightPAS.Modules.Consent.ConsentDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Payments.PaymentsDbContext>()})
             db.Database.EnsureCreated();
         var core = sp.GetRequiredService<PasDbContext>();
         core.Organisations.Add(BrightPAS.Core.Organisation.TdsDefaultSetup.Create());
@@ -137,5 +140,33 @@ public sealed class TestConsentPdf : BrightPAS.Modules.Consent.IConsentPdf
     {
         Rendered.Add(model);
         return System.Text.Encoding.ASCII.GetBytes($"%PDF-1.4\n% {model.Number} {(model.ConfirmedAt is null ? "signed" : "confirmed")}\n%%EOF\n");
+    }
+}
+
+/// <summary>Fake Windcave: records sessions; tests set what a session query returns.</summary>
+public sealed class TestWindcave : BrightPAS.Modules.Payments.IWindcaveApi
+{
+    public List<(string Reference, decimal Amount, string ReturnUrl, string NotifyUrl)> Created { get; } = [];
+    public Dictionary<string, BrightPAS.Modules.Payments.GatewayResult> Results { get; } = [];
+    public int Queries { get; private set; }
+    public Task<BrightPAS.Modules.Payments.GatewayStart> CreateSessionAsync(string baseUrl, string user, string key, decimal amount, string merchantReference, string returnUrl, string notificationUrl, CancellationToken ct)
+    {
+        Created.Add((merchantReference, amount, returnUrl, notificationUrl));
+        return Task.FromResult(new BrightPAS.Modules.Payments.GatewayStart($"https://uat.windcave.com/hpp/?id=S{Created.Count}", $"S{Created.Count}", null));
+    }
+    public Task<BrightPAS.Modules.Payments.GatewayResult> QuerySessionAsync(string baseUrl, string user, string key, string sessionId, CancellationToken ct)
+    {
+        Queries++;
+        return Task.FromResult(Results.TryGetValue(sessionId, out var r) ? r : new BrightPAS.Modules.Payments.GatewayResult(false, false, false, null, null, null, null, null));
+    }
+}
+
+public sealed class TestStatementPdf : BrightPAS.Modules.Payments.IStatementPdf
+{
+    public List<BrightPAS.Modules.Payments.StatementPdfModel> Rendered { get; } = [];
+    public byte[] Render(IReadOnlyList<BrightPAS.Modules.Payments.StatementPdfModel> statements)
+    {
+        Rendered.AddRange(statements);
+        return System.Text.Encoding.ASCII.GetBytes($"%PDF-1.4\n% {string.Join(",", statements.Select(x => x.Number))}\n%%EOF\n");
     }
 }
