@@ -61,9 +61,19 @@ public sealed class ReviewService(TriageDbContext db, PasDbContext core, Patient
         var code = Convert.ToHexString(RandomNumberGenerator.GetBytes(5)).ToLowerInvariant();
         var r = new Review
         {
-            AssessmentId = a.Id, PatientId = a.PatientId, BookingId = a.BookingId, AnaesthetistId = doc!.Id, AnaesthetistName = doc.Name, Mode = e.Mode, StartsAt = start, Minutes = minutes,
-            JoinLink = e.Mode == ReviewMode.Video ? s.VideoLinkTemplate!.Replace("{code}", code, StringComparison.Ordinal) : null, Phone = phone,
-            Reason = Cut(e.Reason, 500), CreatedAt = clock.GetUtcNow(), CreatedBy = user,
+            AssessmentId = a.Id,
+            PatientId = a.PatientId,
+            BookingId = a.BookingId,
+            AnaesthetistId = doc!.Id,
+            AnaesthetistName = doc.Name,
+            Mode = e.Mode,
+            StartsAt = start,
+            Minutes = minutes,
+            JoinLink = e.Mode == ReviewMode.Video ? s.VideoLinkTemplate!.Replace("{code}", code, StringComparison.Ordinal) : null,
+            Phone = phone,
+            Reason = Cut(e.Reason, 500),
+            CreatedAt = clock.GetUtcNow(),
+            CreatedBy = user,
         };
         db.Reviews.Add(r);
         await db.SaveChangesAsync(ct);
