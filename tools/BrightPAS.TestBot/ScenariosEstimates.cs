@@ -16,6 +16,42 @@ public sealed partial class Scenarios
     {
         await Step(EstimatesArea, "Finance builds an estimate from a template on the screen, issues it and the total matches the price list", BuildEstimateAsync);
         await Step(EstimatesArea, "Before emailing: right-patient checks, PDF password rule, and an Outlook draft marked unsent", EstimateEmailAsync);
+        await Step(EstimatesArea, "Finance follows up: records the insurer's approval, then makes the invoice from an accepted estimate", EstimateFollowUpAsync);
+    }
+
+    private async Task<(Outcome, string)> EstimateFollowUpAsync()
+    {
+        var fin = await As("finance");
+        var chase = await fin.GetAsync("/api/estimates/followup?view=chase");
+        if (chase.Status != 200) return (Outcome.Skip, $"Estimate follow-up is not available (HTTP {chase.Status}).");
+        var page = fin.Page;
+        var notes = new List<string>();
+        if (Find(chase.Json, x => Str(x, "followUp") == "ApprovalRequested") is { } ins)
+        {
+            await page.GotoAsync($"{bot.O.Url}/estimates/followup?tab=chase");
+            var row = page.GetByRole(AriaRole.Row).Filter(new() { HasText = Str(ins, "ref")! });
+            await row.GetByRole(AriaRole.Button, new() { Name = "Record what happened" }).ClickAsync();
+            var dialog = page.GetByRole(AriaRole.Dialog);
+            await dialog.GetByLabel("What happened").SelectOptionAsync("Approved");
+            await dialog.GetByLabel("Insurer's approval number").FillAsync("SX-ROBOT-1");
+            await dialog.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
+            await page.GetByText("insurer approved recorded").WaitForAsync(new() { Timeout = 15000 });
+            notes.Add($"{Str(ins, "ref")} insurer approval recorded");
+        }
+        var won = await fin.GetAsync("/api/estimates/followup?view=won");
+        var est = Find(won.Json, x => Str(x, "patientId") is not null && Str(x, "invoiceId") is null);
+        if (est is null) return notes.Count > 0 ? (Outcome.Pass, string.Join("; ", notes) + ".") : (Outcome.Skip, "No accepted estimate in the demo.");
+        await page.GotoAsync($"{bot.O.Url}/estimates/{Str(est.Value, "id")}");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Make invoice" }).ClickAsync();
+        await page.WaitForURLAsync(new System.Text.RegularExpressions.Regex("/billing/[0-9a-f-]{36}$"), new() { Timeout = 15000 });
+        var invoiceId = page.Url[^36..];
+        var inv = await fin.GetAsync($"/api/billing/documents/{invoiceId}");
+        var shot = await fin.ShotAsync("estimate-invoice");
+        R.Gallery("/billing/:id — invoice made from an estimate", shot);
+        var after = await fin.GetAsync($"/api/estimates/{Str(est.Value, "id")}");
+        var ok = inv.Status == 200 && Str(inv.Json!.Value, "status") == "Draft" && after.Json is { } a && Str(a.GetProperty("estimate"), "followUp") == "Invoiced";
+        notes.Add($"draft invoice made from {Str(est.Value, "ref")} and the estimate shows Invoiced");
+        return ok ? (Outcome.Pass, string.Join("; ", notes) + ".") : (Outcome.Fail, $"Invoice HTTP {inv.Status}; estimate follow-up not Invoiced.");
     }
 
     private string? _estimateId;

@@ -129,6 +129,16 @@ public static class EstimatesEndpoints
                     e.EmailedAt,
                     e.SentToIncisiveAt,
                     e.CancelReason,
+                    followUp = e.FollowUp?.ToString(),
+                    e.FollowUpAt,
+                    e.FollowUpBy,
+                    e.NextActionOn,
+                    e.DeclineReason,
+                    e.DepositPaid,
+                    e.DepositPaidOn,
+                    e.InvoiceId,
+                    e.InvoiceNumber,
+                    funding = e.Funding.ToString(),
                     e.ProcedureCode,
                     e.ProcedureName,
                     e.SpecialtyName,
@@ -161,6 +171,22 @@ public static class EstimatesEndpoints
 
         g.MapPost("/{id:guid}/cancel", async (Guid id, ReasonRequest r, ClaimsPrincipal u, EstimateService svc) => Err(await svc.CancelAsync(id, r.Reason, Me(u))))
             .RequireAuthorization(Permissions.EstimatesBuild);
+        // Follow-up (0.33.0, ADR 0046)
+        g.MapGet("/followup", async (string? view, EstimateFollowUpService svc) => Results.Ok(await svc.ListAsync(view ?? "chase"))).RequireAuthorization(Permissions.EstimatesAny);
+        g.MapGet("/followup/report", async (DateOnly? from, DateOnly? to, EstimateFollowUpService svc, TimeProvider clock) =>
+        {
+            var today = BrightPAS.Core.NzTime.Today(clock);
+            var (f, t) = (from ?? new DateOnly(today.Year, 1, 1), to ?? today);
+            return t < f || t.DayNumber - f.DayNumber > 3660 ? Results.BadRequest(new { errors = new[] { "Choose a period of up to ten years." } }) : Results.Ok(await svc.ReportAsync(f, t));
+        }).RequireAuthorization(Permissions.EstimatesAny);
+        g.MapGet("/{id:guid}/history", async (Guid id, EstimateFollowUpService svc) => Results.Ok(await svc.HistoryAsync(id))).RequireAuthorization(Permissions.EstimatesAny);
+        g.MapPost("/{id:guid}/followup", async (Guid id, FollowUpInput r, ClaimsPrincipal u, EstimateFollowUpService svc) => Err(await svc.SetAsync(id, r, Me(u))))
+            .RequireAuthorization(Permissions.EstimatesBuild);
+        g.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal u, BrightPAS.Web.Integration.EstimateInvoicer svc) =>
+        {
+            var (invoiceId, number, errors) = await svc.InvoiceAsync(id, Me(u));
+            return invoiceId is null ? Results.BadRequest(new { errors }) : Results.Ok(new { id = invoiceId, number });
+        }).RequireAuthorization(Permissions.EstimatesBuild).RequireAuthorization(Permissions.BillingManage);
         g.MapPost("/{id:guid}/link-patient", async (Guid id, LinkRequest r, ClaimsPrincipal u, EstimateService svc) => Err(await svc.LinkPatientAsync(id, r.PatientId, Me(u))))
             .RequireAuthorization(Permissions.EstimatesBuild);
 

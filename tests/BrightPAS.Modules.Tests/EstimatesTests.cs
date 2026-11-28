@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using BrightPAS.Core;
 using Microsoft.Extensions.DependencyInjection;
 using BrightPAS.Modules.Estimates;
 
@@ -452,5 +453,70 @@ public class EstimatesTests
         var core = sp.GetRequiredService<BrightPAS.Core.Data.PasDbContext>();
         Assert.True(await core.AuditEvents.CountAsync(x => x.EntityType == "Estimate" && x.EntityId == e.Id.ToString()) >= 1);
         Assert.True(await core.AuditEvents.AnyAsync(x => x.EntityType == "EstPricing" && x.Action == "Import"));
+    }
+    [Fact]
+    public async Task Follow_up_statuses_lists_expiry_and_report()
+    {
+        await using var h = await HostAsync();
+        await using var scope = h.Scope();
+        var sp = scope.ServiceProvider;
+        var svc = sp.GetRequiredService<EstimateService>();
+        var fu = sp.GetRequiredService<EstimateFollowUpService>();
+        var procs = await ProcsAsync(sp);
+        var p = procs["END-001"];
+
+        var draft = (await svc.SaveAsync(null, Form(p, "Draft"), false, User)).Estimate!;
+        Assert.Null(draft.FollowUp);
+        Assert.Contains("Only an issued", await fu.SetAsync(draft.Id, new(EstFollowUp.Accepted, null, null, null, null, null, null), User));
+
+        var self = (await svc.SaveAsync(null, Form(p, "Self"), true, User)).Estimate!;
+        var ins = (await svc.SaveAsync(null, Form(p, "Insured", edit: f => { f.Funding = Funding.Insurance; f.Insurer = "Southern Cross"; f.PolicyNumber = "SX1"; }), true, User)).Estimate!;
+        var lost = (await svc.SaveAsync(null, Form(p, "Lost"), true, User)).Estimate!;
+        Assert.Equal(EstFollowUp.Waiting, self.FollowUp);
+
+        // Rules.
+        Assert.Contains("Say why", await fu.SetAsync(lost.Id, new(EstFollowUp.Declined, null, null, null, null, null, null), User));
+        Assert.Contains("only for insured", await fu.SetAsync(self.Id, new(EstFollowUp.ApprovalRequested, null, null, null, null, null, null), User));
+        Assert.Contains("approval number", await fu.SetAsync(ins.Id, new(EstFollowUp.Approved, null, null, null, null, null, null), User));
+        Assert.Contains("deposit paid", await fu.SetAsync(self.Id, new(EstFollowUp.DepositPaid, null, null, null, 0m, null, null), User));
+        Assert.Contains("Choose what happened", await fu.SetAsync(self.Id, new(EstFollowUp.Invoiced, null, null, null, null, null, null), User));
+
+        // Nothing heard: on the chase list after the follow-up days (7).
+        Assert.Empty(await fu.ListAsync("chase"));
+        h.Clock.Advance(TimeSpan.FromDays(8));
+        Assert.Equal(3, (await fu.ListAsync("chase")).Count);
+        Assert.Contains("Nothing heard for 8 days", (await fu.ListAsync("chase")).First().Why, StringComparison.Ordinal);
+
+        Assert.Null(await fu.SetAsync(lost.Id, new(EstFollowUp.Declined, "Going public", null, null, null, null, null), User));
+        Assert.Null(await fu.SetAsync(ins.Id, new(EstFollowUp.ApprovalRequested, "Sent to Southern Cross", NzTime.Today(h.Clock).AddDays(5), null, null, null, null), User));
+        Assert.Null(await fu.SetAsync(self.Id, new(EstFollowUp.Accepted, "Phoned", null, null, null, null, null), User));
+        Assert.Null(await fu.SetAsync(self.Id, new(EstFollowUp.DepositPaid, null, null, null, 500m, null, null), User));
+        Assert.Empty(await fu.ListAsync("chase")); // the insured one has a date in 5 days; the others are answered
+        h.Clock.Advance(TimeSpan.FromDays(5));
+        Assert.Equal("Follow-up date " + NzTime.Today(h.Clock).ToString("d MMM", System.Globalization.CultureInfo.InvariantCulture), (await fu.ListAsync("chase")).Single().Why);
+        Assert.Null(await fu.SetAsync(ins.Id, new(EstFollowUp.Approved, null, null, "SX-APP-778", null, null, null), User));
+        Assert.Equal("SX-APP-778", (await svc.FindAsync(ins.Id)).PriorApproval);
+        Assert.Equal(["Waiting", "ApprovalRequested", "Approved"], (await fu.HistoryAsync(ins.Id)).Select(x => x.Status));
+        Assert.Equal(2, (await fu.ListAsync("won")).Count);
+
+        // Running out and expired (valid 3 months).
+        var validUntil = self.ValidUntil!.Value;
+        h.Clock.Advance(TimeSpan.FromDays(validUntil.DayNumber - NzTime.Today(h.Clock).DayNumber - 10));
+        Assert.Equal(2, (await fu.ListAsync("expiring")).Count);
+        Assert.Null(await fu.SetAsync(self.Id, new(EstFollowUp.Booked, null, null, null, null, null, Guid.NewGuid()), User));
+        h.Clock.Advance(TimeSpan.FromDays(11));
+        Assert.Equal(1, await fu.ExpireAsync("system")); // the approved insured one; booked and declined stay
+        Assert.Equal(0, await fu.ExpireAsync("system"));
+        Assert.Equal(EstFollowUp.Expired, (await svc.FindAsync(ins.Id)).FollowUp);
+        await fu.MarkInvoicedAsync(self.Id, Guid.NewGuid(), "INV-000123", User);
+        Assert.Contains("has been invoiced", await fu.SetAsync(self.Id, new(EstFollowUp.Accepted, null, null, null, null, null, null), User));
+
+        // Report: 3 issued; self won and booked; lost declined; insured expired (accept rate 1 of 3).
+        var today = NzTime.Today(h.Clock);
+        var rep = await fu.ReportAsync(today.AddYears(-1), today);
+        Assert.Equal((3, 1, 1, 1, 1), (rep.Total.Issued, rep.Total.Accepted, rep.Total.Declined, rep.Total.Booked, rep.Total.Expired));
+        Assert.Equal(33.3, rep.Total.AcceptRate);
+        Assert.Equal(8, rep.Total.AvgDaysToAccept!.Value, 0);
+        Assert.Equal(2, rep.ByFunding.Count);
     }
 }

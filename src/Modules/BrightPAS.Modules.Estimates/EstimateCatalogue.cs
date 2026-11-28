@@ -247,6 +247,8 @@ public sealed class EstimateCatalogue(EstDbContext db, AuditWriter audit, TimePr
         if (string.IsNullOrWhiteSpace(input.SurgeonFeeLabel)) errors.Add("Enter the label for the surgeon line.");
         if (string.IsNullOrWhiteSpace(input.IncisiveFileName) || input.IncisiveFileName.IndexOfAny(['/', '\\', ':']) >= 0) errors.Add("The Incisive file name pattern can't contain / \\ or :.");
         if (input.StaffCostPerMinute < 0 || input.OverheadPerCase < 0) errors.Add("Costing values cannot be negative.");
+        if (input.FollowUpDays is < 1 or > 90) errors.Add("Follow up estimates after 1–90 days.");
+        if (input.ExpiryWarningDays is < 1 or > 90) errors.Add("Warn about estimates running out 1–90 days ahead.");
         if (errors.Count > 0) return errors;
         var s = await db.Settings.SingleOrDefaultAsync(x => x.Id == 1, ct);
         if (s is null) { s = new EstSettings(); db.Settings.Add(s); }

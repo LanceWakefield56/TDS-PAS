@@ -91,6 +91,7 @@ builder.Services.AddScoped<BrightPAS.Web.Integration.VideoArchive>();
 // Procedure estimates (0.21.0, ADR 0034): printed estimate, mail through the Reminders mail server, held-email outbox worker.
 builder.Services.AddSingleton<BrightPAS.Modules.Estimates.IEstimatePdf, BrightPAS.Web.Pdf.EstimatePdf>();
 builder.Services.AddScoped<BrightPAS.Modules.Estimates.IEstimateMailer, BrightPAS.Web.Integration.EstimateMailer>();
+builder.Services.AddScoped<BrightPAS.Web.Integration.EstimateInvoicer>();
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.EstimatesWorker>();
 // Patient triage (0.22.0, ADR 0035): booking hold until sign-off, re-triage scan.
 builder.Services.AddScoped<BrightPAS.Core.Modules.IBookingConfirmGate, BrightPAS.Web.Integration.TriageBookingGate>();

@@ -26,6 +26,7 @@ public sealed class EstimatesModule : IPasModule
         services.AddScoped<EstimateCatalogue>();
         services.AddScoped<EstimateImport>();
         services.AddScoped<EstimateMail>();
+        services.AddScoped<EstimateFollowUpService>();
     }
 }
 
@@ -40,6 +41,9 @@ public enum Funding { SelfFunding = 1, Insurance = 2, NotYetKnown = 3 }
 public enum AddOnType { Surgeon = 1, AllIn = 2 }
 
 public enum EstimateStatus { Draft = 1, Issued = 2, Cancelled = 3 }
+
+/// <summary>Where an issued estimate is up to with the patient (0.33.0, ADR 0046).</summary>
+public enum EstFollowUp { Waiting = 1, Accepted = 2, Declined = 3, ApprovalRequested = 4, Approved = 5, ApprovalDeclined = 6, DepositPaid = 7, Booked = 8, Invoiced = 9, Expired = 10 }
 
 public enum LineKind { Fee = 1, IfRequired = 2 }
 
@@ -266,7 +270,31 @@ public sealed class Estimate
     public DateTimeOffset? EmailedAt { get; set; }
     public DateTimeOffset? SentToIncisiveAt { get; set; }
     public string? CancelReason { get; set; }
+    // Follow-up (0.33.0)
+    public EstFollowUp? FollowUp { get; set; }
+    public DateTimeOffset? FollowUpAt { get; set; }
+    public string? FollowUpBy { get; set; }
+    /// <summary>When staff should next chase the patient or insurer (blank = the default reminder days after issue).</summary>
+    public DateOnly? NextActionOn { get; set; }
+    public string? DeclineReason { get; set; }
+    public decimal? DepositPaid { get; set; }
+    public DateOnly? DepositPaidOn { get; set; }
+    public Guid? BookingId { get; set; }
+    /// <summary>The Billing invoice made from this estimate.</summary>
+    public Guid? InvoiceId { get; set; }
+    public string? InvoiceNumber { get; set; }
     public List<EstimateLine> Lines { get; set; } = [];
+}
+
+/// <summary>Each follow-up step on an estimate (who, when, what, note) – the estimate's history.</summary>
+public sealed class EstimateEvent
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid EstimateId { get; set; }
+    public EstFollowUp Status { get; set; }
+    public DateTimeOffset At { get; set; }
+    public string By { get; set; } = "";
+    public string? Note { get; set; }
 }
 
 /// <summary>Snapshot of each printed line so an old estimate always reprints exactly as issued.</summary>
@@ -409,6 +437,11 @@ public sealed class EstSettings
     public decimal StaffCostPerMinute { get; set; } = 4.45m;
     public decimal OverheadPerCase { get; set; } = 350m;
     public bool TemplatesSeeded { get; set; }
+    // Follow-up (0.33.0)
+    /// <summary>Chase an issued estimate this many days after it was issued if nothing has been heard.</summary>
+    public int FollowUpDays { get; set; } = 7;
+    /// <summary>The expiry list shows estimates running out within this many days.</summary>
+    public int ExpiryWarningDays { get; set; } = 14;
 
     public const string DefaultTerms =
         "All estimates are subject to change without prior notice. This estimate is valid for a total of {validity} months (until {validuntil}).\n" +
@@ -440,6 +473,7 @@ public sealed class EstDbContext(DbContextOptions<EstDbContext> options) : DbCon
     public DbSet<EstTemplate> Templates => Set<EstTemplate>();
     public DbSet<EstTemplateSurgeon> TemplateSurgeons => Set<EstTemplateSurgeon>();
     public DbSet<EstSettings> Settings => Set<EstSettings>();
+    public DbSet<EstimateEvent> Events => Set<EstimateEvent>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
@@ -549,6 +583,17 @@ public sealed class EstDbContext(DbContextOptions<EstDbContext> options) : DbCon
             e.HasMany(x => x.Lines).WithOne().HasForeignKey(x => x.EstimateId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.PatientId); e.HasIndex(x => x.Nhi); e.HasIndex(x => x.Email); e.HasIndex(x => x.EstimateDate);
             e.HasIndex(x => x.ProcedureId); e.HasIndex(x => x.SurgeonId); e.HasIndex(x => new { x.LastName, x.FirstName });
+            e.Property(x => x.FollowUp).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.FollowUpBy).HasMaxLength(100); e.Property(x => x.DeclineReason).HasMaxLength(300); e.Property(x => x.InvoiceNumber).HasMaxLength(30);
+            e.HasIndex(x => new { x.FollowUp, x.ValidUntil }); e.HasIndex(x => x.BookingId); e.HasIndex(x => x.InvoiceId);
+        });
+        b.Entity<EstimateEvent>(e =>
+        {
+            e.ToTable("EstimateEvents");
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.By).HasMaxLength(100); e.Property(x => x.Note).HasMaxLength(500);
+            e.HasIndex(x => new { x.EstimateId, x.At });
+            e.HasOne<Estimate>().WithMany().HasForeignKey(x => x.EstimateId).OnDelete(DeleteBehavior.Cascade);
         });
         b.Entity<EstimateLine>(e =>
         {

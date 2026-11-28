@@ -81,7 +81,8 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Clinical coding and statutory reporting (spec 7.11): coder workbench, edit checks, advice library, NMDS load file, NBRS batches – 0.20.0 (ADR 0033)
 - ☑ Endoscopy video retention 30 days with AES-256 archive to share/USB – 0.20.0
 - ☑ Procedure estimates (TDS Estimates v1.5 moved in): builder, price list, add-ons, templates, PDF, email with hold and right-recipient checks, Incisive, imports – 0.21.0 (ADR 0034)
-- ☐ Estimates next: follow-up statuses (accepted, declined, deposit paid, booked, prior approval, expiry list), estimate → Billing invoice, reports, layout builder; standalone app on a shared library; open business items (Incisive naming, SMTP, Veins/skin graft/Dr Butcher/MyoSure fees, costing defaults)
+- ☑ Estimate follow-up statuses (accepted, declined, insurer approval, deposit paid, booked, invoiced, expired), chase and expiry lists, estimate → Billing invoice, report – 0.33.0 (ADR 0046)
+- ☐ Estimates next: layout builder; standalone app on a shared library; open business items (Incisive naming, SMTP, Veins/skin graft/Dr Butcher/MyoSure fees, costing defaults)
 - ☑ Triage & suitability (spec 7.25): risk profile and scores, versioned rules with clinical approval, re-triage, sign-off, booking hold – 0.22.0 (ADR 0035)
 - ☑ Medicines & medicine safety: medicines list (starter list, TDS list and NZULM import with saved layouts, barcodes), versioned clinician-approved dose limits / allergy groups / cross-reactions / interactions, checks when charting (Advise/Enforce, override reasons), allergy links, report – 0.27.0 (ADR 0040)
 - ☑ Bookings from specialists' rooms: portal requests with files, booking office review (points to check, questions, patient match/register, accept onto the waitlist, decline), JSON/HL7 REF^I12 file import and watched folder, optional rooms email – 0.28.0 (ADR 0041)

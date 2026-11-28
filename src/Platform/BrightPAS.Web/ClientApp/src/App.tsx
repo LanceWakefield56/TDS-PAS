@@ -55,6 +55,7 @@ import Nbrs from './pages/Nbrs';
 import Coding, { CodingWorkbench } from './pages/Coding';
 import DymoLabels from './pages/DymoLabels';
 import Estimates, { EstimateEdit, EstimatesOutbox } from './pages/Estimates';
+import EstimatesFollowUp from './pages/EstimatesFollowUp';
 import EstimatesAdmin from './pages/EstimatesAdmin';
 import DayBoard from './pages/DayBoard';
 import Outbox from './pages/Outbox';
@@ -183,6 +184,7 @@ export default function App() {
           <Route path="/triage/:id" element={allowed(mod('triage') && triageAny, <TriageAssessment />)} />
           <Route path="/estimates" element={allowed(mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)), <Estimates />)} />
           <Route path="/estimates/new" element={allowed(mod('estimates') && can(Perm.EstimatesBuild), <EstimateEdit />)} />
+ <Route path="/estimates/followup" element={allowed(mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)), <EstimatesFollowUp />)} />
           <Route path="/estimates/outbox" element={allowed(mod('estimates') && can(Perm.EstimatesBuild), <EstimatesOutbox />)} />
           <Route path="/estimates/admin" element={allowed(mod('estimates') && can(Perm.EstimatesManage), <EstimatesAdmin />)} />
           <Route path="/estimates/:id" element={allowed(mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)), <EstimateEdit />)} />

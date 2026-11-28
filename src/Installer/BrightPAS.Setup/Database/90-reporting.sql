@@ -157,6 +157,8 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Scans_Medication', N'[rx].[Sca
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Prescriptions_Patient', N'[rx].[Prescriptions]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Prescriptions_Episode', N'[rx].[Prescriptions]', N'EpisodeId', N'[emr].[Episodes]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Items_Medicine', N'[rx].[Items]', N'MedicineId', N'[meds].[Medicines]';
+-- Estimate follow-up (0.33.0)
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_est_Estimates_Invoice', N'[est].[Estimates]', N'InvoiceId', N'[billing].[Documents]';
 GO
 
 -- ---------------------------------------------------------------------------------------------------------------

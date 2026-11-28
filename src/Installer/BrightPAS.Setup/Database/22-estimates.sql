@@ -695,3 +695,171 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Settings] ADD [ExpiryWarningDays] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Settings] ADD [FollowUpDays] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Estimates] ADD [BookingId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Estimates] ADD [DeclineReason] nvarchar(300) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Estimates] ADD [DepositPaid] decimal(12,2) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Estimates] ADD [DepositPaidOn] date NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Estimates] ADD [FollowUp] nvarchar(20) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Estimates] ADD [FollowUpAt] datetimeoffset NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Estimates] ADD [FollowUpBy] nvarchar(100) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Estimates] ADD [InvoiceId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Estimates] ADD [InvoiceNumber] nvarchar(30) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    ALTER TABLE [est].[Estimates] ADD [NextActionOn] date NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    CREATE TABLE [est].[EstimateEvents] (
+        [Id] uniqueidentifier NOT NULL,
+        [EstimateId] uniqueidentifier NOT NULL,
+        [Status] nvarchar(20) NOT NULL,
+        [At] datetimeoffset NOT NULL,
+        [By] nvarchar(100) NOT NULL,
+        [Note] nvarchar(500) NULL,
+        CONSTRAINT [PK_EstimateEvents] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_EstimateEvents_Estimates_EstimateId] FOREIGN KEY ([EstimateId]) REFERENCES [est].[Estimates] ([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    EXEC(N'UPDATE [est].[Settings] SET [ExpiryWarningDays] = 14, [FollowUpDays] = 7
+    WHERE [Id] = 1;
+    SELECT @@ROWCOUNT');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    CREATE INDEX [IX_Estimates_BookingId] ON [est].[Estimates] ([BookingId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    CREATE INDEX [IX_Estimates_FollowUp_ValidUntil] ON [est].[Estimates] ([FollowUp], [ValidUntil]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    CREATE INDEX [IX_Estimates_InvoiceId] ON [est].[Estimates] ([InvoiceId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    CREATE INDEX [IX_EstimateEvents_EstimateId_At] ON [est].[EstimateEvents] ([EstimateId], [At]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [est].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128064807_EstimateFollowUp'
+)
+BEGIN
+    INSERT INTO [est].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261128064807_EstimateFollowUp', N'10.0.14');
+END;
+
+COMMIT;
+GO
+
