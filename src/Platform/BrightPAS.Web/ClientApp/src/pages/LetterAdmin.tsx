@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { api, errText, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
+import Modal from '../components/Modal';
 
 interface Tpl { code: string; name: string; kind: string; recipient: string; subject: string; body: string; isActive: boolean; version: number; updatedAt: string | null; updatedBy: string | null }
 interface Practice { id: string; name: string; hpiFacilityId: string | null; healthLinkEdi: string | null; addressLine1: string | null; addressLine2: string | null; city: string | null; postcode: string | null; phone: string | null; email: string | null; preferredChannel: string; isActive: boolean }
@@ -87,7 +88,7 @@ function Practices() {
       <div className="row-between"><p className="hint">A patient is linked to their practice by the practice's HPI facility number (on the patient record).</p>
         {!edit && <button className="btn btn-primary" onClick={() => setEdit({ preferredChannel: 'HealthLink', isActive: true })}>Add practice</button>}</div>
       {edit && (
-        <div className="card subtle stack">
+        <Modal title={edit.id ? `Edit ${edit.name}` : 'New practice'} onClose={() => { setEdit(null); setErrors([]); }}>
           <div className="form-grid">
             <label>Practice name<input value={edit.name ?? ''} onChange={set('name')} /></label>
             <label>HPI facility number<input value={edit.hpiFacilityId ?? ''} onChange={set('hpiFacilityId')} placeholder="F12345-A" /></label>
@@ -103,7 +104,7 @@ function Practices() {
           </div>
           <Errs list={errors} />
           <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => { setEdit(null); setErrors([]); }}>Cancel</button></div>
-        </div>
+        </Modal>
       )}
       {rows?.length === 0 && <p className="muted">No practices yet.</p>}
       {rows && rows.length > 0 && (

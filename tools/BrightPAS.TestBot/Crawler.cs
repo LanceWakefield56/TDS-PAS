@@ -191,7 +191,7 @@ public sealed partial class Crawler(Bot bot)
         {
             if (Dangerous().IsMatch(text)) { R.Add("buttons", s.Account, path, $"Button \"{text}\"", Outcome.Skip, "Not pressed by the explorer (changes or sends something); covered by scripted tests where it matters."); continue; }
             if (!_clicked.Add(pat + "|" + text)) continue;
-            if (!Pattern(p.Url.Replace(bot.O.Url, "")).Equals(pat, StringComparison.Ordinal) || await p.Locator("main [role=dialog]:visible, main .modal:visible").CountAsync() > 0)
+            if (!Pattern(p.Url.Replace(bot.O.Url, "")).Equals(pat, StringComparison.Ordinal) || await p.Locator("main [role=dialog]:visible, main dialog[open], main .modal:visible").CountAsync() > 0)
             {
                 await p.GotoAsync(bot.O.Url + path); await Settle(p, 300);
             }
@@ -242,7 +242,9 @@ public sealed partial class Crawler(Bot bot)
           const set = (e, v) => { const proto = e.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : e.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
             Object.getOwnPropertyDescriptor(proto, 'value').set.call(e, v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); };
           const filled = [];
-          for (const e of document.querySelectorAll('main input, main select, main textarea')) {
+          // A pop-up edit form (dialog) is filled on its own: the page behind it cannot be used while it is open.
+          const root = document.querySelector('main dialog[open]') || document.querySelector('main') || document.body;
+          for (const e of root.querySelectorAll('input, select, textarea')) {
             if (!vis(e) || e.disabled || e.readOnly) continue;
             const t = (e.type || '').toLowerCase(), l = label(e);
             if (['hidden','checkbox','radio','file','submit','button','password','search','color','range'].includes(t)) continue;
@@ -282,12 +284,13 @@ public sealed partial class Crawler(Bot bot)
         string[] filled;
         try { filled = await p.EvaluateAsync<string[]>(FillScript, today); }
         catch (PlaywrightException ex) { R.Add("forms", s.Account, where, "Fill in the form", Outcome.Warn, ex.Message.Split('\n')[0]); return; }
-        var buttons = await p.Locator("main button:visible:not([disabled])").EvaluateAllAsync<string[]>("els => els.map(e => (e.innerText || '').trim())");
+        var scope = await p.Locator("main dialog[open]").CountAsync() > 0 ? "main dialog[open]" : "main";
+        var buttons = await p.Locator(scope + " button:visible:not([disabled])").EvaluateAllAsync<string[]>("els => els.map(e => (e.innerText || '').trim())");
         var save = buttons.FirstOrDefault(b => SubmitWord().IsMatch(b) && !Dangerous().IsMatch(b) && !b.Equals(opener, StringComparison.OrdinalIgnoreCase))
                    ?? buttons.FirstOrDefault(b => SubmitWord().IsMatch(b) && !Dangerous().IsMatch(b));
         if (save is null) { R.Add("forms", s.Account, where, "Form has a save button", Outcome.Info, "No save-type button found after filling: " + string.Join(", ", buttons.Take(8))); return; }
         var mark = s.Mark();
-        try { await p.Locator("main").GetByRole(AriaRole.Button, new() { Name = save, Exact = true }).Last.ClickAsync(new() { Timeout = 5000 }); }
+        try { await p.Locator(scope).First.GetByRole(AriaRole.Button, new() { Name = save, Exact = true }).Last.ClickAsync(new() { Timeout = 5000 }); }
         catch (Exception ex) when (ex is TimeoutException or PlaywrightException) { R.Add("forms", s.Account, where, $"Press \"{save}\"", Outcome.Warn, ex.Message.Split('\n')[0]); return; }
         await Settle(p, 800);
         var issues = await s.IssuesSinceAsync(mark);

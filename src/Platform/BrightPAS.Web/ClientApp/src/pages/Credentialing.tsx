@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, errText, formatDate, Perm, todayIso } from '../api';
 import { useSession } from '../App';
+import Modal from '../components/Modal';
 
 const STATE: Record<string, string> = { Current: 'pill green', ExpiringSoon: 'pill', Expired: 'pill bad', Missing: 'pill bad', Inactive: 'pill' };
 const LABEL: Record<string, string> = { Current: 'Current', ExpiringSoon: 'Due soon', Expired: 'Expired', Missing: 'Missing', Inactive: 'Inactive' };
@@ -45,7 +46,7 @@ export default function Credentialing() {
             <td>{c.expiresOn ? `expires ${formatDate(c.expiresOn)}` : 'no expiry'}</td><td><span className={STATE[c.state]}>{LABEL[c.state]}</span></td><td className="small muted">checked by {c.verifiedBy}</td>
             <td>{manage && <button className="btn btn-link" onClick={() => setCred({ ...c, clinicianId: sel.clinicianId })}>Edit</button>}</td></tr>)}</tbody></table>
           {manage && !cred && <button className="btn btn-light" onClick={() => setCred({ clinicianId: sel.clinicianId, type: 'Apc', reference: '', issuer: '', issuedOn: '', expiresOn: '', notes: '', isActive: true })}>Add credential</button>}
-          {cred && <div className="card subtle stack"><div className="form-grid">
+          {cred && <Modal title={cred.id ? 'Edit credential' : 'Add credential'} onClose={() => setCred(null)}><div className="form-grid">
             <label>Type<select value={cred.type} onChange={(e) => setCred({ ...cred, type: e.target.value })}>{settings.types.map((t: any) => <option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
             <label>Number / reference<input value={cred.reference ?? ''} onChange={(e) => setCred({ ...cred, reference: e.target.value })} /></label>
             <label>Issued by<input value={cred.issuer ?? ''} onChange={(e) => setCred({ ...cred, issuer: e.target.value })} placeholder="e.g. MCNZ, MPS" /></label>
@@ -53,19 +54,19 @@ export default function Credentialing() {
             <label>Expires<input type="date" value={cred.expiresOn ?? ''} onChange={(e) => setCred({ ...cred, expiresOn: e.target.value })} /></label>
             <label>Notes<input value={cred.notes ?? ''} onChange={(e) => setCred({ ...cred, notes: e.target.value })} /></label>
             <label className="check"><input type="checkbox" checked={cred.isActive} onChange={(e) => setCred({ ...cred, isActive: e.target.checked })} /> Active</label></div>
-            <div className="row"><button className="btn btn-primary" onClick={() => save('/api/credentialing/credentials', { ...cred, issuedOn: cred.issuedOn || null, expiresOn: cred.expiresOn || null }, () => setCred(null))}>Save (I have seen the evidence)</button><button className="btn btn-light" onClick={() => setCred(null)}>Cancel</button></div></div>}
+            <div className="row"><button className="btn btn-primary" onClick={() => save('/api/credentialing/credentials', { ...cred, issuedOn: cred.issuedOn || null, expiresOn: cred.expiresOn || null }, () => setCred(null))}>Save (I have seen the evidence)</button><button className="btn btn-light" onClick={() => setCred(null)}>Cancel</button></div></Modal>}
           <h3>Scope of practice at TDS</h3>
           {detail.privileges.length === 0 ? <p className="muted">None recorded.</p> : <ul className="plain">{detail.privileges.map((p: any) => <li key={p.id}>{p.service}: {p.procedureCode ? procs.find((x) => x.code === p.procedureCode)?.name ?? p.procedureCode : 'all procedures'} · approved {formatDate(p.approvedOn)}{p.reviewDue && ` · review ${formatDate(p.reviewDue)}`}{!p.isActive && ' (inactive)'} {p.conditions}
             {manage && <button className="btn btn-link" onClick={() => setPriv({ ...p, procedureCode: p.procedureCode ?? '', reviewDue: p.reviewDue ?? '', conditions: p.conditions ?? '' })}>Edit</button>}</li>)}</ul>}
           {manage && !priv && <button className="btn btn-light" onClick={() => setPriv({ clinicianId: sel.clinicianId, service: 'Surgical', procedureCode: '', approvedOn: todayIso(), reviewDue: '', conditions: '', isActive: true })}>Add scope</button>}
-          {priv && <div className="card subtle stack"><div className="form-grid">
+          {priv && <Modal title={priv.id ? 'Edit scope of practice' : 'Add scope of practice'} onClose={() => setPriv(null)}><div className="form-grid">
             <label>Service<select value={priv.service} onChange={(e) => setPriv({ ...priv, service: e.target.value })}>{settings.services.map((s: string) => <option key={s}>{s}</option>)}</select></label>
             <label>Procedure<select value={priv.procedureCode} onChange={(e) => setPriv({ ...priv, procedureCode: e.target.value })}><option value="">All procedures in the service</option>{procs.filter((p) => p.service === priv.service).map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}</select></label>
             <label>Approved<input type="date" value={priv.approvedOn} onChange={(e) => setPriv({ ...priv, approvedOn: e.target.value })} /></label>
             <label>Review due<input type="date" value={priv.reviewDue} onChange={(e) => setPriv({ ...priv, reviewDue: e.target.value })} /></label>
             <label>Conditions<input value={priv.conditions} onChange={(e) => setPriv({ ...priv, conditions: e.target.value })} /></label>
             <label className="check"><input type="checkbox" checked={priv.isActive} onChange={(e) => setPriv({ ...priv, isActive: e.target.checked })} /> Active</label></div>
-            <div className="row"><button className="btn btn-primary" onClick={() => save('/api/credentialing/privileges', { ...priv, procedureCode: priv.procedureCode || null, reviewDue: priv.reviewDue || null }, () => setPriv(null))}>Save</button><button className="btn btn-light" onClick={() => setPriv(null)}>Cancel</button></div></div>}
+            <div className="row"><button className="btn btn-primary" onClick={() => save('/api/credentialing/privileges', { ...priv, procedureCode: priv.procedureCode || null, reviewDue: priv.reviewDue || null }, () => setPriv(null))}>Save</button><button className="btn btn-light" onClick={() => setPriv(null)}>Cancel</button></div></Modal>}
         </section>
       )}
       {manage && settings && (

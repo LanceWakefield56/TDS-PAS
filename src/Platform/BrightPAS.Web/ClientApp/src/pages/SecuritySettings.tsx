@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, errText, Perm } from '../api';
 import { useSession } from '../App';
+import Modal from '../components/Modal';
 
 export const SEVEN_ZIP = 'https://www.7-zip.org/download.html';
 
@@ -65,7 +66,7 @@ function Printers() {
         <table className="results compact"><thead><tr><th>Printer</th><th>Connection</th><th>Stock</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{list.map((p) => <tr key={p.id}><td>{p.name}<div className="small muted">{p.kind}{p.isDefault ? ' · default' : ''}{p.isActive ? '' : ' · off'}</div></td><td>{p.language === 'Dymo' ? 'DYMO (this computer)' : `Zebra ${p.host}:${p.port}`}</td><td>{p.language === 'Dymo' ? `DYMO ${p.mediaCode}` : `${p.dpi} dpi`} · {p.widthMm}×{p.lengthMm} mm</td>
           <td><button className="btn btn-link" onClick={() => setE(p)}>Edit</button></td></tr>)}</tbody></table>)}
       {!e && <div className="row"><button className="btn btn-light" onClick={() => setE(blank('Wristband'))}>Add wristband printer</button><button className="btn btn-light" onClick={() => setE(blank('Label'))}>Add Zebra label printer</button><button className="btn btn-light" onClick={() => setE(blank('Label', 'Dymo'))}>Add DYMO label printer</button></div>}
-      {e && <div className="card subtle stack"><div className="form-grid">
+      {e && <Modal title={e.id ? `Edit ${e.name}` : 'New printer'} onClose={() => setE(null)}><div className="form-grid">
         <label>Name<input value={e.name} onChange={(x) => setE({ ...e, name: x.target.value })} placeholder="e.g. Admissions wristbands" /></label>
         <label>Type<select value={e.kind} onChange={(x) => setE({ ...e, kind: x.target.value })}><option>Wristband</option><option>Label</option></select></label>
         <label>Printer type<select value={e.language} onChange={(x) => setE({ ...e, language: x.target.value, kind: x.target.value === 'Dymo' ? 'Label' : e.kind, mediaCode: x.target.value === 'Dymo' ? (e.mediaCode ?? '99012') : null })}><option value="Zpl">Zebra (network, ZPL)</option><option value="Dymo">DYMO LabelWriter (USB on this computer)</option></select></label>
@@ -78,7 +79,7 @@ function Printers() {
         </>}
         <label className="check"><input type="checkbox" checked={e.isDefault} onChange={(x) => setE({ ...e, isDefault: x.target.checked })} /> Default for this type</label>
         <label className="check"><input type="checkbox" checked={e.isActive} onChange={(x) => setE({ ...e, isActive: x.target.checked })} /> In use</label></div>
-        <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setE(null)}>Cancel</button></div></div>}
+        <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setE(null)}>Cancel</button></div></Modal>}
       <p className="hint">Zebra: BrightPAS prints straight to the printer over the network (port 9100); wristbands e.g. Zebra HC100 / ZD510-HC. DYMO: install the DYMO driver on each workstation; labels open in the browser sized to the stock – choose the DYMO printer, margins None, scale 100 %. DYMO LabelWriters cannot print wristbands.</p>
       {error && <p className="error">{error}</p>}
     </section>

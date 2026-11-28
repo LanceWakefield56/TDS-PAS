@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { api, errText, formatDate, Location, money, Perm, todayIso } from '../api';
 import { useSession } from '../App';
+import Modal from '../components/Modal';
 
 const CATS: [string, string][] = [['Electromedical', 'Electromedical device'], ['Monitor', 'Patient monitor'], ['Washer', 'Washer-disinfector'], ['Steriliser', 'Steriliser'], ['Aer', 'Endoscope reprocessor (AER)'],
   ['DryingCabinet', 'Scope drying cabinet'], ['Endoscope', 'Endoscope'], ['EndoscopyTower', 'Endoscopy tower / video processor'], ['Instrument', 'Instrument (powered)'], ['Furniture', 'Furniture / bed / trolley'], ['It', 'IT equipment'], ['Other', 'Other']];
@@ -77,8 +78,7 @@ export default function Assets() {
 function EquipmentForm({ edit, setEdit, locations, suppliers, onSave }: { edit: any; setEdit: (x: any) => void; locations: Location[]; suppliers: any[]; onSave: () => void }) {
   const f = (k: string, label: string, type = 'text', hint?: string) => <label>{label}<input type={type} value={edit[k] ?? ''} placeholder={hint} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })} /></label>;
   return (
-    <div className="card subtle stack">
-      <h2>{edit.id ? 'Edit equipment' : 'Add equipment'}</h2>
+    <Modal title={edit.id ? 'Edit equipment' : 'Add equipment'} onClose={() => setEdit(null)}>
       <div className="form-grid">
         {f('assetNumber', 'Asset number', 'text', 'From the asset label')}{f('name', 'What it is', 'text', 'e.g. Diathermy unit')}
         <label>Category<select value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value })}>{CATS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
@@ -92,7 +92,7 @@ function EquipmentForm({ edit, setEdit, locations, suppliers, onSave }: { edit: 
         {f('notes', 'Notes')}
       </div>
       <div className="row"><button className="btn btn-primary" onClick={onSave}>Save</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div>
-    </div>
+    </Modal>
   );
 }
 
@@ -151,10 +151,10 @@ function Suppliers({ rows, manage, act, reload }: { rows: any[]; manage: boolean
           <tbody>{rows.map((s) => <tr key={s.id}><td>{s.name}{!s.isActive && ' (inactive)'}</td><td className="small">{[s.contactName, s.email, s.phone].filter(Boolean).join(' · ')}</td><td>{s.xeroContactName ?? ''}</td>
             <td>{manage && <button className="btn btn-link" onClick={() => setEdit(s)}>Edit</button>}</td></tr>)}</tbody></table>)}
       {manage && !edit && <div><button className="btn btn-light" onClick={() => setEdit({ name: '', contactName: '', email: '', phone: '', xeroContactName: '', isActive: true })}>Add supplier</button></div>}
-      {edit && <div className="card subtle stack"><div className="form-grid">{f('name', 'Name')}{f('contactName', 'Contact person')}{f('email', 'Orders email')}{f('phone', 'Phone')}{f('xeroContactName', 'Name in Xero (for bills)')}
+      {edit && <Modal title={edit.id ? `Edit ${edit.name}` : 'New supplier'} onClose={() => setEdit(null)}><div className="form-grid">{f('name', 'Name')}{f('contactName', 'Contact person')}{f('email', 'Orders email')}{f('phone', 'Phone')}{f('xeroContactName', 'Name in Xero (for bills)')}
         <label className="check"><input type="checkbox" checked={edit.isActive} onChange={(e) => setEdit({ ...edit, isActive: e.target.checked })} /> Active</label></div>
         <div className="row"><button className="btn btn-primary" onClick={async () => { if (await act(() => api('/api/assets/suppliers', { body: { ...edit, id: edit.id ?? null } }), 'Supplier saved.')) { setEdit(null); reload(); } }}>Save</button>
-          <button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></div>}
+          <button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></Modal>}
     </div>
   );
 }

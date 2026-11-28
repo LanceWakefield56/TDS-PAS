@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { api, errText, formatDate, money, Perm } from '../api';
 import { useSession } from '../App';
+import Modal from '../components/Modal';
 
 export interface Totals { subtotal: number; gst: number; total: number; paid: number; balance: number; surgeonShare: number; anaesthetistShare: number; facilityShare: number }
 interface DocRow { id: string; kind: string; number: string | null; patientId: string; patientName: string; mrn: string; payer: string; payerName: string | null; status: string; createdAt: string; issuedOn: string | null; dueOn: string | null; totals: Totals }
@@ -86,7 +87,7 @@ function Fees() {
       )}
       {editable && !edit && <div><button className="btn btn-light" onClick={() => setEdit(blank)}>Add fee item</button></div>}
       {edit && (
-        <div className="card subtle stack">
+        <Modal title={edit.id ? `Edit ${edit.code}` : 'New fee item'} onClose={() => setEdit(null)}>
           <div className="form-grid">
             <label>Code<input value={edit.code} onChange={(e) => setEdit({ ...edit, code: e.target.value })} /></label>
             <label className="span-all">Description<input value={edit.description} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></label>
@@ -98,7 +99,7 @@ function Fees() {
             <label className="check"><input type="checkbox" checked={edit.isActive} onChange={(e) => setEdit({ ...edit, isActive: e.target.checked })} /> In use</label>
           </div>
           <div className="row"><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button><button className="btn btn-primary" onClick={save}>Save</button></div>
-        </div>
+        </Modal>
       )}
     </div>
   );
