@@ -104,7 +104,8 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Form designer and import from CSV / FHIR / fillable PDF (7.23) – 0.25.0
 - ☐ 0.25 next: scanned/Word form import with AI field detection; handwriting extraction from completed paper forms; SharePoint bulk import; body maps, photos, drawn signatures; designer forms on the patient portal/kiosk; scheduled saved reports; reporting replica; image de-identification
 - ☑ Claims (prior approvals, claim files/portal, remittances), Xero (file and API), EFTPOS (manual/simulator), NHI/HPI lookups with file fallback – 0.26.0 (ADR 0039)
-- ☐ 0.26 next: funder agreements for direct claiming (ACC eClaims/Online, Southern Cross easy-claim, nib/AIA provider APIs) and their exact file layouts; integrated EFTPOS (Windcave/Verifone) with refunds; Health NZ NHI/HPI integration agreement and conformance testing; NHI search by name; Xero contact matching and credit notes
+- ☑ Direct claiming (simulator + FHIR client), linked Windcave EFTPOS terminal with refunds to card, credit notes, Xero contact matching and credit notes – 0.34.0 (ADR 0047)
+- ☐ 0.34 next: provider agreements and exact API layouts with ACC, Southern Cross and nib (then test the FHIR client against each); Windcave HIT merchant agreement and UAT test; Verifone; Health NZ NHI/HPI integration agreement and conformance testing; NHI search by name
 - ☐ Coding next: obtain the Health NZ clinical code table and code tables (purchaser, specialty, facility, domicile, CPAC); NBSP extract layout; AR-DRG/WIES grouping if a contract needs it; NNPAC if TDS reports outpatient events
 - ☐ Optional: ADT to the CARESCAPE Gateway so monitors can "Request Admit" the patient by unit and bed
 - ☐ Devices next: capture real CARESCAPE Gateway messages and adjust the mapping; agree the anaesthetic record profile with SaferSleep; clinical sign-off of chart intervals and plausibility limits; Olympus tower status on the Monitors page; overdue-validation prompt on the whiteboard

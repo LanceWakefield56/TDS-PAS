@@ -501,3 +501,194 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[TerminalTransactions] ADD [IsRefund] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[TerminalTransactions] ADD [Reason] nvarchar(300) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[TerminalTransactions] ADD [RefundOfId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[TerminalTransactions] ADD [Refunded] decimal(12,2) NOT NULL DEFAULT 0.0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[Settings] ADD [WindcaveKeyProtected] nvarchar(1000) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[Settings] ADD [WindcaveUrl] nvarchar(200) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[Settings] ADD [WindcaveUser] nvarchar(100) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[PriorApprovals] ADD [ExternalReference] nvarchar(100) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[Funders] ADD [Api] nvarchar(10) NOT NULL DEFAULT N'';
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[Funders] ADD [ApiKeyProtected] nvarchar(1000) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[Funders] ADD [ApiUrl] nvarchar(300) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[Funders] ADD [LastApiAt] datetimeoffset NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[Funders] ADD [LastApiError] nvarchar(500) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[Claims] ADD [ExternalReference] nvarchar(100) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[Claims] ADD [LastCheckedAt] datetimeoffset NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    CREATE TABLE [claims].[XeroContacts] (
+        [Id] uniqueidentifier NOT NULL,
+        [Key] nvarchar(200) NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [XeroContactId] nvarchar(50) NOT NULL,
+        [How] nvarchar(10) NOT NULL,
+        [At] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_XeroContacts] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    EXEC(N'UPDATE [claims].[Settings] SET [WindcaveKeyProtected] = NULL, [WindcaveUrl] = NULL, [WindcaveUser] = NULL
+    WHERE [Id] = 1;
+    SELECT @@ROWCOUNT');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    CREATE INDEX [IX_TerminalTransactions_RefundOfId] ON [claims].[TerminalTransactions] ([RefundOfId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    CREATE INDEX [IX_Claims_ExternalReference] ON [claims].[Claims] ([ExternalReference]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_XeroContacts_Key] ON [claims].[XeroContacts] ([Key]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    ALTER TABLE [claims].[TerminalTransactions] ADD CONSTRAINT [FK_TerminalTransactions_TerminalTransactions_RefundOfId] FOREIGN KEY ([RefundOfId]) REFERENCES [claims].[TerminalTransactions] ([Id]) ON DELETE NO ACTION;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [claims].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070743_DirectClaiming'
+)
+BEGIN
+    INSERT INTO [claims].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261128070743_DirectClaiming', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

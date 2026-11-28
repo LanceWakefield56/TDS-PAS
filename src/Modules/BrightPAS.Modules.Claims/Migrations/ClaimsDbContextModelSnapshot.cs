@@ -48,11 +48,18 @@ namespace BrightPAS.Modules.Claims.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("ExternalReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<Guid>("FunderId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("InvoiceId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("LastCheckedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("MemberNumber")
                         .HasMaxLength(50)
@@ -95,6 +102,8 @@ namespace BrightPAS.Modules.Claims.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("BatchId");
+
+                    b.HasIndex("ExternalReference");
 
                     b.HasIndex("FunderId");
 
@@ -197,6 +206,18 @@ namespace BrightPAS.Modules.Claims.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<string>("WindcaveKeyProtected")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("WindcaveUrl")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("WindcaveUser")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.HasKey("Id");
 
                     b.ToTable("Settings", "claims", t =>
@@ -220,6 +241,19 @@ namespace BrightPAS.Modules.Claims.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Api")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("ApiKeyProtected")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ApiUrl")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
                     b.Property<string>("ClaimsEmail")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -236,6 +270,13 @@ namespace BrightPAS.Modules.Claims.Migrations
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTimeOffset?>("LastApiAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LastApiError")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -355,6 +396,10 @@ namespace BrightPAS.Modules.Claims.Migrations
                         .HasColumnType("datetimeoffset");
 
                     b.Property<string>("DecidedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ExternalReference")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
@@ -516,6 +561,9 @@ namespace BrightPAS.Modules.Claims.Migrations
                     b.Property<Guid>("InvoiceId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("IsRefund")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Last4")
                         .HasMaxLength(4)
                         .HasColumnType("nchar(4)")
@@ -533,6 +581,17 @@ namespace BrightPAS.Modules.Claims.Migrations
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid?>("RefundOfId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Refunded")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
 
                     b.Property<string>("ResponseText")
                         .HasMaxLength(300)
@@ -562,9 +621,48 @@ namespace BrightPAS.Modules.Claims.Migrations
                     b.HasIndex("MerchantReference")
                         .IsUnique();
 
+                    b.HasIndex("RefundOfId");
+
                     b.HasIndex("StartedAt");
 
                     b.ToTable("TerminalTransactions", "claims");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Claims.XeroContact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("How")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("XeroContactId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("XeroContacts", "claims");
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Claims.XeroExport", b =>
@@ -768,6 +866,14 @@ namespace BrightPAS.Modules.Claims.Migrations
                         .HasForeignKey("RemittanceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Claims.TerminalTransaction", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Claims.TerminalTransaction", null)
+                        .WithMany()
+                        .HasForeignKey("RefundOfId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Claims.XeroLink", b =>

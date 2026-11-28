@@ -86,7 +86,7 @@ public sealed class AutomationService(PaymentsDbContext db, BillingDbContext bil
                 var (url, _, err) = await links.CreateForInvoiceAsync(d.Id, false, user, ct);
                 if (url is null) { await audit.WriteAsync(user, "OverdueReminder", "Invoice", d.Id.ToString(), d.PatientId.ToString(), reason: err, ct: ct); continue; }
                 var queued = await reminders.QueuePaymentLinkAsync(d.PatientId, MessageKind.OverdueReminder, url, $"overdue:{d.Id}:{stage}", user, ct,
-                    new Dictionary<string, string?> { ["Amount"] = $"${balance:0.00}", ["Date"] = d.DueOn is { } due ? Addresses.FormatDate(due) : "" , ["InvoiceNumber"] = d.Number });
+                    new Dictionary<string, string?> { ["Amount"] = $"${balance:0.00}", ["Date"] = d.DueOn is { } due ? Addresses.FormatDate(due) : "", ["InvoiceNumber"] = d.Number });
                 db.Overdue.Add(new OverdueNotice { InvoiceId = d.Id, PatientId = d.PatientId, InvoiceNumber = d.Number, Stage = stage, Balance = balance, SentAt = clock.GetUtcNow(), Messages = queued.Count(m => m.Status == MessageStatus.Queued) });
                 await db.SaveChangesAsync(ct);
                 if (queued.Any(m => m.Status == MessageStatus.Queued)) overdueSent++; else overdueNot++;

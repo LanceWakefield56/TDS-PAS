@@ -22,7 +22,8 @@ public static class ClaimsEndpoints
     public sealed record RemittanceRequest(Guid FunderId, string? FileName, string? Text);
     public sealed record XeroExportRequest(DateOnly From, DateOnly To, ExportOptions? Export);
     public sealed record TerminalStart(Guid InvoiceId, decimal Amount);
-    public sealed record TerminalSettingsRequest(TerminalProvider Provider, string? TerminalId);
+    public sealed record TerminalSettingsRequest(TerminalProvider Provider, string? TerminalId, string? WindcaveUrl = null, string? WindcaveUser = null, string? WindcaveKey = null);
+    public sealed record TerminalRefundRequest(decimal Amount, string? Reason);
     public sealed record AcceptRequest(IReadOnlyList<string>? Fields);
     public sealed record ImportRequest(string? Text);
 
@@ -46,6 +47,8 @@ public static class ClaimsEndpoints
         r.Claim.SubmittedAt,
         r.Claim.ResponseAt,
         r.Claim.ResponseText,
+        r.Claim.ExternalReference,
+        r.Claim.LastCheckedAt,
         r.AgeDays,
         r.Claim.CreatedAt,
     };
@@ -70,6 +73,7 @@ public static class ClaimsEndpoints
         a.CreatedBy,
         a.DecidedAt,
         a.DecidedBy,
+        a.ExternalReference,
     };
 
     private static object TxnView(TerminalTransaction t) => new
@@ -88,6 +92,10 @@ public static class ClaimsEndpoints
         t.StartedBy,
         t.CompletedAt,
         t.PaymentRecorded,
+        t.IsRefund,
+        t.RefundOfId,
+        t.Reason,
+        t.Refunded,
     };
 
     public static void MapClaimsEndpoints(this IEndpointRouteBuilder app)
@@ -97,9 +105,27 @@ public static class ClaimsEndpoints
 
         g.MapGet("/meta", async (ClaimsService svc, TerminalService term) => Results.Ok(new
         {
-            funders = (await svc.FundersAsync(false)).Select(f => new { f.Id, f.Code, f.Name, kind = f.Kind.ToString(), submitBy = f.SubmitBy.ToString(), f.PriorApprovalRequired, f.ClaimsEmail, f.ProviderNumber, f.IsActive, f.Notes }),
+            funders = (await svc.FundersAsync(false)).Select(f => new
+            {
+                f.Id,
+                f.Code,
+                f.Name,
+                kind = f.Kind.ToString(),
+                submitBy = f.SubmitBy.ToString(),
+                f.PriorApprovalRequired,
+                f.ClaimsEmail,
+                f.ProviderNumber,
+                f.IsActive,
+                f.Notes,
+                api = f.Api.ToString(),
+                f.ApiUrl,
+                apiKeySet = f.ApiKeyProtected != null,
+                f.LastApiAt,
+                f.LastApiError
+            }),
             cardTypes = TerminalService.Cards,
             terminal = (await term.SettingsAsync()).TerminalProvider.ToString(),
+            terminalSettings = await term.SettingsAsync() is var ts ? new { provider = ts.TerminalProvider.ToString(), ts.TerminalId, ts.WindcaveUrl, ts.WindcaveUser, windcaveKeySet = ts.WindcaveKeyProtected != null } : null,
         })).RequireAuthorization(Permissions.AnyOf(Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.ClaimsAdmin));
         // EFTPOS staff need the card types without seeing claims.
         g.MapGet("/terminal/meta", async (TerminalService term) => Results.Ok(new { cardTypes = TerminalService.Cards, terminal = (await term.SettingsAsync()).TerminalProvider.ToString() }))
@@ -111,6 +137,12 @@ public static class ClaimsEndpoints
             var (f, error) = await svc.SaveFunderAsync(e, Me(u));
             return f is null ? Err(error) : Results.Ok(new { f.Id });
         }).RequireAuthorization(Permissions.ClaimsAdmin);
+        g.MapPut("/funders/{id:guid}/api", async (Guid id, FunderApiEdit e, ClaimsPrincipal u, DirectClaimService d) => Err(await d.SaveApiAsync(id, e, Me(u)))).RequireAuthorization(Permissions.ClaimsAdmin);
+        g.MapPost("/direct/check", async (ClaimsPrincipal u, DirectClaimService d) =>
+        {
+            var r = await d.CheckAsync(Me(u));
+            return Results.Ok(new { r.Checked, r.Changed, r.Paid, r.Errors });
+        }).RequireAuthorization(Permissions.ClaimsManage);
 
         // Claims
         g.MapGet("/", async (string? status, Guid? funderId, Guid? patientId, ClaimsService svc) =>
@@ -137,6 +169,7 @@ public static class ClaimsEndpoints
             var (ready, checks, error) = await svc.MarkReadyAsync(id, r.MemberNumber, r.AccClaimNumber, r.ApprovalId, Me(u));
             return error is not null ? Err(error) : Results.Ok(new { ready, checks });
         }).RequireAuthorization(Permissions.ClaimsManage);
+        g.MapPost("/{id:guid}/send", async (Guid id, ClaimsPrincipal u, DirectClaimService d) => Err(await d.SubmitAsync(id, Me(u)))).RequireAuthorization(Permissions.ClaimsManage);
         g.MapPost("/{id:guid}/submitted", async (Guid id, ClaimsPrincipal u, ClaimsService svc) => Err(await svc.MarkSubmittedAsync(id, Me(u)))).RequireAuthorization(Permissions.ClaimsManage);
         g.MapPost("/{id:guid}/response", async (Guid id, ResponseRequest r, ClaimsPrincipal u, ClaimsService svc) => Err(await svc.RecordResponseAsync(id, r.Accepted, r.Text, Me(u)))).RequireAuthorization(Permissions.ClaimsManage);
         g.MapPost("/{id:guid}/write-off", async (Guid id, ReasonRequest r, ClaimsPrincipal u, ClaimsService svc) => Err(await svc.WriteOffAsync(id, r.Reason ?? "", Me(u)))).RequireAuthorization(Permissions.ClaimsManage);
@@ -164,6 +197,7 @@ public static class ClaimsEndpoints
             var (a, errors) = await svc.CreateApprovalAsync(e, Me(u));
             return a is null ? Errs(errors) : Results.Ok(new { a.Id, a.Number });
         }).RequireAuthorization(Permissions.ClaimsManage);
+        g.MapPost("/approvals/{id:guid}/send", async (Guid id, ClaimsPrincipal u, DirectClaimService d) => Err(await d.RequestApprovalAsync(id, Me(u)))).RequireAuthorization(Permissions.ClaimsManage);
         g.MapPost("/approvals/{id:guid}/requested", async (Guid id, ClaimsPrincipal u, ClaimsService svc) => Err(await svc.MarkRequestedAsync(id, Me(u)))).RequireAuthorization(Permissions.ClaimsManage);
         g.MapPost("/approvals/{id:guid}/decide", async (Guid id, ApprovalDecision d, ClaimsPrincipal u, ClaimsService svc) => Err(await svc.DecideApprovalAsync(id, d, Me(u)))).RequireAuthorization(Permissions.ClaimsManage);
 
@@ -206,7 +240,7 @@ public static class ClaimsEndpoints
             var run = await x.ExportAsync(r.From, r.To, Me(u));
             if (run.File is not null) return await export.ExportAsync(r.Export, Path.GetFileNameWithoutExtension(run.Export.FileName!), [new(run.Export.FileName!, run.File)], Me(u), "XeroInvoices");
             if (run.Export.Invoices + run.Export.Payments == 0 && run.Errors.Count > 0) return Errs(run.Errors);
-            return Results.Ok(new { run.Export.Invoices, run.Export.Payments, errors = run.Errors });
+            return Results.Ok(new { run.Export.Invoices, run.Export.Payments, errors = run.Errors, byHand = run.ByHand ?? [] });
         }).RequireAuthorization(Permissions.ClaimsManage);
         g.MapPost("/xero/exports/{id:guid}/download", async (Guid id, CodingEndpoints.DownloadRequest r, ClaimsPrincipal u, XeroService x, SecureExportService export) =>
         {
@@ -223,13 +257,23 @@ public static class ClaimsEndpoints
             return txn is null ? Err(error) : Results.Ok(new { txn = TxnView(txn), error });
         }).RequireAuthorization(Permissions.PaymentsTake);
         g.MapPost("/terminal/{id:guid}/complete", async (Guid id, TerminalResult r, ClaimsPrincipal u, TerminalService t) => Err(await t.CompleteAsync(id, r, Me(u)))).RequireAuthorization(Permissions.PaymentsTake);
+        g.MapPost("/terminal/{id:guid}/check", async (Guid id, ClaimsPrincipal u, TerminalService t) =>
+        {
+            var (status, error) = await t.CheckAsync(id, Me(u));
+            return status is null ? Err(error) : Results.Ok(new { status, error });
+        }).RequireAuthorization(Permissions.PaymentsTake);
+        g.MapPost("/terminal/{id:guid}/refund", async (Guid id, TerminalRefundRequest r, ClaimsPrincipal u, TerminalService t) =>
+        {
+            var (txn, error) = await t.RefundAsync(id, r.Amount, r.Reason, Me(u));
+            return txn is null ? Err(error) : Results.Ok(new { txn = TxnView(txn), error });
+        }).RequireAuthorization(Permissions.ClaimsManage);
         g.MapPost("/terminal/{id:guid}/cancel", async (Guid id, ClaimsPrincipal u, TerminalService t) => Err(await t.CancelAsync(id, Me(u)))).RequireAuthorization(Permissions.PaymentsTake);
         g.MapGet("/terminal/settlement", async (DateOnly date, TerminalService t) =>
         {
             var s = await t.SettlementAsync(date);
-            return Results.Ok(new { s.Date, s.Approved, s.Total, s.Declined, s.Pending, s.ByCard, transactions = s.Transactions.Select(TxnView) });
+            return Results.Ok(new { s.Date, s.Approved, s.Total, s.Declined, s.Pending, s.ByCard, s.Refunds, s.RefundTotal, transactions = s.Transactions.Select(TxnView) });
         }).RequireAuthorization(pay);
-        g.MapPut("/terminal/settings", async (TerminalSettingsRequest r, ClaimsPrincipal u, TerminalService t) => Err(await t.SaveSettingsAsync(r.Provider, r.TerminalId, Me(u)))).RequireAuthorization(Permissions.ClaimsAdmin);
+        g.MapPut("/terminal/settings", async (TerminalSettingsRequest r, ClaimsPrincipal u, TerminalService t) => Err(await t.SaveSettingsAsync(new TerminalSettingsEdit(r.Provider, r.TerminalId, r.WindcaveUrl, r.WindcaveUser, r.WindcaveKey), Me(u)))).RequireAuthorization(Permissions.ClaimsAdmin);
 
         // NHI / HPI
         var id = app.MapGroup("/api/identity").RequireModule(ClaimsModule.Id);

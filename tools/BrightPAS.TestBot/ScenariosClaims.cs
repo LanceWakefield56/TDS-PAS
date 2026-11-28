@@ -18,6 +18,8 @@ public sealed partial class Scenarios
         await Step(ClaimsArea, "Prior approval recorded and attached; the claim becomes ready", ClaimReadyAsync);
         await Step(ClaimsArea, "Claim file made (encrypted) and the remittance pays the invoice; the same file can't be loaded twice", ClaimFileRemittanceAsync);
         await Step(ClaimsArea, "Reception takes an EFTPOS payment on the training terminal; card numbers are refused", EftposAsync);
+        await Step(ClaimsArea, "Finance refunds part of an EFTPOS payment to the card and makes a credit note; both show on the invoice", EftposRefundCreditNoteAsync);
+        await Step(ClaimsArea, "Prior approval sent straight to Southern Cross (training simulator) and answered by Check funders now", DirectApprovalAsync);
         await Step(ClaimsArea, "Xero file of issued invoices (encrypted); each invoice goes once", XeroFileAsync);
         await Step(ClaimsArea, "NHI check on the patient page; identity changes are not accepted here", NhiCheckAsync);
         await Step(ClaimsArea, "Permissions: reception can't change claim settings; a nurse can't see claims", ClaimsPermissionsAsync);
@@ -134,6 +136,66 @@ public sealed partial class Scenarios
         return eftpos && st.Status == 403 && (tid is null || full == 400)
             ? (Outcome.Pass, "Training terminal approved the payment and it was recorded on the invoice with the auth code; reception can't change terminal settings; a full card number is refused.")
             : (Outcome.Fail, $"Payment recorded {eftpos}; reception settings HTTP {st.Status}; full card number HTTP {full}.");
+    }
+
+    private async Task<(Outcome, string)> EftposRefundCreditNoteAsync()
+    {
+        var fin = await As("finance");
+        var docs = await fin.GetAsync("/api/billing/documents?kind=Invoice");
+        string? purchase = null, invoiceId = null;
+        foreach (var d in docs.Json!.Value.EnumerateArray().Where(d => Str(d, "payer") == "SelfFunded"))
+        {
+            var txns = (await fin.GetAsync($"/api/claims/terminal/invoice/{Str(d, "id")}")).Json;
+            var t = Find(txns, x => Str(x, "status") == "Approved" && !x.GetProperty("isRefund").GetBoolean() && x.GetProperty("amount").GetDecimal() > x.GetProperty("refunded").GetDecimal() + 1m);
+            if (t is not null) { purchase = Str(t.Value, "id"); invoiceId = Str(d, "id"); break; }
+        }
+        if (purchase is null) return (Outcome.Skip, "No approved EFTPOS payment to refund.");
+        var noReason = await fin.PostAsync($"/api/claims/terminal/{purchase}/refund", new { amount = 1m, reason = "" });
+        var r = await fin.PostAsync($"/api/claims/terminal/{purchase}/refund", new { amount = 1m, reason = "Robot refund" });
+        var refunded = r.Status == 200 && Str(r.Json!.Value.GetProperty("txn"), "status") == "Approved";
+        var reception = await (await As("reception")).PostAsync($"/api/claims/terminal/{purchase}/refund", new { amount = 1m, reason = "x" });
+
+        // Credit note on screen on an invoice with money owing.
+        var owing = await fin.GetAsync("/api/billing/documents?kind=Invoice&outstanding=true");
+        var inv = Find(owing.Json, d => Str(d, "payer") == "SelfFunded" && Str(d, "status") is "Issued" or "PartPaid");
+        if (inv is null) return (Outcome.Skip, "No self-funded invoice owing for a credit note.");
+        var page = fin.Page;
+        await page.GotoAsync($"{bot.O.Url}/billing/{Str(inv.Value, "id")}");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Credit note", Exact = true }).ClickAsync();
+        var dlg = page.Locator("dialog[open]");
+        await dlg.GetByLabel("Amount (including GST)").FillAsync("2.00");
+        await dlg.GetByLabel("Why").FillAsync("Robot goodwill");
+        await dlg.GetByRole(AriaRole.Button, new() { Name = "Make credit note" }).ClickAsync();
+        await Assertions.Expect(page.GetByText("Credit note · CN").First.Or(page.GetByText("Robot goodwill").First)).ToBeVisibleAsync(new() { Timeout = 15000 });
+        return refunded && noReason.Status == 400 && reception.Status == 403
+            ? (Outcome.Pass, "$1 refunded to the card on the training terminal (a reason is required, reception can't refund); a numbered credit note took $2 off another invoice.")
+            : (Outcome.Fail, $"Refund HTTP {r.Status} approved {refunded}; no reason HTTP {noReason.Status}; reception HTTP {reception.Status}.");
+    }
+
+    private async Task<(Outcome, string)> DirectApprovalAsync()
+    {
+        var fin = await As("finance");
+        var meta = await fin.GetAsync("/api/claims/meta");
+        var sx = Find(meta.Json!.Value.GetProperty("funders"), f => Str(f, "code") == "SX");
+        if (sx is null || Str(sx.Value, "api") != "Simulator") return (Outcome.Fail, "Southern Cross is not on direct claiming (simulator) in the demo data.");
+        var pid = _patient?.Id;
+        if (pid is null) return (Outcome.Skip, "No test patient.");
+        var a = await fin.PostAsync("/api/claims/approvals", new { patientId = pid, funderId = Str(sx.Value, "id"), memberNumber = "ROBOT123", procedure = "Robot direct approval", amountRequested = 1800m });
+        if (a.Status != 200) return (Outcome.Fail, $"Approval HTTP {a.Status}: {a.Text}");
+        var aid = Str(a.Json!.Value, "id");
+        var page = fin.Page;
+        await page.GotoAsync($"{bot.O.Url}/claims?tab=approvals");
+        var row = page.Locator("tr", new() { HasText = "Robot direct approval" }).First;
+        await row.GetByRole(AriaRole.Button, new() { Name = "Send straight to funder" }).ClickAsync();
+        await Assertions.Expect(row.GetByText("Waiting for the funder")).ToBeVisibleAsync(new() { Timeout = 15000 });
+        await page.GotoAsync($"{bot.O.Url}/claims?tab=sent");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Check funders now" }).ClickAsync();
+        await Assertions.Expect(page.GetByText("Checked").First).ToBeVisibleAsync(new() { Timeout = 15000 });
+        var list = await fin.GetAsync($"/api/claims/approvals?patientId={pid}");
+        var mine = Find(list.Json, x => Str(x, "id") == aid);
+        return mine is not null && Str(mine.Value, "status") == "Approved" && (Str(mine.Value, "approvalReference") ?? "").StartsWith("SIMPA-", StringComparison.Ordinal)
+            ? (Outcome.Pass, "Prior approval sent straight to Southern Cross (simulator) and approved on the next check, with the funder's reference.")
+            : (Outcome.Fail, $"Approval status {(mine is null ? "missing" : Str(mine.Value, "status"))}.");
     }
 
     private async Task<(Outcome, string)> XeroFileAsync()

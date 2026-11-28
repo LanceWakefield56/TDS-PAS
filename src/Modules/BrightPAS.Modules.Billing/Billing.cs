@@ -33,6 +33,8 @@ public sealed class BillingSettings
     public string? BankAccount { get; set; }
     public int NextEstimateNumber { get; set; } = 1;
     public int NextInvoiceNumber { get; set; } = 1;
+    /// <summary>Credit notes CN000001… (0.34.0).</summary>
+    public int NextCreditNoteNumber { get; set; } = 1;
 }
 
 public sealed class FeeItem
@@ -53,7 +55,7 @@ public sealed class FeeItem
 public enum DocumentKind { Estimate = 1, Invoice = 2 }
 public enum DocumentStatus { Draft = 1, Issued = 2, Accepted = 3, Declined = 4, Expired = 5, Invoiced = 6, PartPaid = 7, Paid = 8, Void = 9 }
 public enum Payer { SelfFunded = 1, Insurer = 2, Acc = 3, HealthNz = 4, Other = 5 }
-public enum PaymentMethod { Eftpos = 1, CreditCard = 2, BankTransfer = 3, Insurer = 4, Acc = 5, Cash = 6, Other = 7 }
+public enum PaymentMethod { Eftpos = 1, CreditCard = 2, BankTransfer = 3, Insurer = 4, Acc = 5, Cash = 6, Other = 7, CreditNote = 8 }
 
 /// <summary>An estimate or an invoice.</summary>
 public sealed class BillingDocument
@@ -419,6 +421,7 @@ public sealed class BillingService(BillingDbContext db, PatientsDbContext patien
         if (d is null) return "Invoice not found.";
         if (d.Status is not (DocumentStatus.Issued or DocumentStatus.PartPaid)) return "Issue the invoice before recording payments.";
         if (p.Amount <= 0) return "Enter the amount paid.";
+        if (p.Method == PaymentMethod.CreditNote) return "Use Credit note to take money off an invoice.";
         var bal = Calculate(d).Balance;
         if (Money(p.Amount) > bal) return $"The payment is more than the balance owing ({bal:0.00}).";
         var payment = new Payment { DocumentId = d.Id, PaidOn = p.PaidOn, Amount = Money(p.Amount), Method = p.Method, Reference = Blank(p.Reference), RecordedAt = clock.GetUtcNow(), RecordedBy = user };
@@ -446,6 +449,36 @@ public sealed class BillingService(BillingDbContext db, PatientsDbContext patien
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(user, "Refund", "Invoice", d.Id.ToString(), d.PatientId.ToString(), reason: $"{d.Number} {method} -{amount:0.00}", ct: ct);
         return null;
+    }
+
+    /// <summary>
+    /// Takes money off an issued invoice without a payment (0.34.0): a numbered credit note (CN000001), kept as a payment with method CreditNote
+    /// so the balance stays right. Xero gets it as a credit note allocated to the invoice.
+    /// </summary>
+    public async Task<(string? Number, string? Error)> CreditNoteAsync(Guid invoiceId, decimal amount, string reason, string user, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason)) return (null, "Say why the invoice is being reduced.");
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var d = await db.Documents.Include(x => x.Payments).Include(x => x.Lines).SingleOrDefaultAsync(x => x.Id == invoiceId && x.Kind == DocumentKind.Invoice, ct);
+            if (d is null) return ((string?)null, (string?)"Invoice not found.");
+            if (d.Status is not (DocumentStatus.Issued or DocumentStatus.PartPaid)) return (null, "Credit notes can only go on an issued invoice with money owing.");
+            amount = Money(amount);
+            var bal = Calculate(d).Balance;
+            if (amount <= 0) return (null, "Enter the amount to credit.");
+            if (amount > bal) return (null, $"The credit is more than the balance owing ({bal:0.00}).");
+            var s = await db.Settings.SingleAsync(ct);
+            var number = $"CN{s.NextCreditNoteNumber++:D6}";
+            var why = reason.Trim();
+            db.Payments.Add(new Payment { DocumentId = d.Id, PaidOn = NzTime.Today(clock), Amount = amount, Method = PaymentMethod.CreditNote, Reference = $"{number} {why}"[..Math.Min(50, number.Length + 1 + why.Length)], RecordedAt = clock.GetUtcNow(), RecordedBy = user });
+            await db.SaveChangesAsync(ct);
+            d.Status = Calculate(d).Balance == 0 ? DocumentStatus.Paid : DocumentStatus.PartPaid;
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            await audit.WriteAsync(user, "CreditNote", "Invoice", d.Id.ToString(), d.PatientId.ToString(), reason: $"{d.Number} {number} {amount:0.00}: {why}", ct: ct);
+            return (number, null);
+        });
     }
 
     public async Task<BillingDocument?> GetAsync(Guid id, string user, string? ws, CancellationToken ct = default)
