@@ -17,7 +17,7 @@ comes off the invoices the payment paid, newest first, as a negative payment in 
 paid; status goes back to part paid or issued). A refund the provider declines is kept as "did not go through" and changes nothing.
 Numbered RF000001…; listed under Refunds; audited.
 
-**Payment plans.** Finance agrees instalments for one or more of a patient's invoices (self-funded, plus shortfalls when switched on; not on another
+**Payment plans.** Finance (permission `onlinepay.plans`, Finance role) agrees instalments for one or more of a patient's invoices (self-funded, plus shortfalls when switched on; not on another
 active plan; one active plan per patient): amount, weekly / fortnightly / monthly, first date (within two months), at most 24 instalments. Monthly
 dates are counted from the first date each time (31 Jan → 28/29 Feb → 31 Mar). Progress = everything paid on the plan's invoices since the plan began,
 by any method, so nothing is matched by hand. Behind = less paid than the instalments already due. The plan completes itself when paid off; cancelling

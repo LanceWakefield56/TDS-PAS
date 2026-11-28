@@ -142,6 +142,11 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Links_Invoice', N'[payme
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Payments_Patient', N'[payments].[Payments]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Allocations_Invoice', N'[payments].[Allocations]', N'InvoiceId', N'[billing].[Documents]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Statements_Patient', N'[payments].[Statements]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Refunds_Patient', N'[payments].[Refunds]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Plans_Patient', N'[payments].[Plans]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_PlanInvoices_Invoice', N'[payments].[PlanInvoices]', N'InvoiceId', N'[billing].[Documents]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Overdue_Invoice', N'[payments].[Overdue]', N'InvoiceId', N'[billing].[Documents]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Overdue_Patient', N'[payments].[Overdue]', N'PatientId', N'[patients].[Patients]';
 -- Prescribing and barcode medicine checks (0.31.0)
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Orders_Patient', N'[rx].[Orders]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Orders_Episode', N'[rx].[Orders]', N'EpisodeId', N'[emr].[Episodes]';

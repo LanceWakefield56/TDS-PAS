@@ -102,14 +102,14 @@ public static class PaymentsEndpoints
         g.MapGet("/refunds", async (Guid? paymentId, RefundService svc) => Results.Ok(await svc.ListAsync(paymentId))).RequireAuthorization(Permissions.OnlinePayAny);
         g.MapGet("/plans", async (string? view, Guid? patientId, PlanService svc) => Results.Ok(await svc.ListAsync(view, patientId))).RequireAuthorization(Permissions.OnlinePayAny);
         g.MapGet("/plans/{id:guid}", async (Guid id, PlanService svc) => await svc.GetAsync(id) is { } d ? Results.Ok(d) : Results.NotFound()).RequireAuthorization(Permissions.OnlinePayAny);
-        g.MapGet("/plans/options/{patientId:guid}", async (Guid patientId, PlanService svc) => Results.Ok(await svc.OptionsAsync(patientId))).RequireAuthorization(Permissions.OnlinePayManage);
+        g.MapGet("/plans/options/{patientId:guid}", async (Guid patientId, PlanService svc) => Results.Ok(await svc.OptionsAsync(patientId))).RequireAuthorization(Permissions.OnlinePayPlans);
         g.MapPost("/plans", async (PlanInput r, ClaimsPrincipal u, PlanService svc) =>
         {
             var (plan, errors) = await svc.CreateAsync(r, Me(u));
             return plan is null ? Results.BadRequest(new { errors }) : Results.Ok(new { plan.Id, plan.Number });
-        }).RequireAuthorization(Permissions.OnlinePayManage);
+        }).RequireAuthorization(Permissions.OnlinePayPlans);
         g.MapPost("/plans/{id:guid}/cancel", async (Guid id, NoteRequest r, ClaimsPrincipal u, PlanService svc) => Err(await svc.CancelAsync(id, r.Note, Me(u))))
-            .RequireAuthorization(Permissions.OnlinePayManage);
+            .RequireAuthorization(Permissions.OnlinePayPlans);
         g.MapGet("/overdue", async (AutomationService svc) => Results.Ok(await svc.OverdueAsync())).RequireAuthorization(Permissions.OnlinePayAny);
         g.MapPost("/automation/run", async (ClaimsPrincipal u, AutomationService svc) => Results.Ok(await svc.RunAsync(true, Me(u)))).RequireAuthorization(Permissions.OnlinePaySettings);
 
