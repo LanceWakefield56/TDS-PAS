@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.37.0 – (not yet released) – **Imaging (PACS)**
+- **Imaging module (ADR 0050, guide H50)** – licence "imaging"; permissions View / File and request / Settings and delete (surgeons and nurses view and file, anaesthetists view, reception files, the system administrator has settings); "Imaging (X-ray, scans)" under Day of surgery.
+  - **X-rays and scans (DICOM)** kept as received in the imaging folder and linked to the patient and episode (booking). Each picture is kept once.
+  - **In from:** upload (files, a ZIP, or the whole folder of a CD/USB from a radiology provider) or a **watched network folder** checked every minute (files moved to processed\ or failed\).
+  - **Filed by itself** by an imaging request's number (accession), or by NHI/MRN with the same date of birth (can be switched off); anything else waits in **To match**, where staff file it (a different date of birth must be confirmed).
+  - **Imaging requests** give a number to write on the radiology form; images carrying it go straight to the patient and episode. Ready to serve a GE (or other) machine's worklist later.
+  - **Viewer** in the browser: series and thumbnails, scroll through a stack, brightness/contrast and CT presets, invert, zoom and pan. Report or note per study. Encrypted export of the original DICOM files. Delete keeps who/why.
+  - Patient record panel, set-up wizard, demo data (three invented X-rays and two requests), patient merge, self-test entries, reporting foreign keys.
+- Test robot: **Imaging (PACS)** steps (upload with a request number; unknown patient to match; viewer; reception and anaesthetist limits).
+
 ## 0.36.0 – 2026-11-28 – **Early warning score on the day and anaesthetist reviews**
 - **Early warning score in triage (ADR 0049, guide H43)** – Triage rules › Settings: switch on "Use the early warning score from observations taken on the day". Observations on admission with a score of 5 or more (setting), or any single observation scoring 3, re-run triage and suggest an anaesthetist review before surgery; lower scores add "repeat observations". Off until switched on.
 - **Anaesthetist reviews** – on a triage: **Book review** with an anaesthetist by video (join link from the meeting link in settings), phone or in person, before the surgery date, no double-booking. The anaesthetist records what the review found; staff can mark did not attend or cancel. New worklist tab "Reviews booked".

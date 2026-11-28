@@ -200,3 +200,9 @@ public sealed class PaymentsMerge(BrightPAS.Modules.Payments.PaymentLinkService 
     public string Name => "Online payments and statements";
     public Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) => svc.MergeAsync(to, from, ct);
 }
+
+public sealed class ImagingMerge(BrightPAS.Modules.Pacs.ImagingService svc) : IPatientMergeParticipant
+{
+    public string Name => "Imaging (PACS)";
+    public Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) => svc.MergeAsync(to, from, ct);
+}

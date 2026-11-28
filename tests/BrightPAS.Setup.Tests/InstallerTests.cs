@@ -35,7 +35,7 @@ public class InstallerTests
     public void Schema_scripts_are_embedded_in_order()
     {
         var names = SqlScripts.Embedded().Select(s => s.Name).ToList();
-        Assert.Equal(["01-core.sql", "02-identity.sql", "03-patients.sql", "04-labs.sql", "05-theatre.sql", "06-forms.sql", "07-billing.sql", "08-reminders.sql", "09-referrals.sql", "10-letters.sql", "11-roster.sql", "12-credentialing.sql", "13-portal.sql", "14-messaging.sql", "15-assets.sql", "16-emr.sql", "17-endoscopy.sql", "18-scribe.sql", "19-devices.sql", "20-quality.sql", "21-coding.sql", "22-estimates.sql", "23-triage.sql", "24-followup.sql", "25-research.sql", "26-claims.sql", "27-medicines.sql", "28-ebookings.sql", "29-consent.sql", "30-payments.sql", "31-prescribing.sql", "90-reporting.sql"], names);
+        Assert.Equal(["01-core.sql", "02-identity.sql", "03-patients.sql", "04-labs.sql", "05-theatre.sql", "06-forms.sql", "07-billing.sql", "08-reminders.sql", "09-referrals.sql", "10-letters.sql", "11-roster.sql", "12-credentialing.sql", "13-portal.sql", "14-messaging.sql", "15-assets.sql", "16-emr.sql", "17-endoscopy.sql", "18-scribe.sql", "19-devices.sql", "20-quality.sql", "21-coding.sql", "22-estimates.sql", "23-triage.sql", "24-followup.sql", "25-research.sql", "26-claims.sql", "27-medicines.sql", "28-ebookings.sql", "29-consent.sql", "30-payments.sql", "31-prescribing.sql", "37-imaging.sql", "90-reporting.sql"], names);
     }
 
     [Fact]

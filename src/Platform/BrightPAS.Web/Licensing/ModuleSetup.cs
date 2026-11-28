@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "medicines", "followup", "claims", "ebookings", "consent", "payments", "prescribing"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "medicines", "followup", "claims", "ebookings", "consent", "payments", "prescribing", "imaging"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -77,6 +77,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "ebookings" => await EBookingsChecksAsync(ct),
         "consent" => await ConsentChecksAsync(ct),
         "payments" => await PaymentsChecksAsync(ct),
+        "imaging" => await ImagingChecksAsync(ct),
         "prescribing" => await PrescribingChecksAsync(ct),
         "followup" => await FollowUpChecksAsync(ct),
         "claims" => await ClaimsChecksAsync(ct),
@@ -385,6 +386,25 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 reminders.SmsProvider is not (BrightPAS.Modules.Reminders.SmsProvider.TestOutbox or BrightPAS.Modules.Reminders.SmsProvider.Off) || reminders.EmailProvider is not (BrightPAS.Modules.Reminders.EmailProvider.TestOutbox or BrightPAS.Modules.Reminders.EmailProvider.Off), "Uses the Reminders settings.", true, "Open reminders", "/reminders", Permissions.RemindersManage),
             new("gate", "Require signed consent before confirming a booking", "Optional: theatre cannot confirm a booking until the consent is signed. Off by default.",
                 s.RequireBeforeConfirm, s.RequireBeforeConfirm ? "On." : "Off.", true, "Open settings", "/consent?tab=settings", Permissions.ConsentSheets),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> ImagingChecksAsync(CancellationToken ct)
+    {
+        var svc = Svc<BrightPAS.Modules.Pacs.ImagingService>();
+        var s = await svc.SettingsAsync(ct);
+        var (folderOk, folderDetail) = await Svc<BrightPAS.Modules.Pacs.ImagingStore>().CheckAsync(ct);
+        var watched = s.ImportFolder is { } f && Directory.Exists(f);
+        var viewers = await UsersWithAsync(Permissions.ImagingView, ct);
+        var filers = await UsersWithAsync(Permissions.ImagingImport, ct);
+        return
+        [
+            new("folder", "Imaging folder", "Where X-ray and scan files are kept on the server (plan the disk space: a CT can be several hundred MB). Back it up with the database.",
+                folderOk, folderDetail, false, "Open settings", "/imaging?tab=settings", Permissions.ImagingManage),
+            new("watched", "Watched network folder (optional)", "A share the X-ray or scanning machine, or a radiology provider, saves DICOM files to. BrightPAS takes them in every minute. Without one, staff upload files or a CD on the Imaging page.",
+                watched, s.ImportFolder is null ? "Not set – staff upload files." : watched ? s.ImportFolder : $"{s.ImportFolder} not found or not readable by the BrightPAS service account.", true, "Open settings", "/imaging?tab=settings", Permissions.ImagingManage),
+            new("staff", "Staff who view and file images", "Surgeons, anaesthetists and nurses view images; nurses, surgeons and reception file pictures that could not be matched (adjust in roles).",
+                viewers > 0 && filers > 0, $"{viewers} can view, {filers} can file.", false, "Open roles", "/admin/roles", Permissions.UsersManage),
         ];
     }
 

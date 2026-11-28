@@ -8,7 +8,7 @@ interface ImportSummary { messages: number; accepted: number; duplicates: number
  * Offline import (0.18.0): when a device or interface connection is down, staff choose one or more files – from a USB stick,
  * a network share or a file the system saved – and each is sent in turn. Shows what happened to every message in every file.
  */
-export default function FileImport({ url, title, hint, accept, onDone }: { url: string; title: string; hint: string; accept?: string; onDone?: () => void }) {
+export default function FileImport({ url, title, hint, accept, onDone, folder }: { url: string; title: string; hint: string; accept?: string; onDone?: () => void; folder?: boolean }) {
   const [busy, setBusy] = useState('');
   const [items, setItems] = useState<ImportItem[] | null>(null);
   const [totals, setTotals] = useState<{ accepted: number; duplicates: number; rejected: number } | null>(null);
@@ -40,6 +40,9 @@ export default function FileImport({ url, title, hint, accept, onDone }: { url: 
       <label className="btn btn-light file-pick">Choose file(s)…
         <input type="file" multiple accept={accept} className="sr-only" disabled={!!busy} onChange={(e) => { void send(e.target.files); e.target.value = ''; }} />
       </label>
+      {folder && <label className="btn btn-light file-pick">Choose a folder (CD or USB)…
+        <input type="file" multiple className="sr-only" disabled={!!busy} {...{ webkitdirectory: '' }} onChange={(e) => { void send(e.target.files); e.target.value = ''; }} />
+      </label>}
       {busy && <p role="status">{busy}</p>}
       {error && <div className="error">{error}</div>}
       {totals && <p role="status"><strong>{totals.accepted}</strong> accepted · <strong>{totals.duplicates}</strong> already held · <strong>{totals.rejected}</strong> not imported</p>}
