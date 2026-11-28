@@ -284,3 +284,290 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Settings] ADD [AutoSendStatements] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Settings] ADD [AutoStatementDay] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Settings] ADD [IncludeShortfalls] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Settings] ADD [LastAutomationOn] date NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Settings] ADD [NextPlanNumber] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Settings] ADD [NextRefundNumber] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Settings] ADD [OverdueFirstDays] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Settings] ADD [OverdueSecondDays] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Settings] ADD [PlanReminderDays] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Payments] ADD [Refunded] decimal(12,2) NOT NULL DEFAULT 0.0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Payments] ADD [TransactionId] nvarchar(100) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Links] ADD [PlanId] uniqueidentifier NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    ALTER TABLE [payments].[Allocations] ADD [Refunded] decimal(12,2) NOT NULL DEFAULT 0.0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE TABLE [payments].[Overdue] (
+        [Id] uniqueidentifier NOT NULL,
+        [InvoiceId] uniqueidentifier NOT NULL,
+        [PatientId] uniqueidentifier NOT NULL,
+        [InvoiceNumber] nvarchar(30) NULL,
+        [Stage] int NOT NULL,
+        [Balance] decimal(12,2) NOT NULL,
+        [SentAt] datetimeoffset NOT NULL,
+        [Messages] int NOT NULL,
+        CONSTRAINT [PK_Overdue] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE TABLE [payments].[Plans] (
+        [Id] uniqueidentifier NOT NULL,
+        [Number] nvarchar(20) NOT NULL,
+        [PatientId] uniqueidentifier NOT NULL,
+        [Total] decimal(12,2) NOT NULL,
+        [Instalment] decimal(12,2) NOT NULL,
+        [Frequency] nvarchar(20) NOT NULL,
+        [FirstDue] date NOT NULL,
+        [PaidAtStart] decimal(12,2) NOT NULL,
+        [Status] nvarchar(20) NOT NULL,
+        [Note] nvarchar(300) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [CreatedBy] nvarchar(100) NOT NULL,
+        [EndedAt] datetimeoffset NULL,
+        [EndedBy] nvarchar(100) NULL,
+        [EndReason] nvarchar(300) NULL,
+        [LastReminderFor] date NULL,
+        CONSTRAINT [PK_Plans] PRIMARY KEY ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE TABLE [payments].[Refunds] (
+        [Id] uniqueidentifier NOT NULL,
+        [Number] nvarchar(20) NOT NULL,
+        [OnlinePaymentId] uniqueidentifier NOT NULL,
+        [PatientId] uniqueidentifier NOT NULL,
+        [Amount] decimal(12,2) NOT NULL,
+        [FromUnapplied] decimal(12,2) NOT NULL,
+        [Reason] nvarchar(300) NOT NULL,
+        [Status] nvarchar(20) NOT NULL,
+        [ProviderReference] nvarchar(100) NULL,
+        [Error] nvarchar(300) NULL,
+        [AppliedTo] nvarchar(500) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [CreatedBy] nvarchar(100) NOT NULL,
+        CONSTRAINT [PK_Refunds] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_Refunds_Payments_OnlinePaymentId] FOREIGN KEY ([OnlinePaymentId]) REFERENCES [payments].[Payments] ([Id]) ON DELETE NO ACTION
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE TABLE [payments].[PlanInvoices] (
+        [Id] uniqueidentifier NOT NULL,
+        [PlanId] uniqueidentifier NOT NULL,
+        [InvoiceId] uniqueidentifier NOT NULL,
+        CONSTRAINT [PK_PlanInvoices] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_PlanInvoices_Plans_PlanId] FOREIGN KEY ([PlanId]) REFERENCES [payments].[Plans] ([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE INDEX [IX_Links_PlanId] ON [payments].[Links] ([PlanId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Overdue_InvoiceId_Stage] ON [payments].[Overdue] ([InvoiceId], [Stage]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE INDEX [IX_Overdue_PatientId] ON [payments].[Overdue] ([PatientId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE INDEX [IX_Overdue_SentAt] ON [payments].[Overdue] ([SentAt]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE INDEX [IX_PlanInvoices_InvoiceId] ON [payments].[PlanInvoices] ([InvoiceId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PlanInvoices_PlanId_InvoiceId] ON [payments].[PlanInvoices] ([PlanId], [InvoiceId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Plans_Number] ON [payments].[Plans] ([Number]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE INDEX [IX_Plans_PatientId] ON [payments].[Plans] ([PatientId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Refunds_Number] ON [payments].[Refunds] ([Number]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE INDEX [IX_Refunds_OnlinePaymentId] ON [payments].[Refunds] ([OnlinePaymentId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    CREATE INDEX [IX_Refunds_PatientId] ON [payments].[Refunds] ([PatientId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [payments].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128063437_PaymentsExtras'
+)
+BEGIN
+    INSERT INTO [payments].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261128063437_PaymentsExtras', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

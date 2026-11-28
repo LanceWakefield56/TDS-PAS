@@ -81,17 +81,22 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Clinical coding and statutory reporting (spec 7.11): coder workbench, edit checks, advice library, NMDS load file, NBRS batches – 0.20.0 (ADR 0033)
 - ☑ Endoscopy video retention 30 days with AES-256 archive to share/USB – 0.20.0
 - ☑ Procedure estimates (TDS Estimates v1.5 moved in): builder, price list, add-ons, templates, PDF, email with hold and right-recipient checks, Incisive, imports – 0.21.0 (ADR 0034)
-- ☐ Estimates next: follow-up statuses (accepted, declined, deposit paid, booked, prior approval, expiry list), estimate → Billing invoice, reports, layout builder; standalone app on a shared library; open business items (Incisive naming, SMTP, Veins/skin graft/Dr Butcher/MyoSure fees, costing defaults)
+- ☑ Estimate follow-up statuses (accepted, declined, insurer approval, deposit paid, booked, invoiced, expired), chase and expiry lists, estimate → Billing invoice, report – 0.33.0 (ADR 0046)
+- ☐ Estimates next: layout builder; standalone app on a shared library; open business items (Incisive naming, SMTP, Veins/skin graft/Dr Butcher/MyoSure fees, costing defaults)
 - ☑ Triage & suitability (spec 7.25): risk profile and scores, versioned rules with clinical approval, re-triage, sign-off, booking hold – 0.22.0 (ADR 0035)
 - ☑ Medicines & medicine safety: medicines list (starter list, TDS list and NZULM import with saved layouts, barcodes), versioned clinician-approved dose limits / allergy groups / cross-reactions / interactions, checks when charting (Advise/Enforce, override reasons), allergy links, report – 0.27.0 (ADR 0040)
 - ☑ Bookings from specialists' rooms: portal requests with files, booking office review (points to check, questions, patient match/register, accept onto the waitlist, decline), JSON/HL7 REF^I12 file import and watched folder, optional rooms email – 0.28.0 (ADR 0041)
 - ☑ E-consent and patient education: versioned clinician-approved information sheets, consent per booking sent by secure link, read/ask/sign (or representative, interpreter), paper scan, signed PDF in the record, confirm on the day (theatre check), withdraw, optional gate – 0.29.0 (ADR 0042)
 - ☐ Consent next: TDS surgeons write and approve their own sheets; translated sheets (te reo Māori and others); anaesthesia consent sheet; surgeon e-signature; consent started from the specialist portal; clinical and legal review of the wording and process
 - ☑ Online payments and statements: payment links (date of birth), Windcave hosted page or simulator, results read back from the provider, applied to invoices oldest first, needs-attention list, statement runs by email/text/post with payment links – 0.30.0 (ADR 0043)
-- ☐ Payments next: Windcave merchant agreement and UAT test; refunds from BrightPAS; payment plans; automatic monthly statement runs and overdue reminders; insurer shortfall statements
+- ☑ Refunds from BrightPAS, payment plans, automatic monthly statement runs, overdue reminders, insurer shortfall statements – 0.32.0 (ADR 0045)
+- ☐ Payments next: Windcave merchant agreement and UAT test (including the refund permission on the REST user)
 - ☐ Rooms bookings next: rooms pick a theatre slot from TDS's free time; HL7 ACK/RRI back to practice systems
-- ☐ Medicines next: barcode medicine administration (BCMA) using the pack barcodes; NZePS e-prescriptions; NZ Formulary licence check; TDS clinicians approve the medicine rules; confirm the NZULM file layout
-- ☐ Triage next: TDS's anaesthetists agree and approve the rules; NEWS2/early-warning scores on the day (with EMR observations); anaesthetist video/phone review booking
+- ☑ Prescribing and barcode medicine checks: medicine chart (orders), barcode check when giving (wristband, GS1 pack, expiry, order; Off/Advise/Enforce), report, take-home prescriptions with NZePS barcode, NZePS client (FHIR) / simulator / folder copy – 0.31.0 (ADR 0044)
+- ☐ Prescribing next: Health NZ NZePS agreement, conformance testing and keys; confirm the prescription id generator; dispensed status back from NZePS; scan-to-chart from the pack barcode alone; regular-order dose times on the chart
+- ☐ Medicines next: NZ Formulary licence check; TDS clinicians approve the medicine rules; confirm the NZULM file layout
+- ☑ Triage: early warning score on the day (EMR observations) and anaesthetist video/phone review booking – 0.36.0 (ADR 0049)
+- ☐ Triage next: TDS's anaesthetists agree and approve the rules and EWS thresholds; send review invitations by SMS/email
 - ☑ Patient journey, My list, theatre day board, simpler menu – 0.23.0 (ADR 0036)
 - ☑ Post-op follow-up and SSI surveillance (spec 7.26) – 0.24.0 (ADR 0037)
 - ☐ Follow-up next: clinical approval of the script, warning rules and plans; HQSC programme data specification check before any submission; PROMs (with the form designer)
@@ -100,7 +105,8 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Form designer and import from CSV / FHIR / fillable PDF (7.23) – 0.25.0
 - ☐ 0.25 next: scanned/Word form import with AI field detection; handwriting extraction from completed paper forms; SharePoint bulk import; body maps, photos, drawn signatures; designer forms on the patient portal/kiosk; scheduled saved reports; reporting replica; image de-identification
 - ☑ Claims (prior approvals, claim files/portal, remittances), Xero (file and API), EFTPOS (manual/simulator), NHI/HPI lookups with file fallback – 0.26.0 (ADR 0039)
-- ☐ 0.26 next: funder agreements for direct claiming (ACC eClaims/Online, Southern Cross easy-claim, nib/AIA provider APIs) and their exact file layouts; integrated EFTPOS (Windcave/Verifone) with refunds; Health NZ NHI/HPI integration agreement and conformance testing; NHI search by name; Xero contact matching and credit notes
+- ☑ Direct claiming (simulator + FHIR client), linked Windcave EFTPOS terminal with refunds to card, credit notes, Xero contact matching and credit notes – 0.34.0 (ADR 0047)
+- ☐ 0.34 next: provider agreements and exact API layouts with ACC, Southern Cross and nib (then test the FHIR client against each); Windcave HIT merchant agreement and UAT test; Verifone; Health NZ NHI/HPI integration agreement and conformance testing; NHI search by name
 - ☐ Coding next: obtain the Health NZ clinical code table and code tables (purchaser, specialty, facility, domicile, CPAC); NBSP extract layout; AR-DRG/WIES grouping if a contract needs it; NNPAC if TDS reports outpatient events
 - ☐ Optional: ADT to the CARESCAPE Gateway so monitors can "Request Admit" the patient by unit and bed
 - ☐ Devices next: capture real CARESCAPE Gateway messages and adjust the mapping; agree the anaesthetic record profile with SaferSleep; clinical sign-off of chart intervals and plausibility limits; Olympus tower status on the Monitors page; overdue-validation prompt on the whiteboard
@@ -110,7 +116,8 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Daylight saving and leap years handled throughout – 0.19.0 (ADR 0032)
 - ☑ Quality, incidents and complaints (spec 7.12, 7.14) – 0.19.0 (ADR 0031)
 - ☐ Quality next (with the form designer, 0.25.0; SSI done in 0.24.0): patient surveys/PROMs, SSI surveillance, M&M review, PDSA cycles, internal audit forms; HQSC/ACC notification files when formats are confirmed
-- ☐ Messaging: workflow engine (human tasks, timers, escalation), MLLP/DICOM over TLS, DICOM MWL/MPPS (with endoscopy), drag lines in mapper, C# extension scripts
+- ☑ Messaging: workflow tasks, timers and escalation; MLLP/DICOM over TLS; MWL/MPPS with TLS – 0.35.0 (ADR 0048)
+- ☐ Messaging next: drag lines in mapper, C# extension scripts; confirm TLS support with each partner (lab engine, towers)
 - ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends
 - ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)
 - ☐ HealthLink: confirm message profile + EDI accounts with HealthLink; live test via the messaging client

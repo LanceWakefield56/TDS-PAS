@@ -10,6 +10,64 @@
   - Patient record panel, set-up wizard, demo data (three invented X-rays and two requests), patient merge, self-test entries, reporting foreign keys.
 - Test robot: **Imaging (PACS)** steps (upload with a request number; unknown patient to match; viewer; reception and anaesthetist limits).
 
+## 0.36.0 – 2026-11-28 – **Early warning score on the day and anaesthetist reviews**
+- **Early warning score in triage (ADR 0049, guide H43)** – Triage rules › Settings: switch on "Use the early warning score from observations taken on the day". Observations on admission with a score of 5 or more (setting), or any single observation scoring 3, re-run triage and suggest an anaesthetist review before surgery; lower scores add "repeat observations". Off until switched on.
+- **Anaesthetist reviews** – on a triage: **Book review** with an anaesthetist by video (join link from the meeting link in settings), phone or in person, before the surgery date, no double-booking. The anaesthetist records what the review found; staff can mark did not attend or cancel. New worklist tab "Reviews booked".
+- Demo data: early warning score switched on, a video review done, a phone review booked.
+- Test robot: books a video review and checks only the anaesthetist can record it.
+
+## 0.35.0 – 2026-11-28 – **Tasks, workflow steps and encrypted links**
+- **Tasks (ADR 0048, guide H42)** – new Tasks screen for everyone: My tasks, Late, All open, Finished. **I'll do it** takes a task; **Done** or **Not needed** (with a reason) finishes it. **New task** makes one for a role, with an optional time limit and a role to pass it to if late. Kept with who did what and when. New permission "Work on tasks" (every role).
+- **Flow designer** – two new steps: **Task** (makes a task when a message arrives; the title can use message fields like {PID-5.1}) and **Wait** (holds the message for a set time, then carries on). Test runs show what would happen.
+- **Escalation** – a late task moves to its escalation role once, marked urgent. Checked every 30 seconds.
+- **Encrypted links** – HL7 (MLLP) and DICOM connections can use TLS 1.2/1.3 with certificates from the Windows certificate store; partners are pinned by thumbprint. Endoscopy DICOM node too. Off unless switched on.
+- Demo data: a partner-lab flow that makes a task for reception (late ones move to the nurses), two staff tasks.
+- Test robot: takes and finishes a task, checks a late flow task escalated, makes a task.
+
+## 0.34.0 – 2026-11-28 – **Direct insurer claiming, linked EFTPOS and Xero**
+- **Direct claiming (ADR 0047, guide H41)** – Claims settings › Funders › Direct claiming: Off (claim file or portal), Training simulator or Connected (FHIR, needs the funder's provider agreement, address and key).
+  - Ready claims: **Send straight to the funder**. Draft prior approvals: **Send straight to funder**. Answers come back by themselves every 15 minutes (or **Check funders now**): accepted, rejected, part paid, paid – payments go onto the invoice; approvals get the funder's reference, amount and valid-until date.
+  - If the funder can't be reached the claim stays ready and can still go by file.
+- **Linked EFTPOS terminal (Windcave)** – the amount goes to the terminal by itself and the result comes back (card type and last four digits only). Needs a Windcave merchant agreement and HIT user and key.
+  - **Refund to card** on an approved EFTPOS payment (Finance): up to what is left, with a reason; comes off the invoice. Settlement shows refunds.
+- **Credit notes** – on an issued invoice: Credit note takes money off without a payment (numbered CN000001…).
+- **Xero** – contacts matched by name and email (or made) once and remembered; credit notes sent and allocated to the invoice (or as credit lines in the import file); refunds listed once to record by hand.
+- Demo data: Southern Cross on the claiming simulator with a prior approval sent, a goodwill credit note.
+- Test robot: refund to card and credit note; prior approval sent straight to Southern Cross and answered.
+
+## 0.33.0 – 2026-11-28 – **Estimate follow-up**
+- **Estimate follow-up (ADR 0046, guide H40)** – Before surgery › Estimate follow-up, and a Follow-up box on each issued estimate:
+  - **Where each estimate is up to:** waiting to hear, accepted, declined (with the reason), insurer approval requested / approved (approval number) / declined, deposit paid, booked, invoiced, expired – with the history of who recorded what and when, and an optional date to follow up again.
+  - **Lists:** to chase (nothing heard after 7 days, insurer not answered, accepted but not booked, follow-up date reached), running out (within 14 days), accepted – to book or invoice, expired, all open. Estimates past their valid-until date are marked expired each day.
+  - **Make invoice:** a draft invoice in Invoices & payments from an accepted estimate – the same lines and prices, the insurer and approval number, a note of the deposit paid.
+  - **Report:** issued, accepted, declined, booked and expired estimates, value accepted, accept rate and days to accept – by surgeon, procedure, funding and month.
+- Demo data: an accepted estimate with a deposit, one waiting for insurer approval (to chase today), one declined.
+- Test robot: records an insurer approval and makes an invoice from an accepted estimate.
+
+## 0.32.0 – 2026-11-28 – **Refunds, payment plans and automatic statements**
+- **Online payments extras (ADR 0045, guide H39)**:
+  - **Refunds:** refund part or all of an online payment back to the card (Windcave refund, or the simulator). Money that never went on an invoice goes back first (and clears Needs attention); the rest comes off the invoices it paid. New permission "Refund online payments" (Finance). Refunds tab.
+  - **Payment plans:** weekly, fortnightly or monthly instalments for one or more invoices (up to 24). Any payment on those invoices counts – desk, online or bank. Shows what is paid, what is still to pay, the next date and whether the patient is behind; completes itself when paid off. Reminder with a payment link before each instalment.
+  - **Every day, automatically** (after 9 am, or "Run the daily round now"): statements prepared (and sent if wanted) on a chosen day of the month; first and second overdue reminders after the due date, once each per invoice; payment plan reminders. All off until switched on.
+  - **Insurer shortfalls** (optional): what is left on an insurer invoice after the insurer has paid goes on statements, reminders and plans.
+  - Patients keeping up with a payment plan are left off statements and overdue reminders.
+- Reminders: new message kinds "Overdue reminder" and "Payment plan reminder"; templates can use {Amount} and {InvoiceNumber}.
+- Billing: refunds recorded as negative payments.
+- Demo data: a refund and a payment plan; overdue reminders at 14 and 28 days; shortfalls on.
+- Test robot: refund through the simulator, payment plan instalments, reception cannot refund or make plans.
+
+## 0.31.0 – 2026-11-28 – **Prescribing and barcode medicine checks**
+- **Prescribing module (ADR 0044, guide H38)** – licence "prescribing"; permissions View / Prescribe / Manage (Anaesthetist all three, Surgeon View and Prescribe, Nurse View, System administrator Manage); "Prescribing" under Day of surgery.
+  - **Medicine chart:** prescribers order medicines on the episode (once, regular or as needed, how often, what for); nurses press Give to chart against an order; once-only orders are then Given; stop with a reason.
+  - **Barcode check when giving a medicine:** scan the wristband and the pack (GS1 DataMatrix or linear barcode). Right patient, right medicine (or same ingredients – check the dose), not expired, ordered. Off / Advise / Enforce (default Off); someone else's wristband can never be overridden. Batch and expiry kept with the record. Barcode check report (how often scanned, every stop and override).
+  - **Prescriptions to take home:** from the clinical record (Discharge). Registered prescribers only (HPI CPN), signed by the prescriber, printed with the NZePS barcode, sent to NZePS when connected (Simulator for training), a FHIR copy to a folder as the fallback, send again, cancel (also in NZePS). Controlled drugs always need a written signature.
+  - Set-up wizard, demo data (prescribers, chart orders, barcode checks, one sent and one draft prescription), patient merge, self-test entries, reporting foreign keys.
+- Test robot: **Prescribing** steps (surgeon signs and prints; nurse barcode check incl. wrong wristband; reception cannot prescribe).
+- Also in this release – **Easier editing**:
+  - **Edit and add forms open in a pop-up window** (`components/Modal.tsx`, the browser's own dialog) instead of further down the page, where pressing Edit looked like it did nothing. About 40 forms on 25 screens: organisation set-up, fees, medicines, roster, regular theatre lists, letters, practices, printers, credentialing, CSSD, assets, stock, suppliers, scribe, messaging interfaces and tables, funders, estimates admin, follow-up plans, coding (NBRS, advice, picklist), monitors, outbox confirmations and patient contact details. Esc, Cancel or × closes; the page behind is dimmed. Full screen on phones.
+  - Forms that are always on the page for adding (endoscopy findings, polyps, tattoos, biopsies; scribe dictionary; coding picklist) stay in place for adding and open in a pop-up when Edit is pressed.
+  - Test robot: the explorer also recognises open pop-ups (`dialog[open]`) and reloads the page before pressing the next button.
+
 ## 0.30.0 – 2026-11-28 – **Online payments and statements**
 - **Online payments module (ADR 0043, guide H37)** – licence "payments"; permissions View / Send links and statements / Settings (Finance all three; Reception View and Send); "Online payments" under After surgery.
   - **Payment links:** from an invoice (Pay online › Send payment link, or make a link to copy). The patient opens it on any device, enters their date of birth (five tries then a 30-minute lock), sees what is owing and pays all or part by card on the provider's own page – card numbers never reach BrightPAS.
@@ -30,11 +88,6 @@
   - Points to check (question waiting, not signed close to the day, link expired, under 16, representative, interpreter), journey step and My list to-dos, optional "signed before confirming a booking" gate (off), set-up wizard, demo data, patient merge, self-test entries, reporting foreign keys.
 - Reminders: new message kind "Consent link" (text and email templates).
 - Test robot: **E-consent** steps (nurse sends; patient reads and signs on a phone; nurse confirms; reception cannot approve a sheet).
-
-## Unreleased – **Easier editing**
-- **Edit and add forms open in a pop-up window** (`components/Modal.tsx`, the browser's own dialog) instead of further down the page, where pressing Edit looked like it did nothing. About 40 forms on 25 screens: organisation set-up, fees, medicines, roster, regular theatre lists, letters, practices, printers, credentialing, CSSD, assets, stock, suppliers, scribe, messaging interfaces and tables, funders, estimates admin, follow-up plans, coding (NBRS, advice, picklist), monitors, outbox confirmations and patient contact details. Esc, Cancel or × closes; the page behind is dimmed. Full screen on phones.
-- Forms that are always on the page for adding (endoscopy findings, polyps, tattoos, biopsies; scribe dictionary; coding picklist) stay in place for adding and open in a pop-up when Edit is pressed.
-- Test robot: the explorer also recognises open pop-ups (`dialog[open]`) and reloads the page before pressing the next button.
 
 ## 0.28.0 – 2026-11-25 – **Bookings from specialists' rooms**
 - **Bookings from rooms module (ADR 0041, guide H35)** – licence "ebookings"; permissions Send booking requests (Surgeon, PA, Specialist portal) and Manage booking requests (Reception / Booking); "Bookings from rooms" under Before surgery.

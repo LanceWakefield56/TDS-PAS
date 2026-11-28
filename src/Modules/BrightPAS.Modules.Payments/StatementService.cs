@@ -9,7 +9,8 @@ using BrightPAS.Modules.Reminders;
 
 namespace BrightPAS.Modules.Payments;
 
-public sealed record StatementLine(Guid InvoiceId, string Number, DateOnly? IssuedOn, DateOnly? DueOn, decimal Total, decimal Paid, decimal Balance);
+public sealed record StatementLine(Guid InvoiceId, string Number, DateOnly? IssuedOn, DateOnly? DueOn, decimal Total, decimal Paid, decimal Balance,
+    bool Shortfall = false);
 public sealed record RunRow(Guid Id, DateOnly StatementDate, DateTimeOffset CreatedAt, string CreatedBy, int Count, decimal Total, DateTimeOffset? SentAt, int ToPrint, int Printed);
 public sealed record StatementRow(Guid Id, string Number, Guid PatientId, string Patient, decimal TotalDue, decimal Overdue, string Delivery, string Status, DateTimeOffset? SentAt, string? Note, decimal BalanceNow);
 public sealed record StatementPdfModel(string ClinicName, IReadOnlyList<string> ClinicAddress, string? ClinicPhone, string? ClinicEmail, string? GstNumber, string? BankAccount,
@@ -28,8 +29,15 @@ public interface IStatementPdf
 /// in the posting batch (one PDF, each statement with its own payment link). Insurer, ACC and Health NZ invoices go through Claims, not statements.
 /// </summary>
 public sealed class StatementService(PaymentsDbContext db, BillingDbContext billingDb, PatientsDbContext patients, PasDbContext core, PaymentLinkService links,
-    ReminderService reminders, IStatementPdf pdf, AuditWriter audit, TimeProvider clock)
+    PlanService plans, ReminderService reminders, IStatementPdf pdf, AuditWriter audit, TimeProvider clock)
 {
+    /// <summary>Is this invoice's balance the patient's to pay? Self-funded invoices always; insurer invoices only once the insurer has paid its part
+    /// (the rest is the patient's shortfall) and only when shortfalls are switched on (0.32.0).</summary>
+    public static bool PatientOwes(BillingDocument d, bool includeShortfalls) =>
+        d.Payer == Payer.SelfFunded || includeShortfalls && IsShortfall(d);
+
+    public static bool IsShortfall(BillingDocument d) => d.Payer == Payer.Insurer && d.Payments.Any(p => p.Method == PaymentMethod.Insurer && p.Amount > 0);
+
     public static List<StatementLine> ReadSnapshot(string json) => JsonSerializer.Deserialize<List<StatementLine>>(json, JsonSerializerOptions.Web) ?? [];
 
     public async Task<List<RunRow>> RunsAsync(CancellationToken ct = default) =>
@@ -48,10 +56,12 @@ public sealed class StatementService(PaymentsDbContext db, BillingDbContext bill
         if (await db.Runs.AnyAsync(r => r.SentAt == null, ct)) return (null, "A prepared run has not been sent yet. Send it or delete it first.");
         var s = await links.SettingsAsync(ct);
         var docs = await billingDb.Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments)
-            .Where(d => d.Kind == DocumentKind.Invoice && d.Payer == Payer.SelfFunded && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid)
-                && d.IssuedOn != null && d.IssuedOn <= statementDate)
+            .Where(d => d.Kind == DocumentKind.Invoice && (d.Payer == Payer.SelfFunded || s.IncludeShortfalls && d.Payer == Payer.Insurer)
+                && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid) && d.IssuedOn != null && d.IssuedOn <= statementDate)
             .ToListAsync(ct);
-        var byPatient = docs.Select(d => (d, t: BillingService.Calculate(d))).Where(x => x.t.Balance > 0).GroupBy(x => x.d.PatientId).ToList();
+        var (onTrack, _) = await plans.CoverageAsync(ct); // patients keeping up with a payment plan get instalment reminders instead
+        var byPatient = docs.Where(d => PatientOwes(d, s.IncludeShortfalls) && !onTrack.Contains(d.PatientId))
+            .Select(d => (d, t: BillingService.Calculate(d))).Where(x => x.t.Balance > 0).GroupBy(x => x.d.PatientId).ToList();
         var ids = byPatient.Select(g => g.Key).ToList();
         var live = await patients.Patients.AsNoTracking().Where(p => ids.Contains(p.Id) && p.MergedIntoId == null)
             .Select(p => new { p.Id, p.Email, p.MobilePhone }).ToDictionaryAsync(p => p.Id, ct);
@@ -60,7 +70,7 @@ public sealed class StatementService(PaymentsDbContext db, BillingDbContext bill
         {
             if (!live.TryGetValue(g.Key, out var p)) continue;
             var lines = g.OrderBy(x => x.d.IssuedOn).ThenBy(x => x.d.Number, StringComparer.Ordinal)
-                .Select(x => new StatementLine(x.d.Id, x.d.Number ?? "", x.d.IssuedOn, x.d.DueOn, x.t.Total, x.t.Paid, x.t.Balance)).ToList();
+                .Select(x => new StatementLine(x.d.Id, x.d.Number ?? "", x.d.IssuedOn, x.d.DueOn, x.t.Total, x.t.Paid, x.t.Balance, IsShortfall(x.d))).ToList();
             var total = lines.Sum(l => l.Balance);
             if (total < s.StatementMinimum || total <= 0) continue;
             run.Statements.Add(new Statement

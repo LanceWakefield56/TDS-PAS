@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Mail;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using BrightPAS.Licensing;
 using BrightPAS.Modules.Estimates;
 using BrightPAS.Modules.Reminders;
@@ -100,10 +101,43 @@ public sealed class EstimatesWorker(IServiceScopeFactory scopes, LicenceCache li
                     lastPrices = DateTimeOffset.UtcNow;
                     var applied = await scope.ServiceProvider.GetRequiredService<EstimateService>().ApplyDuePricesAsync("system", stoppingToken);
                     if (applied > 0) log.LogInformation("Estimates: {Applied} scheduled price change(s) applied.", applied);
+                    var expired = await scope.ServiceProvider.GetRequiredService<EstimateFollowUpService>().ExpireAsync("system", stoppingToken);
+                    if (expired > 0) log.LogInformation("Estimates: {Expired} estimate(s) expired.", expired);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception ex) { log.LogError(ex, "Estimates outbox check failed; it will run again shortly."); }
         } while (await timer.WaitForNextTickAsync(stoppingToken));
+    }
+}
+
+/// <summary>
+/// Estimate → Billing invoice (0.33.0, ADR 0046). Makes a draft invoice from an issued estimate for a registered patient: one line per priced line
+/// (estimate prices include GST, so each line is entered without GST and Billing adds it back – a cent may differ through rounding), the payer from the
+/// funding (insurer, policy and approval number as the reference), the surgeon, and a note of any deposit paid. Staff check and issue it in Billing.
+/// </summary>
+public sealed class EstimateInvoicer(BrightPAS.Modules.Estimates.EstDbContext est, BrightPAS.Modules.Billing.BillingService billing, EstimateFollowUpService followUp, LicenceCache licence)
+{
+    public async Task<(Guid? InvoiceId, string? Number, IReadOnlyList<string> Errors)> InvoiceAsync(Guid estimateId, string user, CancellationToken ct = default)
+    {
+        if (licence.Status.AccessTo(BrightPAS.Modules.Billing.BillingModule.Id) != ModuleAccess.Full) return (null, null, ["Invoices (Billing) are not licensed."]);
+        var e = await est.Estimates.Include(x => x.Lines).SingleOrDefaultAsync(x => x.Id == estimateId, ct);
+        if (e is null) return (null, null, ["Estimate not found."]);
+        if (e.Status != EstimateStatus.Issued) return (null, null, ["Only an issued estimate can be invoiced."]);
+        if (e.InvoiceId is not null) return (null, null, [$"Invoice {e.InvoiceNumber ?? "already"} has been made from this estimate."]);
+        if (e.PatientId is not { } patientId) return (null, null, ["Link the estimate to the patient's record first (Link to patient)."]);
+        if (e.Funding == Funding.Insurance && string.IsNullOrWhiteSpace(e.Insurer)) return (null, null, ["Enter the insurer on the estimate first."]);
+        var gst = (await billing.SettingsAsync(ct)).GstPercent;
+        var lines = e.Lines.Where(l => l.Kind == LineKind.Fee && l.Amount is > 0).OrderBy(l => l.Sequence)
+            .Select(l => new BrightPAS.Modules.Billing.LineInput(null, l.Label, 1, BrightPAS.Modules.Billing.BillingService.Money(l.Amount!.Value * 100m / (100m + gst)))).ToList();
+        if (lines.Count == 0) return (null, null, ["The estimate has no priced lines to invoice."]);
+        var payer = e.Funding == Funding.Insurance ? BrightPAS.Modules.Billing.Payer.Insurer : BrightPAS.Modules.Billing.Payer.SelfFunded;
+        var reference = string.Join(" ", new[] { e.PolicyNumber, string.IsNullOrWhiteSpace(e.PriorApproval) ? null : "approval " + e.PriorApproval }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        var note = $"From estimate {e.Ref} ({e.Subtotal:0.00} incl. GST).{(e.DepositPaid is { } dep ? $" Deposit {dep:0.00} paid {e.DepositPaidOn:d MMM yyyy} – record it as a payment once issued." : "")}";
+        var (doc, errors) = await billing.CreateAsync(BrightPAS.Modules.Billing.DocumentKind.Invoice,
+            new(patientId, payer, payer == BrightPAS.Modules.Billing.Payer.Insurer ? e.Insurer : null, reference.Length == 0 ? null : reference, e.SurgeonName, null, note, lines, e.BookingId), user, ct);
+        if (doc is null) return (null, null, errors);
+        await followUp.MarkInvoicedAsync(e.Id, doc.Id, doc.Number, user, ct);
+        return (doc.Id, doc.Number, []);
     }
 }

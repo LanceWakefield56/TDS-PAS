@@ -71,7 +71,7 @@ public sealed class EndoscopyDicomHost(IServiceScopeFactory scopes, ILogger<Endo
                 if (IPAddress.TryParse(a.Split(':')[0].Trim(), out var ip)) ips.Add(ip);
         var aes = (s.DicomCallingAes ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => x.ToUpperInvariant()).ToHashSet();
         var on = licensed && s.DicomEnabled;
-        var sig = $"{on}|{s.DicomPort}|{s.DicomAeTitle}|{s.DicomAnyTower}|{string.Join(',', aes.Order())}|{string.Join(',', ips.Select(i => i.ToString()).Order())}";
+        var sig = $"{on}|{s.DicomPort}|{s.DicomAeTitle}|{s.DicomAnyTower}|{s.DicomTls}|{s.DicomCertificate}|{string.Join(',', aes.Order())}|{string.Join(',', ips.Select(i => i.ToString()).Order())}";
         if (sig == _signature && (_server is not null || !on)) return;
         Stop();
         _signature = sig;
@@ -80,7 +80,12 @@ public sealed class EndoscopyDicomHost(IServiceScopeFactory scopes, ILogger<Endo
         try
         {
             var ctx = new EndoScpContext(s.DicomAeTitle, aes, ips, s.DicomAnyTower, scopes, this, log);
-            var server = DicomServerFactory.Create<EndoDicomScp>(s.DicomPort, userState: ctx);
+            // 0.35.0: DICOM over TLS when the tower supports it (certificate from the Windows store).
+            FellowOakDicom.Network.Tls.ITlsAcceptor? tls = s.DicomTls
+                ? new FellowOakDicom.Network.Tls.DefaultTlsAcceptor(BrightPAS.Modules.Messaging.TlsSupport.Find(s.DicomCertificate) ?? throw new InvalidOperationException("the TLS certificate was not found in the certificate store"))
+                { Protocols = BrightPAS.Modules.Messaging.TlsSupport.Protocols }
+                : null;
+            var server = DicomServerFactory.Create<EndoDicomScp>(s.DicomPort, tls, userState: ctx);
             if (server.Exception is { } ex) throw ex;
             lock (_gate) _server = server;
             Update(x => x with { Listening = true });

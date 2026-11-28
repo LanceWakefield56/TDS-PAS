@@ -177,6 +177,7 @@ public class PaymentsTests
         Assert.Contains("approved $500.00", (await svc.PaymentsAsync("attention", null)).Single().AttentionReason, StringComparison.Ordinal);
 
         // Declined result: nothing applied.
+        h.Clock.Advance(TimeSpan.FromSeconds(1));
         Assert.Null((await svc.StartAsync(t2, Dob, 50m)).Error);
         fake.Results["S3"] = new GatewayResult(true, false, false, "visa", "0002", null, "DECLINED", 50m);
         h.Clock.Advance(TimeSpan.FromMinutes(6));

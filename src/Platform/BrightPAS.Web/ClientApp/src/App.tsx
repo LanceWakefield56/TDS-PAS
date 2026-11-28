@@ -55,6 +55,8 @@ import Nbrs from './pages/Nbrs';
 import Coding, { CodingWorkbench } from './pages/Coding';
 import DymoLabels from './pages/DymoLabels';
 import Estimates, { EstimateEdit, EstimatesOutbox } from './pages/Estimates';
+import EstimatesFollowUp from './pages/EstimatesFollowUp';
+import Tasks from './pages/Tasks';
 import EstimatesAdmin from './pages/EstimatesAdmin';
 import DayBoard from './pages/DayBoard';
 import Outbox from './pages/Outbox';
@@ -68,6 +70,7 @@ import RoomsBookings from './pages/RoomsBookings';
 import Consent, { ConsentDetail, PatientConsent, SheetEditor } from './pages/Consent';
 import Payments, { PatientPay } from './pages/Payments';
 import Imaging, { ImagingStudy } from './pages/Imaging';
+import Prescribing from './pages/Prescribing';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
 import { FlowEditor, MessagingFlows } from './pages/FlowDesigner';
 import { MappingEditor, MessagingMappings } from './pages/MappingDesigner';
@@ -126,6 +129,7 @@ export default function App() {
   const triageAny = ['triage.view', 'triage.assess', 'triage.review', 'triage.rules', 'triage.approve'].some(can);
   const medsAny = ['medicines.view', 'medicines.catalogue', 'medicines.rules', 'medicines.approve'].some(can);
   const onlinePayAny = [Perm.OnlinePayView, Perm.OnlinePayManage, Perm.OnlinePaySettings].some(can);
+  const rxAny = [Perm.RxView, Perm.RxPrescribe, Perm.RxManage].some(can);
   const consentAny = [Perm.ConsentView, Perm.ConsentManage, Perm.ConsentConfirm, Perm.ConsentSheets, Perm.ConsentApprove].some(can);
   const followAny = ['followup.view', 'followup.record', 'followup.plans', 'followup.ssi', 'followup.report'].some(can);
   const publicPaths = ['/signin', '/setup'];
@@ -173,6 +177,7 @@ export default function App() {
           <Route path="/payments" element={allowed(mod('payments') && onlinePayAny, <Payments />)} />
           <Route path="/imaging" element={allowed(mod('imaging') && [Perm.ImagingView, Perm.ImagingImport, Perm.ImagingManage].some(can), <Imaging />)} />
           <Route path="/imaging/studies/:id" element={allowed(mod('imaging') && (can(Perm.ImagingView) || can(Perm.ImagingImport)), <ImagingStudy />)} />
+          <Route path="/prescribing" element={allowed(mod('prescribing') && rxAny, <Prescribing />)} />
           <Route path="/consent" element={allowed(mod('consent') && consentAny, <Consent />)} />
           <Route path="/consent/sheets/:id" element={allowed(mod('consent') && consentAny, <SheetEditor />)} />
           <Route path="/consent/:id" element={allowed(mod('consent') && consentAny, <ConsentDetail />)} />
@@ -183,6 +188,8 @@ export default function App() {
           <Route path="/triage/:id" element={allowed(mod('triage') && triageAny, <TriageAssessment />)} />
           <Route path="/estimates" element={allowed(mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)), <Estimates />)} />
           <Route path="/estimates/new" element={allowed(mod('estimates') && can(Perm.EstimatesBuild), <EstimateEdit />)} />
+ <Route path="/tasks" element={allowed(mod('messaging') && can(Perm.TasksWork), <Tasks />)} />
+ <Route path="/estimates/followup" element={allowed(mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)), <EstimatesFollowUp />)} />
           <Route path="/estimates/outbox" element={allowed(mod('estimates') && can(Perm.EstimatesBuild), <EstimatesOutbox />)} />
           <Route path="/estimates/admin" element={allowed(mod('estimates') && can(Perm.EstimatesManage), <EstimatesAdmin />)} />
           <Route path="/estimates/:id" element={allowed(mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)), <EstimateEdit />)} />

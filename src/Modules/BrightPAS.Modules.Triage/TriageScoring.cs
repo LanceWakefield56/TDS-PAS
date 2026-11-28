@@ -229,6 +229,18 @@ public static class TriageScoring
                     Add(r, rule.Code, rule.Outcome, $"{rule.Name}{(shown is null ? "" : $" ({shown})")}{(string.IsNullOrWhiteSpace(rule.Explanation) ? "" : " – " + rule.Explanation)}", rule.Precaution);
             }
         }
+        // 0.36.0: early warning score from observations on the day of surgery (only present when switched on in Triage settings).
+        if (f.Num("ews") is { } ews)
+        {
+            var reviewAt = f.Num("ews_review_at") ?? 5;
+            var three = f.Yes("ews_three");
+            var at = f.Has("ews_at") ? $" at {f["ews_at"]}" : "";
+            r.Scores.Add(new("Early warning score", ews.ToString("0", Inv), $"on the day{at}{(three ? " – a single parameter scored 3" : "")}"));
+            if (ews >= reviewAt || three)
+                Add(r, "EWS:day", TriageOutcome.AnaesthetistReview, $"Early warning score {ews:0} on the day{at}{(three ? " (a single parameter scored 3)" : "")} – anaesthetist to review before surgery.", "Repeat observations; anaesthetist review before going to theatre");
+            else if (ews >= 1)
+                Add(r, "EWS:day", TriageOutcome.Suitable, $"Early warning score {ews:0} on the day{at}.", "Repeat observations before going to theatre");
+        }
         if (r.Findings.Count > 0) r.Suggested = r.Findings.Max(x => x.Outcome);
         if (r.Suggested == TriageOutcome.Suitable && r.Findings.Exists(x => x.Precaution is not null)) r.Suggested = TriageOutcome.SuitableWithPrecautions;
         return r;

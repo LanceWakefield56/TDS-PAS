@@ -5,14 +5,15 @@ import { useSession } from '../App';
 import { Condition, ConditionsEditor, Errors, errs, FORMAT_LABEL, MsgNav } from '../components/MsgShared';
 import { dicomFileToJson } from './Messaging';
 
-type Kind = 'Input' | 'Filter' | 'Decision' | 'Mapper' | 'Output';
-interface FNode { key: string; kind: Kind; label: string; x: number; y: number; interfaceId: string | null; mappingId: string | null; match: 'All' | 'Any'; conditions: Condition[] }
+type Kind = 'Input' | 'Filter' | 'Decision' | 'Mapper' | 'Output' | 'Task' | 'Wait';
+interface FNode { key: string; kind: Kind; label: string; x: number; y: number; interfaceId: string | null; mappingId: string | null; match: 'All' | 'Any'; conditions: Condition[]; taskTitle?: string | null; taskRole?: string | null; dueMinutes?: number | null; escalateToRole?: string | null; waitMinutes?: number | null }
 interface FEdge { from: string; to: string; branch: 'Next' | 'Yes' | 'No' }
 
 const W = 176, H = 66;
 const KIND_HELP: Record<Kind, string> = {
   Input: 'Where the message arrives (inbound interface).', Filter: 'Stops the message unless the conditions match.', Decision: 'Sends the message down the Yes or No path.',
   Mapper: 'Changes the message with a mapping (fields, codes, format).', Output: 'Where the message is sent (outbound interface).',
+  Task: 'Gives a person a job to do (a role), with a time to do it by and who it goes to if it is late.', Wait: 'Holds the message for a time, then carries on to the next step.',
 };
 const newKey = () => Math.random().toString(36).slice(2, 10);
 
@@ -50,6 +51,7 @@ export function FlowEditor() {
   const [link, setLink] = useState<{ from: string; branch: FEdge['branch']; x: number; y: number } | null>(null);
   const [ifaces, setIfaces] = useState<any[]>([]);
   const [maps, setMaps] = useState<any[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [sample, setSample] = useState('');
@@ -60,6 +62,7 @@ export function FlowEditor() {
   useEffect(() => {
     api<any[]>('/api/messaging/interfaces').then(setIfaces).catch(() => setIfaces([]));
     api<any[]>('/api/messaging/mappings').then(setMaps).catch(() => setMaps([]));
+    api<string[]>('/api/messaging/tasks/roles').then(setRoles).catch(() => setRoles([]));
     if (id && id !== 'new') api(`/api/messaging/flows/${id}`).then((f) => {
       setMeta({ id: f.id, name: f.name, description: f.description ?? '', isActive: f.isActive });
       setNodes(f.nodes.map((n: any) => ({ ...n, conditions: n.conditions ?? [] })));
@@ -90,7 +93,8 @@ export function FlowEditor() {
     const used = nodes.filter((o) => o.x === x).map((o) => o.y);
     let y = 160; while (used.some((u) => Math.abs(u - y) < 90)) y += 100;
     void sameCol;
-    const n: FNode = { key: newKey(), kind, label: kind === 'Decision' ? 'Decision' : kind, x: nodes.length ? x : 40, y, interfaceId: null, mappingId: null, match: 'All', conditions: kind === 'Filter' || kind === 'Decision' ? [{ source: '', operator: 'Equals', value: '' }] : [] };
+    const n: FNode = { key: newKey(), kind, label: kind === 'Decision' ? 'Decision' : kind, x: nodes.length ? x : 40, y, interfaceId: null, mappingId: null, match: 'All', conditions: kind === 'Filter' || kind === 'Decision' ? [{ source: '', operator: 'Equals', value: '' }] : [],
+      ...(kind === 'Task' ? { taskTitle: '', taskRole: null, dueMinutes: 60, escalateToRole: null } : {}), ...(kind === 'Wait' ? { waitMinutes: 60 } : {}) };
     setNodes([...nodes, n]); setSel({ node: n.key });
   };
   const remove = () => {
@@ -144,7 +148,7 @@ export function FlowEditor() {
           <label>Description<input value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} disabled={!canEdit} /></label>
         </div>
         <div className="row">
-          {canEdit && (['Input', 'Filter', 'Decision', 'Mapper', 'Output'] as Kind[]).map((k) => <button key={k} className={`btn btn-light btn-small palette-${k}`} onClick={() => add(k)} title={KIND_HELP[k]}>+ {k}</button>)}
+          {canEdit && (['Input', 'Filter', 'Decision', 'Mapper', 'Output', 'Task', 'Wait'] as Kind[]).map((k) => <button key={k} className={`btn btn-light btn-small palette-${k}`} onClick={() => add(k)} title={KIND_HELP[k]}>+ {k}</button>)}
           {canEdit && sel && <button className="btn btn-link danger" onClick={remove}>Delete selected</button>}
         </div>
         <div className="canvas-wrap">
@@ -166,6 +170,8 @@ export function FlowEditor() {
             {nodes.map((n) => {
               const sub = n.kind === 'Input' || n.kind === 'Output' ? iface(n.interfaceId)?.name ?? 'choose interface'
                 : n.kind === 'Mapper' ? mapping(n.mappingId)?.name ?? 'choose mapping'
+                : n.kind === 'Task' ? (n.taskRole ? `${n.taskRole}${n.dueMinutes ? ` · ${n.dueMinutes} min` : ''}` : 'choose who')
+                : n.kind === 'Wait' ? (n.waitMinutes ? `${n.waitMinutes} min` : 'set the time')
                 : n.conditions.filter((c) => c.source).map((c) => `${c.source} ${c.operator === 'Equals' ? '=' : c.operator} ${c.value ?? ''}`).join(n.match === 'All' ? ' and ' : ' or ') || 'add conditions';
               const o = outcome(n.key);
               return (
@@ -194,6 +200,13 @@ export function FlowEditor() {
               {selected.kind === 'Mapper' && <label>Mapping<select value={selected.mappingId ?? ''} onChange={(e) => update(selected.key, { mappingId: e.target.value || null })} disabled={!canEdit}>
                 <option value="">Choose…</option>{maps.map((m) => <option key={m.id} value={m.id}>{m.name} ({FORMAT_LABEL[m.sourceFormat]} → {FORMAT_LABEL[m.targetFormat]}){m.live ? '' : ' – not live yet'}</option>)}</select>
                 {selected.mappingId && <Link to={`/messaging/mappings/${selected.mappingId}`} className="small">Open mapping</Link>}</label>}
+              {selected.kind === 'Task' && <>
+                <label>What has to be done<input value={selected.taskTitle ?? ''} maxLength={200} placeholder="e.g. Abnormal result for {PID-5.1} – review" onChange={(e) => update(selected.key, { taskTitle: e.target.value })} disabled={!canEdit} /></label>
+                <label>Who does it<select value={selected.taskRole ?? ''} onChange={(e) => update(selected.key, { taskRole: e.target.value || null })} disabled={!canEdit}><option value="">Choose a role…</option>{roles.map((r) => <option key={r}>{r}</option>)}</select></label>
+                <label>Do it within (minutes)<input type="number" min={1} value={selected.dueMinutes ?? ''} onChange={(e) => update(selected.key, { dueMinutes: e.target.value ? Number(e.target.value) : null })} disabled={!canEdit} /></label>
+                <label>If late, give it to<select value={selected.escalateToRole ?? ''} onChange={(e) => update(selected.key, { escalateToRole: e.target.value || null })} disabled={!canEdit}><option value="">Nobody (stays with the role)</option>{roles.filter((r) => r !== selected.taskRole).map((r) => <option key={r}>{r}</option>)}</select></label>
+              </>}
+              {selected.kind === 'Wait' && <label>Wait (minutes)<input type="number" min={1} max={10080} value={selected.waitMinutes ?? ''} onChange={(e) => update(selected.key, { waitMinutes: e.target.value ? Number(e.target.value) : null })} disabled={!canEdit} /></label>}
               {(selected.kind === 'Filter' || selected.kind === 'Decision') && <label>Match<select value={selected.match} onChange={(e) => update(selected.key, { match: e.target.value as any })} disabled={!canEdit}><option value="All">all conditions</option><option value="Any">any condition</option></select></label>}
             </div>
             {(selected.kind === 'Filter' || selected.kind === 'Decision') && <ConditionsEditor items={selected.conditions} onChange={(c) => update(selected.key, { conditions: c })} format={inputFormat} />}

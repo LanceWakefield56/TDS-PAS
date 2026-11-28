@@ -229,6 +229,13 @@ namespace BrightPAS.Modules.Messaging.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int?>("DueMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EscalateToRole")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
                     b.Property<Guid>("FlowId")
                         .HasColumnType("uniqueidentifier");
 
@@ -253,6 +260,17 @@ namespace BrightPAS.Modules.Messaging.Migrations
                         .HasMaxLength(4)
                         .HasColumnType("nvarchar(4)");
 
+                    b.Property<string>("TaskRole")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("TaskTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("WaitMinutes")
+                        .HasColumnType("int");
+
                     b.Property<int>("X")
                         .HasColumnType("int");
 
@@ -270,6 +288,57 @@ namespace BrightPAS.Modules.Messaging.Migrations
                     b.ToTable("Nodes", "msg");
                 });
 
+            modelBuilder.Entity("BrightPAS.Modules.Messaging.FlowWait", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("DueAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("FlowId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Format")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("NodeKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset?>("ReleasedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FlowId");
+
+                    b.HasIndex("MessageId");
+
+                    b.HasIndex("Status", "DueAt");
+
+                    b.ToTable("FlowWaits", "msg");
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Messaging.Interface", b =>
                 {
                     b.Property<Guid>("Id")
@@ -282,6 +351,10 @@ namespace BrightPAS.Modules.Messaging.Migrations
 
                     b.Property<int>("AlertAfterFailures")
                         .HasColumnType("int");
+
+                    b.Property<string>("CertificateThumbprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("Code")
                         .IsRequired()
@@ -331,6 +404,10 @@ namespace BrightPAS.Modules.Messaging.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("PeerThumbprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<int?>("PollSeconds")
                         .HasColumnType("int");
 
@@ -367,6 +444,9 @@ namespace BrightPAS.Modules.Messaging.Migrations
                     b.Property<string>("Url")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("UseTls")
+                        .HasColumnType("bit");
 
                     b.Property<string>("WatermarkColumn")
                         .HasMaxLength(128)
@@ -779,6 +859,9 @@ namespace BrightPAS.Modules.Messaging.Migrations
                     b.Property<int>("MaxAttempts")
                         .HasColumnType("int");
 
+                    b.Property<int>("NextTaskNumber")
+                        .HasColumnType("int");
+
                     b.Property<bool>("RequireSecondApprover")
                         .HasColumnType("bit");
 
@@ -858,6 +941,110 @@ namespace BrightPAS.Modules.Messaging.Migrations
                     b.ToTable("Tables", "msg");
                 });
 
+            modelBuilder.Entity("BrightPAS.Modules.Messaging.WorkTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AssignedTo")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTimeOffset?>("DoneAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DoneBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("DueAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("EscalateToRole")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<DateTimeOffset?>("EscalatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("EscalatedFrom")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<Guid?>("FlowId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("MessageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("PatientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DueAt");
+
+                    b.HasIndex("FlowId");
+
+                    b.HasIndex("MessageId");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("PatientId");
+
+                    b.HasIndex("Status", "Role");
+
+                    b.ToTable("Tasks", "msg");
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Messaging.Alert", b =>
                 {
                     b.HasOne("BrightPAS.Modules.Messaging.Interface", null)
@@ -934,6 +1121,21 @@ namespace BrightPAS.Modules.Messaging.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
                 });
 
+            modelBuilder.Entity("BrightPAS.Modules.Messaging.FlowWait", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Messaging.Flow", null)
+                        .WithMany()
+                        .HasForeignKey("FlowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BrightPAS.Modules.Messaging.Message", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Messaging.InterfaceState", b =>
                 {
                     b.HasOne("BrightPAS.Modules.Messaging.Interface", null)
@@ -1001,6 +1203,19 @@ namespace BrightPAS.Modules.Messaging.Migrations
                         .HasForeignKey("TableId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Messaging.WorkTask", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Messaging.Flow", null)
+                        .WithMany()
+                        .HasForeignKey("FlowId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BrightPAS.Modules.Messaging.Message", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 #pragma warning restore 612, 618
         }

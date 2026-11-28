@@ -249,6 +249,89 @@ namespace BrightPAS.Modules.Triage.Migrations
                     b.ToTable("MedicineRules", "triage");
                 });
 
+            modelBuilder.Entity("BrightPAS.Modules.Triage.Review", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AnaesthetistId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AnaesthetistName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("AssessmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("BookingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("DoneAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DoneBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("JoinLink")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<int>("Minutes")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset>("StartsAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssessmentId");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("PatientId");
+
+                    b.HasIndex("AnaesthetistId", "StartsAt");
+
+                    b.ToTable("Reviews", "triage");
+                });
+
             modelBuilder.Entity("BrightPAS.Modules.Triage.RuleSet", b =>
                 {
                     b.Property<Guid>("Id")
@@ -391,6 +474,12 @@ namespace BrightPAS.Modules.Triage.Migrations
                     b.Property<int>("Id")
                         .HasColumnType("int");
 
+                    b.Property<bool>("EwsOnTheDay")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("EwsReviewAt")
+                        .HasColumnType("int");
+
                     b.Property<bool>("HoldBookingUntilSignedOff")
                         .HasColumnType("bit");
 
@@ -404,8 +493,15 @@ namespace BrightPAS.Modules.Triage.Migrations
                     b.Property<int>("RetriageAfterDays")
                         .HasColumnType("int");
 
+                    b.Property<int>("ReviewMinutes")
+                        .HasColumnType("int");
+
                     b.Property<int>("SignOffDaysBefore")
                         .HasColumnType("int");
+
+                    b.Property<string>("VideoLinkTemplate")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
 
                     b.HasKey("Id");
 
@@ -418,8 +514,11 @@ namespace BrightPAS.Modules.Triage.Migrations
                         new
                         {
                             Id = 1,
+                            EwsOnTheDay = false,
+                            EwsReviewAt = 5,
                             HoldBookingUntilSignedOff = false,
                             RetriageAfterDays = 90,
+                            ReviewMinutes = 15,
                             SignOffDaysBefore = 7
                         });
                 });
@@ -451,6 +550,15 @@ namespace BrightPAS.Modules.Triage.Migrations
                     b.HasOne("BrightPAS.Modules.Triage.RuleSet", null)
                         .WithMany("Medicines")
                         .HasForeignKey("RuleSetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Triage.Review", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Triage.Assessment", null)
+                        .WithMany()
+                        .HasForeignKey("AssessmentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

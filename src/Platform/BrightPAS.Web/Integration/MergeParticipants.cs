@@ -189,6 +189,12 @@ public sealed class ConsentMerge(BrightPAS.Modules.Consent.ConsentService svc) :
     public Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) => svc.MergeAsync(to, from, ct);
 }
 
+public sealed class PrescribingMerge(BrightPAS.Modules.Prescribing.OrderService svc) : IPatientMergeParticipant
+{
+    public string Name => "Medicine orders and prescriptions";
+    public Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) => svc.MergeAsync(to, from, ct);
+}
+
 public sealed class PaymentsMerge(BrightPAS.Modules.Payments.PaymentLinkService svc) : IPatientMergeParticipant
 {
     public string Name => "Online payments and statements";

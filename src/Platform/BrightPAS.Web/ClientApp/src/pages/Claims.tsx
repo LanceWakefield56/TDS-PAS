@@ -17,7 +17,7 @@ const APPROVAL: Record<string, [string, string]> = {
 const Pill = ({ s, map }: { s: string; map: Record<string, [string, string]> }) => <span className={`pill ${map[s]?.[1] ?? ''}`}>{map[s]?.[0] ?? s}</span>;
 const Errors = ({ list }: { list: string[] }) => list.length > 0 ? <div className="error" role="alert"><ul>{list.map((e) => <li key={e}>{e}</li>)}</ul></div> : null;
 
-interface Funder { id: string; code: string; name: string; kind: string; submitBy: string; priorApprovalRequired: boolean; claimsEmail: string | null; providerNumber: string | null; isActive: boolean; notes: string | null }
+interface Funder { id: string; code: string; name: string; kind: string; submitBy: string; priorApprovalRequired: boolean; claimsEmail: string | null; providerNumber: string | null; isActive: boolean; notes: string | null; api: string; apiUrl: string | null; apiKeySet: boolean; lastApiAt: string | null; lastApiError: string | null }
 
 function useMeta() {
   const [funders, setFunders] = useState<Funder[]>([]);
@@ -48,6 +48,8 @@ export default function Claims() {
   const ready = rows?.filter((r) => r.status === 'Ready') ?? [];
   const readyByFunder = [...new Set(ready.map((r) => r.funderId))].map((id) => ({ funder: funders.find((f) => f.id === id), rows: ready.filter((r) => r.funderId === id) }));
   const sent = rows?.filter((r) => ['Submitted', 'Accepted', 'PartPaid'].includes(r.status)) ?? [];
+  const sendDirect = async (list: any[]) => { setErrors([]); setMsg(''); const bad: string[] = []; for (const r of list) { try { await api(`/api/claims/${r.id}/send`, { body: {} }); } catch (e) { bad.push(`${r.number}: ${errText(e)}`); } } setErrors(bad); setMsg(`${list.length - bad.length} claim(s) sent.`); load(); };
+  const checkNow = async () => { setErrors([]); try { const r = await api<any>('/api/claims/direct/check', { body: {} }); setMsg(`Checked ${r.checked}: ${r.changed} changed, ${r.paid} paid.`); setErrors(r.errors ?? []); load(); } catch (e) { setErrors(errs(e)); } };
   const markSent = async (id: string) => { setErrors([]); try { await api(`/api/claims/${id}/submitted`, { body: {} }); setMsg('Marked as sent.'); load(); } catch (e) { setErrors(errs(e)); } };
 
   const Table = ({ list }: { list: any[] }) => list.length === 0 ? <p className="muted">Nothing here.</p> : (
@@ -77,7 +79,9 @@ export default function Claims() {
               <div key={funder?.id ?? 'x'} className="stack">
                 <h3>{funder?.name ?? 'Funder'} <span className="small muted">{list.length} claim(s), {money(list.reduce((a, r) => a + r.amount, 0))}</span></h3>
                 <Table list={list} />
-                {manage && (funder?.submitBy === 'Portal'
+                {manage && (funder?.api && funder.api !== 'Off'
+                  ? <div className="row"><button className="btn btn-primary" onClick={() => void sendDirect(list)}>Send straight to {funder.name}</button><span className="hint">Sent directly{funder.api === 'Simulator' ? ' (training simulator)' : ''}. Answers and payments come back by themselves every 15 minutes.</span></div>
+                  : funder?.submitBy === 'Portal'
                   ? <p className="hint">{funder.name} claims are entered on their portal. Enter each one there, then press <em>Sent on the portal</em>: {list.map((r) => <button key={r.id} className="btn btn-light" onClick={() => void markSent(r.id)}>{r.number} sent on the portal</button>)}</p>
                   : <div className="row"><ExportButton className="btn btn-primary" label={`Make the claim file for ${funder?.name ?? 'this funder'}`} path="/api/claims/batches" body={{ funderId: funder?.id }} />
                     <span className="hint">Upload or email the file{funder?.claimsEmail ? ` to ${funder.claimsEmail}` : ''}. The claims move to “waiting on funders”.</span></div>)}
@@ -92,7 +96,7 @@ export default function Claims() {
           </section>
         </>
       )}
-      {tab === 'sent' && <section className="card stack"><h2>Waiting on funders</h2><p className="hint">Record the funder's answer on the claim, or import their remittance file under “Payments in”.</p>{rows ? <Table list={sent} /> : <p>Loading…</p>}</section>}
+      {tab === 'sent' && <section className="card stack"><h2>Waiting on funders</h2><p className="hint">Record the funder's answer on the claim, or import their remittance file under “Payments in”. Claims sent directly are checked every 15 minutes.</p>{manage && funders.some((f) => f.api !== 'Off') && <div><button className="btn btn-light" onClick={() => void checkNow()}>Check funders now</button></div>}{rows ? <Table list={sent} /> : <p>Loading…</p>}</section>}
       {tab === 'all' && <section className="card stack"><h2>All claims</h2>{rows ? <Table list={rows} /> : <p>Loading…</p>}</section>}
       {tab === 'approvals' && <Approvals funders={funders} />}
       {tab === 'remittances' && <Remittances funders={funders} onDone={load} />}
@@ -128,6 +132,7 @@ export function Approvals({ funders, patientId, bookingId }: { funders: Funder[]
             <td data-label="Procedure">{a.procedure}</td><td data-label="Asked" className="money">{money(a.amountRequested)}</td><td data-label="Approved" className="money">{a.approvedAmount != null ? money(a.approvedAmount) : '—'}{a.validUntil && <div className="small muted">until {formatDate(a.validUntil)}</div>}</td>
             <td data-label="Status"><Pill s={a.status} map={APPROVAL} />{a.approvalReference && <div className="small muted">{a.approvalReference}</div>}</td>
             <td>{can(Perm.ClaimsManage) && a.status === 'Draft' && <button className="btn btn-light" onClick={() => void run(() => api(`/api/claims/approvals/${a.id}/requested`, { body: {} }))}>Sent to funder</button>}
+              {can(Perm.ClaimsManage) && a.status === 'Draft' && funders.find((f) => f.id === a.funderId)?.api !== 'Off' && <button className="btn btn-primary" onClick={() => void run(() => api(`/api/claims/approvals/${a.id}/send`, { body: {} }))}>Send straight to funder</button>}
               {can(Perm.ClaimsManage) && ['Draft', 'Requested'].includes(a.status) && <button className="btn btn-light" onClick={() => setDecide({ id: a.id, status: 'Approved', reference: '', approvedAmount: String(a.amountRequested), validUntil: addDays(todayIso(), 90), notes: '' })}>Record answer</button>}</td></tr>)}</tbody></table>)}
       {decide && (
         <div className="card inset stack">
@@ -296,22 +301,43 @@ export function TakePayment({ invoiceId, balance, onPaid }: { invoiceId: string;
   const [amount, setAmount] = useState('');
   const [result, setResult] = useState({ approved: true, authCode: '', cardType: 'Visa', last4: '' });
   const [errors, setErrors] = useState<string[]>([]);
+  const [refund, setRefund] = useState<{ id: string; max: number; amount: string; reason: string } | null>(null);
+  const { can } = useSession();
   const load = useCallback(() => { api<any[]>(`/api/claims/terminal/invoice/${invoiceId}`).then(setTxns).catch(() => undefined); }, [invoiceId]);
   useEffect(() => { api('/api/claims/terminal/meta').then(setMeta).catch(() => undefined); load(); }, [load]);
   const pending = txns.find((t) => t.status === 'Pending');
   const run = async (fn: () => Promise<any>) => { setErrors([]); try { const r = await fn(); if (r?.error) setErrors([r.error]); load(); onPaid(); } catch (e) { setErrors(errs(e)); } };
-  if (!meta || balance <= 0 && !pending) return null;
+  // Integrated terminal: ask for the result every 3 seconds while a transaction is waiting.
+  const waitingId = pending?.provider === 'Windcave' ? pending.id : null;
+  useEffect(() => {
+    if (!waitingId) return undefined;
+    const t = window.setInterval(() => { api<any>(`/api/claims/terminal/${waitingId}/check`, { body: {} }).then((r) => { if (r.status !== 'Pending') { load(); onPaid(); } }).catch(() => undefined); }, 3000);
+    return () => window.clearInterval(t);
+  }, [waitingId, load, onPaid]);
+  if (!meta || balance <= 0 && !pending && txns.length === 0) return null;
   return (
     <section className="card no-print stack"><h2>Take payment by EFTPOS</h2>
       <Errors list={errors} />
-      {!pending ? (
+      {refund && (
+        <Modal title="Refund to the card" onClose={() => setRefund(null)}>
+          <div className="stack">
+            <p className="hint">Up to {money(refund.max)} goes back to the same card. {meta.terminal === 'Manual' ? 'Do the refund on the terminal, then record the receipt.' : 'The terminal will ask for the card.'}</p>
+            <label>Amount<input type="number" step="0.01" value={refund.amount} onChange={(e) => setRefund({ ...refund, amount: e.target.value })} /></label>
+            <label>Why<input value={refund.reason} onChange={(e) => setRefund({ ...refund, reason: e.target.value })} /></label>
+            <div className="row"><button className="btn btn-primary" onClick={() => { const r = refund; setRefund(null); void run(() => api(`/api/claims/terminal/${r.id}/refund`, { body: { amount: Number(r.amount), reason: r.reason } })); }}>Refund now</button></div>
+          </div>
+        </Modal>)}
+      {pending?.provider === 'Windcave' ? (
+        <div className="stack"><p role="status"><strong>Waiting for the terminal…</strong> {pending.isRefund ? 'Refund' : 'Payment'} of {money(pending.amount)}. Follow the prompts on the terminal.</p>
+          <div><button className="btn btn-link" onClick={() => void run(() => api(`/api/claims/terminal/${pending.id}/cancel`, { body: {} }))}>Cancel</button></div></div>
+      ) : !pending ? (balance > 0 &&
         <div className="row">
           <label>Amount<input type="number" step="0.01" value={amount} placeholder={String(balance)} onChange={(e) => setAmount(e.target.value)} /></label>
           <button className="btn btn-primary" onClick={() => void run(() => api('/api/claims/terminal', { body: { invoiceId, amount: Number(amount || balance) } }))}>{meta.terminal === 'Simulator' ? 'Send to terminal (training)' : 'Start EFTPOS payment'}</button>
         </div>
       ) : (
         <div className="stack">
-          <p><strong>Key {money(pending.amount)} into the terminal</strong>, reference {pending.merchantReference}. When the receipt prints, record the result:</p>
+          <p><strong>Key {pending.isRefund ? 'a refund of ' : ''}{money(pending.amount)} into the terminal</strong>, reference {pending.merchantReference}. When the receipt prints, record the result:</p>
           <div className="form-grid">
             <label>Result<select value={result.approved ? 'y' : 'n'} onChange={(e) => setResult({ ...result, approved: e.target.value === 'y' })}><option value="y">Approved</option><option value="n">Declined</option></select></label>
             {result.approved && <label>Authorisation code<input value={result.authCode} onChange={(e) => setResult({ ...result, authCode: e.target.value })} /></label>}
@@ -321,7 +347,8 @@ export function TakePayment({ invoiceId, balance, onPaid }: { invoiceId: string;
           <div className="row"><button className="btn btn-primary" onClick={() => void run(() => api(`/api/claims/terminal/${pending.id}/complete`, { body: { ...result, authCode: result.authCode || null, last4: result.last4 || null, responseText: null } }))}>Save result</button>
             <button className="btn btn-link" onClick={() => void run(() => api(`/api/claims/terminal/${pending.id}/cancel`, { body: {} }))}>Cancel</button></div>
         </div>)}
-      {txns.length > 0 && <ul className="plain small">{txns.map((t) => <li key={t.id}>{nzDateTime(t.startedAt)} · {money(t.amount)} · <strong>{t.status}</strong>{t.cardType ? ` · ${t.cardType} …${t.last4 ?? ''}` : ''}{t.authCode ? ` · auth ${t.authCode}` : ''}{t.responseText && t.status !== 'Approved' ? ` · ${t.responseText}` : ''}</li>)}</ul>}
+      {txns.length > 0 && <ul className="plain small">{txns.map((t) => <li key={t.id}>{nzDateTime(t.startedAt)} · {money(t.amount)} · <strong>{t.status}</strong>{t.cardType ? ` · ${t.cardType} …${t.last4 ?? ''}` : ''}{t.authCode ? ` · auth ${t.authCode}` : ''}{t.responseText && t.status !== 'Approved' ? ` · ${t.responseText}` : ''}{t.isRefund ? ` · refund: ${t.reason ?? ''}` : ''}{t.refunded > 0 ? ` · ${money(t.refunded)} refunded` : ''}
+        {can(Perm.OnlinePayRefund) && !t.isRefund && t.status === 'Approved' && t.amount > t.refunded && !pending && <> <button className="btn btn-link" onClick={() => setRefund({ id: t.id, max: t.amount - t.refunded, amount: String(t.amount - t.refunded), reason: '' })}>Refund to card</button></>}</li>)}</ul>}
     </section>
   );
 }
@@ -340,7 +367,7 @@ export function EftposDay() {
       {error && <p className="error">{error}</p>}
       {s && (
         <section className="card stack">
-          <dl className="facts"><dt>Approved</dt><dd>{s.approved} · {money(s.total)}</dd><dt>Declined</dt><dd>{s.declined}</dd><dt>Still waiting</dt><dd className={s.pending > 0 ? 'warn' : ''}>{s.pending}</dd></dl>
+          <dl className="facts"><dt>Approved</dt><dd>{s.approved} · {money(s.total)}</dd><dt>Refunds</dt><dd>{s.refunds} · {money(s.refundTotal)}</dd><dt>Declined</dt><dd>{s.declined}</dd><dt>Still waiting</dt><dd className={s.pending > 0 ? 'warn' : ''}>{s.pending}</dd></dl>
           {s.byCard.length > 0 && <table className="results compact"><thead><tr><th>Card</th><th className="money">Count</th><th className="money">Total</th></tr></thead><tbody>{s.byCard.map((r: any) => <tr key={r.cardType}><td>{r.cardType}</td><td className="money">{r.count}</td><td className="money">{money(r.total)}</td></tr>)}</tbody></table>}
           <table className="results compact"><thead><tr><th>Time</th><th>Reference</th><th className="money">Amount</th><th>Result</th><th>By</th></tr></thead>
             <tbody>{s.transactions.map((t: any) => <tr key={t.id}><td>{nzDateTime(t.startedAt)}</td><td><Link to={`/billing/${t.invoiceId}`}>{t.merchantReference}</Link></td><td className="money">{money(t.amount)}</td><td>{t.status}{t.cardType ? ` · ${t.cardType} …${t.last4 ?? ''}` : ''}</td><td>{t.startedBy}</td></tr>)}</tbody></table>
@@ -358,18 +385,20 @@ export function XeroPage() {
   const [history, setHistory] = useState<any[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [msg, setMsg] = useState('');
+  const [byHand, setByHand] = useState<string[]>([]);
   const load = useCallback(() => {
     api<any[]>(`/api/claims/xero/pending?from=${from}&to=${to}`).then(setPending).catch((e) => setErrors(errs(e)));
     api('/api/claims/xero/settings').then(setSettings).catch(() => undefined);
     api<any[]>('/api/claims/xero/exports').then(setHistory).catch(() => undefined);
   }, [from, to]);
   useEffect(() => { load(); }, [load]);
-  const sendApi = async () => { setErrors([]); setMsg(''); try { const r = await api<any>('/api/claims/xero/export', { body: { from, to } }); setMsg(`Sent ${r.invoices} invoice(s) and ${r.payments} payment(s) to Xero.`); if (r.errors?.length) setErrors(r.errors); load(); } catch (e) { setErrors(errs(e)); } };
+  const sendApi = async () => { setErrors([]); setMsg(''); try { const r = await api<any>('/api/claims/xero/export', { body: { from, to } }); setMsg(`Sent ${r.invoices} invoice(s) and ${r.payments} payment(s) or credit note(s) to Xero. Contacts are matched by name and email, or made new.`); if (r.errors?.length) setErrors(r.errors); setByHand(r.byHand ?? []); load(); } catch (e) { setErrors(errs(e)); } };
   return (
     <div className="stack-lg">
       <p><Link to="/claims">← Claims &amp; payments</Link></p>
       <div className="page-head"><h1>Xero</h1><p className="muted">Invoices go to Xero once. {settings?.mode === 'Api' ? 'Connected – invoices and payments are sent directly.' : settings?.mode === 'File' ? 'File mode – import the file in Xero (Business › Invoices › Import, choose “tax exclusive”).' : 'Xero is turned off – an administrator can turn it on in Claims settings.'}</p></div>
       <Errors list={errors} />{msg && <p className="ok" role="status">{msg}</p>}
+      {byHand.length > 0 && <section className="card stack"><h2>Record these in Xero by hand</h2><p className="hint">Xero can't take refunds through the connection. Record each one in Xero as a refund on the invoice. This list shows once.</p><ul>{byHand.map((b) => <li key={b}>{b}</li>)}</ul></section>}
       {settings?.lastError && <p className="warn">Last problem: {settings.lastError}</p>}
       <section className="card stack">
         <div className="row"><label>Issued from<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label><label>to<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label></div>
@@ -381,7 +410,7 @@ export function XeroPage() {
       </section>
       {history.length > 0 && (
         <section className="card"><h2>Sent before</h2>
-          <table className="results compact"><thead><tr><th>When</th><th>How</th><th className="money">Invoices</th><th className="money">Payments</th><th>Problems</th><th></th></tr></thead>
+          <table className="results compact"><thead><tr><th>When</th><th>How</th><th className="money">Invoices</th><th className="money">Payments and credits</th><th>Problems</th><th></th></tr></thead>
             <tbody>{history.map((h) => <tr key={h.id}><td>{nzDateTime(h.createdAt)} <span className="small muted">{h.createdBy}</span></td><td>{h.mode}</td><td className="money">{h.invoices}</td><td className="money">{h.payments}</td><td className="small">{h.errors ?? '—'}</td>
               <td>{h.mode === 'File' && h.fileName && <ExportButton label="Download again" path={`/api/claims/xero/exports/${h.id}/download`} body={{}} />}</td></tr>)}</tbody></table></section>)}
     </div>
@@ -398,14 +427,15 @@ export function ClaimsSettings() {
   const { funders, reload } = useMeta();
   const [edit, setEdit] = useState<any>(null);
   const [xero, setXero] = useState<any>(null);
-  const [term, setTerm] = useState({ provider: 'Manual', terminalId: '' });
+  const [term, setTerm] = useState({ provider: 'Manual', terminalId: '', windcaveUrl: '', windcaveUser: '', windcaveKey: '', windcaveKeySet: false });
+  const [apiEdit, setApiEdit] = useState<{ id: string; name: string; api: string; apiUrl: string; apiKey: string; apiKeySet: boolean } | null>(null);
   const [idn, setIdn] = useState<any>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [msg, setMsg] = useState('');
   useEffect(() => {
     api('/api/claims/xero/settings').then((x: any) => setXero({ ...x, clientSecret: '', refreshToken: '' })).catch(() => undefined);
     api('/api/identity/settings').then((x: any) => setIdn({ ...x, clientSecret: '' })).catch(() => undefined);
-    api('/api/claims/terminal/meta').then((m: any) => setTerm((t) => ({ ...t, provider: m.terminal }))).catch(() => undefined);
+    api('/api/claims/meta').then((m: any) => { const x = m.terminalSettings; if (x) setTerm({ provider: x.provider, terminalId: x.terminalId ?? '', windcaveUrl: x.windcaveUrl ?? '', windcaveUser: x.windcaveUser ?? '', windcaveKey: '', windcaveKeySet: x.windcaveKeySet }); }).catch(() => undefined);
   }, []);
   const save = async (fn: () => Promise<unknown>) => { setErrors([]); setMsg(''); try { await fn(); setMsg('Saved.'); } catch (e) { setErrors(errs(e)); } };
   const admin = can(Perm.ClaimsAdmin);
@@ -417,10 +447,24 @@ export function ClaimsSettings() {
       <Errors list={errors} />{msg && <p className="ok" role="status">{msg}</p>}
       {tab === 'funders' && (
         <section className="card stack">
-          <table className="results"><thead><tr><th>Funder</th><th>Sent by</th><th>Prior approval</th><th>Provider number</th><th></th></tr></thead>
+          <table className="results"><thead><tr><th>Funder</th><th>Sent by</th><th>Prior approval</th><th>Provider number</th><th>Direct claiming</th><th></th></tr></thead>
             <tbody>{funders.map((f) => <tr key={f.id} className={f.isActive ? '' : 'muted'}><td><strong>{f.code}</strong> {f.name}</td><td>{f.submitBy}{f.claimsEmail ? ` · ${f.claimsEmail}` : ''}</td><td>{f.priorApprovalRequired ? 'Needed' : '—'}</td><td>{f.providerNumber ?? <span className="warn">not set</span>}</td>
-              <td>{admin && <button className="btn btn-light" onClick={() => setEdit({ ...f })}>Change</button>}</td></tr>)}</tbody></table>
+              <td>{f.api === 'Off' ? '—' : f.api === 'Simulator' ? 'Training simulator' : 'Connected'}{f.lastApiError && <div className="small warn">{f.lastApiError}</div>}</td>
+              <td>{admin && <div className="row"><button className="btn btn-light" onClick={() => setEdit({ ...f })}>Change</button><button className="btn btn-light" onClick={() => setApiEdit({ id: f.id, name: f.name, api: f.api, apiUrl: f.apiUrl ?? '', apiKey: '', apiKeySet: f.apiKeySet })}>Direct claiming</button></div>}</td></tr>)}</tbody></table>
           {admin && <div><button className="btn btn-light" onClick={() => setEdit({ id: null, code: '', name: '', kind: 'Insurer', submitBy: 'File', priorApprovalRequired: true, claimsEmail: '', providerNumber: '', isActive: true, notes: '' })}>Add a funder</button></div>}
+          {apiEdit && (
+            <Modal title={`Direct claiming – ${apiEdit.name}`} onClose={() => setApiEdit(null)}>
+              <div className="stack">
+                <p className="hint">Claims and prior approvals go straight to the funder, and answers and payments come back by themselves. Needs a provider agreement with the funder, who gives you the address and key. The claim file stays as the fallback.</p>
+                <label>Send directly<select value={apiEdit.api} onChange={(e) => setApiEdit({ ...apiEdit, api: e.target.value })}><option value="Off">Off (claim file or portal)</option><option value="Simulator">Training simulator</option><option value="Fhir">Connected (FHIR)</option></select></label>
+                {apiEdit.api === 'Fhir' && <>
+                  <label>Funder's API address<input value={apiEdit.apiUrl} placeholder="https://" onChange={(e) => setApiEdit({ ...apiEdit, apiUrl: e.target.value })} /></label>
+                  <label>API key {apiEdit.apiKeySet && <span className="small muted">(saved – leave blank to keep)</span>}<input type="password" autoComplete="off" value={apiEdit.apiKey} onChange={(e) => setApiEdit({ ...apiEdit, apiKey: e.target.value })} /></label>
+                </>}
+                {apiEdit.api === 'Simulator' && <p className="hint">Simulator: claims are accepted on the first check and paid on the next; amounts ending in .13 are rejected or declined.</p>}
+                <div className="row"><button className="btn btn-primary" onClick={() => void save(async () => { await api(`/api/claims/funders/${apiEdit.id}/api`, { method: 'PUT', body: { api: apiEdit.api, apiUrl: apiEdit.apiUrl || null, apiKey: apiEdit.apiKey || null } }); setApiEdit(null); await reload(); })}>Save</button><button className="btn btn-link" onClick={() => setApiEdit(null)}>Cancel</button></div>
+              </div>
+            </Modal>)}
           {edit && (
             <Modal title={edit.id ? `Change ${edit.name}` : 'New funder'} onClose={() => setEdit(null)}>
               <div className="form-grid">
@@ -457,11 +501,16 @@ export function ClaimsSettings() {
       {tab === 'terminal' && (
         <section className="card stack">
           <div className="form-grid">
-            <label>Terminal<select value={term.provider} onChange={(e) => setTerm({ ...term, provider: e.target.value })}><option value="Manual">Stand-alone terminal (record the result)</option><option value="Simulator">Training simulator</option></select></label>
-            <label>Terminal ID (optional)<input value={term.terminalId} onChange={(e) => setTerm({ ...term, terminalId: e.target.value })} /></label>
+            <label>Terminal<select value={term.provider} onChange={(e) => setTerm({ ...term, provider: e.target.value })}><option value="Manual">Stand-alone terminal (record the result)</option><option value="Simulator">Training simulator</option><option value="Windcave">Windcave terminal (linked)</option></select></label>
+            <label>{term.provider === 'Windcave' ? 'Station ID' : 'Terminal ID (optional)'}<input value={term.terminalId} onChange={(e) => setTerm({ ...term, terminalId: e.target.value })} /></label>
+            {term.provider === 'Windcave' && <>
+              <label>Windcave address<input value={term.windcaveUrl} placeholder="https://uat.windcave.com" onChange={(e) => setTerm({ ...term, windcaveUrl: e.target.value })} /></label>
+              <label>HIT user name<input value={term.windcaveUser} onChange={(e) => setTerm({ ...term, windcaveUser: e.target.value })} /></label>
+              <label>HIT key {term.windcaveKeySet && <span className="small muted">(saved – leave blank to keep)</span>}<input type="password" autoComplete="off" value={term.windcaveKey} onChange={(e) => setTerm({ ...term, windcaveKey: e.target.value })} /></label>
+            </>}
           </div>
-          {admin && <div><button className="btn btn-primary" onClick={() => void save(() => api('/api/claims/terminal/settings', { method: 'PUT', body: { provider: term.provider, terminalId: term.terminalId || null } }))}>Save</button></div>}
-          <p className="hint">Simulator: amounts ending in .51 are declined and .52 time out, for training. A direct terminal link (Windcave, Verifone) needs a merchant integration agreement.</p>
+          {admin && <div><button className="btn btn-primary" onClick={() => void save(() => api('/api/claims/terminal/settings', { method: 'PUT', body: { provider: term.provider, terminalId: term.terminalId || null, windcaveUrl: term.windcaveUrl || null, windcaveUser: term.windcaveUser || null, windcaveKey: term.windcaveKey || null } }))}>Save</button></div>}
+          <p className="hint">Simulator: amounts ending in .51 are declined and .52 time out, for training. Windcave: the amount goes to the terminal by itself and the result comes back – needs a Windcave merchant agreement and HIT user and key. Test against uat.windcave.com first.</p>
         </section>)}
       {tab === 'identity' && idn && (
         <section className="card stack">

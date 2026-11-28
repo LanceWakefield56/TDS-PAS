@@ -14,11 +14,13 @@ public sealed record ClientEdit(string Address, string? AeTitle, string? Descrip
 
 public sealed record InterfaceEdit(Guid? Id, string Code, string Name, InterfaceDirection Direction, Transport Transport, MessageFormat Format, InboundHandler Handler,
     string? Host, int? Port, string? FolderPath, string? Url, string? Secret, string? AeTitle, IReadOnlyList<ClientEdit>? AllowedClients, bool IsActive, int AlertAfterFailures,
-    int? SilentAlertHours, string? Notes, string? SqlText = null, int? PollSeconds = null, string? WatermarkColumn = null);
+    int? SilentAlertHours, string? Notes, string? SqlText = null, int? PollSeconds = null, string? WatermarkColumn = null,
+    bool UseTls = false, string? CertificateThumbprint = null, string? PeerThumbprint = null);
 
 public sealed record InterfaceRow(Guid Id, string Code, string Name, string Direction, string Transport, string Format, string Handler, string? Host, int? Port,
     string? FolderPath, string? Url, bool HasSecret, string? AeTitle, IReadOnlyList<ClientEdit> AllowedClients, bool IsActive, int AlertAfterFailures, int? SilentAlertHours,
-    string? Notes, string? SystemKey, string? SqlText, int? PollSeconds, string? WatermarkColumn, DateTimeOffset? LastIn, DateTimeOffset? LastOut, int Queued, int Failed24h, int DeadLetters, int Total24h, int OpenAlerts);
+    string? Notes, string? SystemKey, string? SqlText, int? PollSeconds, string? WatermarkColumn, DateTimeOffset? LastIn, DateTimeOffset? LastOut, int Queued, int Failed24h, int DeadLetters, int Total24h, int OpenAlerts,
+    bool UseTls = false, string? CertificateThumbprint = null, string? PeerThumbprint = null);
 
 
 public sealed record MessageQuery(Guid? InterfaceId = null, string? Status = null, Guid? PatientId = null, string? Nhi = null, string? Text = null,
@@ -91,7 +93,8 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
             var s = stats.GetValueOrDefault(i.Id);
             return new InterfaceRow(i.Id, i.Code, i.Name, i.Direction.ToString(), i.Transport.ToString(), i.Format.ToString(), i.Handler.ToString(), i.Host, i.Port,
                 i.FolderPath, i.Url, i.Secret is { Length: > 0 }, i.AeTitle, clients[i.Id].ToList(), i.IsActive, i.AlertAfterFailures, i.SilentAlertHours, i.Notes, i.SystemKey, i.SqlText, i.PollSeconds, i.WatermarkColumn,
-                s?.LastIn, s?.LastOut, s?.Queued ?? 0, s?.Failed ?? 0, s?.Dead ?? 0, s?.Total ?? 0, alerts.GetValueOrDefault(i.Id));
+                s?.LastIn, s?.LastOut, s?.Queued ?? 0, s?.Failed ?? 0, s?.Dead ?? 0, s?.Total ?? 0, alerts.GetValueOrDefault(i.Id),
+                i.UseTls, i.CertificateThumbprint, i.PeerThumbprint);
         }).ToList();
     }
 
@@ -184,6 +187,9 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
                     errors.Add("Enter a full https:// address (plain http is only allowed to this server).");
                 break;
         }
+        var tlsCapable = e.Transport is Transport.MllpListen or Transport.MllpSend or Transport.DicomListen;
+        if (e.UseTls && !tlsCapable) errors.Add("TLS here is for MLLP and DICOM links (web addresses already use https).");
+        if (e.UseTls && tlsCapable && TlsSupport.Check(e.Transport != Transport.MllpSend, e.CertificateThumbprint, e.PeerThumbprint) is { } tlsProblem) errors.Add(tlsProblem);
         if (e.AlertAfterFailures is < 1 or > 100) errors.Add("Alert after failures must be between 1 and 100.");
         if (e.SilentAlertHours is < 1 or > 720) errors.Add("Quiet-time alert must be between 1 and 720 hours.");
         if (errors.Count > 0) return (null, errors);
@@ -196,6 +202,9 @@ public sealed partial class MessagingService(MsgDbContext db, PatientsDbContext 
         i2.FolderPath = e.Transport is Transport.FolderWatch or Transport.FolderWrite ? e.FolderPath!.Trim() : null;
         i2.Url = e.Transport == Transport.HttpPost ? e.Url!.Trim() : null;
         i2.AeTitle = e.Transport == Transport.DicomListen ? ae : null;
+        i2.UseTls = e.UseTls && tlsCapable;
+        i2.CertificateThumbprint = i2.UseTls ? TlsSupport.Normalise(e.CertificateThumbprint) : null;
+        i2.PeerThumbprint = i2.UseTls ? TlsSupport.Normalise(e.PeerThumbprint) : null;
         var sql = e.Transport is Transport.SqlQuery or Transport.SqlWrite;
         i2.SqlText = sql ? e.SqlText!.Trim() : null;
         i2.PollSeconds = e.Transport == Transport.SqlQuery ? e.PollSeconds : null;

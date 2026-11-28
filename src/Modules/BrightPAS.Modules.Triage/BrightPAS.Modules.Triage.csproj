@@ -5,6 +5,7 @@
     <ProjectReference Include="..\BrightPAS.Modules.Forms\BrightPAS.Modules.Forms.csproj" />
     <ProjectReference Include="..\BrightPAS.Modules.Theatre\BrightPAS.Modules.Theatre.csproj" />
     <ProjectReference Include="..\BrightPAS.Modules.Labs\BrightPAS.Modules.Labs.csproj" />
+    <ProjectReference Include="..\BrightPAS.Modules.Emr\BrightPAS.Modules.Emr.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">

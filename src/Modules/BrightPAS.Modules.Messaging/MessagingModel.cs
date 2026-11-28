@@ -15,7 +15,7 @@ public sealed class MessagingModule : IPasModule
 {
     public const string Id = "messaging";
     public ModuleManifest Manifest { get; } = new(Id, "Messaging & workflow engine", typeof(MessagingModule).Assembly.GetName().Version ?? new Version(0, 0),
-        MsgDbContext.Schema, ["patients"], "Interfaces, message store, queues, routing, mappings and translation tables.");
+        MsgDbContext.Schema, ["patients"], "Interfaces, message store, queues, routing, mappings, translation tables and people's tasks.");
 
     public void ConfigureServices(IServiceCollection services)
     {
@@ -23,6 +23,7 @@ public sealed class MessagingModule : IPasModule
         services.AddScoped<MessagingService>();
         services.AddScoped<MappingService>();
         services.AddScoped<FlowService>();
+        services.AddScoped<WorkflowService>();
         services.AddScoped<McpService>();
         services.AddScoped<AiAssistService>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IMessageTap, MessageStoreTap>());
@@ -72,6 +73,12 @@ public sealed class Interface
     /// <summary>For Monitored interfaces: which module records here ("healthlink", "sms", "email").</summary>
     public string? SystemKey { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>MLLP and DICOM: encrypt the link with TLS 1.2/1.3 (0.35.0).</summary>
+    public bool UseTls { get; set; }
+    /// <summary>TLS: BrightPAS's certificate (thumbprint in the Windows store) – needed for listeners; optional client certificate when sending.</summary>
+    public string? CertificateThumbprint { get; set; }
+    /// <summary>TLS: the partner's certificate thumbprint. Listener: the partner must present it. Sender: only this receiver certificate is accepted (for self-signed devices).</summary>
+    public string? PeerThumbprint { get; set; }
     /// <summary>Raise an alert after this many failures in a row.</summary>
     public int AlertAfterFailures { get; set; } = 3;
     /// <summary>Raise an alert when nothing has been received/sent for this many hours (blank = never).</summary>
@@ -107,8 +114,9 @@ public sealed class Flow
     public string UpdatedBy { get; set; } = "";
 }
 
-/// <summary>Filter = stop unless the conditions match; Decision = Yes/No branches; Mapper = run a mapping; Output = send on an interface.</summary>
-public enum NodeKind { Input = 1, Filter = 2, Decision = 3, Mapper = 4, Output = 5 }
+/// <summary>Filter = stop unless the conditions match; Decision = Yes/No branches; Mapper = run a mapping; Output = send on an interface;
+/// Task = give a person a job to do (0.35.0); Wait = hold the message for a time before the next step (0.35.0).</summary>
+public enum NodeKind { Input = 1, Filter = 2, Decision = 3, Mapper = 4, Output = 5, Task = 6, Wait = 7 }
 
 public enum MatchMode { All = 1, Any = 2 }
 
@@ -123,6 +131,59 @@ public sealed class FlowNode
     public Guid? InterfaceId { get; set; }
     public Guid? MappingId { get; set; }
     public MatchMode Match { get; set; } = MatchMode.All;
+    // Task nodes (0.35.0). The title can include {field} values from the message, e.g. {PID-5}.
+    public string? TaskTitle { get; set; }
+    public string? TaskRole { get; set; }
+    public int? DueMinutes { get; set; }
+    public string? EscalateToRole { get; set; }
+    // Wait nodes (0.35.0)
+    public int? WaitMinutes { get; set; }
+}
+
+public enum WorkTaskStatus { Open = 1, Done = 2, Cancelled = 3 }
+public enum WorkTaskPriority { Normal = 1, Urgent = 2 }
+
+/// <summary>A job for a person (0.35.0): made by a flow's Task step or by staff. Shown to everyone with the role; escalates to another role when overdue.</summary>
+public sealed class WorkTask
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Number { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string? Detail { get; set; }
+    public string Role { get; set; } = "";
+    public string? AssignedTo { get; set; }
+    public WorkTaskPriority Priority { get; set; } = WorkTaskPriority.Normal;
+    public WorkTaskStatus Status { get; set; } = WorkTaskStatus.Open;
+    public DateTimeOffset? DueAt { get; set; }
+    public string? EscalateToRole { get; set; }
+    public DateTimeOffset? EscalatedAt { get; set; }
+    public string? EscalatedFrom { get; set; }
+    public Guid? PatientId { get; set; }
+    public Guid? MessageId { get; set; }
+    public Guid? FlowId { get; set; }
+    public string Source { get; set; } = "Staff";
+    public string? Outcome { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public string CreatedBy { get; set; } = "";
+    public DateTimeOffset? DoneAt { get; set; }
+    public string? DoneBy { get; set; }
+}
+
+public enum WaitStatus { Waiting = 1, Released = 2, Failed = 3 }
+
+/// <summary>A message held by a flow's Wait step (0.35.0); the engine carries on from the step after it when the time is up.</summary>
+public sealed class FlowWait
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid FlowId { get; set; }
+    public Guid MessageId { get; set; }
+    public string NodeKey { get; set; } = "";
+    public string Content { get; set; } = "";
+    public MessageFormat Format { get; set; }
+    public DateTimeOffset DueAt { get; set; }
+    public WaitStatus Status { get; set; } = WaitStatus.Waiting;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ReleasedAt { get; set; }
 }
 
 public sealed class FlowCondition
@@ -335,6 +396,8 @@ public sealed class MsgSettings
     public string? AiPrivacyReference { get; set; }
     public string? AiApprovedBy { get; set; }
     public DateTimeOffset? AiApprovedAt { get; set; }
+    /// <summary>Tasks T000001… (0.35.0).</summary>
+    public int NextTaskNumber { get; set; } = 1;
 }
 
 public sealed class MsgDbContext(DbContextOptions<MsgDbContext> options) : DbContext(options)
@@ -358,6 +421,8 @@ public sealed class MsgDbContext(DbContextOptions<MsgDbContext> options) : DbCon
     public DbSet<MsgSettings> Settings => Set<MsgSettings>();
     public DbSet<InterfaceState> States => Set<InterfaceState>();
     public DbSet<McpClient> McpClients => Set<McpClient>();
+    public DbSet<WorkTask> Tasks => Set<WorkTask>();
+    public DbSet<FlowWait> Waits => Set<FlowWait>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
@@ -388,6 +453,32 @@ public sealed class MsgDbContext(DbContextOptions<MsgDbContext> options) : DbCon
             e.Property(x => x.Notes).HasMaxLength(500);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.Property(x => x.UpdatedBy).HasMaxLength(100);
+            e.Property(x => x.CertificateThumbprint).HasMaxLength(64);
+            e.Property(x => x.PeerThumbprint).HasMaxLength(64);
+        });
+        b.Entity<WorkTask>(e =>
+        {
+            e.ToTable("Tasks");
+            e.Property(x => x.Number).HasMaxLength(10); e.HasIndex(x => x.Number).IsUnique();
+            e.Property(x => x.Title).HasMaxLength(200); e.Property(x => x.Detail).HasMaxLength(2000);
+            e.Property(x => x.Role).HasMaxLength(60); e.Property(x => x.AssignedTo).HasMaxLength(100);
+            e.Property(x => x.Priority).HasConversion<string>().HasMaxLength(10); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(10);
+            e.Property(x => x.EscalateToRole).HasMaxLength(60); e.Property(x => x.EscalatedFrom).HasMaxLength(60);
+            e.Property(x => x.Source).HasMaxLength(20); e.Property(x => x.Outcome).HasMaxLength(500);
+            e.Property(x => x.CreatedBy).HasMaxLength(100); e.Property(x => x.DoneBy).HasMaxLength(100);
+            e.HasIndex(x => new { x.Status, x.Role }); e.HasIndex(x => x.DueAt);
+            e.HasIndex(x => x.PatientId); e.HasIndex(x => x.MessageId); e.HasIndex(x => x.FlowId);
+            e.HasOne<Message>().WithMany().HasForeignKey(x => x.MessageId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne<Flow>().WithMany().HasForeignKey(x => x.FlowId).OnDelete(DeleteBehavior.SetNull);
+        });
+        b.Entity<FlowWait>(e =>
+        {
+            e.ToTable("FlowWaits");
+            e.Property(x => x.NodeKey).HasMaxLength(40); e.Property(x => x.Format).HasConversion<string>().HasMaxLength(10);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(10);
+            e.HasIndex(x => new { x.Status, x.DueAt }); e.HasIndex(x => x.FlowId); e.HasIndex(x => x.MessageId);
+            e.HasOne<Flow>().WithMany().HasForeignKey(x => x.FlowId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Message>().WithMany().HasForeignKey(x => x.MessageId).OnDelete(DeleteBehavior.NoAction);
         });
         b.Entity<AllowedClient>(e =>
         {
@@ -409,6 +500,7 @@ public sealed class MsgDbContext(DbContextOptions<MsgDbContext> options) : DbCon
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(10);
             e.Property(x => x.Label).HasMaxLength(60);
             e.Property(x => x.Match).HasConversion<string>().HasMaxLength(4);
+            e.Property(x => x.TaskTitle).HasMaxLength(200); e.Property(x => x.TaskRole).HasMaxLength(60); e.Property(x => x.EscalateToRole).HasMaxLength(60);
             e.HasIndex(x => x.FlowId);
             e.HasIndex(x => new { x.InterfaceId, x.Kind });
             e.HasIndex(x => x.MappingId);

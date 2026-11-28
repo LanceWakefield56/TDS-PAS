@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "medicines", "followup", "claims", "ebookings", "consent", "payments", "imaging"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "medicines", "followup", "claims", "ebookings", "consent", "payments", "prescribing", "imaging"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -78,6 +78,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "consent" => await ConsentChecksAsync(ct),
         "payments" => await PaymentsChecksAsync(ct),
         "imaging" => await ImagingChecksAsync(ct),
+        "prescribing" => await PrescribingChecksAsync(ct),
         "followup" => await FollowUpChecksAsync(ct),
         "claims" => await ClaimsChecksAsync(ct),
         _ => []
@@ -404,6 +405,27 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 watched, s.ImportFolder is null ? "Not set – staff upload files." : watched ? s.ImportFolder : $"{s.ImportFolder} not found or not readable by the BrightPAS service account.", true, "Open settings", "/imaging?tab=settings", Permissions.ImagingManage),
             new("staff", "Staff who view and file images", "Surgeons, anaesthetists and nurses view images; nurses, surgeons and reception file pictures that could not be matched (adjust in roles).",
                 viewers > 0 && filers > 0, $"{viewers} can view, {filers} can file.", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> PrescribingChecksAsync(CancellationToken ct)
+    {
+        var s = await Svc<BrightPAS.Modules.Prescribing.BcmaService>().SettingsAsync(ct);
+        var prescribers = (await Svc<BrightPAS.Modules.Prescribing.PrescriptionService>().PrescribersAsync(ct)).Count(p => p.IsActive);
+        var gtins = await Svc<BrightPAS.Modules.Medicines.MedicinesDbContext>().Gtins.CountAsync(ct);
+        var nzepsReady = s.Provider != BrightPAS.Modules.Prescribing.NzepsProvider.Nzeps || s.NzepsUrl is not null && s.NzepsKeyProtected is not null;
+        return
+        [
+            new("prescribers", "Prescribers", "Add each doctor or nurse practitioner who writes prescriptions, with their HPI person number (CPN) and registration.",
+                prescribers > 0, $"{prescribers} prescriber(s).", false, "Open prescribers", "/prescribing?tab=prescribers", Permissions.RxManage),
+            new("barcodes", "Medicine pack barcodes", "The barcode check needs each medicine's pack barcode (GTIN) in the medicines list – from the NZULM file or scanned in.",
+                gtins > 0, $"{gtins} barcode(s) in the medicines list.", false, "Open medicines", "/medicines", Permissions.MedicinesCatalogue),
+            new("bcma", "Barcode check when giving medicines", "Off, Advise (shown, never blocks) or Enforce (a stop needs a reason). Start with Advise; print wristbands with barcodes first.",
+                s.BcmaMode != BrightPAS.Modules.Prescribing.BcmaMode.Off, s.BcmaMode.ToString() + ".", true, "Open settings", "/prescribing?tab=settings", Permissions.RxManage),
+            new("nzeps", "NZ electronic prescription service", "Print only, Simulator (training) or NZePS. Connecting needs Health NZ's agreement and keys; until then prescriptions are printed with the barcode.",
+                s.Provider != BrightPAS.Modules.Prescribing.NzepsProvider.Off && nzepsReady, s.Provider switch { BrightPAS.Modules.Prescribing.NzepsProvider.Off => "Print only.", BrightPAS.Modules.Prescribing.NzepsProvider.Simulator => "Simulator (nothing is sent).", _ => nzepsReady ? "NZePS." : "NZePS – address or key missing." },
+                true, "Open settings", "/prescribing?tab=settings", Permissions.RxManage),
+            new("facility", "TDS's HPI facility id", "Printed and sent on every prescription.", s.FacilityHpi is not null, s.FacilityHpi ?? "Not set.", false, "Open settings", "/prescribing?tab=settings", Permissions.RxManage),
         ];
     }
 

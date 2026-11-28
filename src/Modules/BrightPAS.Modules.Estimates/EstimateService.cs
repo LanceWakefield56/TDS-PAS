@@ -46,7 +46,7 @@ public sealed class EstimateForm
 }
 
 public sealed record EstimateListItem(Guid Id, string Ref, DateOnly EstimateDate, EstimateStatus Status, string Patient, string? Nhi, string? Procedure, string? Surgeon,
-    decimal Subtotal, Funding Funding, DateTimeOffset? EmailedAt, DateTimeOffset? SentToIncisiveAt, Guid? PatientId);
+    decimal Subtotal, Funding Funding, DateTimeOffset? EmailedAt, DateTimeOffset? SentToIncisiveAt, Guid? PatientId, EstFollowUp? FollowUp = null);
 
 public sealed record SaveResult(Estimate? Estimate, IReadOnlyList<string> Errors, string? ArchiveMessage, int StoppedEmails);
 
@@ -217,7 +217,12 @@ public sealed class EstimateService(EstDbContext db, PatientsDbContext patients,
         (e.Subtotal, e.Deposit, e.Balance, e.ValidUntil) = (res.Subtotal, res.Deposit, res.Balance, res.ValidUntil);
         e.UpdatedBy = user; e.UpdatedAt = now;
         if (string.IsNullOrWhiteSpace(e.Ref) || e.Status == EstimateStatus.Draft) e.Ref = await MakeRefAsync(e, ct);
-        if (issue && e.Status == EstimateStatus.Draft) { e.Status = EstimateStatus.Issued; e.IssuedAt = now; }
+        if (issue && e.Status == EstimateStatus.Draft)
+        {
+            e.Status = EstimateStatus.Issued; e.IssuedAt = now;
+            (e.FollowUp, e.FollowUpAt, e.FollowUpBy) = (EstFollowUp.Waiting, now, user);
+            db.Events.Add(new EstimateEvent { EstimateId = e.Id, Status = EstFollowUp.Waiting, At = now, By = user, Note = "Issued" });
+        }
         var seq = 0;
         foreach (var l in res.Lines) e.Lines.Add(new EstimateLine { EstimateId = e.Id, Kind = LineKind.Fee, Sequence = seq++, Label = l.Label, Amount = l.Amount, DisplayText = l.Display, Note = l.Note });
         foreach (var l in res.Additional) e.Lines.Add(new EstimateLine { EstimateId = e.Id, Kind = LineKind.IfRequired, Sequence = seq++, Label = l.Label, Amount = l.Amount, Note = l.Note });
@@ -269,7 +274,7 @@ public sealed class EstimateService(EstDbContext db, PatientsDbContext patients,
         }
         return await q.OrderByDescending(e => e.EstimateDate).ThenByDescending(e => e.CreatedAt).Take(300)
             .Select(e => new EstimateListItem(e.Id, e.Ref, e.EstimateDate, e.Status, e.LastName + ", " + e.FirstName, e.Nhi, e.ProcedureName, e.SurgeonName,
-                e.Subtotal, e.Funding, e.EmailedAt, e.SentToIncisiveAt, e.PatientId))
+                e.Subtotal, e.Funding, e.EmailedAt, e.SentToIncisiveAt, e.PatientId, e.FollowUp))
             .ToListAsync(ct);
     }
 

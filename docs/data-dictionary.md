@@ -192,6 +192,8 @@ DocumentId, Sequence, Code, Description, Quantity, UnitPrice, GstApplicable, Sur
 ## billing.Payments
 DocumentId, PaidOn, Amount, Method (Eftpos/CreditCard/BankTransfer/Insurer/Acc/Cash/Other), Reference, RecordedAt/By. Payments cannot exceed the balance; invoices with payments cannot be voided.
 
+- 0.34.0: Method CreditNote (Reference starts with the credit note number CN000001); billing.Settings.NextCreditNoteNumber.
+
 ## reminders.Settings (single row, Id = 1)
 SMS vendor (`Modica` default, `GenericHttp`, `TestOutbox`, `Off`), email sender (`Smtp`, `TestOutbox`, `Off`), what to send, next-day send hour, arrival lead minutes, quiet hours, clinic name/phone, `ConfirmationsFrom`, Modica URL/application/mask, generic vendor URL/header/body template, SMTP host/port/STARTTLS/user/from. **Restricted:** `*Protected` columns hold Data Protection–encrypted secrets (Modica password, vendor auth value, SMTP password, callback key).
 
@@ -342,13 +344,15 @@ Sensitivity: **R** restricted (patient data), **I** internal, **S** secret (encr
 
 | Table | Key columns and meaning |
 |---|---|
-| msg.Interfaces | Id, Code (unique), Name, Direction (Inbound/Outbound), Transport (MllpListen, MllpSend, FolderWatch, FolderWrite, HttpPost, HttpReceive, DicomListen, SqlQuery, SqlWrite, Monitored), Format (Hl7v2, Fhir, Json, Dicom, Xml, X12, Text), Handler (None, LabResults), Host, Port, FolderPath, Url, AeTitle, SqlText, PollSeconds, WatermarkColumn, **Secret** (S – auth header / REST key / SQL connection string, encrypted), SystemKey (monitored modules), IsActive, AlertAfterFailures, SilentAlertHours, Notes, Created/Updated At/By. **I** |
+| msg.Interfaces | Id, Code (unique), Name, Direction (Inbound/Outbound), Transport (MllpListen, MllpSend, FolderWatch, FolderWrite, HttpPost, HttpReceive, DicomListen, SqlQuery, SqlWrite, Monitored), Format (Hl7v2, Fhir, Json, Dicom, Xml, X12, Text), Handler (None, LabResults), Host, Port, FolderPath, Url, AeTitle, SqlText, PollSeconds, WatermarkColumn, **Secret** (S – auth header / REST key / SQL connection string, encrypted), SystemKey (monitored modules), IsActive, AlertAfterFailures, SilentAlertHours, Notes, Created/Updated At/By; 0.35.0: UseTls, CertificateThumbprint, PeerThumbprint (thumbprints only – keys stay in the Windows store). **I** |
 | msg.AllowedClients | InterfaceId → Interfaces; Address (IP), AeTitle (DICOM devices), Description. **I** |
 | msg.States | InterfaceId (PK/FK); Watermark, LastPolledAt, LastRows, LastError (SQL polling). **I** |
 | msg.Messages | Id, InterfaceId, Direction, Status (Received, Processed, Queued, Sending, Sent, Failed, DeadLetter, Filtered, Recorded, Rejected), MessageType, ControlId, Reference (accession/order/letter), PatientId → patients.Patients, Nhi, **Content** (R, encrypted), Sha256, SizeBytes, Attempts, NextAttemptAt, LastError, AckCode, AckText, ParentId → Messages (routed/replayed from), FlowId → Flows, CreatedAt/By, CompletedAt. **R** |
 | msg.Events | MessageId → Messages (cascade); At, Step, Detail – each step a message went through. **R** (details may name codes) |
 | msg.Flows | Id, Name (unique), Description, IsActive, UpdatedAt/By. **I** |
-| msg.Nodes | FlowId → Flows; Kind (Input, Filter, Decision, Mapper, Output), Label, X, Y (canvas), InterfaceId, MappingId, Match (All/Any). **I** |
+| msg.Nodes | FlowId → Flows; Kind (Input, Filter, Decision, Mapper, Output, Task, Wait), Label, X, Y (canvas), InterfaceId, MappingId, Match (All/Any); 0.35.0: TaskTitle, TaskRole, DueMinutes, EscalateToRole, WaitMinutes. **I** |
+| msg.Tasks (0.35.0) | Number (unique T000001), Title, Detail, Role, AssignedTo, Priority (Normal, Urgent), Status (Open, Done, Cancelled), DueAt, EscalateToRole, EscalatedAt, EscalatedFrom, PatientId, MessageId → Messages, FlowId → Flows, Source (Staff, Flow), Outcome, CreatedAt/By, DoneAt/By. **R** |
+| msg.FlowWaits (0.35.0) | FlowId → Flows, MessageId → Messages, NodeKey, Content (message held), Format, DueAt, Status (Waiting, Released), CreatedAt, ReleasedAt. **R** |
 | msg.Conditions | NodeId → Nodes; Sequence, Source (path), Operator, Value. **I** |
 | msg.Edges | FlowId; FromNodeId, ToNodeId → Nodes; Branch (Next, Yes, No). **I** |
 | msg.Mappings | Id, Name (unique), SourceFormat, TargetFormat, Description, CreatedAt/By. **I** |
@@ -358,9 +362,9 @@ Sensitivity: **R** restricted (patient data), **I** internal, **S** secret (encr
 | msg.Tables / msg.Entries | Translation tables: Name (unique), Description, WhenMissing (PassThrough/Blank/UseDefault/Reject), DefaultValue; entries FromCode (unique per table) → ToCode, Description. **I** |
 | msg.Alerts | InterfaceId; Kind (Failures, DeadLetter, Silent, Stopped), Detail, RaisedAt, NotifiedAt, ClearedAt/By. **I** |
 | msg.McpClients | Name, **TokenHash** (SHA-256 only), IsActive, ExpiresAt, LastUsedAt, CreatedAt/By. **S** |
-| msg.Settings (single row) | MaxAttempts, AlertEmail, RequireSecondApprover, AiEnabled, AiEndpoint, AiModel, **AiKey** (S, encrypted), AiPrivacyReference, AiApprovedBy/At. **I** |
+| msg.Settings (single row) | MaxAttempts, AlertEmail, RequireSecondApprover, AiEnabled, AiEndpoint, AiModel, **AiKey** (S, encrypted), AiPrivacyReference, AiApprovedBy/At; NextTaskNumber (0.35.0). **I** |
 
-Cross-schema FK (90-reporting.sql): msg.Messages.PatientId → patients.Patients.
+Cross-schema FKs (90-reporting.sql): msg.Messages.PatientId and msg.Tasks.PatientId → patients.Patients.
 
 ## 0.13.0 – Assets & CSSD (schema assets)
 Classification letters as above (P = public/configuration, I = internal, R = restricted patient-linked). Cross-schema keys (90-reporting.sql): Equipment.LocationId → core.Locations; TrayIssues, ScopeEvents, StockMovements, Implants PatientId → patients.Patients and BookingId → theatre.Bookings; LoanSets.BookingId → theatre.Bookings.
@@ -481,6 +485,8 @@ Cross-schema references (not enforced as keys): Estimates.PatientId → patients
 - **est.StockItems** (supplier prices, ex GST, internal only): Supplier, Reference, Name, PackPrice, UnitsPerPack, UnitPrice (12,4), InStockQty, NeededInHouse, WhereUsed, Issues, UpdatedAt. **est.ProcedureConsumables**: ProcedureId, StockItemId (or UnitCost), Description, Quantity.
 - **est.PendingPrices**: ProcedureId, Field (Facility, FacilitySpecial, Anaesthetist, AnaesthetistSpecial, ConsumablesLine), NewValue, EffectiveFrom, CreatedBy/At, AppliedAt.
 - **est.Estimates**: Ref (unique, EST-yymmdd-NHI or LASTNAME, -2…), EstimateDate, Status (Draft, Issued, Cancelled), PatientId, patient snapshot (FirstName, LastName, DateOfBirth, Nhi, Phone, Email lower-case, Address, Town, Postcode), Funding (SelfFunding, Insurance, NotYetKnown), Insurer, PolicyNumber, PriorApproval, ProcedureId + ProcedureCode/SpecialtyName/ProcedureName/Title snapshot, SurgeonId/SurgeonName, ProcedureDate, Anaesthetic, PlannedMinutes, UseSpecial, Multiplier (1 or 2), Facility/Surgeon/AnaesthetistOverride, InputsJson (add-ons, other charges, adjustment, "if required" lines), Notes, PreparedBy, Subtotal, Deposit, Balance, ValidUntil, CreatedBy/At, UpdatedBy/At, IssuedAt, EmailedAt, SentToIncisiveAt, CancelReason.
+- **est.Estimates follow-up (0.33.0)**: FollowUp (Waiting, Accepted, Declined, ApprovalRequested, Approved, ApprovalDeclined, DepositPaid, Booked, Invoiced, Expired), FollowUpAt/By, NextActionOn, DeclineReason, DepositPaid, DepositPaidOn, BookingId, InvoiceId → billing.Documents (no FK across modules), InvoiceNumber. Settings: FollowUpDays, ExpiryWarningDays.
+- **est.EstimateEvents (0.33.0)**: EstimateId → Estimates, Status, At, By, Note – the follow-up history.
 - **est.EstimateLines** (printed snapshot): EstimateId + Sequence (unique), Kind (Fee, IfRequired), Label, Amount, DisplayText ("To be advised"), Note.
 - **est.ArchivedPdfs**: EstimateId, CreatedAt/By, Reason (Issued, Changed after issue), FileName, PdfCipher (encrypted PDF).
 - **est.Outbox**: EstimateId, EstimateRef, PatientName, Recipient (Patient, Insurer, Other), ToAddress, Subject, Body, AttachmentName, AttachmentCipher (encrypted; emptied when sent), PasswordProtected, Status (Held, Sent, Stopped, Failed), CreatedAt/By, SendAfter, SentAt, StoppedAt/By, Error, Attempts.
@@ -492,9 +498,10 @@ Cross-schema references (not enforced as keys): PatientId → patients.Patients;
 - **triage.RuleSets**: Version (unique), Name, Status (Draft, Approved, Retired; one Approved – filtered unique index), IsExample, Notes, CreatedBy/At, ApprovedBy/Role/At, ApprovalNote, RetiredAt.
 - **triage.SuitabilityRules**: RuleSetId, Code (unique in the set), Name, Fact, Operator (AtLeast, AtMost, Above, Below, IsYes, Equals, Missing), Threshold, TextValue, ProcedureContains, Anaesthetic, Outcome, Precaution, Explanation, SortOrder, IsActive.
 - **triage.MedicineRules**: RuleSetId, Name, Keywords (comma separated), Instruction, Outcome, IsActive.
-- **triage.Assessments**: PatientId, BookingId, FormRequestId, PreviousId, Trigger (Initial, NewAnswers, NewResult, BookingChanged, Stale, Manual), TriggerDetail, Status (Open, SignedOff, Superseded), Procedure, Anaesthetic, ProcedureDate, RuleSetId/Version, RulesApproved, Bmi, StopBang, StopBangKnown, Frailty, Vte, Rcri, SuggestedAsa, ConfirmedAsa, FactsJson, StaffInputsJson, SuggestedOutcome, FinalOutcome, Precautions, Missing, ChangeSummary, Worse, Notes, OverrideReason, SignedOffBy/Role/At, CreatedBy/At.
+- **triage.Assessments**: PatientId, BookingId, FormRequestId, PreviousId, Trigger (Initial, NewAnswers, NewResult, BookingChanged, Stale, Manual, Observations – 0.36.0), TriggerDetail, Status (Open, SignedOff, Superseded), Procedure, Anaesthetic, ProcedureDate, RuleSetId/Version, RulesApproved, Bmi, StopBang, StopBangKnown, Frailty, Vte, Rcri, SuggestedAsa, ConfirmedAsa, FactsJson, StaffInputsJson, SuggestedOutcome, FinalOutcome, Precautions, Missing, ChangeSummary, Worse, Notes, OverrideReason, SignedOffBy/Role/At, CreatedBy/At.
 - **triage.Findings**: AssessmentId + Sequence (key), Source (rule code, MED:, SCORE:, INFO:), Outcome, Text, Precaution.
-- **triage.Settings** (single row): HoldBookingUntilSignedOff, HoldProcedures, RetriageAfterDays, SignOffDaysBefore, LastScanAt.
+- **triage.Settings** (single row): HoldBookingUntilSignedOff, HoldProcedures, RetriageAfterDays, SignOffDaysBefore, LastScanAt; 0.36.0: EwsOnTheDay, EwsReviewAt, VideoLinkTemplate, ReviewMinutes.
+- **triage.Reviews (0.36.0)**: AssessmentId (→ Assessments, cascade), PatientId, BookingId, AnaesthetistId (core.Clinicians), AnaesthetistName, Mode (Video, Phone, InPerson), StartsAt, Minutes, Status (Booked, Done, DidNotAttend, Cancelled), JoinLink, Phone, Reason, Outcome, CreatedAt/By, DoneAt/By. Cross-schema FKs (90-reporting.sql): PatientId → patients.Patients, AnaesthetistId → core.Clinicians.
 
 ## 0.24.0 – Post-op follow-up & SSI (schema followup)
 Cross-schema references (not enforced as keys): PatientId → patients.Patients; BookingId → theatre.Bookings; IncidentId → quality.Incidents.
@@ -513,14 +520,15 @@ Cross-schema references (not enforced as keys): PatientId → patients.Patients;
 - **forms.Designs**: Code (unique), Name, Category (Clinical, Consent, Audit, Cssd, Admin, PatientQuestionnaire). **forms.DesignVersions**: DesignId + Version (unique), Status (Draft, Testing, Published – one per design, Retired), Source (Designer, Csv, Fhir, Pdf, Copy), Header, Footer, ThirdParty, LicenceNote, ApprovedBy/At, ApprovalNote, PublishedAt, RetiredAt. **forms.Fields**: VersionId + Key, Sequence, Section, Label, Type, Required, Min, Max, ShowIfKey, ShowIfValue, Calculation, MapsTo, Help. **forms.FieldOptions**: VersionId + FieldKey + Sequence, Value, Score. **forms.Entries**: VersionId, PatientId, BookingId, Status (InProgress, Completed, Voided), StartedBy/At, CompletedBy/At, VoidReason. **forms.EntryValues**: EntryId + FieldKey, Value.
 
 ## 0.26.0 – Claims, Xero, EFTPOS and NHI/HPI (schema `claims`)
-- **claims.Funders**: Code (unique), Name, Kind (Acc, Insurer, HealthNz), SubmitBy (File, Portal, Api), PriorApprovalRequired, ClaimsEmail, ProviderNumber, IsActive, Notes.
-- **claims.PriorApprovals**: Number (unique PA-yyyy-nnnn), PatientId, BookingId, FunderId (→ Funders), MemberNumber, AccClaimNumber, Procedure, AmountRequested, Status (Draft, Requested, Approved, PartApproved, Declined, Expired), ApprovalReference, ApprovedAmount, ValidUntil, Notes, CreatedAt/By, DecidedAt/By.
-- **claims.Claims**: Number (unique CL-yyyy-nnnnn), InvoiceId (unique while not WrittenOff), PatientId, FunderId, PriorApprovalId, MemberNumber, AccClaimNumber, Status (Draft, Ready, Submitted, Accepted, Rejected, PartPaid, Paid, WrittenOff), Amount, Paid, BatchId (→ ClaimBatches), SubmittedAt/By, ResponseAt, ResponseText, CreatedAt/By. **claims.ClaimLines** (ClaimId + Sequence; Code, Description, Amount incl GST – snapshot of the invoice).
+- **claims.Funders**: Code (unique), Name, Kind (Acc, Insurer, HealthNz), SubmitBy (File, Portal, Api), PriorApprovalRequired, ClaimsEmail, ProviderNumber, IsActive, Notes. 0.34.0: Api (Off, Simulator, Fhir), ApiUrl, ApiKeyProtected (protected), LastApiAt, LastApiError.
+- **claims.PriorApprovals**: Number (unique PA-yyyy-nnnn), PatientId, BookingId, FunderId (→ Funders), MemberNumber, AccClaimNumber, Procedure, AmountRequested, Status (Draft, Requested, Approved, PartApproved, Declined, Expired), ApprovalReference, ApprovedAmount, ValidUntil, Notes, CreatedAt/By, DecidedAt/By, ExternalReference (the funder's reference when sent directly, 0.34.0).
+- **claims.Claims**: Number (unique CL-yyyy-nnnnn), InvoiceId (unique while not WrittenOff), PatientId, FunderId, PriorApprovalId, MemberNumber, AccClaimNumber, Status (Draft, Ready, Submitted, Accepted, Rejected, PartPaid, Paid, WrittenOff), Amount, Paid, BatchId (→ ClaimBatches), SubmittedAt/By, ResponseAt, ResponseText, CreatedAt/By, ExternalReference and LastCheckedAt (direct claiming, 0.34.0). **claims.ClaimLines** (ClaimId + Sequence; Code, Description, Amount incl GST – snapshot of the invoice).
 - **claims.ClaimBatches**: FunderId, FileName, Claims, Total, CreatedAt/By (the file is rebuilt from its claims when downloaded again).
 - **claims.Remittances**: FunderId, FileName, FileHash (SHA-256, unique – no double import), LineCount, Matched, Total, ImportedAt/By. **claims.RemittanceLines** (RemittanceId + Sequence; ClaimReference, Amount, Outcome, Reason, ClaimId, Result).
 - **claims.XeroSettings** (single row): Mode (Off, File, Api), SalesAccountCode, GstTaxType, NoGstTaxType, PaymentAccountCode, TenantId, ClientId, ClientSecretProtected, RefreshTokenProtected (protected; rotated each use), LastSyncAt, LastError. **claims.XeroExports** (Mode, Invoices, Payments, FileName, Errors, CreatedAt/By). **claims.XeroLinks** (SourceType Invoice/Payment + SourceId key; ExportId, XeroId, ExportedAt).
-- **claims.TerminalTransactions**: InvoiceId, Amount, Provider (Manual, Simulator), TerminalId, MerchantReference (unique), Status (Pending, Approved, Declined, Cancelled, Failed), AuthCode, CardType, Last4 (4 digits only – never a card number), ResponseText, StartedAt/By, CompletedAt, PaymentRecorded.
-- **claims.IdentitySettings** (single row): Mode (Off, Simulator, Live), NhiBaseUrl, HpiBaseUrl, TokenUrl (https), ClientId, ClientSecretProtected, LastOkAt, LastError. **claims.Settings** (single row): NextClaim, NextApproval, TerminalProvider, TerminalId.
+- **claims.TerminalTransactions**: InvoiceId, Amount, Provider (Manual, Simulator), TerminalId, MerchantReference (unique), Status (Pending, Approved, Declined, Cancelled, Failed), AuthCode, CardType, Last4 (4 digits only – never a card number), ResponseText, StartedAt/By, CompletedAt, PaymentRecorded. 0.34.0: Provider Windcave; IsRefund, RefundOfId (→ TerminalTransactions), Reason, Refunded (total refunded on a purchase).
+- **claims.XeroContacts (0.34.0)**: Key (unique: name and email in capitals), Name, XeroContactId, How (Matched, Created), At.
+- **claims.IdentitySettings** (single row): Mode (Off, Simulator, Live), NhiBaseUrl, HpiBaseUrl, TokenUrl (https), ClientId, ClientSecretProtected, LastOkAt, LastError. **claims.Settings** (single row): NextClaim, NextApproval, TerminalProvider, TerminalId, WindcaveUrl, WindcaveUser, WindcaveKeyProtected (0.34.0).
 
 ## 0.27.0 – Medicines and medicine safety (schema `meds`)
 | Table | Purpose | Key columns |
@@ -567,6 +575,16 @@ DoseRules also has MinWeightKg / MaxWeightKg (body-weight band).
 | Questions | Patient questions and the team's answers | Id, ConsentId → Consents, Text, AskedAt, Answer, AnsweredAt, AnsweredBy |
 | Settings | Next number, public web address, link days, booking gate, days ahead for "To prepare" | Id = 1 |
 
+## 0.31.0 – Prescribing and barcode medicine checks (schema `rx`)
+| Table | Purpose | Key columns |
+|---|---|---|
+| Settings | Barcode check mode (Off/Advise/Enforce), warn without order, prescription sending (Off/Simulator/Nzeps), NZePS address/client id/key (protected), HPI facility id, copy folder, next prescription number | Id = 1 |
+| Prescribers | Who may prescribe | Id, UserName (unique), Name, HpiCpn, Registration, Scope, IsActive |
+| Orders | Medicine orders on the episode's chart | Id, PatientId → patients.Patients, EpisodeId → emr.Episodes, MedicineId → meds.Medicines, Medicine, Dose, Route, Kind (Once/Regular/AsNeeded), Frequency, Indication, Notes, Status (Active/Given/Stopped), PrescribedAt/By, StoppedAt/By, StopReason, TimesGiven, LastGivenAt |
+| Scans | One barcode check when a medicine was about to be charted | Id, PatientId, EpisodeId, OrderId → Orders, MedicationId → emr.Medications, Medicine, At, User, Mode, PatientScanned, PatientMatched, PackScanned, Gtin, Batch, Expiry, Serial, PackMatched, Result (Clear/Warnings/Overridden/Stopped), OverrideReason, Findings |
+| Prescriptions | Take-home prescriptions | Id, Number (unique, RX000001), NzepsId (unique, 18 characters), PatientId → patients.Patients, EpisodeId → emr.Episodes, PrescriberId → Prescribers, Status (Draft/Signed/Sent/Failed/Cancelled), Note, CreatedAt/By, SignedAt, SentAt, SendReference, SendError, CancelledAt/By, CancelReason, TimesPrinted |
+| Items | Medicines on a prescription | Id, PrescriptionId → Prescriptions, MedicineId → meds.Medicines, Medicine, NzmtId, Directions, Quantity, Unit, Repeats, Controlled |
+
 ## 0.30.0 – Online payments and statements (schema `payments`)
 | Table | Purpose | Key columns |
 |---|---|---|
@@ -584,3 +602,9 @@ DoseRules also has MinWeightKg / MaxWeightKg (body-weight band).
 | Studies | One DICOM study | Id, StudyInstanceUid (unique), Status (Unmatched/Filed/Deleted), PatientId → patients.Patients, BookingId → theatre.Bookings, RequestId → Requests, MatchedBy (Accession/PatientIdAndBirthDate/Person), AccessionNumber, StudyDate, Description, Modalities, BodyPart, ReferringPhysician, Institution, FilePatientId/Name/BirthDate/Sex (as in the images), Source (Upload/Folder/Network/Demo), ReceivedAt/By, FiledAt/By, ImageCount, Bytes, Report, ReportAt/By, DeletedAt/By/Reason |
 | Series | DICOM series in a study | Id, StudyId → Studies, SeriesInstanceUid (unique), Modality, SeriesNumber, Description, BodyPart, ImageCount |
 | Images | One DICOM object; the original file is in the imaging folder | Id, StudyId, SeriesId → Series, SopInstanceUid (unique), SopClassUid, InstanceNumber, Rows, Columns, Frames, Photometric, TransferSyntax, Viewable, WindowCentre, WindowWidth, PixelSpacing, FileName, Bytes, Sha256, ReceivedAt |
+| Refunds (0.32.0) | Card refunds of online payments | Id, Number (unique, RF000001), OnlinePaymentId → Payments, PatientId → patients.Patients, Amount, FromUnapplied, Reason, Status (Done/Failed), ProviderReference, Error, AppliedTo, CreatedAt/By |
+| Plans (0.32.0) | Payment plans | Id, Number (unique, PP000001), PatientId → patients.Patients, Total, Instalment, Frequency (Weekly/Fortnightly/Monthly), FirstDue, PaidAtStart, Status (Active/Completed/Cancelled), Note, CreatedAt/By, EndedAt/By, EndReason, LastReminderFor |
+| PlanInvoices (0.32.0) | Invoices on a plan | Id, PlanId → Plans, InvoiceId → billing.Documents (unique per plan) |
+| Overdue (0.32.0) | Overdue reminders sent (once per invoice and stage) | Id, InvoiceId → billing.Documents, PatientId → patients.Patients, InvoiceNumber, Stage (1/2), Balance, SentAt, Messages |
+
+0.32.0 also adds: Settings – NextRefundNumber, NextPlanNumber, AutoStatementDay, AutoSendStatements, OverdueFirstDays, OverdueSecondDays, IncludeShortfalls, PlanReminderDays, LastAutomationOn; Links – PlanId → Plans; Payments – TransactionId, Refunded; Allocations – Refunded.

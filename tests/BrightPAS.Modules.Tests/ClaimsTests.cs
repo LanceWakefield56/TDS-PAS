@@ -12,7 +12,7 @@ namespace BrightPAS.Modules.Tests;
 /// <summary>0.26.0 Claims &amp; payments (spec 7.12, ADR 0039): approvals, claims, claim files, remittances, Xero and EFTPOS.</summary>
 public class ClaimsTests
 {
-    private static async Task<BillingDocument> InvoiceAsync(IServiceProvider sp, Guid patientId, Payer payer, string? payerName, string? reference)
+    internal static async Task<BillingDocument> InvoiceAsync(IServiceProvider sp, Guid patientId, Payer payer, string? payerName, string? reference)
     {
         var billing = sp.GetRequiredService<BillingService>();
         await billing.SeedExampleFeesAsync();
@@ -129,7 +129,7 @@ public class ClaimsTests
         Assert.Equal(ApprovalStatus.Expired, (await claims.ApprovalsAsync(p.Id, null, false)).Single().Status);
     }
 
-    private sealed class FakeXero : IXeroApi
+    internal sealed class FakeXero : IXeroApi
     {
         public List<string> Calls { get; } = [];
         public Task<XeroTokens> RefreshAsync(string clientId, string clientSecret, string refreshToken, CancellationToken ct)
@@ -146,6 +146,21 @@ public class ClaimsTests
         {
             Calls.Add($"payment {payment.InvoiceXeroId} {payment.Amount:0.00}");
             return Task.FromResult("P-1");
+        }
+        public Task<string?> FindContactAsync(string accessToken, string tenantId, string name, string? email, CancellationToken ct)
+        {
+            Calls.Add($"find {name}");
+            return Task.FromResult<string?>(name == "Southern Cross" ? "C-SX" : null);
+        }
+        public Task<string> CreateContactAsync(string accessToken, string tenantId, string name, string? email, CancellationToken ct)
+        {
+            Calls.Add($"contact {name}");
+            return Task.FromResult("C-" + name.Length);
+        }
+        public Task<string> CreateCreditNoteAsync(string accessToken, string tenantId, XeroCreditNote note, CancellationToken ct)
+        {
+            Calls.Add($"credit {note.Number} {note.InvoiceXeroId} {note.Amount:0.00} {note.ContactId}");
+            return Task.FromResult("CN-1");
         }
     }
 

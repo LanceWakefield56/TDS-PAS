@@ -41,7 +41,7 @@ public sealed class ModulesHost : IAsyncDisposable
         s.AddSingleton<ISecretProtector, ReversibleTestProtector>();
         s.AddSingleton(new ReminderDefaults(SmsProvider.TestOutbox, EmailProvider.TestOutbox));
         s.AddPasModules([new PatientsModule(), new LabsModule(), new TheatreModule(), new FormsModule(), new BillingModule(), new RemindersModule(), new ReferralsModule(), new LettersModule(), new RosteringModule(),
-            new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(), new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.Medicines.MedicinesModule(), new BrightPAS.Modules.EBookings.EBookingsModule(), new BrightPAS.Modules.FollowUp.FollowUpModule(), new BrightPAS.Modules.Research.ResearchModule(), new BrightPAS.Modules.Claims.ClaimsModule(), new BrightPAS.Modules.Consent.ConsentModule(), new BrightPAS.Modules.Payments.PaymentsModule(), new BrightPAS.Modules.Pacs.ImagingModule()]);
+            new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(), new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.Medicines.MedicinesModule(), new BrightPAS.Modules.EBookings.EBookingsModule(), new BrightPAS.Modules.FollowUp.FollowUpModule(), new BrightPAS.Modules.Research.ResearchModule(), new BrightPAS.Modules.Claims.ClaimsModule(), new BrightPAS.Modules.Consent.ConsentModule(), new BrightPAS.Modules.Payments.PaymentsModule(), new BrightPAS.Modules.Prescribing.PrescribingModule(), new BrightPAS.Modules.Pacs.ImagingModule()]);
         s.AddLogging();
         s.AddSingleton<BrightPAS.Modules.Estimates.IEstimatePdf, TestEstimatePdf>();
         s.AddSingleton<TestEstimateMailer>();
@@ -51,6 +51,10 @@ public sealed class ModulesHost : IAsyncDisposable
         s.AddSingleton<TestWindcave>();
         s.AddSingleton<BrightPAS.Modules.Payments.IWindcaveApi>(sp => sp.GetRequiredService<TestWindcave>());
         s.AddSingleton<BrightPAS.Modules.Payments.IStatementPdf, TestStatementPdf>();
+        s.AddSingleton<TestNzeps>();
+        s.AddSingleton<BrightPAS.Modules.Prescribing.INzepsApi>(sp => sp.GetRequiredService<TestNzeps>());
+        s.AddSingleton<TestPrescriptionPdf>();
+        s.AddSingleton<BrightPAS.Modules.Prescribing.IPrescriptionPdf>(sp => sp.GetRequiredService<TestPrescriptionPdf>());
         s.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
         Services = s.BuildServiceProvider();
         using var scope = Services.CreateScope();
@@ -58,7 +62,7 @@ public sealed class ModulesHost : IAsyncDisposable
         foreach (DbContext db in new DbContext[] { sp.GetRequiredService<PasDbContext>(), sp.GetRequiredService<PatientsDbContext>(), sp.GetRequiredService<LabsDbContext>(),
                      sp.GetRequiredService<TheatreDbContext>(), sp.GetRequiredService<FormsDbContext>(), sp.GetRequiredService<BillingDbContext>(),
                      sp.GetRequiredService<RemindersDbContext>(), sp.GetRequiredService<ReferralsDbContext>(), sp.GetRequiredService<LettersDbContext>(), sp.GetRequiredService<RosterDbContext>(),
-                     sp.GetRequiredService<BrightPAS.Modules.Credentialing.CredDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Portal.PortalDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Messaging.MsgDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Assets.AssetsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Emr.EmrDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Endoscopy.EndoDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Scribe.ScribeDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Devices.DevicesDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Quality.QualityDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Coding.CodingDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Estimates.EstDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Triage.TriageDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Medicines.MedicinesDbContext>(), sp.GetRequiredService<BrightPAS.Modules.EBookings.EBookingsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.FollowUp.FollowUpDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Research.ResearchDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Claims.ClaimsDbContext>() , sp.GetRequiredService<BrightPAS.Modules.Consent.ConsentDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Payments.PaymentsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Pacs.ImagingDbContext>()})
+                     sp.GetRequiredService<BrightPAS.Modules.Credentialing.CredDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Portal.PortalDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Messaging.MsgDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Assets.AssetsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Emr.EmrDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Endoscopy.EndoDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Scribe.ScribeDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Devices.DevicesDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Quality.QualityDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Coding.CodingDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Estimates.EstDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Triage.TriageDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Medicines.MedicinesDbContext>(), sp.GetRequiredService<BrightPAS.Modules.EBookings.EBookingsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.FollowUp.FollowUpDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Research.ResearchDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Claims.ClaimsDbContext>() , sp.GetRequiredService<BrightPAS.Modules.Consent.ConsentDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Payments.PaymentsDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Prescribing.RxDbContext>(), sp.GetRequiredService<BrightPAS.Modules.Pacs.ImagingDbContext>()})
             db.Database.EnsureCreated();
         var core = sp.GetRequiredService<PasDbContext>();
         core.Organisations.Add(BrightPAS.Core.Organisation.TdsDefaultSetup.Create());
@@ -159,6 +163,13 @@ public sealed class TestWindcave : BrightPAS.Modules.Payments.IWindcaveApi
         Queries++;
         return Task.FromResult(Results.TryGetValue(sessionId, out var r) ? r : new BrightPAS.Modules.Payments.GatewayResult(false, false, false, null, null, null, null, null));
     }
+    public List<(string TransactionId, decimal Amount, string Reference)> Refunds { get; } = [];
+    public bool RefundOk { get; set; } = true;
+    public Task<BrightPAS.Modules.Payments.GatewayRefund> RefundAsync(string baseUrl, string user, string key, string transactionId, decimal amount, string merchantReference, CancellationToken ct)
+    {
+        Refunds.Add((transactionId, amount, merchantReference));
+        return Task.FromResult(RefundOk ? new BrightPAS.Modules.Payments.GatewayRefund(true, $"R{Refunds.Count}", null) : new BrightPAS.Modules.Payments.GatewayRefund(false, null, "DECLINED"));
+    }
 }
 
 public sealed class TestStatementPdf : BrightPAS.Modules.Payments.IStatementPdf
@@ -169,4 +180,29 @@ public sealed class TestStatementPdf : BrightPAS.Modules.Payments.IStatementPdf
         Rendered.AddRange(statements);
         return System.Text.Encoding.ASCII.GetBytes($"%PDF-1.4\n% {string.Join(",", statements.Select(x => x.Number))}\n%%EOF\n");
     }
+}
+
+/// <summary>Fake NZePS: records what was sent and cancelled; tests can make it refuse.</summary>
+public sealed class TestNzeps : BrightPAS.Modules.Prescribing.INzepsApi
+{
+    public List<string> Sent { get; } = [];
+    public List<string> Cancelled { get; } = [];
+    public string? Refuse { get; set; }
+    public Task<(bool Ok, string? Reference, string? Error)> SendAsync(string url, string? clientId, string? key, string fhirJson, CancellationToken ct)
+    {
+        if (Refuse is not null) return Task.FromResult<(bool, string?, string?)>((false, null, Refuse));
+        Sent.Add(fhirJson);
+        return Task.FromResult<(bool, string?, string?)>((true, $"NZEPS-{Sent.Count}", null));
+    }
+    public Task<(bool Ok, string? Error)> CancelAsync(string url, string? clientId, string? key, string nzepsId, string reason, CancellationToken ct)
+    {
+        Cancelled.Add(nzepsId);
+        return Task.FromResult<(bool, string?)>((true, null));
+    }
+}
+
+public sealed class TestPrescriptionPdf : BrightPAS.Modules.Prescribing.IPrescriptionPdf
+{
+    public List<BrightPAS.Modules.Prescribing.PrescriptionPdfModel> Rendered { get; } = [];
+    public byte[] Render(BrightPAS.Modules.Prescribing.PrescriptionPdfModel m) { Rendered.Add(m); return "%PDF-test"u8.ToArray(); }
 }

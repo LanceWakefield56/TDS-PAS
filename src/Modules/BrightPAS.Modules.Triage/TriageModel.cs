@@ -16,13 +16,14 @@ public sealed class TriageModule : IPasModule
 {
     public const string Id = "triage";
     public ModuleManifest Manifest { get; } = new(Id, "Patient triage and suitability", typeof(TriageModule).Assembly.GetName().Version ?? new Version(0, 0),
-        TriageDbContext.Schema, ["patients", "forms"], "Risk scores, clinician-approved day-surgery suitability rules, recommendation and sign-off, re-triage after booking.");
+        TriageDbContext.Schema, ["patients", "forms"], "Risk scores, clinician-approved day-surgery suitability rules, recommendation and sign-off, re-triage after booking, early warning score on the day, anaesthetist video/phone reviews.");
 
     public void ConfigureServices(IServiceCollection services)
     {
         services.AddDbContext<TriageDbContext>((sp, o) => sp.GetRequiredService<PasDatabaseOptions>().Configure(o, TriageDbContext.Schema));
         services.AddScoped<TriageService>();
         services.AddScoped<TriageRulesService>();
+        services.AddScoped<ReviewService>();
     }
 }
 
@@ -31,7 +32,11 @@ public enum TriageOutcome { Suitable = 1, SuitableWithPrecautions = 2, MoreInfor
 
 public enum AssessmentStatus { Open = 1, SignedOff = 2, Superseded = 3, Cancelled = 4 }
 
-public enum TriageTrigger { Initial = 1, NewAnswers = 2, NewResult = 3, BookingChanged = 4, Stale = 5, Manual = 6 }
+public enum TriageTrigger { Initial = 1, NewAnswers = 2, NewResult = 3, BookingChanged = 4, Stale = 5, Manual = 6, Observations = 7 }
+
+public enum ReviewMode { Video = 1, Phone = 2, InPerson = 3 }
+
+public enum ReviewStatus { Booked = 1, Done = 2, DidNotAttend = 3, Cancelled = 4 }
 
 public enum RuleSetStatus { Draft = 1, Approved = 2, Retired = 3 }
 
@@ -175,6 +180,37 @@ public sealed class TriageSettings
     /// <summary>How many days before surgery triage must be signed off (shown as overdue after that).</summary>
     public int SignOffDaysBefore { get; set; } = 7;
     public DateTimeOffset? LastScanAt { get; set; }
+    /// <summary>0.36.0: use the early warning score from observations taken on the day of surgery (off until switched on).</summary>
+    public bool EwsOnTheDay { get; set; }
+    /// <summary>EWS at or above this (or any single parameter scoring 3) suggests an anaesthetist review before surgery.</summary>
+    public int EwsReviewAt { get; set; } = 5;
+    /// <summary>Video review link with {code} for the meeting code, e.g. https://meet.example.nz/tds-{code}.</summary>
+    public string? VideoLinkTemplate { get; set; }
+    public int ReviewMinutes { get; set; } = 15;
+}
+
+/// <summary>An anaesthetist review (video, phone or in person) booked from a triage assessment (0.36.0).</summary>
+public sealed class Review
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid AssessmentId { get; set; }
+    public Guid PatientId { get; set; }
+    public Guid? BookingId { get; set; }
+    /// <summary>core.Clinicians (an anaesthetist).</summary>
+    public Guid AnaesthetistId { get; set; }
+    public string AnaesthetistName { get; set; } = "";
+    public ReviewMode Mode { get; set; }
+    public DateTimeOffset StartsAt { get; set; }
+    public int Minutes { get; set; }
+    public ReviewStatus Status { get; set; } = ReviewStatus.Booked;
+    public string? JoinLink { get; set; }
+    public string? Phone { get; set; }
+    public string? Reason { get; set; }
+    public string? Outcome { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public string CreatedBy { get; set; } = "";
+    public DateTimeOffset? DoneAt { get; set; }
+    public string? DoneBy { get; set; }
 }
 
 public sealed class TriageDbContext(DbContextOptions<TriageDbContext> options) : DbContext(options)
@@ -186,6 +222,7 @@ public sealed class TriageDbContext(DbContextOptions<TriageDbContext> options) :
     public DbSet<Assessment> Assessments => Set<Assessment>();
     public DbSet<Finding> Findings => Set<Finding>();
     public DbSet<TriageSettings> Settings => Set<TriageSettings>();
+    public DbSet<Review> Reviews => Set<Review>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
@@ -254,11 +291,23 @@ public sealed class TriageDbContext(DbContextOptions<TriageDbContext> options) :
             e.Property(x => x.Source).HasMaxLength(40); e.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(24);
             e.Property(x => x.Text).HasMaxLength(500); e.Property(x => x.Precaution).HasMaxLength(300);
         });
+        b.Entity<Review>(e =>
+        {
+            e.ToTable("Reviews");
+            e.Property(x => x.AnaesthetistName).HasMaxLength(200);
+            e.Property(x => x.Mode).HasConversion<string>().HasMaxLength(10); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(15);
+            e.Property(x => x.JoinLink).HasMaxLength(400); e.Property(x => x.Phone).HasMaxLength(40);
+            e.Property(x => x.Reason).HasMaxLength(500); e.Property(x => x.Outcome).HasMaxLength(2000);
+            e.Property(x => x.CreatedBy).HasMaxLength(100); e.Property(x => x.DoneBy).HasMaxLength(100);
+            e.HasIndex(x => x.AssessmentId); e.HasIndex(x => x.PatientId); e.HasIndex(x => x.BookingId);
+            e.HasIndex(x => new { x.AnaesthetistId, x.StartsAt });
+            e.HasOne<Assessment>().WithMany().HasForeignKey(x => x.AssessmentId).OnDelete(DeleteBehavior.Cascade);
+        });
         b.Entity<TriageSettings>(e =>
         {
             e.ToTable("Settings", t => t.HasCheckConstraint("CK_TriageSettings_SingleRow", "[Id] = 1"));
             e.Property(x => x.Id).ValueGeneratedNever();
-            e.Property(x => x.HoldProcedures).HasMaxLength(500);
+            e.Property(x => x.HoldProcedures).HasMaxLength(500); e.Property(x => x.VideoLinkTemplate).HasMaxLength(300);
             e.HasData(new TriageSettings());
         });
     }

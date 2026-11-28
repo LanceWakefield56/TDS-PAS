@@ -5,6 +5,7 @@ import { useSession } from '../App';
 import { docStatusClass, payerText, Totals } from './Billing';
 import { InvoiceClaim, TakePayment } from './Claims';
 import { InvoicePayOnline } from './Payments';
+import Modal from '../components/Modal';
 
 interface Doc {
   id: string; kind: string; number: string | null; patientId: string; sourceEstimateId: string | null; payer: string; payerName: string | null; payerReference: string | null;
@@ -23,6 +24,7 @@ export default function BillingDocument() {
   const [settings, setSettings] = useState<{ gstNumber: string | null; bankAccount: string | null } | null>(null);
   const [pay, setPay] = useState({ paidOn: todayIso(), amount: '', method: 'Eftpos', reference: '' });
   const [error, setError] = useState<string | null>(null);
+  const [credit, setCredit] = useState<{ amount: string; reason: string } | null>(null);
   const load = async () => {
     try { const x = await api<Doc>(`/api/billing/documents/${id}`); setD(x); setP(await api<PatientDetail>(`/api/patients/${x.patientId}`)); } catch (e) { setError(errText(e)); }
   };
@@ -82,11 +84,11 @@ export default function BillingDocument() {
 
       {isInv && mod('claims') && <InvoiceClaim invoiceId={d.id} payer={d.payer} payerName={d.payerName} status={d.status} />}
       {isInv && mod('payments') && [Perm.OnlinePayView, Perm.OnlinePayManage].some(can) && d.payer === 'SelfFunded' && d.status !== 'Draft' && d.status !== 'Void' && <InvoicePayOnline invoiceId={d.id} status={d.status} onChange={() => void load()} />}
-      {isInv && mod('claims') && can(Perm.PaymentsTake) && ['Issued', 'PartPaid'].includes(d.status) && <TakePayment invoiceId={d.id} balance={d.totals.balance} onPaid={() => void load()} />}
+      {isInv && mod('claims') && can(Perm.PaymentsTake) && ['Issued', 'PartPaid', 'Paid'].includes(d.status) && <TakePayment invoiceId={d.id} balance={d.totals.balance} onPaid={() => void load()} />}
 
       {isInv && d.payments.length > 0 && (
         <section className="card"><h2>Payments</h2>
-          <ul className="plain">{d.payments.map((x, i) => <li key={i}>{formatDate(x.paidOn)} · {money(x.amount)} · {x.method}{x.reference ? ` · ${x.reference}` : ''} <span className="muted small">(recorded by {x.recordedBy})</span></li>)}</ul></section>
+          <ul className="plain">{d.payments.map((x, i) => <li key={i}>{formatDate(x.paidOn)} · {money(x.amount)} · {x.method === 'CreditNote' ? 'Credit note' : x.amount < 0 ? `Refund (${x.method})` : x.method}{x.reference ? ` · ${x.reference}` : ''} <span className="muted small">(recorded by {x.recordedBy})</span></li>)}</ul></section>
       )}
 
       {manage && (
@@ -97,8 +99,18 @@ export default function BillingDocument() {
             {!isInv && d.status === 'Issued' && <><button className="btn btn-light" onClick={() => status('Accepted')}>Patient accepted</button><button className="btn btn-light" onClick={() => status('Declined')}>Patient declined</button></>}
             {!isInv && ['Draft', 'Issued', 'Accepted'].includes(d.status) && <button className="btn btn-primary" onClick={() => act(async () => { const r = await api<{ id: string }>(`/api/billing/estimates/${id}/invoice`, { body: {} }); navigate(`/billing/${r.id}`); })}>Create invoice from estimate</button>}
             {(isInv ? ['Draft', 'Issued'] : ['Draft', 'Issued', 'Accepted']).includes(d.status) && d.payments.length === 0 && <button className="btn btn-link danger" onClick={() => status('Void', true)}>Void</button>}
+            {isInv && ['Issued', 'PartPaid'].includes(d.status) && <button className="btn btn-light" onClick={() => setCredit({ amount: '', reason: '' })}>Credit note</button>}
             <button className="btn btn-light" onClick={() => window.print()}>Print</button>
           </div>
+          {credit && (
+            <Modal title="Credit note" onClose={() => setCredit(null)}>
+              <div className="stack">
+                <p className="hint">Takes money off this invoice without a payment (for example a goodwill discount or a fee charged in error). It is numbered and goes to Xero as a credit note.</p>
+                <label>Amount (including GST)<input type="number" step="0.01" value={credit.amount} placeholder={String(d.totals.balance)} onChange={(e) => setCredit({ ...credit, amount: e.target.value })} /></label>
+                <label>Why<input value={credit.reason} onChange={(e) => setCredit({ ...credit, reason: e.target.value })} /></label>
+                <div className="row"><button className="btn btn-primary" onClick={() => { const c = credit; setCredit(null); void act(async () => { await api(`/api/billing/invoices/${id}/credit-note`, { body: { amount: Number(c.amount || d.totals.balance), reason: c.reason } }); }); }}>Make credit note</button><button className="btn btn-link" onClick={() => setCredit(null)}>Cancel</button></div>
+              </div>
+            </Modal>)}
           {isInv && ['Issued', 'PartPaid'].includes(d.status) && (
             <div className="form-grid">
               <label>Date paid<input type="date" value={pay.paidOn} onChange={(e) => setPay({ ...pay, paidOn: e.target.value })} /></label>

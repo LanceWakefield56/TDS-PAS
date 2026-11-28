@@ -138,6 +138,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await ConsentAsync(ct);
         await PaymentsAsync(ct);
         await ImagingAsync(ct);
+        await PrescribingAsync(ct);
         await SafetyFormsResearchAsync(ct);
         await ClaimsAsync(ct);
         await RemindersAsync(ct);
@@ -1292,9 +1293,39 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             Ok(await svc.SignOffAsync(w.Id, new(w.Suggested, null, null, "Questionnaire reviewed; phoned patient to confirm escort.", null), false, "nurse", "Nurse", ct), "triage sign-off");
             n++;
         }
-        var review = open.FirstOrDefault(w => w.Suggested == BrightPAS.Modules.Triage.TriageOutcome.AnaesthetistReview);
+        // 0.36.0: early warning score on the day switched on; anaesthetist video reviews.
+        var ts = await svc.SettingsAsync(ct);
+        (ts.EwsOnTheDay, ts.EwsReviewAt, ts.VideoLinkTemplate) = (true, 5, "https://meet.example.nz/tds-{code}");
+        Ok(await svc.SaveSettingsAsync(ts, "fgrant", ct), "triage settings");
+        var rv = S<BrightPAS.Modules.Triage.ReviewService>();
+        var grant = (await rv.AnaesthetistsAsync(ct)).First(c => c.UserName == "fgrant");
+        var reviews = open.Where(w => w.Suggested == BrightPAS.Modules.Triage.TriageOutcome.AnaesthetistReview).ToList();
+        var review = reviews.FirstOrDefault();
+        if (review is not null)
+        {
+            BrightPAS.Modules.Triage.Review? r1;
+            using (At(_today.AddDays(-1), 9))
+            {
+                (r1, var re1) = await rv.BookAsync(new(review.Id, grant.Id, BrightPAS.Modules.Triage.ReviewMode.Video, _today.ToDateTime(new TimeOnly(8, 0)), null, null, "Pacemaker / cardiac history"), "nurse", ct);
+                Ok(re1, "review booked");
+            }
+            using (At(_today, 8, 20))
+                Ok(await rv.FinishAsync(r1!.Id, new(BrightPAS.Modules.Triage.ReviewStatus.Done, "Video review: device checked last month, exercise tolerance good. Suitable with precautions."), "fgrant", ct), "review done");
+        }
+        // A second one waiting for review gets a phone appointment tomorrow.
+        if (reviews.Skip(1).FirstOrDefault() is { } next && (next.ProcedureDate is null || next.ProcedureDate > _today.AddDays(1)))
+            Ok((await rv.BookAsync(new(next.Id, grant.Id, BrightPAS.Modules.Triage.ReviewMode.Phone, _today.AddDays(1).ToDateTime(new TimeOnly(12, 30)), null, "021 555 0142", "Discuss sleep apnoea and CPAP"), "nurse", ct)).Errors, "phone review");
         if (review is not null)
             Ok(await svc.SignOffAsync(review.Id, new(BrightPAS.Modules.Triage.TriageOutcome.SuitableWithPrecautions, 3, "First on the list; device check on admission", "Reviewed in pre-assessment clinic.", "Reviewed by anaesthetist – suitable with precautions"), true, "fgrant", "Anaesthetist", ct), "anaesthetist sign-off");
+        // Today's patients with observations: an early warning score of 5 on admission re-runs triage (anaesthetist to review).
+        var emrDb = S<Emr.EmrDbContext>();
+        var todayIds = _upcoming.Where(x => x.Session.Date == _today).Select(x => x.Booking.Id).ToList();
+        var todayEp = await emrDb.Episodes.AsNoTracking().Where(e => todayIds.Contains(e.BookingId)).OrderBy(e => e.Id).FirstOrDefaultAsync(ct);
+        if (todayEp is not null)
+        {
+            Ok((await S<Emr.EmrService>().ObserveAsync(todayEp.Id, new Emr.ObservationRequest(_clock.GetUtcNow(), 22, 95, false, null, 105, 70, 112, 37.2m, "A", 1, 0), "nurse", ct)).Errors, "EWS observations");
+            await svc.ScanAsync(ct);
+        }
     }
 
     /// <summary>0.25.0: outbox hold (short in the demo), form designer forms and an entry, de-identified extracts.</summary>
@@ -1410,6 +1441,12 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             if (k > 1) Ok(await cl.MarkRequestedAsync(pa!.Id, "reception", ct), "upcoming approval requested");
         }
 
+        // 0.34.0: Southern Cross on direct claiming (training simulator); the first upcoming approval goes straight to them.
+        var direct = S<BrightPAS.Modules.Claims.DirectClaimService>();
+        Ok(await direct.SaveApiAsync(Funder("Southern Cross"), new(BrightPAS.Modules.Claims.FunderApi.Simulator, null, null), "admin", ct), "direct claiming");
+        var draftPa = (await cl.ApprovalsAsync(null, null, true, ct)).Where(a => a.Status == BrightPAS.Modules.Claims.ApprovalStatus.Draft && a.FunderId == Funder("Southern Cross")).OrderBy(a => a.Number).FirstOrDefault();
+        if (draftPa is not null) Ok(await direct.RequestApprovalAsync(draftPa.Id, "reception", ct), "direct approval");
+
         // A self-funded invoice paid at the desk by EFTPOS (simulator), and one waiting at the terminal.
         var self = await S<BillingDbContext>().Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments)
             .Where(d => d.Kind == DocumentKind.Invoice && d.Payer == Payer.SelfFunded && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid)).OrderBy(d => d.IssuedOn).Take(1).ToListAsync(ct);
@@ -1421,6 +1458,13 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
                 var (t, e) = await term.StartAsync(d.Id, Math.Min(200m, bal), "reception", ct);
                 Ok(e, "eftpos");
             }
+
+        // 0.34.0: a goodwill credit note on another self-funded invoice.
+        var other = await S<BillingDbContext>().Documents.AsNoTracking()
+            .Where(d => d.Kind == DocumentKind.Invoice && d.Payer == Payer.SelfFunded && d.Status == DocumentStatus.Issued).OrderByDescending(d => d.IssuedOn).ThenBy(d => d.Number).FirstOrDefaultAsync(ct);
+        if (other is not null && !self.Any(x => x.Id == other.Id))
+            using (At(_today, 10))
+                Ok((await S<BillingService>().CreditNoteAsync(other.Id, 25m, "Goodwill – late start on the day", "finance", ct)).Error, "credit note");
     }
 
     private async Task FollowUpAsync(CancellationToken ct)
@@ -1498,11 +1542,12 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
     {
         var svc = S<BrightPAS.Modules.Payments.PaymentLinkService>();
         Ok(await svc.SaveSettingsAsync(new(BrightPAS.Modules.Payments.GatewayProvider.Simulator, "https://localhost:5001", 30, 10m, null, null, null, 5m,
-            "Demonstration system – invented data only."), "admin", ct), "payment settings");
+            "Demonstration system – invented data only.", 0, false, 14, 28, true, 2), "admin", ct), "payment settings");
         var owing = await S<BillingDbContext>().Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments)
             .Where(d => d.Kind == DocumentKind.Invoice && d.Payer == Payer.SelfFunded && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid))
             .OrderBy(d => d.IssuedOn).ThenBy(d => d.Number).Skip(1).Take(4).ToListAsync(ct);
         var pdb = S<PatientsDbContext>();
+        Guid? refundable = null;
         for (var k = 0; k < owing.Count; k++)
         {
             var inv = owing[k];
@@ -1516,7 +1561,17 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             var (url, se) = await svc.StartAsync(token, dob, amount, ct);
             Ok(se, "start online payment");
             Ok((await svc.SimulateAsync(token, url!.Split("ref=")[1], k == 3 ? "decline" : "approve", ct)).Error, "simulated payment");
+            if (k == 2) refundable = inv.Id;
         }
+        // 0.32.0: a part refund back to the card, and a payment plan for the oldest self-funded balance.
+        if (refundable is { } rid && (await svc.PaymentsAsync("approved", rid, ct)).FirstOrDefault() is { } paid)
+            Ok((await S<BrightPAS.Modules.Payments.RefundService>().RefundAsync(paid.Id, Math.Min(20m, paid.Amount), "Charged for a test that was not done (demo)", "finance", ct)).Error, "refund");
+        var first = await S<BillingDbContext>().Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments)
+            .Where(d => d.Kind == DocumentKind.Invoice && d.Payer == Payer.SelfFunded && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid))
+            .OrderBy(d => d.IssuedOn).ThenBy(d => d.Number).FirstOrDefaultAsync(ct);
+        if (first is not null && BillingService.Calculate(first).Balance >= 40m)
+            Ok((await S<BrightPAS.Modules.Payments.PlanService>().CreateAsync(new(first.PatientId, [first.Id], Math.Ceiling(BillingService.Calculate(first).Balance / 4m), BrightPAS.Modules.Payments.PlanFrequency.Fortnightly,
+                _today.AddDays(7), "Agreed with the patient by phone (demo)"), "finance", ct)).Errors, "payment plan");
         var st = S<BrightPAS.Modules.Payments.StatementService>();
         var (run, re) = await st.PrepareAsync(_today, "finance", ct);
         if (run is null) return; // nothing owing (should not happen with the demo invoices)
@@ -1571,6 +1626,92 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         // 4. A request still waiting for images (for the next booking).
         if (next is not null)
             Ok((await svc.CreateRequestAsync(new(next.PatientId, next.Id, "DX", "Chest PA (demonstration)", "CHEST", "Demonstration request – invented.", null), "nurse", ct)).Errors, "imaging request 2");
+    }
+
+    // ------------------------------------------------------------------ Prescribing and barcode medicine checks (0.31.0)
+    private async Task PrescribingAsync(CancellationToken ct)
+    {
+        var rx = S<BrightPAS.Modules.Prescribing.PrescriptionService>();
+        Ok(await rx.SaveSettingsAsync(new(BrightPAS.Modules.Prescribing.BcmaMode.Advise, false, BrightPAS.Modules.Prescribing.NzepsProvider.Simulator, null, null, null, "F99999-D", null), "admin", ct), "prescribing settings");
+        foreach (var (user, name, cpn, scope) in new[] { ("hreid", "Dr Hamish Reid", "11HRDA", "Medical practitioner"), ("pnatarajan", "Dr Priya Natarajan", "22PNTA", "Medical practitioner"),
+                     ("fgrant", "Dr Fiona Grant", "33FGRA", "Medical practitioner"), ("bkowalski", "Dr Ben Kowalski", "44BKWA", "Medical practitioner") })
+            Ok((await rx.SavePrescriberAsync(null, new(user, name, cpn, "DEMO", scope, true), "admin", ct)).Errors, "prescriber " + user);
+        var emr = S<Emr.EmrDbContext>();
+        var episodes = await emr.Episodes.AsNoTracking().Where(e => e.Stage == Emr.EpisodeStage.Discharged).ToListAsync(ct);
+        episodes = [.. episodes.OrderByDescending(e => e.DischargedAt).Take(3)];
+        var db = S<BrightPAS.Modules.Prescribing.RxDbContext>();
+        var cef = await S<Meds.MedicinesDbContext>().Gtins.AsNoTracking().Where(g => g.Gtin == "09400000000016").Select(g => (Guid?)g.MedicineId).FirstOrDefaultAsync(ct);
+        var k = 0;
+        foreach (var e in episodes)
+        {
+            var at = e.AdmittedAt ?? e.DischargedAt ?? _clock.GetUtcNow();
+            // Orders written on the day (history): cefazolin once (given) and paracetamol as needed (stopped at discharge).
+            db.Orders.Add(new BrightPAS.Modules.Prescribing.MedOrder
+            {
+                PatientId = e.PatientId,
+                EpisodeId = e.Id,
+                MedicineId = cef,
+                Medicine = "Cefazolin 2 g injection",
+                Dose = "2 g",
+                Route = "IV",
+                Kind = BrightPAS.Modules.Prescribing.OrderKind.Once,
+                Indication = "Surgical prophylaxis",
+                Status = BrightPAS.Modules.Prescribing.OrderStatus.Given,
+                PrescribedAt = at,
+                PrescribedBy = "fgrant",
+                TimesGiven = 1,
+                LastGivenAt = at.AddMinutes(30)
+            });
+            db.Orders.Add(new BrightPAS.Modules.Prescribing.MedOrder
+            {
+                PatientId = e.PatientId,
+                EpisodeId = e.Id,
+                Medicine = "Paracetamol 1 g tablet",
+                Dose = "1 g",
+                Route = "Oral",
+                Kind = BrightPAS.Modules.Prescribing.OrderKind.AsNeeded,
+                Frequency = "6-hourly, max 4 g in 24 h",
+                Indication = "Pain",
+                Status = BrightPAS.Modules.Prescribing.OrderStatus.Stopped,
+                PrescribedAt = at,
+                PrescribedBy = "fgrant",
+                StoppedAt = e.DischargedAt,
+                StoppedBy = "hreid",
+                StopReason = "Discharged home"
+            });
+            var med = await emr.Medications.AsNoTracking().Where(m => m.EpisodeId == e.Id && m.Medicine == "Cefazolin").Select(m => (Guid?)m.Id).FirstOrDefaultAsync(ct);
+            db.Scans.Add(new BrightPAS.Modules.Prescribing.BcmaScan
+            {
+                PatientId = e.PatientId,
+                EpisodeId = e.Id,
+                MedicationId = med,
+                Medicine = "Cefazolin",
+                At = at.AddMinutes(30),
+                User = "nurse2",
+                Mode = BrightPAS.Modules.Prescribing.BcmaMode.Advise,
+                PatientScanned = true,
+                PatientMatched = true,
+                PackScanned = k != 1,
+                Gtin = k != 1 ? "09400000000016" : null,
+                Batch = k != 1 ? "DEMO" + (k + 1) : null,
+                Expiry = k != 1 ? _today.AddMonths(18) : null,
+                PackMatched = k != 1 ? true : null,
+                Result = k == 1 ? BrightPAS.Modules.Prescribing.BcmaResult.Warnings : BrightPAS.Modules.Prescribing.BcmaResult.Clear,
+                Findings = k == 1 ? "Info: Wristband scanned – right patient.\nWarn: The medicine pack was not scanned." : "Info: Wristband scanned – right patient.\nInfo: Pack scanned – Cefazolin 2 g injection."
+            });
+            k++;
+        }
+        await db.SaveChangesAsync(ct);
+        // Discharge prescriptions for the two most recent: one sent through the simulator, one still a draft for the prescriber to sign.
+        for (var i = 0; i < Math.Min(2, episodes.Count); i++)
+        {
+            var e = episodes[i];
+            var (p, errors) = await rx.CreateAsync(new(e.PatientId, e.Id, "DEMONSTRATION – invented prescription.",
+                [new(null, "Paracetamol 500 mg tablet", "Take 2 tablets every 6 hours when needed for pain. No more than 8 tablets in 24 hours.", 40, "tablet", 0, false),
+                 new(null, "Ibuprofen 400 mg tablet", "Take 1 tablet three times a day with food for 3 days, then when needed.", 15, "tablet", 0, false)]), "hreid", ct);
+            Ok(errors, "demo prescription");
+            if (i == 0) Ok((await rx.SignAsync(p!.Id, "hreid", ct)).Error, "sign demo prescription");
+        }
     }
 
     /// <summary>A one-page PDF standing in for a scanned paper consent form.</summary>
@@ -2147,6 +2288,12 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             [N("in", Msg.NodeKind.Input, 40, 120, dicom.Id), N("img", Msg.NodeKind.Mapper, 280, 120, map: dicomToHl7), N("hl7", Msg.NodeKind.Output, 520, 120, pacs.Id)],
             [new("in", "img", Msg.EdgeBranch.Next), new("img", "hl7", Msg.EdgeBranch.Next)]), "integration", ct);
         Must(f2, e2, "flow 2");
+        // 0.35.0 workflow: a patient-details change from the partner lab becomes a task for reception (escalates to the nurse in charge after 4 hours).
+        var (f3, e3) = await flows.SaveAsync(new Msg.FlowEdit(null, "Partner lab patient changes", "ADT updates from the partner lab: reception checks the patient's details.", true,
+            [N("in", Msg.NodeKind.Input, 40, 120, api.Id), new("adt", Msg.NodeKind.Filter, "Patient update?", 260, 120, null, null, Msg.MatchMode.All, [new Msg.FilterEdit("MSH-9.1", Msg.ConditionOperator.Equals, "ADT")]),
+             new("task", Msg.NodeKind.Task, "Reception checks", 480, 120, null, null, Msg.MatchMode.All, null, "Check the details the partner lab sent for {PID-5.1}, {PID-5.2} ({PID-3.1})", DefaultRoles.Reception, 240, DefaultRoles.Nurse)],
+            [new("in", "adt", Msg.EdgeBranch.Next), new("adt", "task", Msg.EdgeBranch.Next)]), "integration", ct);
+        Must(f3, e3, "flow 3");
 
         // Traffic: results posted by the partner lab and images from the endoscopy tower over the last few days.
         var n = 0;
@@ -2177,6 +2324,14 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
                 await flows.ProcessAsync(msg, svc.ContentOf(msg), ct);
             }
         }
+        // Staff tasks: one for reception with no time limit, one for nurses that is done.
+        var work = S<Msg.WorkflowService>();
+        var roleNames = DefaultRoles.Definitions.Keys.ToList();
+        var (t1, te1) = await work.CreateAsync(new Msg.TaskEdit("Ring the insurer about the pre-approval for tomorrow's list", "Southern Cross – ask for the approval number.", DefaultRoles.Reception, null, null), roleNames, "reception", ct);
+        Ok(te1, "task 1");
+        var (t2, te2) = await work.CreateAsync(new Msg.TaskEdit("Restock the recovery bay emergency trolley", null, DefaultRoles.Nurse, 120, null, Msg.WorkTaskPriority.Urgent), roleNames, "nurse", ct);
+        Ok(te2, "task 2");
+        Ok(await work.FinishAsync(t2!.Id, true, "Restocked and checked.", [DefaultRoles.Nurse], "nurse", false, ct), "task 2 done");
         // An MCP connection for AI tools (token not kept – create a new one in Messaging › MCP to use it).
         Ok((await S<Msg.McpService>().CreateAsync("Claude Desktop (demo)", 30, "integration", ct)).Error, "MCP client");
     }
@@ -2257,19 +2412,34 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         var f1 = await svc.ApplyTemplateAsync(tpl.Id, await svc.FromPatientAsync(people[0].Id, ct), ct);
         f1.SurgeonId = surgeons.GetValueOrDefault(ClinicianType.Endoscopist, surgeons.Values.First());
         (f1.ProcedureDate, f1.PreparedBy, f1.Email) = (_today.AddDays(24), "Grace Liu", f1.Email ?? "demo.patient@example.nz");
-        Ok((await svc.SaveAsync(null, f1, true, "finance", ct)).Errors, "estimate 1");
+        var e1 = await svc.SaveAsync(null, f1, true, "finance", ct);
+        Ok(e1.Errors, "estimate 1");
         // 2. Insured hysteroscopy with sharp resection, issued.
         var f2 = await svc.FromPatientAsync(people[1].Id, ct);
         (f2.ProcedureId, f2.Anaesthetic, f2.Funding, f2.Insurer, f2.PolicyNumber, f2.ProcedureDate, f2.PreparedBy) =
             (gyn.Id, gyn.DefaultAnaesthetic, Est.Funding.Insurance, "Southern Cross", "SX-4471920", _today.AddDays(35), "Grace Liu");
         f2.SurgeonId = surgeons.GetValueOrDefault(ClinicianType.Surgeon);
         f2.Inputs.AddOns.Add(new Est.AddOnChoice { Code = "GYN-A01" });
-        Ok((await svc.SaveAsync(null, f2, true, "finance", ct)).Errors, "estimate 2");
+        var e2 = await svc.SaveAsync(null, f2, true, "finance", ct);
+        Ok(e2.Errors, "estimate 2");
         // 3. Draft hernia repair (mesh if required) still being prepared.
         var f3 = await svc.FromPatientAsync(people[2].Id, ct);
         (f3.ProcedureId, f3.Anaesthetic, f3.PreparedBy) = (hernia.Id, hernia.DefaultAnaesthetic, "Grace Liu");
         f3.Inputs.AddOns.Add(new Est.AddOnChoice { Code = "GEN-A05", IfRequired = true });
         Ok((await svc.SaveAsync(null, f3, false, "finance", ct)).Errors, "estimate 3");
+        // 0.33.0 follow-up: estimate 1 accepted and the deposit paid; estimate 2 sent to the insurer, chase today; a fourth declined.
+        var fu = S<Est.EstimateFollowUpService>();
+        Ok(await fu.SetAsync(e1.Estimate!.Id, new(Est.EstFollowUp.Accepted, "Accepted by email", null, null, null, null, null), "finance", ct), "estimate 1 accepted");
+        Ok(await fu.SetAsync(e1.Estimate.Id, new(Est.EstFollowUp.DepositPaid, null, null, null, Math.Min(500m, e1.Estimate.Subtotal), _today, null), "finance", ct), "estimate 1 deposit");
+        Ok(await fu.SetAsync(e2.Estimate!.Id, new(Est.EstFollowUp.ApprovalRequested, "Emailed to Southern Cross for prior approval", _today, null, null, null, null), "finance", ct), "estimate 2 approval");
+        if (people.Count > 3)
+        {
+            var f4 = await svc.FromPatientAsync(people[3].Id, ct);
+            (f4.ProcedureId, f4.Anaesthetic, f4.PreparedBy) = (hernia.Id, hernia.DefaultAnaesthetic, "Grace Liu");
+            var e4 = await svc.SaveAsync(null, f4, true, "finance", ct);
+            Ok(e4.Errors, "estimate 4");
+            Ok(await fu.SetAsync(e4.Estimate!.Id, new(Est.EstFollowUp.Declined, "Chose to wait for the public list", null, null, null, null, null), "finance", ct), "estimate 4 declined");
+        }
     }
 
     private async Task CodingAsync(CancellationToken ct)

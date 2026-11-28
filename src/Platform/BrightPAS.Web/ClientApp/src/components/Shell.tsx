@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting', 'estimates', 'triage', 'medicines', 'followup', 'claims', 'ebookings', 'consent', 'payments', 'imaging'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting', 'estimates', 'triage', 'medicines', 'followup', 'claims', 'ebookings', 'consent', 'payments', 'prescribing', 'imaging'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -47,6 +47,7 @@ export default function Shell() {
           {can(Perm.PatientView) && <NavLink to="/patients" end className="primary-nav">Patients</NavLink>}
           {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/day" className="primary-nav">Theatre day</NavLink>}
           {mod('followup') && (can(Perm.FollowUpView) || can(Perm.FollowUpRecord) || can(Perm.FollowUpSsi)) && <NavLink to="/followup" end className="primary-nav">Follow-up</NavLink>}
+          {mod('messaging') && can(Perm.TasksWork) && <NavLink to="/tasks" className="primary-nav">Tasks</NavLink>}
           {can(Perm.PatientRegister) && <NavLink to="/patients/new">Register a patient</NavLink>}
 
           <Group title="Before surgery" paths={['/rooms-bookings', '/consent', '/referrals', '/waitlist', '/estimates', '/forms', '/triage', '/reminders', '/letters', '/portal', '/calendar', '/outbox']}>
@@ -55,6 +56,7 @@ export default function Shell() {
             {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/referrals">Referrals</NavLink>}
             {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/waitlist">Waitlist</NavLink>}
             {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <NavLink to="/estimates" end>Procedure estimates</NavLink>}
+            {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <NavLink to="/estimates/followup">Estimate follow-up</NavLink>}
             {mod('estimates') && can(Perm.EstimatesBuild) && <NavLink to="/estimates/outbox">Estimate outbox</NavLink>}
             {mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)) && <NavLink to="/forms" end>Pre-admission forms</NavLink>}
             {mod('triage') && (can(Perm.TriageView) || can(Perm.TriageAssess) || can(Perm.TriageReview) || can(Perm.TriageRules)) && <NavLink to="/triage" end>Triage</NavLink>}
@@ -65,10 +67,11 @@ export default function Shell() {
             {mod('portal') && can(Perm.PortalSpecialist) && <NavLink to="/portal" end>My TDS patients</NavLink>}
             {mod('portal') && can(Perm.PortalManage) && <NavLink to="/portal/requests">Portal requests</NavLink>}
           </Group>
-          <Group title="Day of surgery" paths={['/theatre', '/emr', '/medicines', '/endoscopy', '/imaging', '/scribe', '/devices', '/cssd']}>
+          <Group title="Day of surgery" paths={['/theatre', '/emr', '/medicines', '/prescribing', '/endoscopy', '/imaging', '/scribe', '/devices', '/cssd']}>
             {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/theatre" end>Theatre lists</NavLink>}
             {mod('emr') && can(Perm.EmrView) && <NavLink to="/emr">Clinical record</NavLink>}
             {mod('medicines') && (can(Perm.MedicinesView) || can(Perm.MedicinesCatalogue) || can(Perm.MedicinesRules) || can(Perm.MedicinesApprove)) && <NavLink to="/medicines">Medicines</NavLink>}
+            {mod('prescribing') && [Perm.RxView, Perm.RxPrescribe, Perm.RxManage].some(can) && <NavLink to="/prescribing">Prescribing</NavLink>}
             {mod('endoscopy') && can(Perm.EndoView) && <NavLink to="/endoscopy">Endoscopy</NavLink>}
             {mod('imaging') && [Perm.ImagingView, Perm.ImagingImport, Perm.ImagingManage].some(can) && <NavLink to="/imaging">Imaging (X-ray, scans)</NavLink>}
             {mod('scribe') && (can(Perm.ScribeUse) || can(Perm.ScribeManage) || can(Perm.ScribeApprove)) && <NavLink to="/scribe">Scribe</NavLink>}

@@ -3,7 +3,8 @@ using BrightPAS.Core.Audit;
 
 namespace BrightPAS.Modules.Messaging;
 
-public sealed record NodeEdit(string Key, NodeKind Kind, string? Label, int X, int Y, Guid? InterfaceId, Guid? MappingId, MatchMode Match, IReadOnlyList<FilterEdit>? Conditions);
+public sealed record NodeEdit(string Key, NodeKind Kind, string? Label, int X, int Y, Guid? InterfaceId, Guid? MappingId, MatchMode Match, IReadOnlyList<FilterEdit>? Conditions,
+    string? TaskTitle = null, string? TaskRole = null, int? DueMinutes = null, string? EscalateToRole = null, int? WaitMinutes = null);
 public sealed record EdgeEdit(string From, string To, EdgeBranch Branch);
 public sealed record FlowEdit(Guid? Id, string Name, string? Description, bool IsActive, IReadOnlyList<NodeEdit>? Nodes, IReadOnlyList<EdgeEdit>? Edges);
 public sealed record FlowRow(Guid Id, string Name, string? Description, bool IsActive, string? Input, IReadOnlyList<string> Outputs, int Nodes, DateTimeOffset UpdatedAt, string UpdatedBy);
@@ -12,7 +13,10 @@ public sealed record FlowView(Guid Id, string Name, string? Description, bool Is
 /// <summary>One step of a flow run, shown on the canvas in the test harness.</summary>
 public sealed record FlowStep(string NodeKey, string Label, string Kind, string Outcome, string? Detail, string? Format, string? Content);
 public sealed record FlowOutput(string NodeKey, Guid InterfaceId, string Interface, string Format, string Content, IReadOnlyList<string> Problems);
-public sealed record FlowRunResult(IReadOnlyList<FlowStep> Steps, IReadOnlyList<FlowOutput> Outputs, IReadOnlyList<string> Errors);
+public sealed record FlowTaskRequest(string NodeKey, string Title, string Detail, string Role, int? DueMinutes, string? EscalateToRole);
+public sealed record FlowWaitRequest(string NodeKey, string Content, MessageFormat Format, int Minutes);
+public sealed record FlowRunResult(IReadOnlyList<FlowStep> Steps, IReadOnlyList<FlowOutput> Outputs, IReadOnlyList<string> Errors,
+    IReadOnlyList<FlowTaskRequest>? Tasks = null, IReadOnlyList<FlowWaitRequest>? Waits = null);
 
 /// <summary>Visual message flows: build, check, run live and dry-run in the test harness.</summary>
 public sealed class FlowService(MsgDbContext db, MappingService mappings, MessagingService messages, AuditWriter audit, TimeProvider clock)
@@ -47,7 +51,7 @@ public sealed class FlowService(MsgDbContext db, MappingService mappings, Messag
         var conds = (await db.Conditions.AsNoTracking().Where(c => ids.Contains(c.NodeId)).OrderBy(c => c.Sequence).ToListAsync(ct)).ToLookup(c => c.NodeId);
         var edges = await db.Edges.AsNoTracking().Where(e => e.FlowId == flowId).ToListAsync(ct);
         return new(nodes.OrderBy(n => n.X).Select(n => new NodeEdit(n.Id.ToString(), n.Kind, n.Label, n.X, n.Y, n.InterfaceId, n.MappingId, n.Match,
-                conds[n.Id].Select(c => new FilterEdit(c.Source, c.Operator, c.Value)).ToList())).ToList(),
+                conds[n.Id].Select(c => new FilterEdit(c.Source, c.Operator, c.Value)).ToList(), n.TaskTitle, n.TaskRole, n.DueMinutes, n.EscalateToRole, n.WaitMinutes)).ToList(),
             edges.Select(e => new EdgeEdit(e.FromNodeId.ToString(), e.ToNodeId.ToString(), e.Branch)).ToList());
     }
 
@@ -59,7 +63,7 @@ public sealed class FlowService(MsgDbContext db, MappingService mappings, Messag
         foreach (var n in nodes) if (!byKey.TryAdd(n.Key, n)) errors.Add("Two steps have the same key.");
         var inputs = nodes.Where(n => n.Kind == NodeKind.Input).ToList();
         if (inputs.Count != 1) { errors.Add("A flow starts with exactly one input (communication point)."); return errors; }
-        if (!nodes.Any(n => n.Kind == NodeKind.Output)) errors.Add("Add at least one output (where the message is sent).");
+        if (!nodes.Any(n => n.Kind is NodeKind.Output or NodeKind.Task)) errors.Add("Add at least one output (where the message is sent) or a task for a person.");
         var ifaces = await db.Interfaces.AsNoTracking().ToDictionaryAsync(i => i.Id, ct);
         var maps = await db.Mappings.AsNoTracking().ToDictionaryAsync(m => m.Id, ct);
         foreach (var e in edges)
@@ -89,9 +93,18 @@ public sealed class FlowService(MsgDbContext db, MappingService mappings, Messag
                 case NodeKind.Decision:
                     if ((n.Conditions ?? []).Count == 0) errors.Add($"{Name(n)}: add at least one condition.");
                     break;
+                case NodeKind.Task:
+                    if (string.IsNullOrWhiteSpace(n.TaskTitle)) errors.Add($"{Name(n)}: say what the person has to do.");
+                    if (string.IsNullOrWhiteSpace(n.TaskRole)) errors.Add($"{Name(n)}: choose who does it (a role).");
+                    if (n.DueMinutes is < 1 or > 43200) errors.Add($"{Name(n)}: the time to do it is 1 minute to 30 days.");
+                    if (!string.IsNullOrWhiteSpace(n.EscalateToRole) && n.DueMinutes is null) errors.Add($"{Name(n)}: escalation needs a time to do it by.");
+                    break;
+                case NodeKind.Wait:
+                    if (n.WaitMinutes is not (>= 1 and <= 10080)) errors.Add($"{Name(n)}: wait between 1 minute and 7 days.");
+                    break;
             }
             if (n.Kind != NodeKind.Input && edges.All(e => e.To != n.Key)) errors.Add($"{Name(n)} is not connected to anything before it.");
-            if (n.Kind != NodeKind.Output && edges.All(e => e.From != n.Key)) errors.Add($"{Name(n)} does not lead anywhere – connect it to the next step.");
+            if (n.Kind is not (NodeKind.Output or NodeKind.Task) && edges.All(e => e.From != n.Key)) errors.Add($"{Name(n)} does not lead anywhere – connect it to the next step.");
         }
         if (errors.Count > 0) return errors;
 
@@ -170,6 +183,11 @@ public sealed class FlowService(MsgDbContext db, MappingService mappings, Messag
                 Match = n.Match,
                 InterfaceId = n.Kind is NodeKind.Input or NodeKind.Output ? n.InterfaceId : null,
                 MappingId = n.Kind == NodeKind.Mapper ? n.MappingId : null,
+                TaskTitle = n.Kind == NodeKind.Task ? Cut(n.TaskTitle, 200) : null,
+                TaskRole = n.Kind == NodeKind.Task ? Cut(n.TaskRole, 60) : null,
+                DueMinutes = n.Kind == NodeKind.Task ? n.DueMinutes : null,
+                EscalateToRole = n.Kind == NodeKind.Task ? Cut(n.EscalateToRole, 60) : null,
+                WaitMinutes = n.Kind == NodeKind.Wait ? n.WaitMinutes : null,
             };
             keyToId[n.Key] = node.Id;
             db.Nodes.Add(node);
@@ -206,7 +224,45 @@ public sealed class FlowService(MsgDbContext db, MappingService mappings, Messag
         foreach (var f in flows)
         {
             var g = await GraphAsync(f.Id, ct);
-            var r = await RunAsync(g, content, useDrafts: false, ct);
+            var r = await RunAsync(g, content, useDrafts: false, ct, runLive: true);
+            queued += await ApplyAsync(f, inbound, r, ct);
+        }
+        return queued;
+    }
+
+    /// <summary>Carries on with messages whose Wait step is over (engine, every cycle). Returns how many were released.</summary>
+    public async Task<int> ResumeDueAsync(CancellationToken ct = default)
+    {
+        var now = clock.GetUtcNow();
+        var due = await db.Waits.Where(w => w.Status == WaitStatus.Waiting && w.DueAt <= now).OrderBy(w => w.DueAt).Take(100).ToListAsync(ct);
+        foreach (var w in due)
+        {
+            var f = await db.Flows.AsNoTracking().SingleOrDefaultAsync(x => x.Id == w.FlowId, ct);
+            var m = await db.Messages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == w.MessageId, ct);
+            w.ReleasedAt = now;
+            if (f is null || m is null || !f.IsActive)
+            {
+                w.Status = WaitStatus.Failed;
+                if (m is not null) await messages.AddEventAsync(m.Id, "Flow", "A held message was not carried on: the flow was switched off or removed.", ct);
+                continue;
+            }
+            var g = await GraphAsync(f.Id, ct);
+            if (g.Nodes.All(n => n.Key != w.NodeKey)) { w.Status = WaitStatus.Failed; await messages.AddEventAsync(m.Id, "Flow", $"{f.Name}: the wait step was changed – the held message was not carried on.", ct); continue; }
+            w.Status = WaitStatus.Released;
+            await db.SaveChangesAsync(ct);
+            var start = g.Edges.Where(e => e.From == w.NodeKey).Select(e => (e.To, w.Content, w.Format)).ToList();
+            var r = await RunAsync(g, w.Content, useDrafts: false, ct, runLive: true, start);
+            await messages.AddEventAsync(m.Id, "Flow", $"{f.Name}: wait over – carried on.", ct);
+            await ApplyAsync(f, m, r, ct);
+        }
+        await db.SaveChangesAsync(ct);
+        return due.Count;
+    }
+
+    private async Task<int> ApplyAsync(Flow f, Message inbound, FlowRunResult r, CancellationToken ct)
+    {
+        var queued = 0;
+        {
             foreach (var s in r.Steps.Where(s => s.Outcome is "Stopped" or "Failed" or "Warning"))
                 await messages.AddEventAsync(inbound.Id, s.Outcome == "Failed" ? "FlowFailed" : "Flow", $"{f.Name} › {s.Label}: {s.Detail}", ct);
             foreach (var e in r.Errors) await messages.AddEventAsync(inbound.Id, "FlowFailed", $"{f.Name}: {e}", ct);
@@ -220,8 +276,50 @@ public sealed class FlowService(MsgDbContext db, MappingService mappings, Messag
                 await messages.AddEventAsync(inbound.Id, "Routed", $"{f.Name} → {iface.Name}", ct);
                 queued++;
             }
+            var now = clock.GetUtcNow();
+            foreach (var t in r.Tasks ?? [])
+            {
+                var s = await messages.SettingsAsync(ct);
+                var task = new WorkTask
+                {
+                    Number = $"T{s.NextTaskNumber++:D6}",
+                    Title = t.Title,
+                    Detail = t.Detail,
+                    Role = t.Role,
+                    DueAt = t.DueMinutes is { } dm ? now.AddMinutes(dm) : null,
+                    EscalateToRole = t.EscalateToRole,
+                    MessageId = inbound.Id,
+                    FlowId = f.Id,
+                    PatientId = inbound.PatientId,
+                    Source = "Flow",
+                    CreatedAt = now,
+                    CreatedBy = $"flow:{Cut(f.Name, 90)}",
+                };
+                db.Tasks.Add(task);
+                await db.SaveChangesAsync(ct);
+                await messages.AddEventAsync(inbound.Id, "Task", $"{f.Name}: task {task.Number} for {task.Role} – {task.Title}", ct);
+            }
+            foreach (var w in r.Waits ?? [])
+            {
+                db.Waits.Add(new FlowWait { FlowId = f.Id, MessageId = inbound.Id, NodeKey = w.NodeKey, Content = w.Content, Format = w.Format, DueAt = now.AddMinutes(w.Minutes), CreatedAt = now });
+                await db.SaveChangesAsync(ct);
+                await messages.AddEventAsync(inbound.Id, "Flow", $"{f.Name}: held for {w.Minutes} minute(s) before the next step.", ct);
+            }
         }
         return queued;
+    }
+
+    private static string? Cut(string? s, int n) => string.IsNullOrWhiteSpace(s) ? null : s.Trim().Length > n ? s.Trim()[..n] : s.Trim();
+
+    /// <summary>A task title with {field} values filled in from the message (e.g. {PID-5}); unknown fields are left blank.</summary>
+    private static string Fill(string template, string msg, MessageFormat fmt)
+    {
+        IMessageDoc? doc = null;
+        try { doc = MessageDocs.Parse(fmt, msg); } catch (MappingException) { }
+        return System.Text.RegularExpressions.Regex.Replace(template, @"\{([A-Za-z0-9_.\-\[\]/]+)\}", m =>
+        {
+            try { return doc?.Get(m.Groups[1].Value) is { } v ? MessageDocs.Trim(v, 60) : ""; } catch (MappingException) { return ""; }
+        }, System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
     }
 
     /// <summary>Test harness: runs a flow (saved or still being drawn) against a sample. Nothing is stored or sent. Uses draft mappings when asked.</summary>
@@ -232,20 +330,26 @@ public sealed class FlowService(MsgDbContext db, MappingService mappings, Messag
         return await RunAsync(new Graph(e.Nodes ?? [], e.Edges ?? []), sample, useDrafts, ct);
     }
 
-    private async Task<FlowRunResult> RunAsync(Graph g, string content, bool useDrafts, CancellationToken ct)
+    private async Task<FlowRunResult> RunAsync(Graph g, string content, bool useDrafts, CancellationToken ct, bool runLive = false, IReadOnlyList<(string Key, string Content, MessageFormat Format)>? startAt = null)
     {
         var steps = new List<FlowStep>();
         var outputs = new List<FlowOutput>();
         var errors = new List<string>();
+        var tasks = new List<FlowTaskRequest>();
+        var waits = new List<FlowWaitRequest>();
         var byKey = g.Nodes.ToDictionary(n => n.Key);
         var input = g.Nodes.FirstOrDefault(n => n.Kind == NodeKind.Input);
         if (input?.InterfaceId is not { } iid) return new([], [], ["The flow has no input."]);
         var inIface = await db.Interfaces.AsNoTracking().SingleOrDefaultAsync(i => i.Id == iid, ct);
         if (inIface is null) return new([], [], ["The input interface no longer exists."]);
-        var problems = MessageDocs.Validate(inIface.Format, content);
-        steps.Add(new(input.Key, input.Label ?? "Input", "Input", problems.Count == 0 ? "Passed" : "Warning", problems.Count == 0 ? $"Received on {inIface.Name}" : string.Join(" ", problems), inIface.Format.ToString(), Clip(content)));
         var queue = new Queue<(string Key, string Content, MessageFormat Format)>();
-        foreach (var e in g.Edges.Where(e => e.From == input.Key)) queue.Enqueue((e.To, content, inIface.Format));
+        if (startAt is not null) foreach (var x in startAt) queue.Enqueue(x);
+        else
+        {
+            var problems = MessageDocs.Validate(inIface.Format, content);
+            steps.Add(new(input.Key, input.Label ?? "Input", "Input", problems.Count == 0 ? "Passed" : "Warning", problems.Count == 0 ? $"Received on {inIface.Name}" : string.Join(" ", problems), inIface.Format.ToString(), Clip(content)));
+            foreach (var e in g.Edges.Where(e => e.From == input.Key)) queue.Enqueue((e.To, content, inIface.Format));
+        }
         var guard = 0;
         while (queue.Count > 0 && guard++ < 500)
         {
@@ -293,6 +397,32 @@ public sealed class FlowService(MsgDbContext db, MappingService mappings, Messag
                         foreach (var e in g.Edges.Where(e => e.From == key)) queue.Enqueue((e.To, res.Output, live.Mapping.TargetFormat));
                         break;
                     }
+                case NodeKind.Task:
+                    {
+                        var title = Fill(n.TaskTitle ?? label, msg, fmt);
+                        if (title.Length > 200) title = title[..200];
+                        var due = n.DueMinutes is { } m ? $", within {Minutes(m)}" : "";
+                        var esc = string.IsNullOrWhiteSpace(n.EscalateToRole) ? "" : $", then {n.EscalateToRole}";
+                        steps.Add(new(key, label, "Task", runLive ? "Task made" : "Would make a task", $"For {n.TaskRole}{due}{esc}: {title}", fmt.ToString(), null));
+                        tasks.Add(new(key, title, $"From the flow step {label}.", n.TaskRole ?? "", n.DueMinutes, string.IsNullOrWhiteSpace(n.EscalateToRole) ? null : n.EscalateToRole));
+                        foreach (var e in g.Edges.Where(e => e.From == key)) queue.Enqueue((e.To, msg, fmt));
+                        break;
+                    }
+                case NodeKind.Wait:
+                    {
+                        var m = n.WaitMinutes ?? 1;
+                        if (runLive)
+                        {
+                            steps.Add(new(key, label, "Wait", "Held", $"Held for {Minutes(m)}.", fmt.ToString(), null));
+                            waits.Add(new(key, msg, fmt, m));
+                        }
+                        else
+                        {
+                            steps.Add(new(key, label, "Wait", "Would wait", $"Would hold the message for {Minutes(m)}, then carry on.", fmt.ToString(), null));
+                            foreach (var e in g.Edges.Where(e => e.From == key)) queue.Enqueue((e.To, msg, fmt));
+                        }
+                        break;
+                    }
                 case NodeKind.Output:
                     {
                         var o = await db.Interfaces.AsNoTracking().SingleOrDefaultAsync(i => i.Id == n.InterfaceId, ct);
@@ -310,8 +440,10 @@ public sealed class FlowService(MsgDbContext db, MappingService mappings, Messag
             outputs[outputs.IndexOf(o)] = o with { Interface = name };
             steps.Add(new(o.NodeKey, byKey[o.NodeKey].Label ?? "Output", "Output", "Failed", string.Join(" ", o.Problems), o.Format, null));
         }
-        return new(steps, outputs, errors);
+        return new(steps, outputs, errors, tasks, waits);
     }
+
+    private static string Minutes(int m) => m % 1440 == 0 ? $"{m / 1440} day(s)" : m % 60 == 0 ? $"{m / 60} hour(s)" : $"{m} minute(s)";
 
     private async Task<LiveMapping?> MappingForRunAsync(Guid mappingId, bool useDrafts, CancellationToken ct)
     {
