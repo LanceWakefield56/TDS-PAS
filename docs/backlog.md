@@ -95,7 +95,8 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Prescribing and barcode medicine checks: medicine chart (orders), barcode check when giving (wristband, GS1 pack, expiry, order; Off/Advise/Enforce), report, take-home prescriptions with NZePS barcode, NZePS client (FHIR) / simulator / folder copy – 0.31.0 (ADR 0044)
 - ☐ Prescribing next: Health NZ NZePS agreement, conformance testing and keys; confirm the prescription id generator; dispensed status back from NZePS; scan-to-chart from the pack barcode alone; regular-order dose times on the chart
 - ☐ Medicines next: NZ Formulary licence check; TDS clinicians approve the medicine rules; confirm the NZULM file layout
-- ☐ Triage next: TDS's anaesthetists agree and approve the rules; NEWS2/early-warning scores on the day (with EMR observations); anaesthetist video/phone review booking
+- ☑ Triage: early warning score on the day (EMR observations) and anaesthetist video/phone review booking – 0.36.0 (ADR 0049)
+- ☐ Triage next: TDS's anaesthetists agree and approve the rules and EWS thresholds; send review invitations by SMS/email
 - ☑ Patient journey, My list, theatre day board, simpler menu – 0.23.0 (ADR 0036)
 - ☑ Post-op follow-up and SSI surveillance (spec 7.26) – 0.24.0 (ADR 0037)
 - ☐ Follow-up next: clinical approval of the script, warning rules and plans; HQSC programme data specification check before any submission; PROMs (with the form designer)

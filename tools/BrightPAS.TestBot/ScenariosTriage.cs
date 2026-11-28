@@ -16,6 +16,38 @@ public sealed partial class Scenarios
         await Step(TriageArea, "Nurse opens the triage worklist and a patient's risk profile with scores and reasons", TriageViewAsync);
         await Step(TriageArea, "Anaesthetist sign-off: a different outcome needs a reason; with one it is signed off", TriageSignOffAsync);
         await Step(TriageArea, "A nurse cannot approve triage rules", TriageRulesGuardAsync);
+        await Step(TriageArea, "Nurse books an anaesthetist video review; the anaesthetist records it", TriageReviewAsync);
+    }
+
+    private async Task<(Outcome, string)> TriageReviewAsync()
+    {
+        var nurse = await As("nurse");
+        var today = DateOnly.FromDateTime(NzNow);
+        var list = await nurse.GetAsync("/api/triage/worklist?view=open");
+        var item = Find(list.Json, x => Str(x, "procedureDate") is { } d && DateOnly.TryParse(d[..10], System.Globalization.CultureInfo.InvariantCulture, out var day) && day >= today.AddDays(2));
+        if (item is null) return (Outcome.Skip, "No open triage with surgery two or more days away.");
+        var id = Str(item.Value, "id");
+        var existing = await nurse.GetAsync($"/api/triage/reviews?assessmentId={id}");
+        foreach (var r in (existing.Json?.EnumerateArray() ?? default).Where(r => Str(r, "status") == "Booked"))
+            await nurse.PostAsync($"/api/triage/reviews/{Str(r, "id")}/finish", new { status = "Cancelled", outcome = "Robot: rebooking" });
+        var page = nurse.Page;
+        await page.GotoAsync($"{bot.O.Url}/triage/{id}");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Book review" }).ClickAsync();
+        var dialog = page.GetByRole(AriaRole.Dialog);
+        await dialog.GetByLabel("How").SelectOptionAsync("Video");
+        await dialog.GetByLabel("Date and time").FillAsync($"{today.AddDays(1):yyyy-MM-dd}T10:00");
+        await dialog.GetByLabel("Reason (optional)").FillAsync("Robot review");
+        await dialog.GetByRole(AriaRole.Button, new() { Name = "Book", Exact = true }).ClickAsync();
+        await Assertions.Expect(page.GetByText("Review booked.")).ToBeVisibleAsync(new() { Timeout = 15000 });
+        var booked = Find((await nurse.GetAsync($"/api/triage/reviews?assessmentId={id}")).Json, r => Str(r, "status") == "Booked" && Str(r, "reason") == "Robot review");
+        if (booked is null) return (Outcome.Fail, "The booked review is not listed.");
+        var link = Str(booked.Value, "joinLink") ?? "";
+        var nurseDone = await nurse.PostAsync($"/api/triage/reviews/{Str(booked.Value, "id")}/finish", new { status = "Done", outcome = "x" });
+        var doc = await As("fgrant");
+        var done = await doc.PostAsync($"/api/triage/reviews/{Str(booked.Value, "id")}/finish", new { status = "Done", outcome = "Robot: reviewed by video, suitable." });
+        return link.StartsWith("https://", StringComparison.Ordinal) && nurseDone.Status == 400 && done.Status == 200
+            ? (Outcome.Pass, $"Video review booked with a join link ({link}); only the anaesthetist can record it as done.")
+            : (Outcome.Fail, $"Join link '{link}'; nurse recording HTTP {nurseDone.Status}; anaesthetist HTTP {done.Status}.");
     }
 
     private async Task<(Outcome, string)> TriageViewAsync()

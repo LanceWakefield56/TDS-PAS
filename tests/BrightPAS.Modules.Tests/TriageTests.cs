@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using BrightPAS.Core;
 using BrightPAS.Core.Data;
 using BrightPAS.Modules.Forms;
 using BrightPAS.Modules.Theatre;
@@ -294,5 +295,71 @@ public class TriageTests
     private sealed class Gate(TriageService t) : BrightPAS.Core.Modules.IBookingConfirmGate
     {
         public Task<string?> CheckAsync(Guid bookingId, Guid patientId, string procedure, CancellationToken ct) => t.CanConfirmAsync(bookingId, patientId, procedure, ct);
+    }
+
+    // ------------------------------------------------------------------ 0.36.0 early warning score on the day, anaesthetist reviews
+    [Fact]
+    public void Early_warning_score_on_the_day_suggests_review_at_threshold_or_a_single_three()
+    {
+        TriageResult Run(string ews, string three) => TriageScoring.Calculate(Facts(a => { a["ews"] = ews; a["ews_three"] = three; a["ews_review_at"] = "5"; a["ews_at"] = "07:30"; }), Rules(), "Colonoscopy", "Sedation", 30);
+        var high = Run("5", "No");
+        Assert.Equal(TriageOutcome.AnaesthetistReview, high.Suggested);
+        Assert.Contains(high.Findings, f => f.Source == "EWS:day" && f.Text.Contains("07:30", StringComparison.Ordinal));
+        Assert.Equal(TriageOutcome.AnaesthetistReview, Run("3", "Yes").Suggested);
+        var low = Run("2", "No");
+        Assert.True(low.Suggested < TriageOutcome.AnaesthetistReview);
+        Assert.Contains(low.Findings, f => f.Source == "EWS:day" && f.Precaution != null);
+        Assert.Contains(low.Scores, x => x.Name == "Early warning score");
+        Assert.DoesNotContain(TriageScoring.Calculate(Facts(), Rules(), "Colonoscopy", "Sedation", 30).Findings, f => f.Source == "EWS:day");
+    }
+
+    [Fact]
+    public async Task Observations_on_the_day_retriage_when_switched_on_and_a_review_can_be_booked()
+    {
+        await using var h = new ModulesHost();
+        await using var scope = h.Scope();
+        var sp = scope.ServiceProvider;
+        var svc = sp.GetRequiredService<TriageService>();
+        var (pid, bid) = await BookedPatientAsync(h, sp, "Colonoscopy", AnaestheticType.Sedation, 0);
+        await SubmitAsync(sp, pid, bid, Answers());
+        Assert.Equal(1, await svc.ScanAsync());
+        var emr = sp.GetRequiredService<BrightPAS.Modules.Emr.EmrService>();
+        var ep = await emr.EpisodeAsync(bid, pid, "nurse");
+        h.Clock.Advance(TimeSpan.FromMinutes(10));
+        var (obs, oerr) = await emr.ObserveAsync(ep.Id, new(h.Clock.GetUtcNow(), 22, 95, false, null, 105, 70, 112, 37.2m, "A", 0, 0), "nurse");
+        Assert.Empty(oerr);
+        Assert.True(obs!.Ews >= 5);
+        // Off by default: nothing changes.
+        Assert.Equal(0, await svc.ScanAsync());
+        var st = await svc.SettingsAsync();
+        st.EwsOnTheDay = true; st.EwsReviewAt = 5;
+        st.VideoLinkTemplate = "http://meet.example.nz/{code}";
+        Assert.NotEmpty(await svc.SaveSettingsAsync(st, "fgrant"));
+        st.VideoLinkTemplate = "https://meet.example.nz/tds-{code}";
+        Assert.Empty(await svc.SaveSettingsAsync(st, "fgrant"));
+        Assert.Equal(1, await svc.ScanAsync());
+        var a = (await svc.WorklistAsync("review")).Single();
+        Assert.Equal(TriageTrigger.Observations, a.Trigger);
+        Assert.Equal(TriageOutcome.AnaesthetistReview, a.Suggested);
+        Assert.Equal(0, await svc.ScanAsync());
+
+        // Book a video review with the anaesthetist before surgery.
+        var rv = sp.GetRequiredService<ReviewService>();
+        var kate = (await rv.AnaesthetistsAsync()).Single(c => c.Name == "Dr Kate Ford");
+        var surgeon = Doc.Id("Dr Ben Hall");
+        var now = h.Clock.GetUtcNow().ToNz().DateTime;
+        Assert.NotEmpty((await rv.BookAsync(new(a.Id, surgeon, ReviewMode.Video, now.AddMinutes(30), null, null, null), "nurse")).Errors);
+        Assert.NotEmpty((await rv.BookAsync(new(a.Id, kate.Id, ReviewMode.Video, now.AddMinutes(-5), null, null, null), "nurse")).Errors);
+        Assert.NotEmpty((await rv.BookAsync(new(a.Id, kate.Id, ReviewMode.Video, now.AddDays(1), null, null, null), "nurse")).Errors); // after surgery
+        var (r, errs) = await rv.BookAsync(new(a.Id, kate.Id, ReviewMode.Video, now.AddMinutes(30), null, null, "EWS 5 on admission"), "nurse");
+        Assert.Empty(errs);
+        Assert.StartsWith("https://meet.example.nz/tds-", r!.JoinLink, StringComparison.Ordinal);
+        Assert.Equal(15, r.Minutes);
+        Assert.NotEmpty((await rv.BookAsync(new(a.Id, kate.Id, ReviewMode.Phone, now.AddMinutes(35), null, "021 555 0100", null), "nurse")).Errors); // clash + already booked
+        Assert.NotNull(await rv.FinishAsync(r.Id, new(ReviewStatus.Done, null), "kford"));
+        Assert.Null(await rv.FinishAsync(r.Id, new(ReviewStatus.Done, "Reviewed by video: anxious, obs settling. Proceed with precautions."), "kford"));
+        Assert.NotNull(await rv.FinishAsync(r.Id, new(ReviewStatus.Cancelled, "x"), "kford"));
+        var list = await rv.ListAsync(null, 1, null, null);
+        Assert.Equal(ReviewStatus.Done, list.Single().Status);
     }
 }

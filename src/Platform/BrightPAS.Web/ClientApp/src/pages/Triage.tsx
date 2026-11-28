@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { api, ApiError, errText, formatDate, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
+import Modal from '../components/Modal';
 
 interface Meta {
   outcomes: { value: string; label: string }[]; staffFacts: { fact: string; label: string }[]; ruleFacts: { fact: string; label: string }[];
@@ -10,7 +11,7 @@ interface Meta {
 const errs = (e: unknown) => (e instanceof ApiError && e.body?.errors ? e.body.errors as string[] : [errText(e)]);
 export const outcomeClass = (o: string | null | undefined) =>
   o === 'Suitable' ? 'green' : o === 'SuitableWithPrecautions' ? 'blue' : o === 'MoreInformation' ? 'amber' : o === 'AnaesthetistReview' ? 'amber' : o === 'NotSuitable' ? 'red' : '';
-const TRIGGERS: Record<string, string> = { Initial: 'First triage', NewAnswers: 'New answers', NewResult: 'New results', BookingChanged: 'Booking changed', Stale: 'Re-check due', Manual: 'Re-run' };
+const TRIGGERS: Record<string, string> = { Initial: 'First triage', NewAnswers: 'New answers', NewResult: 'New results', BookingChanged: 'Booking changed', Stale: 'Re-check due', Manual: 'Re-run', Observations: 'Observations on the day' };
 
 function useMeta() {
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -18,7 +19,7 @@ function useMeta() {
   return meta;
 }
 
-const VIEWS: [string, string][] = [['open', 'To sign off'], ['review', 'Anaesthetist review'], ['moreinfo', 'More information'], ['worse', 'Got worse'], ['overdue', 'Overdue for surgery date'], ['signedoff', 'Signed off']];
+const VIEWS: [string, string][] = [['open', 'To sign off'], ['review', 'Anaesthetist review'], ['moreinfo', 'More information'], ['worse', 'Got worse'], ['overdue', 'Overdue for surgery date'], ['signedoff', 'Signed off'], ['reviews', 'Reviews booked']];
 
 /** Triage worklists. */
 export default function Triage() {
@@ -27,7 +28,7 @@ export default function Triage() {
   const view = params.get('view') ?? 'open';
   const [rows, setRows] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { setRows(null); api<any[]>(`/api/triage/worklist?view=${view}`).then(setRows).catch((e) => setError(errText(e))); }, [view]);
+  useEffect(() => { setRows(null); if (view === 'reviews') return; api<any[]>(`/api/triage/worklist?view=${view}`).then(setRows).catch((e) => setError(errText(e))); }, [view]);
   return (
     <div className="stack-lg">
       <div className="page-head row-between">
@@ -39,7 +40,7 @@ export default function Triage() {
       </div>
       <div className="tabs" role="tablist">{VIEWS.map(([k, t]) => <button key={k} role="tab" aria-selected={view === k} className={view === k ? 'on' : ''} onClick={() => setParams({ view: k })}>{t}</button>)}</div>
       {error && <p className="error" role="alert">{error}</p>}
-      <section className="card">
+      {view === 'reviews' ? <ReviewList /> : <section className="card">
         {!rows ? <p>Loading…</p> : rows.length === 0 ? <p className="muted">Nothing here.</p> : (
           <table className="results">
             <thead><tr><th>Patient</th><th>Procedure</th><th>Surgery</th><th>Suggested</th><th>Outcome</th><th>Why</th><th>Missing</th></tr></thead>
@@ -55,8 +56,98 @@ export default function Triage() {
               </tr>))}</tbody>
           </table>
         )}
-      </section>
+      </section>}
     </div>
+  );
+}
+
+const MODES: Record<string, string> = { Video: 'Video', Phone: 'Phone', InPerson: 'In person' };
+const RSTATUS: Record<string, string> = { Booked: 'Booked', Done: 'Done', DidNotAttend: 'Did not attend', Cancelled: 'Cancelled' };
+
+/** Anaesthetist reviews in the next two weeks (0.36.0). */
+function ReviewList() {
+  const [rows, setRows] = useState<any[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { api<any[]>('/api/triage/reviews?days=14').then(setRows).catch((e) => setError(errText(e))); }, []);
+  return (
+    <section className="card">
+      {error && <p className="error" role="alert">{error}</p>}
+      {!rows ? <p>Loading…</p> : rows.length === 0 ? <p className="muted">No anaesthetist reviews in the next two weeks.</p> : (
+        <table className="results">
+          <thead><tr><th>When</th><th>Patient</th><th>Anaesthetist</th><th>How</th><th>Surgery</th><th>Status</th></tr></thead>
+          <tbody>{rows.map((r) => (
+            <tr key={r.id}>
+              <td>{nzDateTime(r.startsAt)}<div className="small muted">{r.minutes} min</div></td>
+              <td><Link to={`/triage/${r.assessmentId}`}><strong>{r.patient}</strong></Link><div className="small muted">{r.nhi ?? '—'}</div></td>
+              <td>{r.anaesthetist}</td>
+              <td>{MODES[r.mode]}{r.joinLink && <div className="small"><a href={r.joinLink} target="_blank" rel="noreferrer">Join link</a></div>}{r.phone && <div className="small">{r.phone}</div>}</td>
+              <td>{r.procedure}{r.procedureDate && <div className="small muted">{formatDate(r.procedureDate)}</div>}</td>
+              <td>{RSTATUS[r.status]}</td>
+            </tr>))}</tbody>
+        </table>)}
+    </section>
+  );
+}
+
+/** Reviews for one assessment: book a video/phone/in-person review; the anaesthetist records it. */
+function Reviews({ assessmentId, canAssess, canReview, open }: { assessmentId: string; canAssess: boolean; canReview: boolean; open: boolean }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [docs, setDocs] = useState<{ id: string; name: string }[]>([]);
+  const [book, setBook] = useState<any>(null);
+  const [finish, setFinish] = useState<any>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
+  const load = useCallback(() => { api<any[]>(`/api/triage/reviews?assessmentId=${assessmentId}`).then(setRows).catch((e) => setErrors(errs(e))); }, [assessmentId]);
+  useEffect(() => { load(); api<any[]>('/api/triage/anaesthetists').then(setDocs).catch(() => setDocs([])); }, [load]);
+  const go = async (f: () => Promise<unknown>, done: string) => {
+    setErrors([]); setMsg(null);
+    try { await f(); setMsg(done); setBook(null); setFinish(null); load(); } catch (e) { setErrors(errs(e)); }
+  };
+  const booked = rows.some((r) => r.status === 'Booked');
+  return (
+    <section className="card stack">
+      <div className="row-between"><h2>Anaesthetist review</h2>
+        {canAssess && open && !booked && <button className="btn btn-light" onClick={() => { setErrors([]); setBook({ anaesthetistId: docs[0]?.id ?? '', mode: 'Video', startsAt: '', minutes: '', phone: '', reason: '' }); }}>Book review</button>}</div>
+      {errors.length > 0 && !book && !finish && <div className="error" role="alert"><ul>{errors.map((e) => <li key={e}>{e}</li>)}</ul></div>}
+      {msg && <p className="notice" role="status">{msg}</p>}
+      {rows.length === 0 ? <p className="muted">No review booked.</p> : (
+        <table className="results compact"><thead><tr><th>When</th><th>Anaesthetist</th><th>How</th><th>Status</th><th></th></tr></thead>
+          <tbody>{rows.map((r) => (
+            <tr key={r.id}>
+              <td>{nzDateTime(r.startsAt)} ({r.minutes} min){r.reason && <div className="small muted">{r.reason}</div>}</td>
+              <td>{r.anaesthetist}</td>
+              <td>{MODES[r.mode]}{r.joinLink && <div className="small"><a href={r.joinLink} target="_blank" rel="noreferrer">{r.joinLink}</a></div>}{r.phone && <div className="small">{r.phone}</div>}</td>
+              <td>{RSTATUS[r.status]}{r.outcome && <div className="small">{r.outcome}</div>}{r.doneBy && <div className="small muted">{r.doneBy} {nzDateTime(r.doneAt)}</div>}</td>
+              <td>{r.status === 'Booked' && canAssess && <button className="btn btn-link" onClick={() => { setErrors([]); setFinish({ id: r.id, status: canReview ? 'Done' : 'DidNotAttend', outcome: '' }); }}>Record review</button>}</td>
+            </tr>))}</tbody></table>)}
+      {book && (
+        <Modal title="Book an anaesthetist review" onClose={() => setBook(null)}>
+          <div className="stack">
+            {errors.length > 0 && <div className="error" role="alert"><ul>{errors.map((e) => <li key={e}>{e}</li>)}</ul></div>}
+            <div className="form-grid">
+              <label>Anaesthetist<select value={book.anaesthetistId} onChange={(e) => setBook({ ...book, anaesthetistId: e.target.value })}>{docs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+              <label>How<select value={book.mode} onChange={(e) => setBook({ ...book, mode: e.target.value })}>{Object.entries(MODES).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
+              <label>Date and time<input type="datetime-local" value={book.startsAt} onChange={(e) => setBook({ ...book, startsAt: e.target.value })} /></label>
+              <label>Minutes (blank = usual length)<input type="number" min={5} max={120} value={book.minutes} onChange={(e) => setBook({ ...book, minutes: e.target.value })} /></label>
+              {book.mode === 'Phone' && <label>Number to ring (blank = patient's mobile)<input value={book.phone} onChange={(e) => setBook({ ...book, phone: e.target.value })} /></label>}
+              <label>Reason (optional)<input value={book.reason} onChange={(e) => setBook({ ...book, reason: e.target.value })} /></label>
+            </div>
+            <div className="row"><button className="btn btn-primary" onClick={() => void go(() => api('/api/triage/reviews', { body: { assessmentId, anaesthetistId: book.anaesthetistId, mode: book.mode, startsAt: book.startsAt || null, minutes: book.minutes ? Number(book.minutes) : null, phone: book.phone || null, reason: book.reason || null } }), 'Review booked.')}>Book</button>
+              <button className="btn btn-link" onClick={() => setBook(null)}>Cancel</button></div>
+          </div>
+        </Modal>)}
+      {finish && (
+        <Modal title="Record the review" onClose={() => setFinish(null)}>
+          <div className="stack">
+            {errors.length > 0 && <div className="error" role="alert"><ul>{errors.map((e) => <li key={e}>{e}</li>)}</ul></div>}
+            <label>What happened<select value={finish.status} onChange={(e) => setFinish({ ...finish, status: e.target.value })}>
+              {canReview && <option value="Done">Review done</option>}<option value="DidNotAttend">Patient did not attend</option><option value="Cancelled">Cancel the review</option></select></label>
+            <label>{finish.status === 'Done' ? 'What the review found' : finish.status === 'Cancelled' ? 'Why it is cancelled' : 'Notes (optional)'}<textarea value={finish.outcome} onChange={(e) => setFinish({ ...finish, outcome: e.target.value })} /></label>
+            <div className="row"><button className="btn btn-primary" onClick={() => void go(() => api(`/api/triage/reviews/${finish.id}/finish`, { body: { status: finish.status, outcome: finish.outcome || null } }), 'Review recorded.')}>Save</button>
+              <button className="btn btn-link" onClick={() => setFinish(null)}>Cancel</button></div>
+          </div>
+        </Modal>)}
+    </section>
   );
 }
 
@@ -152,6 +243,7 @@ export function TriageAssessment() {
           {meta.canAssess && <div><button className="btn btn-light" onClick={() => void saveInputs()}>Save findings and re-run</button></div>}
         </section>
       </div>
+      {(open || a.suggested === 'AnaesthetistReview' || a.final === 'AnaesthetistReview') && <Reviews assessmentId={a.id} canAssess={meta.canAssess} canReview={meta.canReview} open={open} />}
       {open && meta.canAssess && (
         <section className="card stack">
           <h2>Sign off</h2>
@@ -242,6 +334,17 @@ export function TriageRules() {
             <label>Only for procedures containing (comma separated; blank = all)<input disabled={!meta.canRules} value={settings.holdProcedures ?? ''} onChange={(e) => setSettings({ ...settings, holdProcedures: e.target.value })} /></label>
             <label>Re-triage when the sign-off is older than (days, on the day of surgery)<input type="number" disabled={!meta.canRules} value={settings.retriageAfterDays} onChange={(e) => setSettings({ ...settings, retriageAfterDays: Number(e.target.value) })} /></label>
             <label>Sign off at least this many days before surgery<input type="number" disabled={!meta.canRules} value={settings.signOffDaysBefore} onChange={(e) => setSettings({ ...settings, signOffDaysBefore: Number(e.target.value) })} /></label>
+          </div>
+          <h3>Early warning score on the day</h3>
+          <label className="check"><input type="checkbox" disabled={!meta.canRules} checked={settings.ewsOnTheDay} onChange={(e) => setSettings({ ...settings, ewsOnTheDay: e.target.checked })} /> Use the early warning score from observations taken on the day of surgery (re-runs triage)</label>
+          <div className="form-grid">
+            <label>Suggest an anaesthetist review at a score of<input type="number" min={1} max={20} disabled={!meta.canRules} value={settings.ewsReviewAt} onChange={(e) => setSettings({ ...settings, ewsReviewAt: Number(e.target.value) })} /></label>
+          </div>
+          <p className="hint">Any single observation scoring 3 also suggests a review. The bands follow the HQSC adult vital signs chart; TDS's anaesthetists must confirm them before use.</p>
+          <h3>Anaesthetist reviews</h3>
+          <div className="form-grid">
+            <label>Video meeting link (use {'{code}'} for the meeting code)<input disabled={!meta.canRules} value={settings.videoLinkTemplate ?? ''} placeholder="https://meet.example.nz/tds-{code}" onChange={(e) => setSettings({ ...settings, videoLinkTemplate: e.target.value })} /></label>
+            <label>Usual review length (minutes)<input type="number" min={5} max={120} disabled={!meta.canRules} value={settings.reviewMinutes} onChange={(e) => setSettings({ ...settings, reviewMinutes: Number(e.target.value) })} /></label>
           </div>
           {meta.canRules && <div><button className="btn btn-primary" onClick={() => void run(() => api('/api/triage/settings', { method: 'PUT', body: settings }), 'Settings saved.')}>Save settings</button></div>}
         </section>

@@ -184,6 +184,19 @@ public static class TriageEndpoints
             .RequireAuthorization(Permissions.TriageApprove);
         g.MapDelete("/rulesets/{id:guid}", async (Guid id, ClaimsPrincipal u, TriageRulesService rules) => Err(await rules.DeleteDraftAsync(id, Me(u)))).RequireAuthorization(Permissions.TriageRules);
 
+        // 0.36.0 anaesthetist reviews (video, phone or in person).
+        g.MapGet("/anaesthetists", async (ReviewService rv) => Results.Ok((await rv.AnaesthetistsAsync()).Select(c => new { c.Id, c.Name }))).RequireAuthorization(Permissions.TriageAny);
+        g.MapGet("/reviews", async (DateOnly? from, int? days, Guid? anaesthetistId, Guid? assessmentId, ReviewService rv) =>
+            Results.Ok(await rv.ListAsync(from, days ?? 14, anaesthetistId, assessmentId))).RequireAuthorization(Permissions.TriageAny);
+        g.MapPost("/reviews", async (ReviewEdit e, ClaimsPrincipal u, ReviewService rv) =>
+        {
+            var (r, errors) = await rv.BookAsync(e, Me(u));
+            return r is null ? Results.BadRequest(new { errors }) : Results.Ok(new { r.Id, r.JoinLink });
+        }).RequireAuthorization(Permissions.TriageAssess);
+        g.MapPost("/reviews/{id:guid}/finish", async (Guid id, ReviewFinish f, ClaimsPrincipal u, ReviewService rv) =>
+            f.Status == ReviewStatus.Done && !Has(u, Permissions.TriageReview) ? Err("Only an anaesthetist can record the review.") : Err(await rv.FinishAsync(id, f, Me(u))))
+            .RequireAuthorization(Permissions.TriageAssess);
+
         g.MapGet("/settings", async (TriageService svc) => Results.Ok(await svc.SettingsAsync())).RequireAuthorization(Permissions.TriageAny);
         g.MapPut("/settings", async (TriageSettings s, ClaimsPrincipal u, TriageService svc) =>
             await svc.SaveSettingsAsync(s, Me(u)) is { Count: > 0 } errs ? Results.BadRequest(new { errors = errs }) : Results.Ok()).RequireAuthorization(Permissions.TriageRules);
