@@ -37,6 +37,9 @@ Filled in as the system is built.
 - Refuses when any user account exists. Demo accounts: `DemoAccounts` (password `Demo-Passphrase-2026`, shared TOTP key `BRIGHTPASDEMOKEY`), shown on the sign-in page only when demo data is present.
 - Dev loop: `tools/dev-e2e` DevDb → insert `demo.state=requested` → `run-web.sh` → wait; `flow7.js` signs in as each role through the screens.
 
+## Edit forms (pop-ups)
+Edit and add forms go in `<Modal title=… onClose=…>` (`components/Modal.tsx`), never further down the page where the user cannot see them. For an add form that is always shown and that Edit fills in, wrap it in `<EditInPopup editing={!!x.id} …>`. Keep form errors in `role="alert"` and a Cancel button inside the pop-up.
+
 ## Test robot (0.12.4, ADR 0024)
 - `tools/BrightPAS.TestBot` – see its README. Dev container: fresh demo DB (above), `run-web.sh`, then
   `dotnet run --project tools/BrightPAS.TestBot -- --url https://localhost:5001 --browser chromium --out /tmp/tb` (as root, so the simulator certificate can be trusted; restart the website once after the first trust). `--only devices` for the device scenarios only (~3 min); a full run is ~30 min.
@@ -76,6 +79,12 @@ Filled in as the system is built.
 - The consent keeps a JSON `Snapshot` of the sheet; never read the live sheet for an existing consent. `IConsentPdf` → `Web/Pdf/ConsentPdf.cs` (MigraDoc). Reminders `QueueConsentLinkAsync` (kind ConsentLink).
 - Web: `Api/ConsentEndpoints.cs` (`/api/consent/*`, public `/api/e/{token}`), `Integration/ConsentIntegration.cs` (`ConsentBookingGate`, only when licensed and the setting is on), `ConsentMerge`, journey `ConsentStage` + My list. UI: `pages/Consent.tsx` (lists, detail, sheet editor, settings, patient page `/e/:token` with `SignaturePad`).
 - Tests: `ConsentTests` (sheets, link flow, paper/withdraw/gate/merge, patient withdrawal), `ConsentPdfTests`. Robot: `ScenariosConsent.cs`.
+
+## Prescribing and barcode medicine checks (0.31.0, ADR 0044)
+- `src/Modules/BrightPAS.Modules.Prescribing`: `RxModel.cs` (schema `rx`), `Barcodes.cs` (`Gs1` pack barcode reader, `NzepsId` with ISO 7064 Mod 37,2 check character), `OrderService.cs` (medicine chart; `BcmaService` – the barcode check, lookup, link to the charted medicine, report), `PrescriptionService.cs` (prescribers, prescriptions, sign/send/cancel, FHIR bundle, PDF model).
+- The barcode check is an `IMedicineSafetyCheck` (`Web/Integration/PrescribingIntegration.cs` `BcmaGate`, registered after the 0.27 gate); `MedicineGiveCheck`/`MedicationRequest` carry `PatientBarcode` and `OrderId`. `INzepsApi` → `HttpNzepsApi` (endpoints to be confirmed with Health NZ); `IPrescriptionPdf` → `Web/Pdf/PrescriptionPdf.cs` (barcode via `Pdf/BarcodePng.cs`).
+- Web: `Api/PrescribingEndpoints.cs` (`/api/prescribing/*`), `PrescribingMerge`. UI: `pages/Prescribing.tsx` (page; `MedicineChart`, `ScanFields` and `DischargeRx` used in `EmrEpisode.tsx`).
+- Tests: `PrescribingTests`, `PrescriptionPdfTests`. Robot: `ScenariosPrescribing.cs`.
 
 ## Online payments and statements (0.30.0, ADR 0043)
 - `src/Modules/BrightPAS.Modules.Payments`: `PaymentsModel.cs` (schema `payments`), `PaymentLinkService.cs` (settings, links, public view/start/check/simulator, `CompleteAsync` – one atomic Started→result update decides who applies the money – allocation oldest first through `BillingService.RecordPaymentAsync`, needs attention, background check, merge), `StatementService.cs` (runs, send, posting batch, PDFs).

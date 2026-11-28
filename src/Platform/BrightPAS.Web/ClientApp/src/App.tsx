@@ -67,6 +67,7 @@ import Medicines from './pages/Medicines';
 import RoomsBookings from './pages/RoomsBookings';
 import Consent, { ConsentDetail, PatientConsent, SheetEditor } from './pages/Consent';
 import Payments, { PatientPay } from './pages/Payments';
+import Prescribing from './pages/Prescribing';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
 import { FlowEditor, MessagingFlows } from './pages/FlowDesigner';
 import { MappingEditor, MessagingMappings } from './pages/MappingDesigner';
@@ -125,6 +126,7 @@ export default function App() {
   const triageAny = ['triage.view', 'triage.assess', 'triage.review', 'triage.rules', 'triage.approve'].some(can);
   const medsAny = ['medicines.view', 'medicines.catalogue', 'medicines.rules', 'medicines.approve'].some(can);
   const onlinePayAny = [Perm.OnlinePayView, Perm.OnlinePayManage, Perm.OnlinePaySettings].some(can);
+  const rxAny = [Perm.RxView, Perm.RxPrescribe, Perm.RxManage].some(can);
   const consentAny = [Perm.ConsentView, Perm.ConsentManage, Perm.ConsentConfirm, Perm.ConsentSheets, Perm.ConsentApprove].some(can);
   const followAny = ['followup.view', 'followup.record', 'followup.plans', 'followup.ssi', 'followup.report'].some(can);
   const publicPaths = ['/signin', '/setup'];
@@ -170,6 +172,7 @@ export default function App() {
           <Route path="/day" element={allowed(mod('theatre') && can(Perm.TheatreView), <DayBoard />)} />
           <Route path="/triage" element={allowed(mod('triage') && triageAny, <Triage />)} />
           <Route path="/payments" element={allowed(mod('payments') && onlinePayAny, <Payments />)} />
+          <Route path="/prescribing" element={allowed(mod('prescribing') && rxAny, <Prescribing />)} />
           <Route path="/consent" element={allowed(mod('consent') && consentAny, <Consent />)} />
           <Route path="/consent/sheets/:id" element={allowed(mod('consent') && consentAny, <SheetEditor />)} />
           <Route path="/consent/:id" element={allowed(mod('consent') && consentAny, <ConsentDetail />)} />

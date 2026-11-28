@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { addDays, api, errText, nzDateTime, Perm, todayIso, type PatientSummary } from '../api';
 import { useSession } from '../App';
 import PatientPicker from '../components/PatientPicker';
+import Modal, { EditInPopup } from '../components/Modal';
 
 export const CONTEXTS: [string, string][] = [['Consultation', 'Consultation'], ['PreAnaesthetic', 'Pre-anaesthetic assessment'], ['PreAdmission', 'Nurse pre-admission call'], ['TriageCall', 'Triage phone call'],
   ['PostOpReview', 'Post-op review / follow-up call'], ['Discharge', 'Discharge'], ['FollowUpCall', 'Follow-up call']];
@@ -90,13 +91,13 @@ function Templates() {
             {can(Perm.ScribeApprove) && t.status !== 'Approved' && <button className="btn btn-link" onClick={() => act(() => api(`/api/scribe/templates/${t.id}/approve`, { body: { approve: true } }), `${t.name} approved.`)}>Approve</button>}
             {can(Perm.ScribeApprove) && t.status === 'Approved' && <button className="btn btn-link danger" onClick={() => act(() => api(`/api/scribe/templates/${t.id}/approve`, { body: { approve: false } }), `${t.name} retired.`)}>Retire</button>}</td></tr>)}</tbody></table>
       {can(Perm.ScribeManage) && !edit && <div><button className="btn btn-light" onClick={() => setEdit({ code: '', name: '', context: 'Consultation', sections: '' })}>New template</button></div>}
-      {edit && <div className="card subtle stack"><div className="form-grid">
+      {edit && <Modal title={edit.id ? `Edit ${edit.name}` : 'New template'} onClose={() => setEdit(null)}><div className="form-grid">
         <label>Code<input value={edit.code} onChange={(e) => setEdit({ ...edit, code: e.target.value })} /></label>
         <label>Name<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
         <label>Type<select value={edit.context} onChange={(e) => setEdit({ ...edit, context: e.target.value })}>{CONTEXTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label></div>
         <label>Sections – one per line, "Heading: what to put here"<textarea rows={8} value={edit.sections} onChange={(e) => setEdit({ ...edit, sections: e.target.value })} /></label>
         <div className="row"><button className="btn btn-primary" onClick={async () => { if (await act(() => api(edit.id ? `/api/scribe/templates/${edit.id}` : '/api/scribe/templates', { method: edit.id ? 'PUT' : 'POST', body: edit }), 'Saved – awaiting approval.')) setEdit(null); }}>Save</button>
-          <button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></div>}
+          <button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></Modal>}
     </div>
   );
 }
@@ -116,11 +117,11 @@ function Dictionary() {
     <div className="stack">
       <p className="hint">Names and words the speech engine must spell correctly – clinicians, staff, practices, suppliers, medicines, procedures, places and te reo Māori kupu. "Sounds like" lists what the engine tends to write instead (comma-separated).</p>
       {error && <p className="error" role="alert">{error}</p>}
-      {can(Perm.ScribeManage) && <div className="card subtle form-grid">
+      {can(Perm.ScribeManage) && <EditInPopup editing={!!f.id} title={`Edit ${f.term}`} onClose={() => setF({ term: '', soundsLike: '', category: f.category })} className="card subtle form-grid">
         <label>Term<input value={f.term} onChange={(e) => setF({ ...f, term: e.target.value })} /></label>
         <label>Sounds like<input value={f.soundsLike ?? ''} onChange={(e) => setF({ ...f, soundsLike: e.target.value })} /></label>
         <label>Category<select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>{d.categories.map((c: string) => <option key={c}>{c}</option>)}</select></label>
-        <div className="row"><button className="btn btn-primary" onClick={save}>{f.id ? 'Save' : 'Add term'}</button>{f.id && <button className="btn btn-light" onClick={() => setF({ term: '', soundsLike: '', category: f.category })}>Cancel</button>}</div></div>}
+        <div className="row"><button className="btn btn-primary" onClick={save}>{f.id ? 'Save' : 'Add term'}</button>{f.id && <button className="btn btn-light" onClick={() => setF({ term: '', soundsLike: '', category: f.category })}>Cancel</button>}</div></EditInPopup>}
       <label>Find<input value={filter} onChange={(e) => setFilter(e.target.value)} /></label>
       <table className="results compact"><thead><tr><th>Term</th><th>Sounds like</th><th>Category</th><th></th></tr></thead>
         <tbody>{rows.map((t: any) => <tr key={t.id}><td>{t.term}</td><td className="small">{t.soundsLike}</td><td>{t.category}</td>

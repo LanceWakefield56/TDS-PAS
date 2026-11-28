@@ -142,6 +142,16 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Links_Invoice', N'[payme
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Payments_Patient', N'[payments].[Payments]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Allocations_Invoice', N'[payments].[Allocations]', N'InvoiceId', N'[billing].[Documents]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_payments_Statements_Patient', N'[payments].[Statements]', N'PatientId', N'[patients].[Patients]';
+-- Prescribing and barcode medicine checks (0.31.0)
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Orders_Patient', N'[rx].[Orders]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Orders_Episode', N'[rx].[Orders]', N'EpisodeId', N'[emr].[Episodes]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Orders_Medicine', N'[rx].[Orders]', N'MedicineId', N'[meds].[Medicines]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Scans_Patient', N'[rx].[Scans]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Scans_Episode', N'[rx].[Scans]', N'EpisodeId', N'[emr].[Episodes]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Scans_Medication', N'[rx].[Scans]', N'MedicationId', N'[emr].[Medications]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Prescriptions_Patient', N'[rx].[Prescriptions]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Prescriptions_Episode', N'[rx].[Prescriptions]', N'EpisodeId', N'[emr].[Episodes]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_rx_Items_Medicine', N'[rx].[Items]', N'MedicineId', N'[meds].[Medicines]';
 GO
 
 -- ---------------------------------------------------------------------------------------------------------------

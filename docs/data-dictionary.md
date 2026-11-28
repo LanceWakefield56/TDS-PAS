@@ -567,6 +567,16 @@ DoseRules also has MinWeightKg / MaxWeightKg (body-weight band).
 | Questions | Patient questions and the team's answers | Id, ConsentId → Consents, Text, AskedAt, Answer, AnsweredAt, AnsweredBy |
 | Settings | Next number, public web address, link days, booking gate, days ahead for "To prepare" | Id = 1 |
 
+## 0.31.0 – Prescribing and barcode medicine checks (schema `rx`)
+| Table | Purpose | Key columns |
+|---|---|---|
+| Settings | Barcode check mode (Off/Advise/Enforce), warn without order, prescription sending (Off/Simulator/Nzeps), NZePS address/client id/key (protected), HPI facility id, copy folder, next prescription number | Id = 1 |
+| Prescribers | Who may prescribe | Id, UserName (unique), Name, HpiCpn, Registration, Scope, IsActive |
+| Orders | Medicine orders on the episode's chart | Id, PatientId → patients.Patients, EpisodeId → emr.Episodes, MedicineId → meds.Medicines, Medicine, Dose, Route, Kind (Once/Regular/AsNeeded), Frequency, Indication, Notes, Status (Active/Given/Stopped), PrescribedAt/By, StoppedAt/By, StopReason, TimesGiven, LastGivenAt |
+| Scans | One barcode check when a medicine was about to be charted | Id, PatientId, EpisodeId, OrderId → Orders, MedicationId → emr.Medications, Medicine, At, User, Mode, PatientScanned, PatientMatched, PackScanned, Gtin, Batch, Expiry, Serial, PackMatched, Result (Clear/Warnings/Overridden/Stopped), OverrideReason, Findings |
+| Prescriptions | Take-home prescriptions | Id, Number (unique, RX000001), NzepsId (unique, 18 characters), PatientId → patients.Patients, EpisodeId → emr.Episodes, PrescriberId → Prescribers, Status (Draft/Signed/Sent/Failed/Cancelled), Note, CreatedAt/By, SignedAt, SentAt, SendReference, SendError, CancelledAt/By, CancelReason, TimesPrinted |
+| Items | Medicines on a prescription | Id, PrescriptionId → Prescriptions, MedicineId → meds.Medicines, Medicine, NzmtId, Directions, Quantity, Unit, Repeats, Controlled |
+
 ## 0.30.0 – Online payments and statements (schema `payments`)
 | Table | Purpose | Key columns |
 |---|---|---|

@@ -90,7 +90,9 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Online payments and statements: payment links (date of birth), Windcave hosted page or simulator, results read back from the provider, applied to invoices oldest first, needs-attention list, statement runs by email/text/post with payment links – 0.30.0 (ADR 0043)
 - ☐ Payments next: Windcave merchant agreement and UAT test; refunds from BrightPAS; payment plans; automatic monthly statement runs and overdue reminders; insurer shortfall statements
 - ☐ Rooms bookings next: rooms pick a theatre slot from TDS's free time; HL7 ACK/RRI back to practice systems
-- ☐ Medicines next: barcode medicine administration (BCMA) using the pack barcodes; NZePS e-prescriptions; NZ Formulary licence check; TDS clinicians approve the medicine rules; confirm the NZULM file layout
+- ☑ Prescribing and barcode medicine checks: medicine chart (orders), barcode check when giving (wristband, GS1 pack, expiry, order; Off/Advise/Enforce), report, take-home prescriptions with NZePS barcode, NZePS client (FHIR) / simulator / folder copy – 0.31.0 (ADR 0044)
+- ☐ Prescribing next: Health NZ NZePS agreement, conformance testing and keys; confirm the prescription id generator; dispensed status back from NZePS; scan-to-chart from the pack barcode alone; regular-order dose times on the chart
+- ☐ Medicines next: NZ Formulary licence check; TDS clinicians approve the medicine rules; confirm the NZULM file layout
 - ☐ Triage next: TDS's anaesthetists agree and approve the rules; NEWS2/early-warning scores on the day (with EMR observations); anaesthetist video/phone review booking
 - ☑ Patient journey, My list, theatre day board, simpler menu – 0.23.0 (ADR 0036)
 - ☑ Post-op follow-up and SSI surveillance (spec 7.26) – 0.24.0 (ADR 0037)

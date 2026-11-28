@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.31.0 – 2026-11-28 – **Prescribing and barcode medicine checks**
+- **Prescribing module (ADR 0044, guide H38)** – licence "prescribing"; permissions View / Prescribe / Manage (Anaesthetist all three, Surgeon View and Prescribe, Nurse View, System administrator Manage); "Prescribing" under Day of surgery.
+  - **Medicine chart:** prescribers order medicines on the episode (once, regular or as needed, how often, what for); nurses press Give to chart against an order; once-only orders are then Given; stop with a reason.
+  - **Barcode check when giving a medicine:** scan the wristband and the pack (GS1 DataMatrix or linear barcode). Right patient, right medicine (or same ingredients – check the dose), not expired, ordered. Off / Advise / Enforce (default Off); someone else's wristband can never be overridden. Batch and expiry kept with the record. Barcode check report (how often scanned, every stop and override).
+  - **Prescriptions to take home:** from the clinical record (Discharge). Registered prescribers only (HPI CPN), signed by the prescriber, printed with the NZePS barcode, sent to NZePS when connected (Simulator for training), a FHIR copy to a folder as the fallback, send again, cancel (also in NZePS). Controlled drugs always need a written signature.
+  - Set-up wizard, demo data (prescribers, chart orders, barcode checks, one sent and one draft prescription), patient merge, self-test entries, reporting foreign keys.
+- Test robot: **Prescribing** steps (surgeon signs and prints; nurse barcode check incl. wrong wristband; reception cannot prescribe).
+- Also in this release – **Easier editing**:
+  - **Edit and add forms open in a pop-up window** (`components/Modal.tsx`, the browser's own dialog) instead of further down the page, where pressing Edit looked like it did nothing. About 40 forms on 25 screens: organisation set-up, fees, medicines, roster, regular theatre lists, letters, practices, printers, credentialing, CSSD, assets, stock, suppliers, scribe, messaging interfaces and tables, funders, estimates admin, follow-up plans, coding (NBRS, advice, picklist), monitors, outbox confirmations and patient contact details. Esc, Cancel or × closes; the page behind is dimmed. Full screen on phones.
+  - Forms that are always on the page for adding (endoscopy findings, polyps, tattoos, biopsies; scribe dictionary; coding picklist) stay in place for adding and open in a pop-up when Edit is pressed.
+  - Test robot: the explorer also recognises open pop-ups (`dialog[open]`) and reloads the page before pressing the next button.
+
 ## 0.30.0 – 2026-11-28 – **Online payments and statements**
 - **Online payments module (ADR 0043, guide H37)** – licence "payments"; permissions View / Send links and statements / Settings (Finance all three; Reception View and Send); "Online payments" under After surgery.
   - **Payment links:** from an invoice (Pay online › Send payment link, or make a link to copy). The patient opens it on any device, enters their date of birth (five tries then a 30-minute lock), sees what is owing and pays all or part by card on the provider's own page – card numbers never reach BrightPAS.

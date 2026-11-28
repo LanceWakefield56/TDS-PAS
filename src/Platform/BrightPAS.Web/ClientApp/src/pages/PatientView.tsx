@@ -6,6 +6,7 @@ import PatientModules from '../components/PatientModules';
 import JourneyPanel from '../components/Journey';
 import PatientRecords from '../components/PatientRecords';
 import { NhiCheck } from './Claims';
+import Modal from '../components/Modal';
 
 export default function PatientView() {
   const { id } = useParams();
@@ -101,8 +102,7 @@ export default function PatientView() {
           )}
         </section>
         {editContact && (
-          <section className="card span-all stack">
-            <h2>Edit contact and GP details</h2>
+          <Modal title="Edit contact and GP details" onClose={() => setEditContact(null)}>
             <div className="form-grid">
               {([['preferredName', 'Preferred name'], ['mobilePhone', 'Mobile'], ['homePhone', 'Home phone'], ['email', 'Email'], ['addressLine1', 'Street address'],
                 ['addressLine2', 'Address line 2'], ['suburb', 'Suburb'], ['city', 'Town / city'], ['postcode', 'Postcode']] as [string, string][]).map(([k, t]) =>
@@ -117,7 +117,7 @@ export default function PatientView() {
             <p className="hint">Name, date of birth and NHI are changed with "Correct name, date of birth or NHI" (needs a second person's approval).</p>
             {error && <p className="error" role="alert">{error}</p>}
             <div className="row"><button className="btn btn-primary" onClick={saveContact}>Save</button><button className="btn btn-light" onClick={() => setEditContact(null)}>Cancel</button></div>
-          </section>
+          </Modal>
         )}
         <section className="card">
           <div className="row-between"><h2>Contact</h2>{can(Perm.PatientEdit) && !editContact && <button className="btn btn-light btn-small" onClick={startEdit}>Edit</button>}</div>

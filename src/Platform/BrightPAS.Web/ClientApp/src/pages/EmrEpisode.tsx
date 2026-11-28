@@ -5,6 +5,7 @@ import { useSession } from '../App';
 import DictateButton from '../components/DictateButton';
 import EpisodeDevices from '../components/EpisodeDevices';
 import { Findings, MedicinePicker, ResultPill } from './Medicines';
+import { DischargeRx, MedicineChart, ScanFields } from './Prescribing';
 
 const STAGE: Record<string, string> = { PreAdmission: 'Pre-admission', Admitted: 'Admitted', InTheatre: 'In theatre', Recovery: 'Recovery', ReadyForDischarge: 'Ready for discharge', Discharged: 'Discharged', Transferred: 'Transferred to hospital' };
 const RISK: Record<string, string> = { Low: 'pill green', Moderate: 'pill', High: 'pill bad' };
@@ -59,6 +60,7 @@ export default function EmrEpisode() {
         {tab === 'meds' && <Meds {...ctx} />}
         {tab === 'notes' && <Notes {...ctx} />}
         {tab === 'discharge' && <Discharge {...ctx} />}
+        {tab === 'discharge' && mod('prescribing') && [Perm.RxView, Perm.RxPrescribe, Perm.RxManage].some(can) && <DischargeRx patientId={h.patientId} episodeId={r.episode.id} />}
       </section>}
     </div>
   );
@@ -217,8 +219,18 @@ function Obs({ r, act, write }: Ctx) {
 }
 
 function Meds({ r, act, write }: Ctx) {
-  const { mod } = useSession();
+  const { mod, can } = useSession();
   const checks = mod('medicines');
+  const rx = mod('prescribing') && [Perm.RxView, Perm.RxPrescribe, Perm.RxManage].some(can);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [chartKey, setChartKey] = useState(0);
+  const [scan, setScan] = useState({ wristband: '', orderId: '' });
+  const [rxChecks, setRxChecks] = useState<Record<string, any>>({});
+  useEffect(() => {
+    if (!rx) return;
+    api<any[]>(`/api/prescribing/episodes/${r.episode.id}/orders`).then(setOrders).catch(() => setOrders([]));
+    api<any[]>(`/api/prescribing/episodes/${r.episode.id}/checks`).then((x) => setRxChecks(Object.fromEntries(x.map((c) => [c.medicationId, c])))).catch(() => undefined);
+  }, [rx, r.episode.id, chartKey, r.medications.length]);
   const blankMed = { medicine: '', medicineId: null as string | null, dose: '', route: 'IV', barcode: '', weightKg: '', overrideReason: '' };
   const [m, setM] = useState({ ...blankMed, givenAt: localNow(), controlledDrugId: '', witnessedBy: '', notes: '' });
   const [stopped, setStopped] = useState<any[] | null>(null);
@@ -227,20 +239,22 @@ function Meds({ r, act, write }: Ctx) {
   const record = async () => {
     setStopped(null);
     const body = { medicine: m.medicine, dose: m.dose, route: m.route, givenAt: iso(m.givenAt), barcode: m.barcode || null, controlledDrugId: m.controlledDrugId || null, witnessedBy: m.witnessedBy || null, notes: m.notes || null,
-      overrideReason: m.overrideReason || null, medicineId: m.medicineId, weightKg: m.weightKg ? Number(m.weightKg) : null };
+      overrideReason: m.overrideReason || null, medicineId: m.medicineId, weightKg: m.weightKg ? Number(m.weightKg) : null, patientBarcode: scan.wristband || null, orderId: scan.orderId || null };
     const x = await act(async () => {
       try { return await api<any>(`/api/emr/episodes/${r.episode.id}/medications`, { body }); }
       catch (e: any) { if (e?.body?.findings) setStopped(e.body.findings); throw e; }
     }, (res: any) => res?.findings?.some((f: any) => f.severity !== 'Info') ? 'Recorded – see what the medicine check found below.' : 'Recorded.');
-    if (x) { if (x.findings?.some((f: any) => f.severity !== 'Info')) setStopped(x.findings); setM({ ...m, ...blankMed, route: m.route, weightKg: m.weightKg, controlledDrugId: '', witnessedBy: '' }); }
+    if (x) { if (x.findings?.some((f: any) => f.severity !== 'Info')) setStopped(x.findings); setM({ ...m, ...blankMed, route: m.route, weightKg: m.weightKg, controlledDrugId: '', witnessedBy: '' }); setScan({ wristband: '', orderId: '' }); setChartKey((k) => k + 1); }
   };
   return (
     <div className="stack">
+      {rx && <MedicineChart episodeId={r.episode.id} write={write} refreshKey={chartKey} onGive={(o) => { setM({ ...m, medicine: o.medicine, medicineId: o.medicineId, dose: o.dose, route: o.route, givenAt: localNow() }); setScan({ ...scan, orderId: o.id }); }} />}
       <h2>Medicines given</h2>
       {write && <div className="card subtle form-grid">
         {checks ? <MedicinePicker value={m} onChange={(v) => setM({ ...m, ...v })} patientId={r.header.patientId} episodeId={r.episode.id} givenAt={iso(m.givenAt)} /> : <>
           <label>Scan barcode (optional)<input value={m.barcode} onChange={(e) => setM({ ...m, barcode: e.target.value })} autoComplete="off" /></label>
           <label>Medicine<input value={m.medicine} onChange={(e) => setM({ ...m, medicine: e.target.value })} /></label></>}
+        {rx && <ScanFields patientId={r.header.patientId} wristband={scan.wristband} barcode={m.barcode} orderId={scan.orderId} orders={orders} onChange={(v) => setScan({ ...scan, ...v })} />}
         <label>Dose<input value={m.dose} onChange={(e) => setM({ ...m, dose: e.target.value })} placeholder="e.g. 1 g" /></label>
         <label>Route<select value={m.route} onChange={(e) => setM({ ...m, route: e.target.value })}>{['IV', 'IM', 'SC', 'Oral', 'SL', 'PR', 'Inhaled', 'Topical', 'Infiltration', 'Nerve block'].map((x) => <option key={x}>{x}</option>)}</select></label>
         <label>Given at<input type="datetime-local" value={m.givenAt} onChange={(e) => setM({ ...m, givenAt: e.target.value })} /></label>
@@ -250,7 +264,8 @@ function Meds({ r, act, write }: Ctx) {
       {stopped && stopped.length > 0 && <div className="med-check-box" role="status"><strong>Medicine check</strong><Findings findings={stopped} /></div>}
       {r.medications.length > 0 && <table className="results compact"><thead><tr><th>Time</th><th>Medicine</th><th>Dose / route</th><th>By</th>{checks && <th>Check</th>}</tr></thead>
         <tbody>{r.medications.map((x: any) => <tr key={x.id}><td>{nzDateTime(x.givenAt)}</td><td>{x.medicine}{x.controlled && <span className="pill">CD</span>}{x.source && x.source !== 'Manual' && <span className="pill" title={x.notes ?? ''}>{x.source}</span>}</td><td>{x.dose} {x.route}</td><td className="small">{x.givenBy}{x.witnessedBy && ` / ${x.witnessedBy}`}</td>
-          {checks && <td><ResultPill result={x.check} reason={x.overrideReason} />{x.overrideReason && <div className="small muted">Reason: {x.overrideReason}</div>}</td>}</tr>)}</tbody></table>}
+          {checks && <td><ResultPill result={x.check} reason={x.overrideReason} />{x.overrideReason && <div className="small muted">Reason: {x.overrideReason}</div>}
+            {rxChecks[x.id] && <div className="small muted">Barcode: {rxChecks[x.id].result === 'Clear' ? 'checked' : rxChecks[x.id].result.toLowerCase()}{!rxChecks[x.id].patientScanned && ', wristband not scanned'}{!rxChecks[x.id].packScanned && ', pack not scanned'}{rxChecks[x.id].batch && ` · batch ${rxChecks[x.id].batch}`}</div>}</td>}</tr>)}</tbody></table>}
       <h2>Fluid balance</h2>
       <p>In {r.fluids.totalIn} ml · out {r.fluids.totalOut} ml · balance {r.fluids.totalIn - r.fluids.totalOut} ml</p>
       {write && <div className="card subtle row">

@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import { api, errText, fileToText, formatDate, nzDateTime, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import ExportButton from '../components/ExportButton';
+import Modal, { EditInPopup } from '../components/Modal';
 
 const STATUS: Record<string, string> = { ToCode: 'To code', InProgress: 'In progress', Coded: 'Coded – ready to send', Submitted: 'Sent', Rejected: 'Returned by Health NZ', NotReportable: 'Not reported by TDS' };
 const LEVEL: Record<string, string> = { Error: 'check-must', Warning: 'warn-box', Advice: 'muted' };
@@ -244,7 +245,7 @@ function NbrsTab({ canCode, canSubmit, canManage }: { canCode: boolean; canSubmi
       {canCode && wait.length > 0 && <section className="card stack"><h2>Health NZ funded waitlist entries not yet in NBRS</h2>
         <table className="table"><thead><tr><th>Added</th><th>Patient</th><th>Procedure</th><th>Status</th><th></th></tr></thead>
           <tbody>{wait.map((w) => <tr key={w.id}><td>{formatDate(w.addedOn)}</td><td>{w.patient}</td><td>{w.procedure}</td><td>{w.status}</td><td><button className="btn btn-light" onClick={() => draft(w.id)}>Create NBRS entry</button></td></tr>)}</tbody></table></section>}
-      {edit && <section className="card stack"><h2>NBRS entry {edit.localId}</h2>
+      {edit && <Modal title={`NBRS entry ${edit.localId ?? ''}`} onClose={() => setEdit(null)}>
         <div className="form-grid">
           {F('localId', 'Local booking id (max 14)')}{F('bookingSource', 'Booking source code')}{F('referralDate', 'Date of referral', 'date')}{F('firstAssessmentDate', 'First assessment date', 'date')}
           {F('cpacDate', 'CPAC assessment date', 'date')}{F('cpacScore', 'CPAC score')}{F('cpacSystem', 'CPAC scoring system id')}{F('purchaserCode', 'Purchaser code')}
@@ -252,8 +253,8 @@ function NbrsTab({ canCode, canSubmit, canManage }: { canCode: boolean; canSubmi
           {F('professionalGroup', 'Professional group')}{F('responsibilityCode', 'Clinical responsibility code')}{F('assessorCode', 'Assessor code')}{F('assessorGroup', 'Assessor group')}
           {F('stagedFlag', 'Staged/planned flag (1–4)')}
         </div>
-        <div className="row"><button className="btn btn-primary" onClick={saveEntry}>Save entry</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></section>}
-      {ev && <section className="card stack"><h2>{lk?.nbrsKinds?.[ev.kind] ?? ev.kind}</h2>
+        <div className="row"><button className="btn btn-primary" onClick={saveEntry}>Save entry</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></Modal>}
+      {ev && <Modal title={lk?.nbrsKinds?.[ev.kind] ?? ev.kind} onClose={() => setEv(null)}>
         <div className="form-grid">
           {!['treated', 'exit', 'delete', 'erase', 'change'].includes(ev.kind) && <label>Booking status date<input type="date" value={ev.statusDate} onChange={(x) => setEv({ ...ev, statusDate: x.target.value })} /></label>}
           {ev.kind === 'certainty' && <label>Date certainty given<input type="date" value={ev.certaintyDate} onChange={(x) => setEv({ ...ev, certaintyDate: x.target.value })} /></label>}
@@ -264,7 +265,7 @@ function NbrsTab({ canCode, canSubmit, canManage }: { canCode: boolean; canSubmi
             {ev.kind === 'exit' && <label>Exit category<select value={ev.exitCategory} onChange={(x) => setEv({ ...ev, exitCategory: x.target.value })}><option value="">Choose…</option>{lk && Object.entries(lk.exitCategories).map(([k, t]: any) => <option key={k} value={k}>{k} – {t}</option>)}</select></label>}
             <label>Client system identifier (NMDS record id)<input value={ev.clientSystemId} onChange={(x) => setEv({ ...ev, clientSystemId: x.target.value })} /></label></>}
         </div>
-        <div className="row"><button className="btn btn-primary" onClick={saveEvent}>Check and add</button><button className="btn btn-light" onClick={() => setEv(null)}>Cancel</button></div></section>}
+        <div className="row"><button className="btn btn-primary" onClick={saveEvent}>Check and add</button><button className="btn btn-light" onClick={() => setEv(null)}>Cancel</button></div></Modal>}
       <section className="card stack"><h2>Entries</h2>
         {entries.length === 0 ? <p className="muted">No NBRS entries.</p> : entries.map((n) => <div key={n.id} className="subtle card stack-sm">
           <div className="row"><strong>{n.localId}</strong> {n.patient} · {n.healthSpecialty} · {n.clinicalCode}
@@ -330,13 +331,13 @@ function Tables({ canManage }: { canManage: boolean }) {
         <table className="table"><thead><tr><th>Term</th><th>Label</th><th>Procedure codes</th><th>Usual diagnosis</th><th></th></tr></thead>
           <tbody>{maps.map((x) => <tr key={x.id}><td>{x.term}</td><td>{x.label}</td><td>{x.procedureCodes}</td><td>{x.diagnosisCode}</td>
             <td>{canManage && <button className="btn btn-link" onClick={() => setM({ id: x.id, term: x.term, label: x.label, procedureCodes: x.procedureCodes, diagnosisCode: x.diagnosisCode ?? '' })}>Edit</button>}</td></tr>)}</tbody></table>
-        {canManage && <div className="form-grid">
+        {canManage && <EditInPopup editing={!!m.id} title={`Edit ${m.term}`} onClose={() => setM({ id: null, term: '', label: '', procedureCodes: '', diagnosisCode: '' })} className="form-grid">
           <label>Term<input value={m.term} onChange={(e) => setM({ ...m, term: e.target.value })} /></label>
           <label>Label<input value={m.label} onChange={(e) => setM({ ...m, label: e.target.value })} /></label>
           <label>ACHI procedure codes (space separated)<input value={m.procedureCodes} onChange={(e) => setM({ ...m, procedureCodes: e.target.value })} /></label>
           <label>Usual principal diagnosis (optional)<input value={m.diagnosisCode} onChange={(e) => setM({ ...m, diagnosisCode: e.target.value.toUpperCase() })} /></label>
           <div><button className="btn btn-primary" onClick={save}>{m.id ? 'Save changes' : 'Add to picklist'}</button></div>
-        </div>}
+        </EditInPopup>}
       </section>
     </div>
   );
@@ -361,7 +362,7 @@ function Advice({ canManage }: { canManage: boolean }) {
           <td>{SOURCES.find(([k]) => k === r.source)?.[1] ?? r.source}<div className="small">{r.edition}</div></td><td>{r.appliesToNz ? 'Yes' : 'No – not reviewed for NZ'}{r.reviewedOn && <div className="small">reviewed {formatDate(r.reviewedOn)}</div>}</td>
           <td>{r.codePrefixes}</td><td>{canManage && <button className="btn btn-link" onClick={() => setA({ ...blank, ...r, reviewedOn: r.reviewedOn ?? '', link: r.link ?? '' })}>Edit</button>}</td></tr>)}</tbody></table>
       {canManage && !a && <div><button className="btn btn-light" onClick={() => setA(blank)}>Add advice</button></div>}
-      {a && <div className="stack">
+      {a && <Modal title={a.id ? `Edit ${a.reference}` : 'Add advice'} onClose={() => setA(null)}>
         <div className="form-grid">
           <label>Reference<input value={a.reference} onChange={(e) => setA({ ...a, reference: e.target.value })} placeholder="Q3725 or ACS 0031" /></label>
           <label>Title<input value={a.title} onChange={(e) => setA({ ...a, title: e.target.value })} /></label>
@@ -375,7 +376,7 @@ function Advice({ canManage }: { canManage: boolean }) {
         <label className="check"><input type="checkbox" checked={a.appliesToNz} onChange={(e) => setA({ ...a, appliesToNz: e.target.checked })} /> Applies to NZ Twelfth Edition coding</label>
         <label className="check"><input type="checkbox" checked={a.isActive} onChange={(e) => setA({ ...a, isActive: e.target.checked })} /> In use</label>
         <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setA(null)}>Cancel</button></div>
-      </div>}
+      </Modal>}
     </section>
   );
 }

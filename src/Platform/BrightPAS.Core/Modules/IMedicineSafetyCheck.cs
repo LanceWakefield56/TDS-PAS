@@ -1,8 +1,8 @@
 namespace BrightPAS.Core.Modules;
 
-/// <summary>A medicine about to be charted as given in the clinical record (0.27.0, ADR 0040).</summary>
+/// <summary>A medicine about to be charted as given in the clinical record (0.27.0, ADR 0040). 0.31.0: the wristband scanned and the medicine order given against (ADR 0044).</summary>
 public sealed record MedicineGiveCheck(Guid PatientId, Guid EpisodeId, string Medicine, string Dose, string Route, DateTimeOffset At, string? Barcode, Guid? MedicineId,
-    decimal? WeightKg, string? OverrideReason, string User);
+    decimal? WeightKg, string? OverrideReason, string User, string? PatientBarcode = null, Guid? OrderId = null);
 
 /// <summary>One thing the check found: Kind (Allergy, Dose, Interaction, Duplicate, NotChecked), Severity (Stop, Warn, Info) and plain-English text.</summary>
 public sealed record MedicineCheckNote(string Kind, string Severity, string Text);
