@@ -75,7 +75,7 @@ public sealed class PrescriptionPdf : IPrescriptionPdf
             sign.AddText("Signature ______________________________     Date ______________");
             sec.AddParagraph(m.Sent ? "Contains a controlled drug – the prescriber's own signature is needed." : "Not sent electronically – the prescriber's own signature is needed.").Format.Font.Size = 8;
         }
-        else sign.AddText($"Signed electronically by {m.Prescriber} and sent to the NZ ePrescription Service. Any pharmacy can dispense by scanning the barcode.");
+        else sign.AddText($"Signed electronically by {m.Prescriber} and sent to the NZ electronic prescription service. Any pharmacy can dispense by scanning the barcode.");
         var hint = sec.AddParagraph("Take this to any pharmacy. Keep your medicines out of reach of children.");
         hint.Format.SpaceBefore = 8; hint.Format.Font.Size = 8; hint.Format.Font.Color = Colors.Gray;
         return PdfReports.Render(doc, null);
