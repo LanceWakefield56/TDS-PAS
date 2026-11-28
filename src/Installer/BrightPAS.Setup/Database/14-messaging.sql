@@ -634,3 +634,215 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    ALTER TABLE [msg].[Settings] ADD [NextTaskNumber] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    ALTER TABLE [msg].[Nodes] ADD [DueMinutes] int NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    ALTER TABLE [msg].[Nodes] ADD [EscalateToRole] nvarchar(60) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    ALTER TABLE [msg].[Nodes] ADD [TaskRole] nvarchar(60) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    ALTER TABLE [msg].[Nodes] ADD [TaskTitle] nvarchar(200) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    ALTER TABLE [msg].[Nodes] ADD [WaitMinutes] int NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    ALTER TABLE [msg].[Interfaces] ADD [CertificateThumbprint] nvarchar(64) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    ALTER TABLE [msg].[Interfaces] ADD [PeerThumbprint] nvarchar(64) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    ALTER TABLE [msg].[Interfaces] ADD [UseTls] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    CREATE TABLE [msg].[FlowWaits] (
+        [Id] uniqueidentifier NOT NULL,
+        [FlowId] uniqueidentifier NOT NULL,
+        [MessageId] uniqueidentifier NOT NULL,
+        [NodeKey] nvarchar(40) NOT NULL,
+        [Content] nvarchar(max) NOT NULL,
+        [Format] nvarchar(10) NOT NULL,
+        [DueAt] datetimeoffset NOT NULL,
+        [Status] nvarchar(10) NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [ReleasedAt] datetimeoffset NULL,
+        CONSTRAINT [PK_FlowWaits] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_FlowWaits_Flows_FlowId] FOREIGN KEY ([FlowId]) REFERENCES [msg].[Flows] ([Id]) ON DELETE CASCADE,
+        CONSTRAINT [FK_FlowWaits_Messages_MessageId] FOREIGN KEY ([MessageId]) REFERENCES [msg].[Messages] ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    CREATE TABLE [msg].[Tasks] (
+        [Id] uniqueidentifier NOT NULL,
+        [Number] nvarchar(10) NOT NULL,
+        [Title] nvarchar(200) NOT NULL,
+        [Detail] nvarchar(2000) NULL,
+        [Role] nvarchar(60) NOT NULL,
+        [AssignedTo] nvarchar(100) NULL,
+        [Priority] nvarchar(10) NOT NULL,
+        [Status] nvarchar(10) NOT NULL,
+        [DueAt] datetimeoffset NULL,
+        [EscalateToRole] nvarchar(60) NULL,
+        [EscalatedAt] datetimeoffset NULL,
+        [EscalatedFrom] nvarchar(60) NULL,
+        [PatientId] uniqueidentifier NULL,
+        [MessageId] uniqueidentifier NULL,
+        [FlowId] uniqueidentifier NULL,
+        [Source] nvarchar(20) NOT NULL,
+        [Outcome] nvarchar(500) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [CreatedBy] nvarchar(100) NOT NULL,
+        [DoneAt] datetimeoffset NULL,
+        [DoneBy] nvarchar(100) NULL,
+        CONSTRAINT [PK_Tasks] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_Tasks_Flows_FlowId] FOREIGN KEY ([FlowId]) REFERENCES [msg].[Flows] ([Id]) ON DELETE SET NULL,
+        CONSTRAINT [FK_Tasks_Messages_MessageId] FOREIGN KEY ([MessageId]) REFERENCES [msg].[Messages] ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    CREATE INDEX [IX_FlowWaits_FlowId] ON [msg].[FlowWaits] ([FlowId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    CREATE INDEX [IX_FlowWaits_MessageId] ON [msg].[FlowWaits] ([MessageId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    CREATE INDEX [IX_FlowWaits_Status_DueAt] ON [msg].[FlowWaits] ([Status], [DueAt]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    CREATE INDEX [IX_Tasks_DueAt] ON [msg].[Tasks] ([DueAt]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    CREATE INDEX [IX_Tasks_FlowId] ON [msg].[Tasks] ([FlowId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    CREATE INDEX [IX_Tasks_MessageId] ON [msg].[Tasks] ([MessageId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Tasks_Number] ON [msg].[Tasks] ([Number]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    CREATE INDEX [IX_Tasks_PatientId] ON [msg].[Tasks] ([PatientId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    CREATE INDEX [IX_Tasks_Status_Role] ON [msg].[Tasks] ([Status], [Role]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [msg].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128112253_WorkflowAndTls'
+)
+BEGIN
+    INSERT INTO [msg].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261128112253_WorkflowAndTls', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

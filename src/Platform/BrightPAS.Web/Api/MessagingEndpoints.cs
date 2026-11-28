@@ -44,6 +44,50 @@ public static class MessagingEndpoints
                 problems = (await svc.SearchAsync(new MessageQuery(Status: "problems", Take: 20))),
             });
         }).RequireAuthorization(View);
+        // People's tasks (0.35.0 workflow): everyone with tasks.work sees the tasks for their roles; integration managers see all.
+        static string[] Roles(ClaimsPrincipal u) => [.. u.FindAll(ClaimTypes.Role).Select(c => c.Value)];
+        static bool SeeAll(ClaimsPrincipal u) => u.HasClaim(Permissions.ClaimType, Permissions.IntegrationManage);
+        static object TaskView(WorkTask t, DateTimeOffset now) => new
+        {
+            t.Id,
+            t.Number,
+            t.Title,
+            t.Detail,
+            t.Role,
+            t.AssignedTo,
+            priority = t.Priority.ToString(),
+            status = t.Status.ToString(),
+            t.DueAt,
+            overdue = t.Status == WorkTaskStatus.Open && t.DueAt < now,
+            t.EscalateToRole,
+            t.EscalatedAt,
+            t.EscalatedFrom,
+            t.PatientId,
+            t.MessageId,
+            t.FlowId,
+            t.Source,
+            t.Outcome,
+            t.CreatedAt,
+            t.CreatedBy,
+            t.DoneAt,
+            t.DoneBy,
+        };
+        g.MapGet("/tasks", async (string? scope, ClaimsPrincipal u, WorkflowService w, TimeProvider clock) =>
+            Results.Ok((await w.ListAsync(WorkflowService.Scopes.Contains(scope) ? scope! : "mine", Roles(u), Me(u), SeeAll(u))).Select(t => TaskView(t, clock.GetUtcNow()))))
+            .RequireAuthorization(Permissions.TasksWork);
+        g.MapGet("/tasks/counts", async (ClaimsPrincipal u, WorkflowService w) => Results.Ok(await w.CountsAsync(Roles(u), Me(u)))).RequireAuthorization(Permissions.TasksWork);
+        g.MapGet("/tasks/roles", async (UserAdminService admin) => Results.Ok((await admin.RolesAsync()).Select(r => r.Name))).RequireAuthorization(Permissions.TasksWork);
+        g.MapPost("/tasks", async (TaskEdit e, ClaimsPrincipal u, WorkflowService w, UserAdminService admin) =>
+        {
+            var known = (await admin.RolesAsync()).Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
+            var (t, errors) = await w.CreateAsync(e, known, Me(u));
+            return t is null ? Errors(errors) : Results.Ok(new { t.Id, t.Number });
+        }).RequireAuthorization(Permissions.TasksWork);
+        g.MapPost("/tasks/{id:guid}/take", async (Guid id, ClaimsPrincipal u, WorkflowService w) => Done(await w.TakeAsync(id, false, Roles(u), Me(u), SeeAll(u)))).RequireAuthorization(Permissions.TasksWork);
+        g.MapPost("/tasks/{id:guid}/release", async (Guid id, ClaimsPrincipal u, WorkflowService w) => Done(await w.TakeAsync(id, true, Roles(u), Me(u), SeeAll(u)))).RequireAuthorization(Permissions.TasksWork);
+        g.MapPost("/tasks/{id:guid}/done", async (Guid id, NoteRequest r, ClaimsPrincipal u, WorkflowService w) => Done(await w.FinishAsync(id, true, r.Note, Roles(u), Me(u), SeeAll(u)))).RequireAuthorization(Permissions.TasksWork);
+        g.MapPost("/tasks/{id:guid}/cancel", async (Guid id, NoteRequest r, ClaimsPrincipal u, WorkflowService w) => Done(await w.FinishAsync(id, false, r.Note, Roles(u), Me(u), SeeAll(u)))).RequireAuthorization(Permissions.TasksWork);
+
         g.MapGet("/interfaces", async (MessagingService svc) => Results.Ok(await svc.InterfacesAsync())).RequireAuthorization(View);
         g.MapPost("/interfaces", async (InterfaceEdit e, ClaimsPrincipal u, MessagingService svc) =>
         {

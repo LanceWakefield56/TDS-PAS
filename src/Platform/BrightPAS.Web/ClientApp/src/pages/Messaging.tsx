@@ -61,7 +61,7 @@ function MessageTable({ rows }: { rows: any[] }) {
 
 // ---------------------------------------------------------------- interfaces
 const blankIface = { id: null, code: '', name: '', direction: 'Inbound', transport: 'MllpListen', format: 'Hl7v2', handler: 'None', host: '', port: 2575, folderPath: '', url: '', secret: null as string | null,
-  aeTitle: 'BRIGHTPAS', allowedClients: [] as any[], isActive: true, alertAfterFailures: 3, silentAlertHours: null as number | null, notes: '',
+  aeTitle: 'BRIGHTPAS', useTls: false, certificateThumbprint: '', peerThumbprint: '', allowedClients: [] as any[], isActive: true, alertAfterFailures: 3, silentAlertHours: null as number | null, notes: '',
   sqlText: '', pollSeconds: 300 as number | null, watermarkColumn: '' };
 
 export function MessagingInterfaces() {
@@ -105,6 +105,9 @@ export function MessagingInterfaces() {
               <option value="None">None – only run flows</option><option value="LabResults">Lab results inbox (HL7 ORU)</option><option value="DeviceObservations">Bedside monitors (HL7 ORU vital signs)</option><option value="AnaesthesiaRecord">SaferSleep anaesthetic record (HL7 ORU)</option></select></label>}
             {['MllpListen', 'DicomListen', 'MllpSend'].includes(edit.transport) && <label>Port<input type="number" value={edit.port ?? ''} onChange={(e) => setEdit({ ...edit, port: e.target.value })} /></label>}
             {edit.transport === 'MllpSend' && <label>Receiving system (host name or IP)<input value={edit.host ?? ''} onChange={(e) => setEdit({ ...edit, host: e.target.value })} /></label>}
+            {['MllpListen', 'DicomListen', 'MllpSend'].includes(edit.transport) && <label className="check"><input type="checkbox" checked={!!edit.useTls} onChange={(e) => setEdit({ ...edit, useTls: e.target.checked })} /> Encrypt the link (TLS 1.2 or 1.3)</label>}
+            {edit.useTls && ['MllpListen', 'DicomListen', 'MllpSend'].includes(edit.transport) && <label>BrightPAS certificate thumbprint{edit.transport === 'MllpSend' ? ' (optional – only if the other system asks for one)' : ''}<input value={edit.certificateThumbprint ?? ''} onChange={(e) => setEdit({ ...edit, certificateThumbprint: e.target.value })} placeholder="40 letters and numbers from the Windows certificate store" /></label>}
+            {edit.useTls && ['MllpListen', 'DicomListen', 'MllpSend'].includes(edit.transport) && <label>Other system's certificate thumbprint ({edit.transport === 'MllpSend' ? 'optional – pins the server' : 'required – only that system can connect'})<input value={edit.peerThumbprint ?? ''} onChange={(e) => setEdit({ ...edit, peerThumbprint: e.target.value })} /></label>}
             {edit.transport === 'DicomListen' && <label>BrightPAS AE title<input value={edit.aeTitle ?? ''} onChange={(e) => setEdit({ ...edit, aeTitle: e.target.value.toUpperCase() })} maxLength={16} /></label>}
             {['FolderWatch', 'FolderWrite', 'DicomListen'].includes(edit.transport) && <label>{edit.transport === 'DicomListen' ? 'Archive folder for received files (optional)' : 'Folder on the server'}<input value={edit.folderPath ?? ''} onChange={(e) => setEdit({ ...edit, folderPath: e.target.value })} placeholder="D:\Interfaces\Labs\In" /></label>}
             {edit.transport === 'HttpPost' && <label>Web address<input value={edit.url ?? ''} onChange={(e) => setEdit({ ...edit, url: e.target.value })} placeholder="https://partner.example.nz/fhir/Bundle" /></label>}
@@ -150,7 +153,7 @@ export function MessagingInterfaces() {
         <table className="results"><thead><tr><th>Name</th><th>Connection</th><th>Format</th><th>Status</th><th /></tr></thead>
           <tbody>{list.map((i) => (
             <tr key={i.id}><td data-label="Name"><strong>{i.name}</strong><div className="small muted">{i.code}</div></td>
-              <td data-label="Connection" className="small">{TRANSPORT_LABEL[i.transport]}<div className="muted">{i.port ? `port ${i.port}` : ''}{i.host ? ` ${i.host}` : ''}{i.aeTitle ? ` AE ${i.aeTitle}` : ''}{i.folderPath ?? ''}{i.url ?? ''}{i.transport === 'HttpReceive' ? `/api/integration/in/${i.code}` : ''}</div>
+              <td data-label="Connection" className="small">{TRANSPORT_LABEL[i.transport]}<div className="muted">{i.port ? `port ${i.port}` : ''}{i.host ? ` ${i.host}` : ''}{i.aeTitle ? ` AE ${i.aeTitle}` : ''}{i.useTls ? ' · TLS' : ''}{i.folderPath ?? ''}{i.url ?? ''}{i.transport === 'HttpReceive' ? `/api/integration/in/${i.code}` : ''}</div>
                 {i.allowedClients.length > 0 && <div className="muted">{i.allowedClients.map((c: any) => c.aeTitle ? `${c.aeTitle}@${c.address}` : c.address).join(', ')}</div>}</td>
               <td data-label="Format">{FORMAT_LABEL[i.format]}{i.handler !== 'None' && <div className="small muted">→ {HANDLER_LABEL[i.handler] ?? i.handler}</div>}</td>
               <td data-label="Status">{i.isActive ? <span className="badge ok">On</span> : <span className="badge off">Off</span>}</td>

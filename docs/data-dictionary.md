@@ -344,13 +344,15 @@ Sensitivity: **R** restricted (patient data), **I** internal, **S** secret (encr
 
 | Table | Key columns and meaning |
 |---|---|
-| msg.Interfaces | Id, Code (unique), Name, Direction (Inbound/Outbound), Transport (MllpListen, MllpSend, FolderWatch, FolderWrite, HttpPost, HttpReceive, DicomListen, SqlQuery, SqlWrite, Monitored), Format (Hl7v2, Fhir, Json, Dicom, Xml, X12, Text), Handler (None, LabResults), Host, Port, FolderPath, Url, AeTitle, SqlText, PollSeconds, WatermarkColumn, **Secret** (S – auth header / REST key / SQL connection string, encrypted), SystemKey (monitored modules), IsActive, AlertAfterFailures, SilentAlertHours, Notes, Created/Updated At/By. **I** |
+| msg.Interfaces | Id, Code (unique), Name, Direction (Inbound/Outbound), Transport (MllpListen, MllpSend, FolderWatch, FolderWrite, HttpPost, HttpReceive, DicomListen, SqlQuery, SqlWrite, Monitored), Format (Hl7v2, Fhir, Json, Dicom, Xml, X12, Text), Handler (None, LabResults), Host, Port, FolderPath, Url, AeTitle, SqlText, PollSeconds, WatermarkColumn, **Secret** (S – auth header / REST key / SQL connection string, encrypted), SystemKey (monitored modules), IsActive, AlertAfterFailures, SilentAlertHours, Notes, Created/Updated At/By; 0.35.0: UseTls, CertificateThumbprint, PeerThumbprint (thumbprints only – keys stay in the Windows store). **I** |
 | msg.AllowedClients | InterfaceId → Interfaces; Address (IP), AeTitle (DICOM devices), Description. **I** |
 | msg.States | InterfaceId (PK/FK); Watermark, LastPolledAt, LastRows, LastError (SQL polling). **I** |
 | msg.Messages | Id, InterfaceId, Direction, Status (Received, Processed, Queued, Sending, Sent, Failed, DeadLetter, Filtered, Recorded, Rejected), MessageType, ControlId, Reference (accession/order/letter), PatientId → patients.Patients, Nhi, **Content** (R, encrypted), Sha256, SizeBytes, Attempts, NextAttemptAt, LastError, AckCode, AckText, ParentId → Messages (routed/replayed from), FlowId → Flows, CreatedAt/By, CompletedAt. **R** |
 | msg.Events | MessageId → Messages (cascade); At, Step, Detail – each step a message went through. **R** (details may name codes) |
 | msg.Flows | Id, Name (unique), Description, IsActive, UpdatedAt/By. **I** |
-| msg.Nodes | FlowId → Flows; Kind (Input, Filter, Decision, Mapper, Output), Label, X, Y (canvas), InterfaceId, MappingId, Match (All/Any). **I** |
+| msg.Nodes | FlowId → Flows; Kind (Input, Filter, Decision, Mapper, Output, Task, Wait), Label, X, Y (canvas), InterfaceId, MappingId, Match (All/Any); 0.35.0: TaskTitle, TaskRole, DueMinutes, EscalateToRole, WaitMinutes. **I** |
+| msg.Tasks (0.35.0) | Number (unique T000001), Title, Detail, Role, AssignedTo, Priority (Normal, Urgent), Status (Open, Done, Cancelled), DueAt, EscalateToRole, EscalatedAt, EscalatedFrom, PatientId, MessageId → Messages, FlowId → Flows, Source (Staff, Flow), Outcome, CreatedAt/By, DoneAt/By. **R** |
+| msg.FlowWaits (0.35.0) | FlowId → Flows, MessageId → Messages, NodeKey, Content (message held), Format, DueAt, Status (Waiting, Released), CreatedAt, ReleasedAt. **R** |
 | msg.Conditions | NodeId → Nodes; Sequence, Source (path), Operator, Value. **I** |
 | msg.Edges | FlowId; FromNodeId, ToNodeId → Nodes; Branch (Next, Yes, No). **I** |
 | msg.Mappings | Id, Name (unique), SourceFormat, TargetFormat, Description, CreatedAt/By. **I** |
@@ -360,9 +362,9 @@ Sensitivity: **R** restricted (patient data), **I** internal, **S** secret (encr
 | msg.Tables / msg.Entries | Translation tables: Name (unique), Description, WhenMissing (PassThrough/Blank/UseDefault/Reject), DefaultValue; entries FromCode (unique per table) → ToCode, Description. **I** |
 | msg.Alerts | InterfaceId; Kind (Failures, DeadLetter, Silent, Stopped), Detail, RaisedAt, NotifiedAt, ClearedAt/By. **I** |
 | msg.McpClients | Name, **TokenHash** (SHA-256 only), IsActive, ExpiresAt, LastUsedAt, CreatedAt/By. **S** |
-| msg.Settings (single row) | MaxAttempts, AlertEmail, RequireSecondApprover, AiEnabled, AiEndpoint, AiModel, **AiKey** (S, encrypted), AiPrivacyReference, AiApprovedBy/At. **I** |
+| msg.Settings (single row) | MaxAttempts, AlertEmail, RequireSecondApprover, AiEnabled, AiEndpoint, AiModel, **AiKey** (S, encrypted), AiPrivacyReference, AiApprovedBy/At; NextTaskNumber (0.35.0). **I** |
 
-Cross-schema FK (90-reporting.sql): msg.Messages.PatientId → patients.Patients.
+Cross-schema FKs (90-reporting.sql): msg.Messages.PatientId and msg.Tasks.PatientId → patients.Patients.
 
 ## 0.13.0 – Assets & CSSD (schema assets)
 Classification letters as above (P = public/configuration, I = internal, R = restricted patient-linked). Cross-schema keys (90-reporting.sql): Equipment.LocationId → core.Locations; TrayIssues, ScopeEvents, StockMovements, Implants PatientId → patients.Patients and BookingId → theatre.Bookings; LoanSets.BookingId → theatre.Bookings.

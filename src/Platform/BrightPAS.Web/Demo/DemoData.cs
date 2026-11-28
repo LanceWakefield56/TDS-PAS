@@ -2208,6 +2208,12 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             [N("in", Msg.NodeKind.Input, 40, 120, dicom.Id), N("img", Msg.NodeKind.Mapper, 280, 120, map: dicomToHl7), N("hl7", Msg.NodeKind.Output, 520, 120, pacs.Id)],
             [new("in", "img", Msg.EdgeBranch.Next), new("img", "hl7", Msg.EdgeBranch.Next)]), "integration", ct);
         Must(f2, e2, "flow 2");
+        // 0.35.0 workflow: a patient-details change from the partner lab becomes a task for reception (escalates to the nurse in charge after 4 hours).
+        var (f3, e3) = await flows.SaveAsync(new Msg.FlowEdit(null, "Partner lab patient changes", "ADT updates from the partner lab: reception checks the patient's details.", true,
+            [N("in", Msg.NodeKind.Input, 40, 120, api.Id), new("adt", Msg.NodeKind.Filter, "Patient update?", 260, 120, null, null, Msg.MatchMode.All, [new Msg.FilterEdit("MSH-9.1", Msg.ConditionOperator.Equals, "ADT")]),
+             new("task", Msg.NodeKind.Task, "Reception checks", 480, 120, null, null, Msg.MatchMode.All, null, "Check the details the partner lab sent for {PID-5.1}, {PID-5.2} ({PID-3.1})", DefaultRoles.Reception, 240, DefaultRoles.Nurse)],
+            [new("in", "adt", Msg.EdgeBranch.Next), new("adt", "task", Msg.EdgeBranch.Next)]), "integration", ct);
+        Must(f3, e3, "flow 3");
 
         // Traffic: results posted by the partner lab and images from the endoscopy tower over the last few days.
         var n = 0;
@@ -2238,6 +2244,14 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
                 await flows.ProcessAsync(msg, svc.ContentOf(msg), ct);
             }
         }
+        // Staff tasks: one for reception with no time limit, one for nurses that is done.
+        var work = S<Msg.WorkflowService>();
+        var roleNames = DefaultRoles.Definitions.Keys.ToList();
+        var (t1, te1) = await work.CreateAsync(new Msg.TaskEdit("Ring the insurer about the pre-approval for tomorrow's list", "Southern Cross – ask for the approval number.", DefaultRoles.Reception, null, null), roleNames, "reception", ct);
+        Ok(te1, "task 1");
+        var (t2, te2) = await work.CreateAsync(new Msg.TaskEdit("Restock the recovery bay emergency trolley", null, DefaultRoles.Nurse, 120, null, Msg.WorkTaskPriority.Urgent), roleNames, "nurse", ct);
+        Ok(te2, "task 2");
+        Ok(await work.FinishAsync(t2!.Id, true, "Restocked and checked.", [DefaultRoles.Nurse], "nurse", false, ct), "task 2 done");
         // An MCP connection for AI tools (token not kept – create a new one in Messaging › MCP to use it).
         Ok((await S<Msg.McpService>().CreateAsync("Claude Desktop (demo)", 30, "integration", ct)).Error, "MCP client");
     }
