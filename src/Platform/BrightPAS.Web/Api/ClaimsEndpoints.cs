@@ -266,7 +266,7 @@ public static class ClaimsEndpoints
         {
             var (txn, error) = await t.RefundAsync(id, r.Amount, r.Reason, Me(u));
             return txn is null ? Err(error) : Results.Ok(new { txn = TxnView(txn), error });
-        }).RequireAuthorization(Permissions.ClaimsManage);
+        }).RequireAuthorization(Permissions.OnlinePayRefund);
         g.MapPost("/terminal/{id:guid}/cancel", async (Guid id, ClaimsPrincipal u, TerminalService t) => Err(await t.CancelAsync(id, Me(u)))).RequireAuthorization(Permissions.PaymentsTake);
         g.MapGet("/terminal/settlement", async (DateOnly date, TerminalService t) =>
         {
