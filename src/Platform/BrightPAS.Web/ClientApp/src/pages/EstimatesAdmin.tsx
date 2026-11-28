@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { api, ApiError, errText, formatDate, money } from '../api';
 import ExportButton from '../components/ExportButton';
+import Modal from '../components/Modal';
 
 const TABS: [string, string][] = [['templates', 'Templates'], ['procedures', 'Procedures & surgeon fees'], ['surgeons', 'Surgeons'], ['addons', 'Procedure add-ons'], ['specialties', 'Specialties'],
   ['stock', 'Stock & costing'], ['import', 'Import pricing'], ['settings', 'Settings & wording']];
@@ -66,7 +67,7 @@ function TemplatesTab({ cat, run }: Ctx) {
             </tr>))}</tbody></table>
       ))}
       {edit && (
-        <div className="card subtle stack">
+        <Modal title={`Edit ${edit.name}`} onClose={() => setEdit(null)}>
           <div className="form-grid">
             <label>Name<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
             <label>Description<input value={edit.description ?? ''} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></label>
@@ -78,7 +79,7 @@ function TemplatesTab({ cat, run }: Ctx) {
             {cat.surgeons.filter((s: any) => s.isActive).map((s: any) => <label key={s.id} className="check"><input type="checkbox" checked={edit.surgeonIds.includes(s.id)} onChange={(e) => setEdit({ ...edit, surgeonIds: e.target.checked ? [...edit.surgeonIds, s.id] : edit.surgeonIds.filter((x: string) => x !== s.id) })} /> {s.name}</label>)}
           </fieldset>
           <div className="row"><button className="btn btn-primary" onClick={() => void save()}>Save</button><button className="btn btn-light" onClick={() => setEdit(null)}>Close</button></div>
-        </div>
+        </Modal>
       )}
     </section>
   );
@@ -196,12 +197,12 @@ function SurgeonsTab({ cat, run }: Ctx) {
     render: (s) => [s.name, s.specialtyIds.map((id: string) => cat.specialties.find((x: any) => x.id === id)?.name).join(', '), s.isActive ? 'Yes' : 'Hidden'] });
   const e = ed.edit;
   return <>{ed.table}{e && (
-    <section className="card stack">
+    <Modal title={e.id ? `Edit ${e.name}` : 'New surgeon'} onClose={() => ed.setEdit(null)}>
       <label>Name<input value={e.name} onChange={(x) => ed.setEdit({ ...e, name: x.target.value })} /></label>
       <fieldset className="chips"><legend>Specialties</legend>{cat.specialties.map((s: any) => <label key={s.id} className="check"><input type="checkbox" checked={e.specialtyIds.includes(s.id)} onChange={(x) => ed.setEdit({ ...e, specialtyIds: x.target.checked ? [...e.specialtyIds, s.id] : e.specialtyIds.filter((y: string) => y !== s.id) })} /> {s.name}</label>)}</fieldset>
       <label className="check"><input type="checkbox" checked={e.isActive} onChange={(x) => ed.setEdit({ ...e, isActive: x.target.checked })} /> Active</label>
       <div className="row"><button className="btn btn-primary" onClick={() => void ed.save((v) => ({ name: v.name, clinicianId: v.clinicianId, isActive: v.isActive, specialtyIds: v.specialtyIds }))}>Save</button><button className="btn btn-light" onClick={() => ed.setEdit(null)}>Close</button></div>
-    </section>)}</>;
+    </Modal>)}</>;
 }
 
 function AddOnsTab({ cat, run }: Ctx) {
@@ -211,7 +212,7 @@ function AddOnsTab({ cat, run }: Ctx) {
     render: (a) => [a.code, a.name, `${specName(a.specialtyId)}${a.group ? ` · ${a.group}` : ''}`, money(a.fee), a.type === 'Surgeon' ? 'Adds to surgeon fee' : 'Own line (all-in)', a.isActive ? 'Yes' : 'Hidden'] });
   const e = ed.edit;
   return <>{ed.table}{e && (
-    <section className="card stack">
+    <Modal title={e.id ? `Edit ${e.name}` : 'New add-on'} onClose={() => ed.setEdit(null)}>
       <div className="form-grid">
         <label>Code<input value={e.code} onChange={(x) => ed.setEdit({ ...e, code: x.target.value.toUpperCase() })} /></label>
         <label>Name<input value={e.name} onChange={(x) => ed.setEdit({ ...e, name: x.target.value })} /></label>
@@ -224,7 +225,7 @@ function AddOnsTab({ cat, run }: Ctx) {
         <label className="check"><input type="checkbox" checked={e.isActive} onChange={(x) => ed.setEdit({ ...e, isActive: x.target.checked })} /> Active</label>
       </div>
       <div className="row"><button className="btn btn-primary" onClick={() => void ed.save((v) => ({ code: v.code, specialtyId: v.specialtyId, group: v.group, name: v.name, fee: v.fee, type: v.type, surgeonId: v.surgeonId, source: v.source, isActive: v.isActive }))}>Save</button><button className="btn btn-light" onClick={() => ed.setEdit(null)}>Close</button></div>
-    </section>)}</>;
+    </Modal>)}</>;
 }
 
 function SpecialtiesTab({ cat, run }: Ctx) {
@@ -232,12 +233,12 @@ function SpecialtiesTab({ cat, run }: Ctx) {
     render: (s) => [s.name, s.defaultNotes ?? '—', s.isActive ? 'Yes' : 'Hidden'] });
   const e = ed.edit;
   return <>{ed.table}{e && (
-    <section className="card stack">
+    <Modal title={e.id ? `Edit ${e.name}` : 'New specialty'} onClose={() => ed.setEdit(null)}>
       <label>Name<input value={e.name} onChange={(x) => ed.setEdit({ ...e, name: x.target.value })} /></label>
       <label>Default notes (put on new estimates in this specialty)<textarea value={e.defaultNotes ?? ''} onChange={(x) => ed.setEdit({ ...e, defaultNotes: x.target.value })} /></label>
       <label className="check"><input type="checkbox" checked={e.isActive} onChange={(x) => ed.setEdit({ ...e, isActive: x.target.checked })} /> Active</label>
       <div className="row"><button className="btn btn-primary" onClick={() => void ed.save((v) => ({ name: v.name, defaultNotes: v.defaultNotes, isActive: v.isActive }))}>Save</button><button className="btn btn-light" onClick={() => ed.setEdit(null)}>Close</button></div>
-    </section>)}</>;
+    </Modal>)}</>;
 }
 
 function StockTab() {

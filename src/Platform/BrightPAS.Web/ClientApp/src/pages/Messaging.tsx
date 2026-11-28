@@ -4,6 +4,7 @@ import { api, errText, fileToBase64, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
 import FileImport from '../components/FileImport';
 import { DocNode, Errors, errs, FORMAT_LABEL, FORMATS, MsgNav, StatusBadge, TRANSPORT_LABEL, TreeView } from '../components/MsgShared';
+import Modal from '../components/Modal';
 const HANDLER_LABEL: Record<string, string> = { LabResults: 'Lab results', DeviceObservations: 'Bedside monitors', AnaesthesiaRecord: 'SaferSleep record' };
 
 function Head({ title, sub }: { title: string; sub?: string }) {
@@ -93,8 +94,7 @@ export function MessagingInterfaces() {
       <Errors list={errors} />
       {can(Perm.Integration) && !edit && <div><button className="btn btn-primary" onClick={() => setEdit({ ...blankIface })}>Add interface</button></div>}
       {edit && (
-        <section className="card stack side-panel">
-          <h2>{edit.id ? `Change ${edit.name}` : 'New interface'}</h2>
+        <Modal wide title={edit.id ? `Change ${edit.name}` : 'New interface'} onClose={() => { setEdit(null); setErrors(null); }}>
           <div className="form-grid">
             <label>Name<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="e.g. Awanui lab results" /></label>
             <label>Code (short, used in logs)<input value={edit.code} onChange={(e) => setEdit({ ...edit, code: e.target.value.toLowerCase() })} placeholder="e.g. awanui-in" /></label>
@@ -138,14 +138,14 @@ export function MessagingInterfaces() {
           <label>Notes<input value={edit.notes ?? ''} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} /></label>
           <label className="check"><input type="checkbox" checked={edit.isActive} onChange={(e) => setEdit({ ...edit, isActive: e.target.checked })} /> Switched on</label>
           <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => { setEdit(null); setErrors(null); }}>Cancel</button></div>
-        </section>)}
+        </Modal>)}
       {inject && (
-        <section className="card stack side-panel"><h2>Send a test message into {inject.name}</h2>
+        <Modal wide title={`Send a test message into ${inject.name}`} onClose={() => setInject(null)}>
           <p className="hint">The message is processed exactly as if it had arrived (flows run and outputs are queued). Use synthetic test patients only.</p>
           <textarea rows={10} className="mono" value={inject.content} onChange={(e) => setInject({ ...inject, content: e.target.value })} />
           <div className="row"><button className="btn btn-primary" onClick={sendTest}>Process</button><button className="btn btn-light" onClick={() => setInject(null)}>Close</button></div>
           {inject.result && (inject.result.error ? <p className="error">{inject.result.error}</p> : <p>Result: <StatusBadge status={inject.result.status} /> {inject.result.error} <Link to={`/messaging/messages/${inject.result.messageId}`}>Open message</Link>{inject.result.ack && <code className="mono-box small">{inject.result.ack}</code>}</p>)}
-        </section>)}
+        </Modal>)}
       {!list ? <p>Loading…</p> : (
         <table className="results"><thead><tr><th>Name</th><th>Connection</th><th>Format</th><th>Status</th><th /></tr></thead>
           <tbody>{list.map((i) => (
@@ -278,8 +278,7 @@ export function MessagingTables() {
       <Errors list={errors} />
       {can(Perm.Integration) && !edit && <div><button className="btn btn-primary" onClick={() => setEdit({ id: null, name: '', description: '', whenMissing: 'PassThrough', defaultValue: '', entries: [{ from: '', to: '', description: '' }] })}>New table</button></div>}
       {edit && (
-        <section className="card stack side-panel">
-          <h2>{edit.id ? edit.name : 'New translation table'}</h2>
+        <Modal wide title={edit.id ? edit.name : 'New translation table'} onClose={() => { setEdit(null); setErrors(null); }}>
           <div className="form-grid">
             <label>Name<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
             <label>Description<input value={edit.description ?? ''} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></label>
@@ -299,7 +298,7 @@ export function MessagingTables() {
           <div className="row"><button className="btn btn-light btn-small" onClick={() => setEdit({ ...edit, entries: [...edit.entries, { from: '', to: '', description: '' }] })}>+ Code</button></div>
           <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button>
             {edit.id && <button className="btn btn-link danger" onClick={async () => { try { await api(`/api/messaging/tables/${edit.id}/delete`, { body: {} }); setEdit(null); load(); } catch (x) { setErrors(errs(x)); } }}>Delete table</button>}</div>
-        </section>)}
+        </Modal>)}
       {list && <table className="results"><thead><tr><th>Table</th><th>Codes</th><th>Missing codes</th><th>Used by</th><th>Changed</th></tr></thead>
         <tbody>{list.map((t) => <tr key={t.id}><td><button className="btn btn-link" onClick={() => open(t.id)}>{t.name}</button><div className="small muted">{t.description}</div></td><td>{t.entries}</td><td>{t.whenMissing}</td><td>{t.usedByRules} rule(s)</td><td className="small">{nzDateTime(t.updatedAt)} {t.updatedBy}</td></tr>)}</tbody></table>}
     </div>

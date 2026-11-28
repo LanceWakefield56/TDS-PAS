@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import { api, downloadPost, errText, formatDate, money, nzDateTime, Perm, PatientSummary, todayIso, addDays } from '../api';
 import { useSession } from '../App';
 import PatientPicker from '../components/PatientPicker';
+import Modal from '../components/Modal';
 
 /** Consumables and implants, implant records for recalls, and purchasing (orders, goods receipt, invoices, Xero bills). */
 export default function Stock() {
@@ -52,13 +53,13 @@ function StockList({ act }: { act: Act }) {
       <div className="row"><label className="check"><input type="checkbox" checked={low} onChange={(e) => setLow(e.target.checked)} /> Only items at or below reorder level</label>
         {can(Perm.StockManage) && <button className="btn btn-light" onClick={async () => { const r = await act(() => api('/api/assets/orders/reorder', { body: {} }), (x) => x.created.length ? `Draft orders: ${x.created.join('; ')}. Approve them on Orders.` : 'Nothing needs reordering.'); if (r) load(); }}>Draft orders for low stock</button>}
         {can(Perm.AssetsManage) && <button className="btn btn-light" onClick={() => setEdit({ code: '', name: '', unit: 'each', isImplant: false, supplierId: '', supplierCode: '', reorderLevel: 0, reorderQuantity: 0, unitCost: 0, accountCode: '', isActive: true })}>Add stock item</button>}</div>
-      {edit && <div className="card subtle stack"><div className="form-grid">
+      {edit && <Modal title={edit.id ? `Edit ${edit.name}` : 'New stock item'} onClose={() => setEdit(null)}><div className="form-grid">
         {f('code', 'Stock code')}{f('name', 'Name')}{f('unit', 'Unit (each, box…)')}
         <label>Supplier<select value={edit.supplierId ?? ''} onChange={(e) => setEdit({ ...edit, supplierId: e.target.value })}><option value="">—</option>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         {f('supplierCode', "Supplier's product code")}{f('reorderLevel', 'Reorder when down to', 'number')}{f('reorderQuantity', 'Order quantity', 'number')}{f('unitCost', 'Unit cost ($ ex GST)', 'number')}{f('accountCode', 'Xero account code')}
         <label className="check"><input type="checkbox" checked={edit.isImplant} onChange={(e) => setEdit({ ...edit, isImplant: e.target.checked })} /> Implant (recorded against the patient)</label>
         <label className="check"><input type="checkbox" checked={edit.isActive} onChange={(e) => setEdit({ ...edit, isActive: e.target.checked })} /> Active</label></div>
-        <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></div>}
+        <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></Modal>}
       {!rows ? <p>Loading…</p> : rows.length === 0 ? <p className="muted">No stock items.</p> : (
         <table className="results"><thead><tr><th>Item</th><th>On hand</th><th>On order</th><th>Reorder at</th><th>Next expiry</th></tr></thead>
           <tbody>{rows.map((r) => <tr key={r.id} className={sel?.id === r.id ? 'selected' : ''}><td><button className="btn btn-link" onClick={() => open(r)}>{r.code} {r.name}</button><div className="small muted">{r.supplier}{r.isImplant && ' · implant'}</div></td>
