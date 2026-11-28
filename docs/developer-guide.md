@@ -37,6 +37,9 @@ Filled in as the system is built.
 - Refuses when any user account exists. Demo accounts: `DemoAccounts` (password `Demo-Passphrase-2026`, shared TOTP key `BRIGHTPASDEMOKEY`), shown on the sign-in page only when demo data is present.
 - Dev loop: `tools/dev-e2e` DevDb → insert `demo.state=requested` → `run-web.sh` → wait; `flow7.js` signs in as each role through the screens.
 
+## Edit forms (pop-ups)
+Edit and add forms go in `<Modal title=… onClose=…>` (`components/Modal.tsx`), never further down the page where the user cannot see them. For an add form that is always shown and that Edit fills in, wrap it in `<EditInPopup editing={!!x.id} …>`. Keep form errors in `role="alert"` and a Cancel button inside the pop-up.
+
 ## Test robot (0.12.4, ADR 0024)
 - `tools/BrightPAS.TestBot` – see its README. Dev container: fresh demo DB (above), `run-web.sh`, then
   `dotnet run --project tools/BrightPAS.TestBot -- --url https://localhost:5001 --browser chromium --out /tmp/tb` (as root, so the simulator certificate can be trusted; restart the website once after the first trust). `--only devices` for the device scenarios only (~3 min); a full run is ~30 min.

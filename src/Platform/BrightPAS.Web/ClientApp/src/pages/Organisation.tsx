@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { api, errText } from '../api';
+import Modal from '../components/Modal';
 
 interface Loc { id: string; facilityId: string; code: string; name: string; type: string; isActive: boolean; sortOrder: number }
 interface Org {
@@ -100,8 +101,7 @@ function Rooms() {
         </div>
       ))}
       {edit && (
-        <div className="card subtle stack">
-          <h3>{edit.id ? `Edit ${edit.name}` : 'New room'}</h3>
+        <Modal title={<>{edit.id ? `Edit ${edit.name}` : 'New room'}</>} onClose={() => { setEdit(null); setErrors([]); }}>
           <div className="form-grid">
             <label>Code<input value={edit.code ?? ''} onChange={(e) => setEdit({ ...edit, code: e.target.value })} placeholder="e.g. TH2" /></label>
             <label>Name<input value={edit.name ?? ''} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
@@ -112,7 +112,7 @@ function Rooms() {
           </div>
           <Errs list={errors} />
           <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => { setEdit(null); setErrors([]); }}>Cancel</button></div>
-        </div>
+        </Modal>
       )}
     </div>
   );
@@ -134,8 +134,7 @@ function Clinicians() {
       <div className="row-between"><p className="hint">Surgeons, endoscopists and anaesthetists who work at TDS. They are suggested on theatre lists, referrals and the waitlist.</p>
         {!edit && <button className="btn btn-primary" onClick={() => setEdit({ type: 'Surgeon', isActive: true })}>Add clinician</button>}</div>
       {edit && (
-        <div className="card subtle stack">
-          <h3>{edit.id ? `Edit ${edit.name}` : 'New clinician'}</h3>
+        <Modal title={<>{edit.id ? `Edit ${edit.name}` : 'New clinician'}</>} onClose={() => { setEdit(null); setErrors([]); }}>
           <div className="form-grid">
             <label>Name (as on lists and letters)<input value={edit.name ?? ''} onChange={set('name')} placeholder="Dr Ben Hall" /></label>
             <label>Role<select value={edit.type} onChange={set('type')}>{CTYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
@@ -149,7 +148,7 @@ function Clinicians() {
           </div>
           <Errs list={errors} />
           <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => { setEdit(null); setErrors([]); }}>Cancel</button></div>
-        </div>
+        </Modal>
       )}
       {rows?.length === 0 && <p className="muted">No clinicians yet.</p>}
       {rows && rows.length > 0 && (
@@ -187,8 +186,7 @@ function Procedures() {
           {!edit && <button className="btn btn-primary" onClick={() => setEdit({ service: 'Surgical', defaultMinutes: 30, defaultAnaesthetic: 'General', sideRequired: false, isActive: true })}>Add procedure</button>}</div></div>
       {msg && <p className="notice">{msg}</p>}
       {edit && (
-        <div className="card subtle stack">
-          <h3>{edit.id ? `Edit ${edit.name}` : 'New procedure'}</h3>
+        <Modal title={<>{edit.id ? `Edit ${edit.name}` : 'New procedure'}</>} onClose={() => { setEdit(null); setErrors([]); }}>
           <div className="form-grid">
             <label>Code<input value={edit.code ?? ''} onChange={set('code')} placeholder="LAPCHOLE" /></label>
             <label>Name<input value={edit.name ?? ''} onChange={set('name')} /></label>
@@ -201,7 +199,7 @@ function Procedures() {
           </div>
           <Errs list={errors} />
           <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => { setEdit(null); setErrors([]); }}>Cancel</button></div>
-        </div>
+        </Modal>
       )}
       {rows && rows.length > 0 && (
         <table className="results compact">

@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { addDays, api, errText, formatDate, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import { RefLists, useRefData, ClinicianSelect } from '../components/RefData';
+import Modal from '../components/Modal';
 
 interface Tpl { id: string; locationId: string; locationName: string; dayOfWeek: string; startTime: string; endTime: string; type: string; surgeonId: string; surgeon: string; anaesthetistId: string | null; anaesthetist: string | null; everyWeeks: number; startsOn: string; endsOn: string | null; isActive: boolean }
 interface Loc { id: string; name: string }
@@ -42,8 +43,7 @@ export default function ListTemplates() {
         {manage && !edit && <button className="btn btn-primary" onClick={() => setEdit({ locationId: locs[0]?.id, dayOfWeek: 'Tuesday', startTime: '08:00', endTime: '12:30', type: 'Surgical', surgeonId: '', anaesthetistId: '', everyWeeks: 1, startsOn: todayIso(), endsOn: '', isActive: true })}>Add template</button>}
       </div>
       {edit && (
-        <section className="card stack">
-          <h2>{edit.id ? 'Edit template' : 'New template'}</h2>
+        <Modal title={edit.id ? 'Edit template' : 'New template'} onClose={() => { setEdit(null); setErrors([]); }}>
           <div className="form-grid">
             <label>Theatre / room<select value={edit.locationId || locs[0]?.id || ''} onChange={set('locationId')}>{locs.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
             <label>Day<select value={edit.dayOfWeek} onChange={set('dayOfWeek')}>{DAYS.map((d) => <option key={d}>{d}</option>)}</select></label>
@@ -59,7 +59,7 @@ export default function ListTemplates() {
           </div>
           {errors.length > 0 && <div className="error" role="alert">{errors.map((e) => <div key={e}>{e}</div>)}</div>}
           <div className="row"><button className="btn btn-primary" onClick={save}>Save template</button><button className="btn btn-light" onClick={() => { setEdit(null); setErrors([]); }}>Cancel</button></div>
-        </section>
+        </Modal>
       )}
       <section className="card">
         {rows?.length === 0 && <p className="muted">No templates yet.</p>}

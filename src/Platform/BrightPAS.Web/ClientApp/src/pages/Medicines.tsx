@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { api, ApiError, errText, formatDate, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
+import Modal from '../components/Modal';
 
 const errs = (e: unknown) => (e instanceof ApiError && e.body?.errors ? e.body.errors as string[] : [errText(e)]);
 const num = (v: string) => (v.trim() === '' ? null : Number(v));
@@ -200,8 +201,7 @@ function MedicineList() {
         )}
       </section>
       {edit && (
-        <section className="card stack">
-          <h2>{edit.id ? 'Edit medicine' : 'Add a medicine'}</h2>
+        <Modal title={edit.id ? 'Edit medicine' : 'Add a medicine'} onClose={() => setEdit(null)}>
           <div className="form-grid">
             <label>Name, strength and form<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Paracetamol 500 mg tablet" /></label>
             <label>Form<input value={edit.form} onChange={(e) => setEdit({ ...edit, form: e.target.value })} placeholder="tablet, injection…" /></label>
@@ -222,7 +222,7 @@ function MedicineList() {
                 <td>{edit.ingredients.length > 1 && <button className="btn btn-link danger" onClick={() => setEdit({ ...edit, ingredients: edit.ingredients.filter((_, j) => j !== n) })}>Remove</button>}</td></tr>))}</tbody></table>
           <div><button className="btn btn-light btn-small" onClick={() => setEdit({ ...edit, ingredients: [...edit.ingredients, { ingredient: '', amount: '', unit: 'mg', perMl: '' }] })}>Add an ingredient</button></div>
           <div className="row"><button className="btn btn-primary" onClick={() => void save()}>Save medicine</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div>
-        </section>
+        </Modal>
       )}
     </div>
   );

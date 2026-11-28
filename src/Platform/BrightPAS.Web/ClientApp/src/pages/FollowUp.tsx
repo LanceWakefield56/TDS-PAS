@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { addDays, api, ApiError, errText, formatDate, nzDateTime, Perm, todayIso } from '../api';
 import ExportButton from '../components/ExportButton';
+import Modal from '../components/Modal';
 
 interface Question { id: string; text: string; type: 'yesno' | 'scale' | 'choice' | 'text'; choices: string[] | null; patientForm: boolean; wound: boolean }
 interface Meta { questions: Question[]; escalations: { value: string; label: string }[]; classes: { value: string; label: string }[]; canRecord: boolean; canPlans: boolean; canSsi: boolean; canReport: boolean }
@@ -354,8 +355,7 @@ export function FollowUpPlans() {
           {can && plans.length > 0 && <button className="btn btn-light btn-small" onClick={() => setEdit({ id: null, name: '', procedureContains: '', isDefault: false, isActive: true, maxAttempts: 3, sortOrder: 50, notes: '', steps: [{ kind: 'Call', method: 'Phone', days: 1, daysWithImplant: null, workingDays: true, onlyIfHighRisk: false, assignTo: '', label: 'Next working day phone call' }] })}>New plan</button>}
         </section>
         {edit && (
-          <section className="card stack">
-            <h2>{edit.id ? edit.name : 'New plan'}</h2>
+          <Modal title={edit.id ? edit.name : 'New plan'} onClose={() => setEdit(null)}>
             <div className="form-grid">
               <label>Name<input disabled={!can} value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
               <label>For procedures containing (comma separated)<input disabled={!can || edit.isDefault} value={edit.procedureContains ?? ''} onChange={(e) => setEdit({ ...edit, procedureContains: e.target.value })} /></label>
@@ -380,7 +380,7 @@ export function FollowUpPlans() {
                 </tr>))}</tbody></table></div>
             {can && <div className="row"><button className="btn btn-light btn-small" onClick={() => setEdit({ ...edit, steps: [...edit.steps, { kind: 'Call', method: 'Phone', days: 7, daysWithImplant: null, workingDays: false, onlyIfHighRisk: false, assignTo: '', label: '' }] })}>Another contact</button>
               <button className="btn btn-primary" onClick={async () => { if (await run(() => api(edit.id ? `/api/followup/plans/${edit.id}` : '/api/followup/plans', { method: edit.id ? 'PUT' : 'POST', body: edit }), 'Plan saved.')) setEdit(null); }}>Save plan</button></div>}
-          </section>
+          </Modal>
         )}
       </>}
     </div>

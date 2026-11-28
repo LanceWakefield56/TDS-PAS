@@ -6,6 +6,7 @@ import ExportButton from '../components/ExportButton';
 import Annotator from '../components/Annotator';
 import DictateButton from '../components/DictateButton';
 import { KIND, STATUS } from './Endoscopy';
+import { EditInPopup } from '../components/Modal';
 
 type Item = { code: string; label: string };
 type Ctx = { r: any; t: any; reload: () => Promise<void>; act: (fn: () => Promise<any>, ok?: string | ((x: any) => string)) => Promise<any>; write: boolean };
@@ -315,13 +316,13 @@ function Findings({ r, t, act, write }: Ctx) {
             <td className="small">{x.sizeMm ? `${x.sizeMm} mm ` : ''}{x.description}</td>
             <td>{write && <span className="row"><button className="btn btn-link" onClick={() => setF({ ...x, grade: x.grade ?? '', sizeMm: x.sizeMm ?? '', description: x.description ?? '' })}>Edit</button>
               <button className="btn btn-link danger" onClick={() => act(() => api(`/api/endoscopy/items/findings/${x.id}`, { method: 'DELETE' }), 'Removed.')}>Remove</button></span>}</td></tr>)}</tbody></table>)}
-      {write && <div className="card subtle stack"><h2>{f.id ? `Change finding ${f.number}` : 'Add a finding'}</h2><div className="form-grid">
+      {write && <EditInPopup editing={!!f.id} title={`Change finding ${f.number}`} onClose={() => setF(blank)} className="card subtle stack">{!f.id && <h2>Add a finding</h2>}<div className="form-grid">
         <label>Site<select value={f.site} onChange={(e) => setF({ ...f, site: e.target.value })}>{all.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}</select></label>
         <label>Finding<select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value, grade: '' })}>{kinds.map((k: any) => <option key={k.code} value={k.code}>{k.label}</option>)}</select></label>
         {kind?.grades.length > 0 && <label>{kind.gradeLabel}<select value={f.grade} onChange={(e) => setF({ ...f, grade: e.target.value })}><option value="">—</option>{kind.grades.map((g: string) => <option key={g}>{g}</option>)}</select></label>}
         <label>Size (mm)<input type="number" value={f.sizeMm} onChange={(e) => setF({ ...f, sizeMm: e.target.value })} /></label>
         <label>Description<input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></label></div>
-        <div className="row"><button className="btn btn-primary" onClick={save}>{f.id ? 'Save change' : 'Add finding'}</button>{f.id && <button className="btn btn-light" onClick={() => setF(blank)}>Cancel</button>}</div></div>}
+        <div className="row"><button className="btn btn-primary" onClick={save}>{f.id ? 'Save change' : 'Add finding'}</button>{f.id && <button className="btn btn-light" onClick={() => setF(blank)}>Cancel</button>}</div></EditInPopup>}
     </div>
   );
 }
@@ -347,7 +348,7 @@ function Polyps({ r, t, act, write }: Ctx) {
             <td className="small">{x.histology ? lbl(t.histologies, x.histology) : <span className="muted">awaited</span>}</td>
             <td>{write && <span className="row"><button className="btn btn-link" onClick={() => setF({ ...x, distanceCm: x.distanceCm ?? '', nice: x.nice ?? '', jnet: x.jnet ?? '', pot: x.pot ?? '', notes: x.notes ?? '' })}>Edit</button>
               <button className="btn btn-link danger" onClick={() => act(() => api(`/api/endoscopy/items/polyps/${x.id}`, { method: 'DELETE' }), 'Removed.')}>Remove</button></span>}</td></tr>)}</tbody></table></div>)}
-      {write && <div className="card subtle stack"><h2>{f.id ? `Change polyp ${f.number}` : 'Add a polyp'}</h2><div className="form-grid">
+      {write && <EditInPopup editing={!!f.id} title={`Change polyp ${f.number}`} onClose={() => setF(blank)} className="card subtle stack">{!f.id && <h2>Add a polyp</h2>}<div className="form-grid">
         {sel('site', 'Site', all)}
         <label>Distance from anus (cm)<input type="number" value={f.distanceCm} onChange={(e) => set('distanceCm', e.target.value)} /></label>
         <label>Size (mm)<input type="number" value={f.sizeMm} onChange={(e) => set('sizeMm', e.target.value)} /></label>
@@ -360,7 +361,7 @@ function Polyps({ r, t, act, write }: Ctx) {
         <label>Clips<input type="number" value={f.clips} onChange={(e) => set('clips', e.target.value)} /></label>
         <label className="check"><input type="checkbox" checked={f.tattooed} onChange={(e) => set('tattooed', e.target.checked)} /> Tattooed (add the tattoo on the next tab)</label>
         <label>Notes<input value={f.notes} onChange={(e) => set('notes', e.target.value)} /></label></div>
-        <div className="row"><button className="btn btn-primary" onClick={save}>{f.id ? 'Save change' : 'Add polyp'}</button>{f.id && <button className="btn btn-light" onClick={() => setF(blank)}>Cancel</button>}</div></div>}
+        <div className="row"><button className="btn btn-primary" onClick={save}>{f.id ? 'Save change' : 'Add polyp'}</button>{f.id && <button className="btn btn-light" onClick={() => setF(blank)}>Cancel</button>}</div></EditInPopup>}
     </div>
   );
 }
@@ -386,7 +387,7 @@ function Therapy({ r, t, act, write }: Ctx) {
             <td>{r.polyps.find((q: any) => q.id === x.polypId)?.number ?? ''}</td>
             <td>{write && <span className="row"><button className="btn btn-link" onClick={() => setTt({ ...x, distanceCm: x.distanceCm ?? '', volumeMl: x.volumeMl ?? '', injections: x.injections ?? '', polypId: x.polypId ?? '', reason: x.reason ?? '' })}>Edit</button>
               <button className="btn btn-link danger" onClick={() => act(() => api(`/api/endoscopy/items/tattoos/${x.id}`, { method: 'DELETE' }), 'Removed.')}>Remove</button></span>}</td></tr>)}</tbody></table>}
-        {write && <div className="card subtle stack"><div className="form-grid">
+        {write && <EditInPopup editing={!!tt.id} title="Change tattoo" onClose={() => setTt(tBlank)} className="card subtle stack"><div className="form-grid">
           <label>Site<select value={tt.site} onChange={(e) => setTt({ ...tt, site: e.target.value })}>{t.lowerSites.filter((s: Item) => all.some((a) => a.code === s.code)).map((s: Item) => <option key={s.code} value={s.code}>{s.label}</option>)}</select></label>
           <label>Distance from anus (cm)<input type="number" value={tt.distanceCm} onChange={(e) => setTt({ ...tt, distanceCm: e.target.value })} /></label>
           <label>In relation to the lesion<select value={tt.position} onChange={(e) => setTt({ ...tt, position: e.target.value })}>{t.tattooPositions.map((x: string) => <option key={x}>{x}</option>)}</select></label>
@@ -395,14 +396,14 @@ function Therapy({ r, t, act, write }: Ctx) {
           <label>Injections<input type="number" value={tt.injections} onChange={(e) => setTt({ ...tt, injections: e.target.value })} /></label>
           <label>For polyp<select value={tt.polypId} onChange={(e) => setTt({ ...tt, polypId: e.target.value })}><option value="">—</option>{r.polyps.map((q: any) => <option key={q.id} value={q.id}>Polyp {q.number} – {q.sizeMm} mm {lbl(all, q.site)}</option>)}</select></label>
           <label>Reason<input value={tt.reason} onChange={(e) => setTt({ ...tt, reason: e.target.value })} placeholder="e.g. site of EMR for surveillance; suspicious lesion for surgery" /></label></div>
-          <div className="row"><button className="btn btn-primary" onClick={saveT}>{tt.id ? 'Save tattoo' : 'Add tattoo'}</button>{tt.id && <button className="btn btn-light" onClick={() => setTt(tBlank)}>Cancel</button>}</div></div>}
+          <div className="row"><button className="btn btn-primary" onClick={saveT}>{tt.id ? 'Save tattoo' : 'Add tattoo'}</button>{tt.id && <button className="btn btn-light" onClick={() => setTt(tBlank)}>Cancel</button>}</div></EditInPopup>}
       </>}
       <h2>Biopsies and therapy</h2>
       {r.therapy.length === 0 ? <p className="muted">None.</p> : <table className="results compact"><thead><tr><th>What</th><th>Site</th><th>No.</th><th>Pot</th><th>Purpose / details</th><th>Result</th><th></th></tr></thead>
         <tbody>{r.therapy.map((x: any) => <tr key={x.id}><td>{lbl(t.interventions, x.kind)}</td><td>{lbl(all, x.site)}</td><td>{x.count ?? ''}</td><td>{x.pot ?? ''}</td><td className="small">{[x.purpose, x.details].filter(Boolean).join(' – ')}</td><td>{x.result ?? ''}</td>
           <td>{write && <span className="row"><button className="btn btn-link" onClick={() => setIv({ ...x, count: x.count ?? '', pot: x.pot ?? '', purpose: x.purpose ?? '', details: x.details ?? '', result: x.result ?? '' })}>Edit</button>
             <button className="btn btn-link danger" onClick={() => act(() => api(`/api/endoscopy/items/therapy/${x.id}`, { method: 'DELETE' }), 'Removed.')}>Remove</button></span>}</td></tr>)}</tbody></table>}
-      {write && <div className="card subtle stack"><div className="form-grid">
+      {write && <EditInPopup editing={!!iv.id} title="Change biopsy or therapy" onClose={() => setIv(iBlank)} className="card subtle stack"><div className="form-grid">
         <label>What<select value={iv.kind} onChange={(e) => setIv({ ...iv, kind: e.target.value })}>{t.interventions.map((k: Item) => <option key={k.code} value={k.code}>{k.label}</option>)}</select></label>
         <label>Site<select value={iv.site} onChange={(e) => setIv({ ...iv, site: e.target.value })}>{all.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}</select></label>
         <label>Number<input type="number" value={iv.count} onChange={(e) => setIv({ ...iv, count: e.target.value })} /></label>
@@ -411,7 +412,7 @@ function Therapy({ r, t, act, write }: Ctx) {
           : <input value={iv.purpose} onChange={(e) => setIv({ ...iv, purpose: e.target.value })} />}</label>
         <label>Details<input value={iv.details} onChange={(e) => setIv({ ...iv, details: e.target.value })} /></label>
         <label>Result (e.g. CLO)<input value={iv.result} onChange={(e) => setIv({ ...iv, result: e.target.value })} /></label></div>
-        <div className="row"><button className="btn btn-primary" onClick={saveI}>{iv.id ? 'Save change' : 'Add'}</button>{iv.id && <button className="btn btn-light" onClick={() => setIv(iBlank)}>Cancel</button>}</div></div>}
+        <div className="row"><button className="btn btn-primary" onClick={saveI}>{iv.id ? 'Save change' : 'Add'}</button>{iv.id && <button className="btn btn-light" onClick={() => setIv(iBlank)}>Cancel</button>}</div></EditInPopup>}
     </div>
   );
 }

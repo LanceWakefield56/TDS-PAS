@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import { api, errText, formatDate, nzDateTime, Perm, fileToText } from '../api';
 import FileImport from '../components/FileImport';
 import { useSession } from '../App';
+import Modal from '../components/Modal';
 
 const TRAY_PILL: Record<string, string> = { Sterile: 'pill green', ExpiringSoon: 'pill', Expired: 'pill bad', Quarantine: 'pill bad', Dirty: 'pill', Washed: 'pill', Packed: 'pill', Issued: 'pill' };
 const SCOPE_PILL: Record<string, string> = { Ready: 'pill green', NeedsReprocessing: 'pill', StorageExpired: 'pill bad', Quarantined: 'pill bad', OutOfService: 'pill bad' };
@@ -236,14 +237,14 @@ function Trays() {
             <td className="actions">{can(Perm.AssetsManage) && <><button className="btn btn-link" onClick={() => setEdit({ ...s, itemsText: s.items.map((i: any) => `${i.quantity} ${i.description}`).join('\n') })}>Edit</button>
               <button className="btn btn-link" onClick={() => add(s)}>Add trays</button></>}</td></tr>)}</tbody></table>)}
       {can(Perm.AssetsManage) && !edit && <div><button className="btn btn-light" onClick={() => setEdit({ code: '', name: '', specialty: '', shelfLifeDays: 90, isActive: true, itemsText: '' })}>New tray</button></div>}
-      {edit && <div className="card subtle stack"><div className="form-grid">
+      {edit && <Modal title={edit.id ? `Edit ${edit.name}` : 'New tray'} onClose={() => setEdit(null)}><div className="form-grid">
         <label>Code<input value={edit.code} onChange={(e) => setEdit({ ...edit, code: e.target.value })} placeholder="e.g. LAPCHOLE" /></label>
         <label>Name<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
         <label>Specialty<input value={edit.specialty ?? ''} onChange={(e) => setEdit({ ...edit, specialty: e.target.value })} /></label>
         <label>Storage life (days)<input type="number" value={edit.shelfLifeDays} onChange={(e) => setEdit({ ...edit, shelfLifeDays: e.target.value })} /></label>
         <label className="check"><input type="checkbox" checked={edit.isActive} onChange={(e) => setEdit({ ...edit, isActive: e.target.checked })} /> In use</label></div>
         <label>Contents list – one item per line, quantity first (e.g. "2 Maryland grasper")<textarea rows={8} value={edit.itemsText} onChange={(e) => setEdit({ ...edit, itemsText: e.target.value })} /></label>
-        <div className="row"><button className="btn btn-primary" onClick={save}>Save tray</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></div>}
+        <div className="row"><button className="btn btn-primary" onClick={save}>Save tray</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></Modal>}
       <h2>Barcoded trays</h2>
       <label>Show<select value={status} onChange={(e) => setStatus(e.target.value)}><option value="">All</option>{['Dirty', 'Washed', 'Packed', 'Sterile', 'Issued', 'Quarantine'].map((s) => <option key={s}>{s}</option>)}</select></label>
       {!trays ? <p>Loading…</p> : trays.length === 0 ? <p className="muted">None.</p> : (
@@ -348,10 +349,10 @@ function Nonconformance() {
       {view}
       <div className="row"><label className="check"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Include closed</label>
         {can(Perm.CssdProcess) && !edit && <button className="btn btn-light" onClick={() => setEdit({ category: 'Process', description: '' })}>Raise a nonconformance</button>}</div>
-      {edit && <div className="card subtle stack"><div className="form-grid">
+      {edit && <Modal title={edit.id ? `Update ${edit.number}` : 'Raise a nonconformance'} onClose={() => setEdit(null)}><div className="form-grid">
         <label>Category<select value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value })}>{['Process', 'Failed cycle', 'Recall', 'Instrument damage', 'Missing item', 'Packaging', 'Equipment', 'Endoscope leak test failed', 'Endoscope microbiology failed', 'Supplier', 'Other'].map((c) => <option key={c}>{c}</option>)}</select></label></div>
         {f('description', 'What went wrong')}{f('immediateAction', 'Immediate action taken')}{f('rootCause', 'Root cause')}{f('correctiveAction', 'Corrective action')}{f('preventiveAction', 'Preventive action')}
-        <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></div>}
+        <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div></Modal>}
       {!rows ? <p>Loading…</p> : rows.length === 0 ? <p className="muted">No open nonconformances.</p> : (
         <table className="results"><thead><tr><th>Number</th><th>What</th><th>Status</th><th></th></tr></thead>
           <tbody>{rows.map((n) => <tr key={n.id}><td>{n.number}<div className="small muted">{formatDate(n.raisedOn)} · {n.raisedBy}</div></td><td>{n.category}<div className="small">{n.description}</div>

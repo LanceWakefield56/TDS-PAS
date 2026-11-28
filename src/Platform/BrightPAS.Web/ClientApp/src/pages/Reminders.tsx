@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { api, errText, formatDate, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
+import Modal from '../components/Modal';
 
 export const msgStatusClass = (s: string) =>
   s === 'Sent' || s === 'Delivered' ? 'green' : s === 'Failed' ? 'red' : s === 'Suppressed' ? 'amber' : s === 'Queued' || s === 'Sending' ? 'blue' : '';
@@ -127,14 +128,13 @@ function Templates() {
       <p className="hint">Keep texts short and free of clinical detail (no procedure names). Placeholders: {data.placeholders.join(' ')}. Te reo Māori versions (language “mi”) are used for patients who prefer te reo – have them written or checked by a fluent speaker before switching them on.</p>
       {error && <p className="error">{error}</p>}
       {edit && (
-        <div className="card subtle stack">
-          <h3>{kindName(edit.kind)} · {edit.channel === 'Sms' ? 'SMS' : 'Email'} · {edit.language === 'mi' ? 'te reo Māori' : 'English'}</h3>
+        <Modal title={<>{kindName(edit.kind)} · {edit.channel === 'Sms' ? 'SMS' : 'Email'} · {edit.language === 'mi' ? 'te reo Māori' : 'English'}</>} onClose={() => setEdit(null)}>
           {edit.channel === 'Email' && <label>Subject<input value={edit.subject ?? ''} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} /></label>}
           <label>Text<textarea rows={edit.channel === 'Sms' ? 4 : 10} value={edit.body} onChange={(e) => setEdit({ ...edit, body: e.target.value })} /></label>
           {edit.channel === 'Sms' && <p className="hint">{edit.body.length} characters (about {Math.max(1, Math.ceil(edit.body.length / 153))} SMS part{edit.body.length > 160 ? 's' : ''} before placeholders are filled in).</p>}
           <label className="check"><input type="checkbox" checked={edit.isActive} onChange={(e) => setEdit({ ...edit, isActive: e.target.checked })} /> In use</label>
           <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div>
-        </div>
+        </Modal>
       )}
       <table className="results compact"><thead><tr><th>Message</th><th>Channel</th><th>Language</th><th>Text</th><th></th></tr></thead>
         <tbody>{data.templates.map((t) => (
