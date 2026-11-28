@@ -522,11 +522,15 @@ public sealed class ConsentService(ConsentDbContext db, TheatreDbContext theatre
 
     // ------------------------------------------------------------------ gate and merge
     /// <summary>For the booking gate: null when the booking may be confirmed.</summary>
-    public async Task<string?> GateAsync(Guid bookingId, CancellationToken ct = default)
+    public Task<string?> GateAsync(Guid bookingId, CancellationToken ct = default) => GateAsync(db, bookingId, ct);
+
+    /// <summary>Needs only the database, so the booking gate does not pull in ConsentService (which depends on Reminders → Theatre → the gates).</summary>
+    public static async Task<string?> GateAsync(ConsentDbContext db, Guid bookingId, CancellationToken ct = default)
     {
-        if (!(await SettingsAsync(ct)).RequireBeforeConfirm) return null;
-        var c = await ForBookingAsync(bookingId, ct);
-        return c is { Status: ConsentStatus.Signed or ConsentStatus.Confirmed } ? null : "The patient's consent is not signed yet (Consent). TDS requires it before a booking is confirmed.";
+        if (await db.Settings.AsNoTracking().Select(s => (bool?)s.RequireBeforeConfirm).SingleOrDefaultAsync(ct) != true) return null;
+        var status = await db.Consents.AsNoTracking().Where(c => c.BookingId == bookingId && c.Status != ConsentStatus.Withdrawn)
+            .OrderByDescending(c => c.CreatedAt).Select(c => (ConsentStatus?)c.Status).FirstOrDefaultAsync(ct);
+        return status is ConsentStatus.Signed or ConsentStatus.Confirmed ? null : "The patient's consent is not signed yet (Consent). TDS requires it before a booking is confirmed.";
     }
 
     public async Task<int> MergeAsync(Guid survivorId, Guid duplicateId, CancellationToken ct = default) =>
