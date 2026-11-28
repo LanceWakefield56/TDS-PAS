@@ -24,7 +24,7 @@ public sealed record ModuleRow(string Id, string Name, string Description, bool 
 public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, AuditWriter audit, TimeProvider clock, IServiceProvider sp, IConfiguration config)
 {
     /// <summary>Modules that are built and have a set-up wizard.</summary>
-    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "medicines", "followup", "claims", "ebookings", "consent"];
+    public static readonly string[] WithWizard = ["theatre", "referrals", "labs", "forms", "billing", "reminders", "letters", "rostering", "credentialing", "portal", "messaging", "assets", "emr", "endoscopy", "scribe", "devices", "quality", "reporting", "estimates", "triage", "medicines", "followup", "claims", "ebookings", "consent", "payments"];
 
     public async Task<IReadOnlyDictionary<string, bool>> SetUpModulesAsync(CancellationToken ct = default) =>
         (await core.ModuleSetup.AsNoTracking().Select(m => m.ModuleId).ToListAsync(ct)).ToDictionary(m => m, _ => true, StringComparer.OrdinalIgnoreCase);
@@ -76,6 +76,7 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
         "medicines" => await MedicinesChecksAsync(ct),
         "ebookings" => await EBookingsChecksAsync(ct),
         "consent" => await ConsentChecksAsync(ct),
+        "payments" => await PaymentsChecksAsync(ct),
         "followup" => await FollowUpChecksAsync(ct),
         "claims" => await ClaimsChecksAsync(ct),
         _ => []
@@ -383,6 +384,26 @@ public sealed class ModuleSetupService(PasDbContext core, LicenceCache licence, 
                 reminders.SmsProvider is not (BrightPAS.Modules.Reminders.SmsProvider.TestOutbox or BrightPAS.Modules.Reminders.SmsProvider.Off) || reminders.EmailProvider is not (BrightPAS.Modules.Reminders.EmailProvider.TestOutbox or BrightPAS.Modules.Reminders.EmailProvider.Off), "Uses the Reminders settings.", true, "Open reminders", "/reminders", Permissions.RemindersManage),
             new("gate", "Require signed consent before confirming a booking", "Optional: theatre cannot confirm a booking until the consent is signed. Off by default.",
                 s.RequireBeforeConfirm, s.RequireBeforeConfirm ? "On." : "Off.", true, "Open settings", "/consent?tab=settings", Permissions.ConsentSheets),
+        ];
+    }
+
+    private async Task<IReadOnlyList<SetupCheck>> PaymentsChecksAsync(CancellationToken ct)
+    {
+        var s = await Svc<BrightPAS.Modules.Payments.PaymentLinkService>().SettingsAsync(ct);
+        var reminders = await Svc<BrightPAS.Modules.Reminders.ReminderService>().SettingsAsync(ct);
+        var finance = await UsersWithAsync(Permissions.OnlinePayManage, ct);
+        var windcaveReady = s.Provider != BrightPAS.Modules.Payments.GatewayProvider.Windcave || s.WindcaveUser is not null && s.WindcaveKeyProtected is not null;
+        return
+        [
+            new("provider", "Payment provider", "Choose how patients pay by card online. Windcave needs a merchant agreement and API key from Windcave; the Simulator is for training (no money moves).",
+                s.Provider != BrightPAS.Modules.Payments.GatewayProvider.Off && windcaveReady, s.Provider switch { BrightPAS.Modules.Payments.GatewayProvider.Off => "Off.", BrightPAS.Modules.Payments.GatewayProvider.Simulator => "Simulator (training – no money moves).", _ => windcaveReady ? "Windcave." : "Windcave – API user or key missing." },
+                false, "Open settings", "/payments?tab=settings", Permissions.OnlinePaySettings),
+            new("url", "Public web address for payment links", "The address patients use from home to open their payment link (the same published address as the patient portal).",
+                s.PublicUrl is not null, s.PublicUrl ?? "Not set.", false, "Open settings", "/payments?tab=settings", Permissions.OnlinePaySettings),
+            new("staff", "Staff who send links and statements", "Finance and reception send payment links; Finance prepares statements (adjust in roles).",
+                finance > 0, $"{finance} can send links and statements.", false, "Open roles", "/admin/roles", Permissions.UsersManage),
+            new("sending", "Text and email sending", "Payment links and statements are sent by text and email through Reminders. Without it, staff copy the link and statements are posted.",
+                reminders.SmsProvider is not (BrightPAS.Modules.Reminders.SmsProvider.TestOutbox or BrightPAS.Modules.Reminders.SmsProvider.Off) || reminders.EmailProvider is not (BrightPAS.Modules.Reminders.EmailProvider.TestOutbox or BrightPAS.Modules.Reminders.EmailProvider.Off), "Uses the Reminders settings.", true, "Open reminders", "/reminders", Permissions.RemindersManage),
         ];
     }
 

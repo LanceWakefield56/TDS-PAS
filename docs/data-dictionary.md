@@ -566,3 +566,13 @@ DoseRules also has MinWeightKg / MaxWeightKg (body-weight band).
 | Consents | Consent for one booking: the sheet as read (Snapshot JSON), link, signature, confirmation, withdrawal | Id, Number (unique), PatientId → patients.Patients, BookingId → theatre.Bookings, SheetId → Sheets, Status, Method (Online/Paper), ClinicianId → core.Clinicians, ExtraRisks, TokenHash, LinkExpiresAt, FailedAttempts, LockedUntil, SectionsRead, Signer, SignerName, SignerRelationship, Interpreter, SignatureImage (encrypted), SignedAt, DocumentId → patients.Documents, ConfirmedAt/By, WithdrawnAt/By/Reason |
 | Questions | Patient questions and the team's answers | Id, ConsentId → Consents, Text, AskedAt, Answer, AnsweredAt, AnsweredBy |
 | Settings | Next number, public web address, link days, booking gate, days ahead for "To prepare" | Id = 1 |
+
+## 0.30.0 – Online payments and statements (schema `payments`)
+| Table | Purpose | Key columns |
+|---|---|---|
+| Settings | Provider (Off/Simulator/Windcave), public web address, link days, minimum part-payment, Windcave address/user/key (protected), statement minimum and message, next statement number | Id = 1 |
+| Links | Secret payment links (hash only) for one invoice or one statement | Id, PatientId → patients.Patients, InvoiceId → billing.Documents, StatementId → Statements, TokenHash (unique), Status (Open/Paid/Cancelled), CreatedAt/By, ExpiresAt, LastOpenedAt, FailedAttempts, LockedUntil, CancelledAt/By |
+| Payments | Each online payment attempt | Id, PayLinkId → Links, PatientId → patients.Patients, Amount, Status (Started/Approved/Declined/Cancelled/Failed), Provider, SessionId, MerchantReference (unique), CardType, Last4, AuthCode, ResponseText, StartedAt, CompletedAt, NeedsAttention, AttentionReason, ResolvedAt/By/Note |
+| Allocations | How an approved payment was split over invoices (one Billing payment each) | Id, OnlinePaymentId → Payments, InvoiceId → billing.Documents, InvoiceNumber, Amount |
+| Runs | Statement runs | Id, StatementDate, CreatedAt/By, Count, Total, SentAt/By |
+| Statements | One patient's statement: invoices owing on the statement date (Snapshot JSON) | Id, RunId → Runs, Number (unique, ST000001), PatientId → patients.Patients, StatementDate, TotalDue, Overdue, Delivery (Email/Sms/Post), Status (Prepared/Sent/Printed/NotSent), SentAt, Note |

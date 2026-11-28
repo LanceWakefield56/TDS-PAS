@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting', 'estimates', 'triage', 'medicines', 'followup', 'claims', 'ebookings', 'consent'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting', 'estimates', 'triage', 'medicines', 'followup', 'claims', 'ebookings', 'consent', 'payments'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -74,11 +74,12 @@ export default function Shell() {
             {mod('devices') && (can(Perm.DevicesUse) || can(Perm.DevicesManage)) && <NavLink to="/devices">Monitors &amp; SaferSleep</NavLink>}
             {mod('assets') && can(Perm.AssetsView) && <NavLink to="/cssd">Sterile services (CSSD)</NavLink>}
           </Group>
-          <Group title="After surgery" paths={['/labs', '/billing', '/claims', '/coding', '/followup/ssi', '/followup/report']}>
+          <Group title="After surgery" paths={['/labs', '/billing', '/payments', '/claims', '/coding', '/followup/ssi', '/followup/report']}>
             {mod('labs') && can(Perm.LabsView) && <NavLink to="/labs">Lab results</NavLink>}
             {mod('followup') && (can(Perm.FollowUpView) || can(Perm.FollowUpSsi)) && <NavLink to="/followup/ssi">SSI surveillance</NavLink>}
             {mod('followup') && can(Perm.FollowUpReport) && <NavLink to="/followup/report">Follow-up report</NavLink>}
             {mod('billing') && can(Perm.BillingView) && <NavLink to="/billing">Invoices &amp; payments</NavLink>}
+            {mod('payments') && [Perm.OnlinePayView, Perm.OnlinePayManage, Perm.OnlinePaySettings].some(can) && <NavLink to="/payments">Online payments</NavLink>}
             {mod('claims') && (can(Perm.ClaimsView) || can(Perm.ClaimsManage) || can(Perm.ClaimsAdmin)) && <NavLink to="/claims" end>ACC &amp; insurer claims</NavLink>}
             {mod('claims') && can(Perm.PaymentsTake) && !can(Perm.ClaimsView) && <NavLink to="/claims/eftpos">EFTPOS today</NavLink>}
             {mod('reporting') && (can(Perm.CodingCode) || can(Perm.CodingSubmit) || can(Perm.CodingManage)) && <NavLink to="/coding">Coding &amp; reporting</NavLink>}

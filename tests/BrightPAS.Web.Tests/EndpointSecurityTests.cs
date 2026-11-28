@@ -48,6 +48,13 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
         ("/api/e/{token}/ask", "Patient e-consent: ask the surgeon a question.", true),
         ("/api/e/{token}/sign", "Patient e-consent: sign.", true),
         ("/api/e/{token}/withdraw", "Patient e-consent: withdraw consent.", true),
+        ("/api/pay/{token}/", "Patient payment link: secret link + date of birth, lockout after 5 attempts.", true),
+        ("/api/pay/{token}/open", "Patient payment link: see what is owing.", true),
+        ("/api/pay/{token}/start", "Patient payment link: start a card payment on the provider's hosted page (card numbers never reach BrightPAS).", true),
+        ("/api/pay/{token}/check", "Patient payment link: back from the provider; BrightPAS asks the provider for the result itself.", true),
+        ("/api/pay/{token}/simulator", "Patient payment link: training simulator (refused unless the simulator is switched on).", true),
+        ("/api/pay/{token}/statement", "Patient payment link: statement PDF after the date of birth check.", true),
+        ("/api/pay-notify/", "Windcave notification: only a nudge – BrightPAS asks Windcave for the result itself; unknown sessions get 404.", true),
         ("/api/scribe/inbound", "External scribe (Medow) returning a draft: bearer token, SHA-256 stored, constant-time check; licence checked; draft stays unsigned.", true),
         ("/api/hooks/sms/{key}/inbound", "SMS vendor callback: secret key in URL, constant-time check.", true),
         ("/api/hooks/sms/{key}/status", "SMS vendor callback: secret key in URL, constant-time check.", true),
@@ -69,7 +76,7 @@ public class EndpointSecurityTests(PasWebFactory factory) : IClassFixture<PasWeb
     private static readonly (string Prefix, string? Module)[] Areas =
     [
         ("/api/labs", "labs"), ("/api/theatre", "theatre"), ("/api/forms", "forms"), ("/api/q/", "forms"), ("/api/billing", "billing"),
-        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/ebookings", "ebookings"), ("/api/consent", "consent"), ("/api/e/", "consent"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/mcp", "messaging"), ("/api/assets", "assets"), ("/api/emr", "emr"), ("/api/endoscopy", "endoscopy"), ("/api/scribe", "scribe"), ("/api/devices", "devices"), ("/api/imports/labs", "labs"), ("/api/imports/monitors", "devices"), ("/api/imports/safersleep", "devices"), ("/api/quality", "quality"), ("/api/coding", "reporting"), ("/api/estimates", "estimates"), ("/api/triage", "triage"), ("/api/medicines", "medicines"), ("/api/followup", "followup"), ("/api/c/", "followup"), ("/api/journey", null), ("/api/outbox", null), ("/api/research", "reporting"), ("/api/claims", "claims"), ("/api/identity", "claims"), ("/api/export-policy", null),
+        ("/api/reminders", "reminders"), ("/api/hooks/sms", "reminders"), ("/api/referrals", "referrals"), ("/api/ebookings", "ebookings"), ("/api/consent", "consent"), ("/api/e/", "consent"), ("/api/payments", "payments"), ("/api/pay/", "payments"), ("/api/pay-notify", "payments"), ("/api/waitlist", "referrals"), ("/api/letters", "letters"), ("/api/roster", "rostering"), ("/api/credentialing", "credentialing"), ("/api/portal", "portal"), ("/api/my/", "portal"), ("/api/messaging", "messaging"), ("/api/integration/in", "messaging"), ("/api/mcp", "messaging"), ("/api/assets", "assets"), ("/api/emr", "emr"), ("/api/endoscopy", "endoscopy"), ("/api/scribe", "scribe"), ("/api/devices", "devices"), ("/api/imports/labs", "labs"), ("/api/imports/monitors", "devices"), ("/api/imports/safersleep", "devices"), ("/api/quality", "quality"), ("/api/coding", "reporting"), ("/api/estimates", "estimates"), ("/api/triage", "triage"), ("/api/medicines", "medicines"), ("/api/followup", "followup"), ("/api/c/", "followup"), ("/api/journey", null), ("/api/outbox", null), ("/api/research", "reporting"), ("/api/claims", "claims"), ("/api/identity", "claims"), ("/api/export-policy", null),
         ("/api/patients", null), ("/api/admin", null), ("/api/audit", null), ("/api/auth", null), ("/api/setup", null), ("/api/me", null),
         ("/api/organisation", null), ("/api/{**rest}", null), ("/health", null), ("/{*path", null),
     ];
