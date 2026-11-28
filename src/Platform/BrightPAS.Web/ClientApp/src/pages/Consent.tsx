@@ -470,7 +470,7 @@ export function PatientConsent() {
                 <h2>{s.title}</h2>
                 {s.text && s.text.split('\n').filter(Boolean).map((l: string, i: number) => <p key={i}>{l}</p>)}
                 {s.risks && <ul>{s.risks.map((r: any, i: number) => <li key={i}>{r.serious && <strong>Serious: </strong>}{r.text} – <span className="muted">{r.frequency}</span></li>)}</ul>}
-                <label className="check"><input type="checkbox" checked={read.includes(s.key)} disabled={read.includes(s.key)} onChange={async () => { setErrors([]); try { const r = await api<any>(`/api/e/${token}/read`, { body: { dateOfBirth: dob, section: s.key } }); setRead(r.read); } catch (x) { fail(x); } }} /> I have read this</label>
+                <label className="check"><input type="checkbox" checked={read.includes(s.key)} disabled={read.includes(s.key)} onChange={async () => { setErrors([]); const before = read; setRead([...read, s.key]); try { const r = await api<any>(`/api/e/${token}/read`, { body: { dateOfBirth: dob, section: s.key } }); setRead(r.read); } catch (x) { setRead(before); fail(x); } }} /> I have read this</label>
               </section>))}
             {v.links.length > 0 && <section className="card stack-sm"><h2>Videos and more information</h2><ul>{v.links.map((l: any) => <li key={l.url}><a href={l.url} target="_blank" rel="noreferrer">{l.title}</a></li>)}</ul></section>}
             <section className="card stack">

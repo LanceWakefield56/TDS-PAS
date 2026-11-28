@@ -51,7 +51,10 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            R.Add(Area, "", device, check, Outcome.Fail, $"{ex.GetType().Name}: {ex.Message.Split('\n')[0]}");
+            // Playwright names the element on a later line ("Locator: ..." or "waiting for ...") – keep it, so the report says which step failed.
+            var lines = ex.Message.Split('\n');
+            var locator = lines.Skip(1).Select(l => l.Trim().TrimStart('-', ' ')).FirstOrDefault(l => l.StartsWith("Locator:", StringComparison.Ordinal) || l.StartsWith("waiting for", StringComparison.Ordinal));
+            R.Add(Area, "", device, check, Outcome.Fail, $"{ex.GetType().Name}: {lines[0]}{(locator is null ? "" : " – " + locator)}");
         }
     }
 
@@ -272,7 +275,7 @@ public sealed partial class Scenarios(Bot bot, Sims sims) : IAsyncDisposable
         var before = sims.SmsOut.Count;
         var r = await staff.PostAsync($"/api/portal/patients/{_patient.Id}/link", new { sendSms = true, sendEmail = false });
         if (r.Status != 200) return (Outcome.Fail, $"Could not create the link ({r.Status}): {r.Text}");
-        var sms = await Sims.WaitForAsync(sims.SmsOut, x => x.To == E164(_patient.Mobile!) && sims.SmsOut.ToList().IndexOf(x) >= before, TimeSpan.FromSeconds(45)); // outbox hold (10 s in the demo)
+        var sms = await Sims.WaitForAsync(sims.SmsOut, x => x.To == E164(_patient.Mobile!) && sims.SmsOut.ToList().IndexOf(x) >= before, TimeSpan.FromSeconds(75)); // outbox hold (10 s in the demo) + the reminder worker runs once a minute
         if (sms is null) return (Outcome.Fail, $"Link made ({r.Text}) but no SMS reached the patient's virtual phone.");
         var m = Regex.Match(sms.Text, @"https?://\S+/my/\S+");
         if (!m.Success) return (Outcome.Fail, $"The SMS has no portal link: {sms.Text}");
