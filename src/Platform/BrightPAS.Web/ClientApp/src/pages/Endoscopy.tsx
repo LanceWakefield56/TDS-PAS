@@ -199,7 +199,7 @@ function Settings() {
   if (!s) return error ? <p className="error">{error}</p> : <p>Loading…</p>;
   const save = async () => {
     setError(null); setMsg(null);
-    try { await api('/api/endoscopy/settings', { method: 'PUT', body: { ...s, mediaPath: s.mediaPath || null, dicomPort: Number(s.dicomPort), videoRetentionDays: null, importFolder: s.importFolder || null } }); setMsg('Settings saved.'); setTimeout(() => load(), 1500); }
+    try { await api('/api/endoscopy/settings', { method: 'PUT', body: { ...s, mediaPath: s.mediaPath || null, dicomPort: Number(s.dicomPort), videoRetentionDays: null, importFolder: s.importFolder || null, dicomCertificate: s.dicomCertificate || null } }); setMsg('Settings saved.'); setTimeout(() => load(), 1500); }
     catch (x) { setError(errText(x)); }
   };
   return (
@@ -221,6 +221,8 @@ function Settings() {
         <label>Port<input type="number" value={s.dicomPort} onChange={(e) => setS({ ...s, dicomPort: e.target.value })} /></label>
         <label>BrightPAS AE title<input value={s.dicomAeTitle} maxLength={16} onChange={(e) => setS({ ...s, dicomAeTitle: e.target.value })} /></label>
         <label>Tower AE titles allowed (comma-separated)<input value={s.dicomCallingAes} onChange={(e) => setS({ ...s, dicomCallingAes: e.target.value })} placeholder="e.g. CV1500_PR1" /></label>
+        <label className="check"><input type="checkbox" checked={!!s.dicomTls} onChange={(e) => setS({ ...s, dicomTls: e.target.checked })} /> Encrypt DICOM with TLS (only if the tower supports DICOM TLS)</label>
+        {s.dicomTls && <label>BrightPAS certificate thumbprint<input value={s.dicomCertificate ?? ''} onChange={(e) => setS({ ...s, dicomCertificate: e.target.value })} placeholder="From the Windows certificate store" /></label>}
         <label className="check"><input type="checkbox" checked={s.dicomAnyTower} onChange={(e) => setS({ ...s, dicomAnyTower: e.target.checked })} /> Accept any device on the network (testing only)</label>
       </div>
       <p className="hint">Towers are also accepted by the network address recorded on their asset (Assets › endoscopy tower). On the tower or capture box set: worklist and storage SCP = this server's address, port {s.dicomPort}, AE title {s.dicomAeTitle}; modality ES. Open the port in Windows Firewall for the endoscopy network only.</p>

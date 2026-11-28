@@ -136,6 +136,8 @@ public static class Permissions
     public const string OnlinePaySettings = "onlinepay.settings";
     /// <summary>Refund card payments back to the card – online (0.32.0) and EFTPOS (0.34.0).</summary>
     public const string OnlinePayRefund = "onlinepay.refund";
+    /// <summary>See and do the tasks for your roles (0.35.0 workflow). Every default role has it.</summary>
+    public const string TasksWork = "tasks.work";
     /// <summary>Set up and cancel payment plans (0.32.0, Finance).</summary>
     public const string OnlinePayPlans = "onlinepay.plans";
     // Prescribing and barcode medicine checks (0.31.0)
@@ -181,7 +183,7 @@ public static class Permissions
         BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage,
         CredentialingView, CredentialingManage, PortalSpecialist, PortalManage, MessagingView,
         AssetsView, AssetsManage, CssdProcess, CssdRelease, StockManage, PurchasingApprove, EmrView, EmrWrite, EmrControlledDrugs,
-        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage, EstimatesBuild, EstimatesManage, EBookingsSend, EBookingsManage, ConsentView, ConsentManage, ConsentConfirm, ConsentSheets, ConsentApprove, OnlinePayView, OnlinePayManage, OnlinePaySettings, OnlinePayRefund, OnlinePayPlans, RxView, RxPrescribe, RxManage, TriageView, TriageAssess, TriageReview, TriageRules, TriageApprove, FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport, ResearchBuild, ResearchApprove, FormsDesign, FormsApprove, FormsFill, ClaimsView, ClaimsManage, ClaimsAdmin, PaymentsTake, IdentityLookup, MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove
+        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage, EstimatesBuild, EstimatesManage, EBookingsSend, EBookingsManage, ConsentView, ConsentManage, ConsentConfirm, ConsentSheets, ConsentApprove, OnlinePayView, OnlinePayManage, OnlinePaySettings, OnlinePayRefund, OnlinePayPlans, TasksWork, RxView, RxPrescribe, RxManage, TriageView, TriageAssess, TriageReview, TriageRules, TriageApprove, FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport, ResearchBuild, ResearchApprove, FormsDesign, FormsApprove, FormsFill, ClaimsView, ClaimsManage, ClaimsAdmin, PaymentsTake, IdentityLookup, MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove
     ];
 }
 
@@ -207,7 +209,7 @@ public static class DefaultRoles
         [Permissions.QualityReport, Permissions.PatientView, Permissions.PatientEdit, Permissions.PatientAlertsManage, Permissions.BreakGlass,
          Permissions.LabsView, Permissions.LabsAcknowledge, Permissions.TheatreView];
 
-    public static readonly IReadOnlyDictionary<string, (string Description, string[] Permissions)> Definitions =
+    public static readonly IReadOnlyDictionary<string, (string Description, string[] Permissions)> Definitions = WithTasks(
         new Dictionary<string, (string, string[])>
         {
             [SystemAdministrator] = ("Manages users, organisation set-up and modules. No routine clinical access.",
@@ -241,5 +243,9 @@ public static class DefaultRoles
                 [Permissions.QualityReport, Permissions.QualityView, Permissions.QualityManage, Permissions.PatientView, Permissions.AssetsView, Permissions.FollowUpView, Permissions.FollowUpPlans, Permissions.FollowUpSsi, Permissions.FollowUpReport, Permissions.ResearchBuild, Permissions.FormsDesign, Permissions.FormsApprove, Permissions.FormsFill]),
             [ClinicalCoder] = ("Codes discharged events in ICD-10-AM/ACHI/ACS, prepares and sends the NMDS and NBRS files to Health NZ and corrects returned errors (reads the clinical record).",
                 [Permissions.CodingCode, Permissions.CodingSubmit, Permissions.PatientView, Permissions.EmrView, Permissions.EndoView, Permissions.LabsView, Permissions.TheatreView, Permissions.ReferralsView, Permissions.QualityReport]),
-        };
+        });
+
+    // 0.35.0: every role can see and do the tasks for its role.
+    private static Dictionary<string, (string, string[])> WithTasks(Dictionary<string, (string, string[])> d) =>
+        d.ToDictionary(kv => kv.Key, kv => (kv.Value.Item1, kv.Value.Item2.Contains(Permissions.TasksWork) ? kv.Value.Item2 : [.. kv.Value.Item2, Permissions.TasksWork]));
 }

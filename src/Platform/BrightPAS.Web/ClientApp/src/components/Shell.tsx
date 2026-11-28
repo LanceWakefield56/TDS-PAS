@@ -47,6 +47,7 @@ export default function Shell() {
           {can(Perm.PatientView) && <NavLink to="/patients" end className="primary-nav">Patients</NavLink>}
           {mod('theatre') && can(Perm.TheatreView) && <NavLink to="/day" className="primary-nav">Theatre day</NavLink>}
           {mod('followup') && (can(Perm.FollowUpView) || can(Perm.FollowUpRecord) || can(Perm.FollowUpSsi)) && <NavLink to="/followup" end className="primary-nav">Follow-up</NavLink>}
+          {mod('messaging') && can(Perm.TasksWork) && <NavLink to="/tasks" className="primary-nav">Tasks</NavLink>}
           {can(Perm.PatientRegister) && <NavLink to="/patients/new">Register a patient</NavLink>}
 
           <Group title="Before surgery" paths={['/rooms-bookings', '/consent', '/referrals', '/waitlist', '/estimates', '/forms', '/triage', '/reminders', '/letters', '/portal', '/calendar', '/outbox']}>

@@ -128,7 +128,7 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
     private readonly Dictionary<Guid, (CancellationTokenSource Cts, string Signature)> _mllp = [];
     private readonly Dictionary<Guid, (IDicomServer Server, string Signature)> _dicom = [];
     private readonly Dictionary<Guid, DateTimeOffset> _nextPoll = [];
-    private DateTimeOffset _nextReconcile, _nextFolders, _nextAlerts;
+    private DateTimeOffset _nextReconcile, _nextFolders, _nextAlerts, _nextWorkflow;
     private bool _seeded;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -159,6 +159,14 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
         await PollSqlAsync(scope.ServiceProvider, svc, now, ct);
         await SendDueAsync(svc, ct);
         if (now >= _nextAlerts) { await AlertsAsync(scope.ServiceProvider, svc, ct); _nextAlerts = now.AddSeconds(60); }
+        // 0.35.0 workflow: held messages whose wait is over carry on; overdue tasks escalate.
+        if (now >= _nextWorkflow)
+        {
+            await scope.ServiceProvider.GetRequiredService<FlowService>().ResumeDueAsync(ct);
+            foreach (var t in await scope.ServiceProvider.GetRequiredService<WorkflowService>().EscalateAsync(ct))
+                log.LogInformation("Task {Number} escalated from {From} to {To}.", t.Number, t.EscalatedFrom, t.Role);
+            _nextWorkflow = now.AddSeconds(30);
+        }
     }
 
     /// <summary>0.12.0 upgrade: the lab MLLP port from appsettings becomes an engine interface (labs-in) so it shows on the dashboard.</summary>
@@ -183,7 +191,7 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
         foreach (var i in mllp)
         {
             var clients = await svc.AllowedClientsAsync(i.Id, ct);
-            var sig = $"{i.Port}|{string.Join(',', clients.Select(c => c.Address).Order())}|{i.Handler}";
+            var sig = $"{i.Port}|{string.Join(',', clients.Select(c => c.Address).Order())}|{i.Handler}|{i.UseTls}|{i.CertificateThumbprint}|{i.PeerThumbprint}";
             if (_mllp.TryGetValue(i.Id, out var cur) && cur.Signature == sig) continue;
             StopMllp(i.Id);
             var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -193,13 +201,22 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
         foreach (var i in dicom)
         {
             var clients = await svc.AllowedClientsAsync(i.Id, ct);
-            var sig = $"{i.Port}|{i.AeTitle}|{string.Join(',', clients.Select(c => c.Address + "/" + c.AeTitle).Order())}|{i.FolderPath}";
+            var sig = $"{i.Port}|{i.AeTitle}|{string.Join(',', clients.Select(c => c.Address + "/" + c.AeTitle).Order())}|{i.FolderPath}|{i.UseTls}|{i.CertificateThumbprint}";
             if (_dicom.TryGetValue(i.Id, out var cur) && cur.Signature == sig) continue;
             StopDicom(i.Id);
             try
             {
                 var ctx = new DicomScpContext(i, clients.Select(c => (IPAddress.Parse(c.Address), c.AeTitle ?? "")).ToList(), scopes, runtime, log);
-                var server = DicomServerFactory.Create<PasDicomScp>(i.Port!.Value, userState: ctx);
+                FellowOakDicom.Network.Tls.ITlsAcceptor? tls = null;
+                if (i.UseTls)
+                    tls = new FellowOakDicom.Network.Tls.DefaultTlsAcceptor(TlsSupport.Find(i.CertificateThumbprint) ?? throw new InvalidOperationException("BrightPAS's TLS certificate was not found in the certificate store."))
+                    {
+                        Protocols = TlsSupport.Protocols,
+                        RequireMutualAuthentication = TlsSupport.Normalise(i.PeerThumbprint) is not null,
+                        CertificateValidationCallback = (_, cert, _, errors) => TlsSupport.Normalise(i.PeerThumbprint) is not { } pin
+                            || (cert is not null && string.Equals(new System.Security.Cryptography.X509Certificates.X509Certificate2(cert).Thumbprint, pin, StringComparison.OrdinalIgnoreCase)),
+                    };
+                var server = DicomServerFactory.Create<PasDicomScp>(i.Port!.Value, tls, userState: ctx);
                 if (server.Exception is { } ex) throw ex;
                 _dicom[i.Id] = (server, sig);
                 runtime.Set(new(i.Id, "DICOM", i.Port.Value, true, null, DateTimeOffset.UtcNow, 0, null));
@@ -218,6 +235,13 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
         TcpListener? listener = null;
         try
         {
+            // 0.35.0: TLS listener – our certificate from the Windows store; refuse to start without it rather than fall back to plain text.
+            var own = i.UseTls ? TlsSupport.Find(i.CertificateThumbprint) : null;
+            if (i.UseTls && own is null)
+            {
+                runtime.Set(new(i.Id, "MLLP", i.Port ?? 0, false, "TLS is on but BrightPAS's certificate was not found in the certificate store.", DateTimeOffset.UtcNow, 0, null));
+                return;
+            }
             listener = new TcpListener(IPAddress.Any, i.Port!.Value);
             listener.Start();
             runtime.Set(new(i.Id, "MLLP", i.Port.Value, true, null, DateTimeOffset.UtcNow, 0, null));
@@ -234,7 +258,7 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
                     continue;
                 }
                 runtime.Touch(i.Id, connected: true);
-                _ = Task.Run(() => HandleMllpAsync(i, client, ip?.ToString() ?? "?", ct), CancellationToken.None);
+                _ = Task.Run(() => HandleMllpAsync(i, client, ip?.ToString() ?? "?", own, ct), CancellationToken.None);
             }
         }
         catch (OperationCanceledException) { }
@@ -246,10 +270,26 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
         finally { listener?.Stop(); }
     }
 
-    private async Task HandleMllpAsync(Interface i, TcpClient client, string ip, CancellationToken ct)
+    private async Task HandleMllpAsync(Interface i, TcpClient client, string ip, System.Security.Cryptography.X509Certificates.X509Certificate2? own, CancellationToken ct)
     {
         using var _ = client;
-        await using var stream = new BufferedStream(client.GetStream());
+        Stream net = client.GetStream();
+        if (own is not null)
+        {
+            try
+            {
+                using var hs = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                hs.CancelAfter(TimeSpan.FromSeconds(30));
+                net = await TlsSupport.AcceptAsync(net, own, i.PeerThumbprint, hs.Token);
+            }
+            catch (Exception ex) when (ex is IOException or System.Security.Authentication.AuthenticationException or OperationCanceledException)
+            {
+                log.LogWarning("TLS handshake for {Code} from {Ip} failed: {Reason}", i.Code, ip, ex.Message);
+                await net.DisposeAsync();
+                return;
+            }
+        }
+        await using var stream = new BufferedStream(net);
         try
         {
             while (!ct.IsCancellationRequested)
@@ -453,7 +493,9 @@ public sealed class MessagingHost(IServiceScopeFactory scopes, MessagingRuntime 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(30));
         await client.ConnectAsync(i.Host!, i.Port!.Value, timeout.Token);
-        await using var stream = client.GetStream();
+        Stream stream = client.GetStream();
+        if (i.UseTls) stream = await TlsSupport.ConnectAsync(stream, i.Host!, TlsSupport.Find(i.CertificateThumbprint), i.PeerThumbprint, timeout.Token);
+        await using var _ = stream;
         await stream.WriteAsync(Mllp.Frame(content), timeout.Token);
         var ack = await Mllp.ReadAsync(stream, 1_000_000, timeout.Token) ?? throw new IOException("The receiver closed the connection without an acknowledgement.");
         var msa = Hl7Message.Parse(ack).First("MSA");

@@ -30,10 +30,11 @@ public static class EndoscopyEndpoints
     public sealed record NbspExtract(DateOnly From, DateOnly To, bool OnlyComplete, BrightPAS.Web.Security.ExportOptions? Export);
     public sealed record RetentionRequest(string? Days, bool ArchiveFirst, string? Folder, string? NewPassword);
     public sealed record ArchiveRequest(string? Folder);
-    public sealed record EndoSettings(string? MediaPath, bool DicomEnabled, int DicomPort, string DicomAeTitle, string? DicomCallingAes, bool DicomAnyTower, int? VideoRetentionDays, string? ImportFolder = null);
+    public sealed record EndoSettings(string? MediaPath, bool DicomEnabled, int DicomPort, string DicomAeTitle, string? DicomCallingAes, bool DicomAnyTower, int? VideoRetentionDays, string? ImportFolder = null, bool DicomTls = false, string? DicomCertificate = null);
 
     public const string DicomEnabledKey = "endo.dicom.enabled", DicomPortKey = "endo.dicom.port", DicomAeKey = "endo.dicom.aeTitle",
-        DicomCallingKey = "endo.dicom.callingAes", DicomAnyKey = "endo.dicom.anyTower", RetentionKey = "endo.videoRetentionDays", ImportFolderKey = "endo.importFolder";
+        DicomCallingKey = "endo.dicom.callingAes", DicomAnyKey = "endo.dicom.anyTower", RetentionKey = "endo.videoRetentionDays", ImportFolderKey = "endo.importFolder",
+        DicomTlsKey = "endo.dicom.tls", DicomCertKey = "endo.dicom.certificate";
 
     private static async Task<IResult> Guard(Func<Task<IResult>> f)
     {
@@ -62,7 +63,7 @@ public static class EndoscopyEndpoints
         return new EndoSettings(await s.GetAsync(MediaStore.PathKey) is { Length: > 0 } p ? p : null, await s.GetAsync(DicomEnabledKey) == "true",
             int.TryParse(await s.GetAsync(DicomPortKey), out var port) ? port : 11112, await s.GetAsync(DicomAeKey) is { Length: > 0 } ae ? ae : "BRIGHTPAS_ES",
             await s.GetAsync(DicomCallingKey), await s.GetAsync(DicomAnyKey) == "true", int.TryParse(await s.GetAsync(RetentionKey), out var r) ? r : null,
-            await s.GetAsync(ImportFolderKey) is { Length: > 0 } f ? f : null);
+            await s.GetAsync(ImportFolderKey) is { Length: > 0 } f ? f : null, await s.GetAsync(DicomTlsKey) == "true", await s.GetAsync(DicomCertKey) is { Length: > 0 } c ? c : null);
     }
 
     public static void MapEndoscopyEndpoints(this IEndpointRouteBuilder app)
@@ -363,7 +364,10 @@ public static class EndoscopyEndpoints
             if (string.IsNullOrWhiteSpace(r.DicomAeTitle) || r.DicomAeTitle.Length > 16 || r.DicomAeTitle.Any(c => c < 32 || c > 126 || c == '\\')) errors.Add("AE title is 1–16 plain characters.");
             if (r.MediaPath is { Length: > 0 } mp && !Path.IsPathFullyQualified(mp)) errors.Add("The media folder must be a full path, e.g. D:\\BrightPAS\\Endoscopy.");
             if (r.ImportFolder is { Length: > 0 } inf && !Path.IsPathFullyQualified(inf)) errors.Add("The import folder must be a full path or network share, e.g. \\\\server\\endoscopy-export.");
+            if (r.DicomTls && BrightPAS.Modules.Messaging.TlsSupport.Check(true, r.DicomCertificate, null) is { } tlsProblem) errors.Add(tlsProblem);
             if (errors.Count > 0) return Errors(errors);
+            await s.SetAsync(DicomTlsKey, r.DicomTls ? "true" : "false", Me(u));
+            await s.SetAsync(DicomCertKey, BrightPAS.Modules.Messaging.TlsSupport.Normalise(r.DicomCertificate) ?? "", Me(u));
             await s.SetAsync(MediaStore.PathKey, r.MediaPath?.Trim() ?? "", Me(u));
             await s.SetAsync(DicomEnabledKey, r.DicomEnabled ? "true" : "false", Me(u));
             await s.SetAsync(DicomPortKey, r.DicomPort.ToString(System.Globalization.CultureInfo.InvariantCulture), Me(u));

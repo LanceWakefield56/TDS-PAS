@@ -115,7 +115,8 @@ Status: ☐ to do · ◐ in progress · ☑ done
 - ☑ Daylight saving and leap years handled throughout – 0.19.0 (ADR 0032)
 - ☑ Quality, incidents and complaints (spec 7.12, 7.14) – 0.19.0 (ADR 0031)
 - ☐ Quality next (with the form designer, 0.25.0; SSI done in 0.24.0): patient surveys/PROMs, SSI surveillance, M&M review, PDSA cycles, internal audit forms; HQSC/ACC notification files when formats are confirmed
-- ☐ Messaging: workflow engine (human tasks, timers, escalation), MLLP/DICOM over TLS, DICOM MWL/MPPS (with endoscopy), drag lines in mapper, C# extension scripts
+- ☑ Messaging: workflow tasks, timers and escalation; MLLP/DICOM over TLS; MWL/MPPS with TLS – 0.35.0 (ADR 0048)
+- ☐ Messaging next: drag lines in mapper, C# extension scripts; confirm TLS support with each partner (lab engine, towers)
 - ☐ PDF for remaining reports (NBRS problems list, payroll summary, audit extracts); letters PDF attached to HealthLink/email sends
 - ☐ Confirm NBRS file layout with Health NZ; confirm Xero payroll import format (or Xero Payroll API)
 - ☐ HealthLink: confirm message profile + EDI accounts with HealthLink; live test via the messaging client

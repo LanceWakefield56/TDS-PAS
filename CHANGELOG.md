@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.0 – 2026-11-28 – **Tasks, workflow steps and encrypted links**
+- **Tasks (ADR 0048, guide H42)** – new Tasks screen for everyone: My tasks, Late, All open, Finished. **I'll do it** takes a task; **Done** or **Not needed** (with a reason) finishes it. **New task** makes one for a role, with an optional time limit and a role to pass it to if late. Kept with who did what and when. New permission "Work on tasks" (every role).
+- **Flow designer** – two new steps: **Task** (makes a task when a message arrives; the title can use message fields like {PID-5.1}) and **Wait** (holds the message for a set time, then carries on). Test runs show what would happen.
+- **Escalation** – a late task moves to its escalation role once, marked urgent. Checked every 30 seconds.
+- **Encrypted links** – HL7 (MLLP) and DICOM connections can use TLS 1.2/1.3 with certificates from the Windows certificate store; partners are pinned by thumbprint. Endoscopy DICOM node too. Off unless switched on.
+- Demo data: a partner-lab flow that makes a task for reception (late ones move to the nurses), two staff tasks.
+- Test robot: takes and finishes a task, checks a late flow task escalated, makes a task.
+
 ## 0.34.0 – 2026-11-28 – **Direct insurer claiming, linked EFTPOS and Xero**
 - **Direct claiming (ADR 0047, guide H41)** – Claims settings › Funders › Direct claiming: Off (claim file or portal), Training simulator or Connected (FHIR, needs the funder's provider agreement, address and key).
   - Ready claims: **Send straight to the funder**. Draft prior approvals: **Send straight to funder**. Answers come back by themselves every 15 minutes (or **Check funders now**): accepted, rejected, part paid, paid – payments go onto the invoice; approvals get the funder's reference, amount and valid-until date.
