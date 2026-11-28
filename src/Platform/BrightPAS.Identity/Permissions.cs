@@ -134,10 +134,12 @@ public static class Permissions
     public const string OnlinePayView = "onlinepay.view";
     public const string OnlinePayManage = "onlinepay.manage";
     public const string OnlinePaySettings = "onlinepay.settings";
-    /// <summary>Refund online card payments back to the card (0.32.0).</summary>
+    /// <summary>Refund card payments back to the card – online (0.32.0) and EFTPOS (0.34.0).</summary>
     public const string OnlinePayRefund = "onlinepay.refund";
     /// <summary>See and do the tasks for your roles (0.35.0 workflow). Every default role has it.</summary>
     public const string TasksWork = "tasks.work";
+    /// <summary>Set up and cancel payment plans (0.32.0, Finance).</summary>
+    public const string OnlinePayPlans = "onlinepay.plans";
     // Prescribing and barcode medicine checks (0.31.0)
     public const string RxView = "prescribing.view";
     public const string RxPrescribe = "prescribing.prescribe";
@@ -181,7 +183,7 @@ public static class Permissions
         BillingView, BillingManage, BillingFees, RemindersView, RemindersManage, ReferralsView, ReferralsManage, ReferralsTriage, LettersView, LettersWrite, LettersTemplates, RosterView, RosterManage,
         CredentialingView, CredentialingManage, PortalSpecialist, PortalManage, MessagingView,
         AssetsView, AssetsManage, CssdProcess, CssdRelease, StockManage, PurchasingApprove, EmrView, EmrWrite, EmrControlledDrugs,
-        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage, EstimatesBuild, EstimatesManage, EBookingsSend, EBookingsManage, ConsentView, ConsentManage, ConsentConfirm, ConsentSheets, ConsentApprove, OnlinePayView, OnlinePayManage, OnlinePaySettings, OnlinePayRefund, RxView, RxPrescribe, RxManage, TriageView, TriageAssess, TriageReview, TriageRules, TriageApprove, FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport, ResearchBuild, ResearchApprove, FormsDesign, FormsApprove, FormsFill, ClaimsView, ClaimsManage, ClaimsAdmin, PaymentsTake, IdentityLookup, MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove, TasksWork
+        EndoView, EndoWrite, EndoSign, EndoManage, ScribeUse, ScribeApprove, ScribeManage, DevicesUse, DevicesManage, QualityReport, QualityView, QualityManage, CodingCode, CodingSubmit, CodingManage, EstimatesBuild, EstimatesManage, EBookingsSend, EBookingsManage, ConsentView, ConsentManage, ConsentConfirm, ConsentSheets, ConsentApprove, OnlinePayView, OnlinePayManage, OnlinePaySettings, OnlinePayRefund, OnlinePayPlans, TasksWork, RxView, RxPrescribe, RxManage, TriageView, TriageAssess, TriageReview, TriageRules, TriageApprove, FollowUpView, FollowUpRecord, FollowUpPlans, FollowUpSsi, FollowUpReport, ResearchBuild, ResearchApprove, FormsDesign, FormsApprove, FormsFill, ClaimsView, ClaimsManage, ClaimsAdmin, PaymentsTake, IdentityLookup, MedicinesView, MedicinesCatalogue, MedicinesRules, MedicinesApprove
     ];
 }
 
@@ -227,7 +229,7 @@ public static class DefaultRoles
                  Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist, Permissions.MedicinesView, Permissions.EBookingsSend, Permissions.ConsentView, Permissions.ConsentManage, Permissions.ConsentConfirm, Permissions.ConsentSheets, Permissions.ConsentApprove, Permissions.RxView, Permissions.RxPrescribe]),
             [CssdTechnician] = ("Sterile services: trays, loads and traceability (patient view limited to traceability).",
                 [Permissions.PatientView, Permissions.FormsFill, Permissions.RosterView, Permissions.AssetsView, Permissions.AssetsManage, Permissions.CssdProcess, Permissions.CssdRelease, Permissions.StockManage, Permissions.QualityReport]),
-            [Finance] = ("Billing, invoices and payments; procedure estimates and the estimates price list.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees, Permissions.AssetsView, Permissions.PurchasingApprove, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.EstimatesManage, Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.ClaimsAdmin, Permissions.PaymentsTake, Permissions.IdentityLookup, Permissions.OnlinePayView, Permissions.OnlinePayManage, Permissions.OnlinePaySettings, Permissions.OnlinePayRefund]),
+            [Finance] = ("Billing, invoices and payments; procedure estimates and the estimates price list.", [Permissions.PatientView, Permissions.BillingView, Permissions.BillingManage, Permissions.BillingFees, Permissions.AssetsView, Permissions.PurchasingApprove, Permissions.QualityReport, Permissions.EstimatesBuild, Permissions.EstimatesManage, Permissions.ClaimsView, Permissions.ClaimsManage, Permissions.ClaimsAdmin, Permissions.PaymentsTake, Permissions.IdentityLookup, Permissions.OnlinePayView, Permissions.OnlinePayManage, Permissions.OnlinePaySettings, Permissions.OnlinePayRefund, Permissions.OnlinePayPlans]),
             [PracticeAssistant] = ("Specialist's practice assistant: bookings for their specialist's patients.",
                 [Permissions.PatientView, Permissions.PatientRegister, Permissions.TheatreView, Permissions.TheatreBook, Permissions.FormsSend, Permissions.LabsView,
                  Permissions.ReferralsView, Permissions.ReferralsManage, Permissions.LettersView, Permissions.LettersWrite, Permissions.PortalSpecialist, Permissions.EBookingsSend, Permissions.ConsentView, Permissions.ConsentManage]),

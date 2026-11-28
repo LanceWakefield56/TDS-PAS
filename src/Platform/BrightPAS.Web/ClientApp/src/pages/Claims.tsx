@@ -348,7 +348,7 @@ export function TakePayment({ invoiceId, balance, onPaid }: { invoiceId: string;
             <button className="btn btn-link" onClick={() => void run(() => api(`/api/claims/terminal/${pending.id}/cancel`, { body: {} }))}>Cancel</button></div>
         </div>)}
       {txns.length > 0 && <ul className="plain small">{txns.map((t) => <li key={t.id}>{nzDateTime(t.startedAt)} · {money(t.amount)} · <strong>{t.status}</strong>{t.cardType ? ` · ${t.cardType} …${t.last4 ?? ''}` : ''}{t.authCode ? ` · auth ${t.authCode}` : ''}{t.responseText && t.status !== 'Approved' ? ` · ${t.responseText}` : ''}{t.isRefund ? ` · refund: ${t.reason ?? ''}` : ''}{t.refunded > 0 ? ` · ${money(t.refunded)} refunded` : ''}
-        {can(Perm.ClaimsManage) && !t.isRefund && t.status === 'Approved' && t.amount > t.refunded && !pending && <> <button className="btn btn-link" onClick={() => setRefund({ id: t.id, max: t.amount - t.refunded, amount: String(t.amount - t.refunded), reason: '' })}>Refund to card</button></>}</li>)}</ul>}
+        {can(Perm.OnlinePayRefund) && !t.isRefund && t.status === 'Approved' && t.amount > t.refunded && !pending && <> <button className="btn btn-link" onClick={() => setRefund({ id: t.id, max: t.amount - t.refunded, amount: String(t.amount - t.refunded), reason: '' })}>Refund to card</button></>}</li>)}</ul>}
     </section>
   );
 }

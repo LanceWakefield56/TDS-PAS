@@ -19,7 +19,7 @@ by file. Simulator: accepted on the first check, paid on the next; amounts endin
 Each funder's real API layout must be confirmed under their provider agreement – the FHIR client is the starting point, not a certified integration.
 
 **Linked EFTPOS terminal (Windcave HIT).** Terminal type Windcave sends the amount to the terminal (`{url}/pxmi3/pos.aspx`, Purchase or Refund)
-and the screen asks for the result every 3 seconds. Only the card type and last four digits are kept. **Refunds to the card** (Finance, Claims manage):
+and the screen asks for the result every 3 seconds. Only the card type and last four digits are kept. **Refunds to the card** (Finance, permission "Refund card payments" – onlinepay.refund, shared with online payment refunds):
 up to what is left on an approved payment, with a reason; recorded on the invoice as a negative payment. Settlement shows refunds separately.
 Manual and Simulator terminals work as before (Simulator refunds approve at once).
 

@@ -105,8 +105,8 @@ public sealed partial class Scenarios
     {
         var rec = await As("reception");
         var docs = await rec.GetAsync("/api/billing/documents?kind=Invoice&outstanding=true");
-        var inv = Find(docs.Json, d => Str(d, "payer") == "SelfFunded" && Str(d, "status") is "Issued" or "PartPaid");
-        if (inv is null) return (Outcome.Skip, "No self-funded invoice owing.");
+        var inv = Find(docs.Json, d => Str(d, "payer") == "SelfFunded" && Str(d, "status") is "Issued" or "PartPaid" && d.GetProperty("totals").GetProperty("balance").GetDecimal() >= 20m);
+        if (inv is null) return (Outcome.Skip, "No self-funded invoice owing $20 or more.");
         var id = Str(inv.Value, "id");
         var pending = (await rec.GetAsync($"/api/claims/terminal/invoice/{id}")).Json;
         var p0 = Find(pending, t => Str(t, "status") == "Pending");
@@ -191,8 +191,13 @@ public sealed partial class Scenarios
         await page.GotoAsync($"{bot.O.Url}/claims?tab=sent");
         await page.GetByRole(AriaRole.Button, new() { Name = "Check funders now" }).ClickAsync();
         await Assertions.Expect(page.GetByText("Checked").First).ToBeVisibleAsync(new() { Timeout = 15000 });
-        var list = await fin.GetAsync($"/api/claims/approvals?patientId={pid}");
-        var mine = Find(list.Json, x => Str(x, "id") == aid);
+        JsonElement? mine = null;
+        for (var i = 0; i < 10; i++)
+        {
+            mine = Find((await fin.GetAsync($"/api/claims/approvals?patientId={pid}")).Json, x => Str(x, "id") == aid);
+            if (mine is not null && Str(mine.Value, "status") != "Requested") break;
+            await Task.Delay(1000);
+        }
         return mine is not null && Str(mine.Value, "status") == "Approved" && (Str(mine.Value, "approvalReference") ?? "").StartsWith("SIMPA-", StringComparison.Ordinal)
             ? (Outcome.Pass, "Prior approval sent straight to Southern Cross (simulator) and approved on the next check, with the funder's reference.")
             : (Outcome.Fail, $"Approval status {(mine is null ? "missing" : Str(mine.Value, "status"))}.");
