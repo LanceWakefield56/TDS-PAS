@@ -13,7 +13,7 @@ public sealed record SpecimenRequest(string Site, string Test, string? Container
 public sealed record ObservationRequest(DateTimeOffset? At, int? RespiratoryRate, int? SpO2, bool OnOxygen, decimal? OxygenLitres, int? SystolicBp, int? DiastolicBp, int? HeartRate,
     decimal? TemperatureC, string? Consciousness, int? Pain, int? Sedation, string Source = "Manual", Guid? DeviceId = null);
 public sealed record MedicationRequest(string Medicine, string Dose, string Route, DateTimeOffset? GivenAt, string? Barcode, Guid? ControlledDrugId, string? WitnessedBy, string? Notes,
-    string? OverrideReason = null, Guid? MedicineId = null, decimal? WeightKg = null);
+    string? OverrideReason = null, Guid? MedicineId = null, decimal? WeightKg = null, string? PatientBarcode = null, Guid? OrderId = null);
 public sealed record CdRequest(Guid ControlledDrugId, CdMovement Movement, int Quantity, string WitnessedBy, string? Reference);
 public sealed record FluidRequest(DateTimeOffset? At, bool IsInput, string Kind, int Millilitres);
 public sealed record BloodRequest(string UnitNumber, string Product, DateTimeOffset ReceivedAt, bool ColdChainOk, string CheckedBy1, string CheckedBy2);
@@ -418,7 +418,7 @@ public sealed class EmrService(EmrDbContext db, AuditWriter audit, TimeProvider 
         var checkIds = new List<Guid>();
         foreach (var check in medicineChecks)
         {
-            var o = await check.CheckAsync(new(e.PatientId, e.Id, r.Medicine.Trim(), r.Dose.Trim(), r.Route.Trim(), givenAt, Clip(r.Barcode, 60), r.MedicineId, r.WeightKg, Clip(r.OverrideReason, 500), user), ct);
+            var o = await check.CheckAsync(new(e.PatientId, e.Id, r.Medicine.Trim(), r.Dose.Trim(), r.Route.Trim(), givenAt, Clip(r.Barcode, 60), r.MedicineId, r.WeightKg, Clip(r.OverrideReason, 500), user, Clip(r.PatientBarcode, 40), r.OrderId), ct);
             findings.AddRange(o.Findings);
             if (o.CheckId is { } chk) checkIds.Add(chk);
             if (!o.Allowed) return (null, o.Error ?? "The medicine check stopped this – give a reason to go ahead.", findings);
