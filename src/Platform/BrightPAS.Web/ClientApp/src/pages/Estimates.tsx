@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { api, downloadPost, errText, formatDate, money, nzDateTime, Perm, todayIso } from '../api';
 import { useSession } from '../App';
 import ExportButton from '../components/ExportButton';
+import { EstimateFollowUpCard, FOLLOW_TEXT } from './EstimatesFollowUp';
 
 // ------------------------------------------------------------------ shared types
 export interface AddOnChoice { code: string; name: string; ifRequired: boolean; quantity: number }
@@ -74,6 +75,7 @@ export default function Estimates() {
         <div className="row">
           {can(Perm.EstimatesBuild) && <Link className="btn btn-primary" to="/estimates/new">New estimate</Link>}
           {can(Perm.EstimatesBuild) && <Link className="btn btn-light" to="/estimates/outbox">Outbox</Link>}
+          <Link className="btn btn-light" to="/estimates/followup">Follow-up</Link>
           {can(Perm.EstimatesManage) && <Link className="btn btn-light" to="/estimates/admin">Admin</Link>}
         </div>
       </div>
@@ -105,7 +107,7 @@ export function EstimateTable({ rows, showPatient }: { rows: any[]; showPatient:
           <td>{r.procedure ?? '—'}</td>
           <td>{r.surgeon ?? '—'}</td>
           <td className="money">{money(r.subtotal)}</td>
-          <td><span className={`pill ${statusClass(r.status)}`}>{r.status}</span></td>
+          <td><span className={`pill ${statusClass(r.status)}`}>{r.status}</span>{r.followUp && <div className="small muted">{FOLLOW_TEXT[r.followUp]}</div>}</td>
           <td className="muted">{[r.emailedAt && 'Emailed', r.sentToIncisiveAt && 'Incisive'].filter(Boolean).join(', ') || '—'}</td>
         </tr>
       ))}</tbody>
@@ -348,6 +350,7 @@ export function EstimateEdit() {
               {cancelOpen && <CancelBox onCancel={(reason) => void act(`/api/estimates/${id}/cancel`, { reason }, () => { setCancelOpen(false); void load(); })} onClose={() => setCancelOpen(false)} />}
             </section>
           )}
+          {est && <EstimateFollowUpCard est={est} onChange={(m) => { setMsg(m); void load(); }} />}
           {readOnly && est && <section className="card stack"><ExportButton label="PDF" path={`/api/estimates/${id}/pdf`} body={{}} formats={['pdf', 'zip']} /></section>}
           {archive.length > 0 && (
             <section className="card stack">

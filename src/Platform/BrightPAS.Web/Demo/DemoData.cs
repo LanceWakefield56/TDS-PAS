@@ -2305,19 +2305,34 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         var f1 = await svc.ApplyTemplateAsync(tpl.Id, await svc.FromPatientAsync(people[0].Id, ct), ct);
         f1.SurgeonId = surgeons.GetValueOrDefault(ClinicianType.Endoscopist, surgeons.Values.First());
         (f1.ProcedureDate, f1.PreparedBy, f1.Email) = (_today.AddDays(24), "Grace Liu", f1.Email ?? "demo.patient@example.nz");
-        Ok((await svc.SaveAsync(null, f1, true, "finance", ct)).Errors, "estimate 1");
+        var e1 = await svc.SaveAsync(null, f1, true, "finance", ct);
+        Ok(e1.Errors, "estimate 1");
         // 2. Insured hysteroscopy with sharp resection, issued.
         var f2 = await svc.FromPatientAsync(people[1].Id, ct);
         (f2.ProcedureId, f2.Anaesthetic, f2.Funding, f2.Insurer, f2.PolicyNumber, f2.ProcedureDate, f2.PreparedBy) =
             (gyn.Id, gyn.DefaultAnaesthetic, Est.Funding.Insurance, "Southern Cross", "SX-4471920", _today.AddDays(35), "Grace Liu");
         f2.SurgeonId = surgeons.GetValueOrDefault(ClinicianType.Surgeon);
         f2.Inputs.AddOns.Add(new Est.AddOnChoice { Code = "GYN-A01" });
-        Ok((await svc.SaveAsync(null, f2, true, "finance", ct)).Errors, "estimate 2");
+        var e2 = await svc.SaveAsync(null, f2, true, "finance", ct);
+        Ok(e2.Errors, "estimate 2");
         // 3. Draft hernia repair (mesh if required) still being prepared.
         var f3 = await svc.FromPatientAsync(people[2].Id, ct);
         (f3.ProcedureId, f3.Anaesthetic, f3.PreparedBy) = (hernia.Id, hernia.DefaultAnaesthetic, "Grace Liu");
         f3.Inputs.AddOns.Add(new Est.AddOnChoice { Code = "GEN-A05", IfRequired = true });
         Ok((await svc.SaveAsync(null, f3, false, "finance", ct)).Errors, "estimate 3");
+        // 0.33.0 follow-up: estimate 1 accepted and the deposit paid; estimate 2 sent to the insurer, chase today; a fourth declined.
+        var fu = S<Est.EstimateFollowUpService>();
+        Ok(await fu.SetAsync(e1.Estimate!.Id, new(Est.EstFollowUp.Accepted, "Accepted by email", null, null, null, null, null), "finance", ct), "estimate 1 accepted");
+        Ok(await fu.SetAsync(e1.Estimate.Id, new(Est.EstFollowUp.DepositPaid, null, null, null, Math.Min(500m, e1.Estimate.Subtotal), _today, null), "finance", ct), "estimate 1 deposit");
+        Ok(await fu.SetAsync(e2.Estimate!.Id, new(Est.EstFollowUp.ApprovalRequested, "Emailed to Southern Cross for prior approval", _today, null, null, null, null), "finance", ct), "estimate 2 approval");
+        if (people.Count > 3)
+        {
+            var f4 = await svc.FromPatientAsync(people[3].Id, ct);
+            (f4.ProcedureId, f4.Anaesthetic, f4.PreparedBy) = (hernia.Id, hernia.DefaultAnaesthetic, "Grace Liu");
+            var e4 = await svc.SaveAsync(null, f4, true, "finance", ct);
+            Ok(e4.Errors, "estimate 4");
+            Ok(await fu.SetAsync(e4.Estimate!.Id, new(Est.EstFollowUp.Declined, "Chose to wait for the public list", null, null, null, null, null), "finance", ct), "estimate 4 declined");
+        }
     }
 
     private async Task CodingAsync(CancellationToken ct)

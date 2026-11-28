@@ -55,6 +55,7 @@ export default function Shell() {
             {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/referrals">Referrals</NavLink>}
             {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/waitlist">Waitlist</NavLink>}
             {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <NavLink to="/estimates" end>Procedure estimates</NavLink>}
+            {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <NavLink to="/estimates/followup">Estimate follow-up</NavLink>}
             {mod('estimates') && can(Perm.EstimatesBuild) && <NavLink to="/estimates/outbox">Estimate outbox</NavLink>}
             {mod('forms') && (can(Perm.FormsTriage) || can(Perm.FormsSend)) && <NavLink to="/forms" end>Pre-admission forms</NavLink>}
             {mod('triage') && (can(Perm.TriageView) || can(Perm.TriageAssess) || can(Perm.TriageReview) || can(Perm.TriageRules)) && <NavLink to="/triage" end>Triage</NavLink>}

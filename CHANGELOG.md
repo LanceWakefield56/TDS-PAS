@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.33.0 – 2026-11-28 – **Estimate follow-up**
+- **Estimate follow-up (ADR 0046, guide H40)** – Before surgery › Estimate follow-up, and a Follow-up box on each issued estimate:
+  - **Where each estimate is up to:** waiting to hear, accepted, declined (with the reason), insurer approval requested / approved (approval number) / declined, deposit paid, booked, invoiced, expired – with the history of who recorded what and when, and an optional date to follow up again.
+  - **Lists:** to chase (nothing heard after 7 days, insurer not answered, accepted but not booked, follow-up date reached), running out (within 14 days), accepted – to book or invoice, expired, all open. Estimates past their valid-until date are marked expired each day.
+  - **Make invoice:** a draft invoice in Invoices & payments from an accepted estimate – the same lines and prices, the insurer and approval number, a note of the deposit paid.
+  - **Report:** issued, accepted, declined, booked and expired estimates, value accepted, accept rate and days to accept – by surgeon, procedure, funding and month.
+- Demo data: an accepted estimate with a deposit, one waiting for insurer approval (to chase today), one declined.
+- Test robot: records an insurer approval and makes an invoice from an accepted estimate.
+
 ## 0.32.0 – 2026-11-28 – **Refunds, payment plans and automatic statements**
 - **Online payments extras (ADR 0045, guide H39)**:
   - **Refunds:** refund part or all of an online payment back to the card (Windcave refund, or the simulator). Money that never went on an invoice goes back first (and clears Needs attention); the rest comes off the invoices it paid. New permission "Refund online payments" (Finance). Refunds tab.

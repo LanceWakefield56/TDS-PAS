@@ -388,9 +388,15 @@ namespace BrightPAS.Modules.Estimates.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int>("ExpiryWarningDays")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("ExtendedTimePer15")
                         .HasPrecision(12, 2)
                         .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("FollowUpDays")
+                        .HasColumnType("int");
 
                     b.Property<string>("FromName")
                         .HasMaxLength(100)
@@ -523,7 +529,9 @@ namespace BrightPAS.Modules.Estimates.Migrations
                             EmailBodyInsurer = "Hello,\n\nPlease find attached our estimate for {first} {last} (policy {policy}) for {procedure}, for prior approval.\n\nKind regards\n{preparedby}\nTasman Day Surgery\n{phone}",
                             EmailSubject = "Your estimate from Tasman Day Surgery – {ref}",
                             EmailSubjectInsurer = "Estimate for {first} {last} – {ref} – {insurer} {policy}",
+                            ExpiryWarningDays = 14,
                             ExtendedTimePer15 = 90m,
+                            FollowUpDays = 7,
                             FromName = "Tasman Day Surgery",
                             GstRate = 0.15m,
                             HintDobLong = "This estimate is password protected. The password is your date of birth as 8 digits, DDMMYYYY (for example 14 March 1965 = 14031965).",
@@ -845,6 +853,9 @@ namespace BrightPAS.Modules.Estimates.Migrations
                         .HasPrecision(12, 2)
                         .HasColumnType("decimal(12,2)");
 
+                    b.Property<Guid?>("BookingId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("CancelReason")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
@@ -860,9 +871,20 @@ namespace BrightPAS.Modules.Estimates.Migrations
                     b.Property<DateOnly?>("DateOfBirth")
                         .HasColumnType("date");
 
+                    b.Property<string>("DeclineReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
                     b.Property<decimal>("Deposit")
                         .HasPrecision(12, 2)
                         .HasColumnType("decimal(12,2)");
+
+                    b.Property<decimal?>("DepositPaid")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateOnly?>("DepositPaidOn")
+                        .HasColumnType("date");
 
                     b.Property<string>("Email")
                         .HasMaxLength(200)
@@ -883,6 +905,17 @@ namespace BrightPAS.Modules.Estimates.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("FollowUp")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset?>("FollowUpAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("FollowUpBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Funding")
                         .IsRequired()
                         .HasMaxLength(12)
@@ -896,6 +929,13 @@ namespace BrightPAS.Modules.Estimates.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InvoiceNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<DateTimeOffset?>("IssuedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -907,6 +947,9 @@ namespace BrightPAS.Modules.Estimates.Migrations
                     b.Property<decimal>("Multiplier")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateOnly?>("NextActionOn")
+                        .HasColumnType("date");
 
                     b.Property<string>("Nhi")
                         .HasMaxLength(10)
@@ -1011,9 +1054,13 @@ namespace BrightPAS.Modules.Estimates.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BookingId");
+
                     b.HasIndex("Email");
 
                     b.HasIndex("EstimateDate");
+
+                    b.HasIndex("InvoiceId");
 
                     b.HasIndex("Nhi");
 
@@ -1025,6 +1072,8 @@ namespace BrightPAS.Modules.Estimates.Migrations
                         .IsUnique();
 
                     b.HasIndex("SurgeonId");
+
+                    b.HasIndex("FollowUp", "ValidUntil");
 
                     b.HasIndex("LastName", "FirstName");
 
@@ -1067,6 +1116,39 @@ namespace BrightPAS.Modules.Estimates.Migrations
                     b.HasIndex("EstimateId");
 
                     b.ToTable("ArchivedPdfs", "est");
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Estimates.EstimateEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("By")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("EstimateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstimateId", "At");
+
+                    b.ToTable("EstimateEvents", "est");
                 });
 
             modelBuilder.Entity("BrightPAS.Modules.Estimates.EstimateLine", b =>
@@ -1243,6 +1325,15 @@ namespace BrightPAS.Modules.Estimates.Migrations
                         .WithMany()
                         .HasForeignKey("EstimateId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BrightPAS.Modules.Estimates.EstimateEvent", b =>
+                {
+                    b.HasOne("BrightPAS.Modules.Estimates.Estimate", null)
+                        .WithMany()
+                        .HasForeignKey("EstimateId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
