@@ -39,6 +39,7 @@ public sealed partial class Scenarios
         await dialog.GetByLabel("Reason (optional)").FillAsync("Robot review");
         await dialog.GetByRole(AriaRole.Button, new() { Name = "Book", Exact = true }).ClickAsync();
         await Assertions.Expect(page.GetByText("Review booked.")).ToBeVisibleAsync(new() { Timeout = 15000 });
+        id = page.Url.Split('?')[0].TrimEnd('/').Split('/')[^1]; // the page opens the current triage if it was re-run meanwhile
         var booked = Find((await nurse.GetAsync($"/api/triage/reviews?assessmentId={id}")).Json, r => Str(r, "status") == "Booked" && Str(r, "reason") == "Robot review");
         if (booked is null) return (Outcome.Fail, "The booked review is not listed.");
         var link = Str(booked.Value, "joinLink") ?? "";

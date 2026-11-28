@@ -89,6 +89,7 @@ public static class TriageEndpoints
         g.MapGet("/patients/{patientId:guid}", async (Guid patientId, TriageService svc) => Results.Ok((await svc.HistoryAsync(patientId)).Select(a => new
         {
             a.Id,
+            a.BookingId,
             a.Procedure,
             a.ProcedureDate,
             status = a.Status.ToString(),

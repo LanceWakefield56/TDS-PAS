@@ -175,7 +175,7 @@ export function TriageAssessment() {
       setHistory(hist);
       // A link to a triage that has since been re-run (e.g. new answers arrived) opens the current one instead.
       if (x.status === 'Superseded') {
-        const current = hist.filter((h) => h.status === 'Open' && h.procedure === x.procedure).sort((p, q) => String(q.createdAt).localeCompare(String(p.createdAt)))[0];
+        const current = hist.filter((h) => h.status === 'Open' && (x.bookingId ? h.bookingId === x.bookingId : h.procedure === x.procedure)).sort((p, q) => String(q.createdAt).localeCompare(String(p.createdAt)))[0];
         if (current && current.id !== x.id) { navigate(`/triage/${current.id}`, { replace: true }); setMsg('This triage was re-run since the link was made – showing the current one.'); }
       }
     } catch (e) { setErrors(errs(e)); }
