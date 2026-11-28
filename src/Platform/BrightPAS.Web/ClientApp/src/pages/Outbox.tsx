@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { api, ApiError, errText, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
+import Modal from '../components/Modal';
 
 const errs = (e: unknown) => (e instanceof ApiError && e.body?.errors ? e.body.errors as string[] : [errText(e)]);
 const KIND: Record<string, string> = { BookingConfirmation: 'Booking confirmation', DayBeforeReminder: 'Day-before reminder', FormLink: 'Questionnaire link', PortalLink: 'Portal link', FollowUpCheckIn: 'Follow-up check-in', Test: 'Message', ReplyConfirmed: 'Reply', ReplyCancelRequested: 'Reply', OptOutConfirmed: 'Opt-out reply' };
@@ -38,10 +39,10 @@ export default function Outbox() {
       {errors.length > 0 && <div className="error" role="alert"><ul>{errors.map((e) => <li key={e}>{e}</li>)}</ul></div>}
       {msg && <p className="notice" role="status">{msg}</p>}
       {act && (
-        <div className="card subtle stack" role="dialog" aria-label="Confirm">
+        <Modal title={act.what === 'recall' ? 'Undo send' : act.what === 'send-now' ? 'Send now' : 'Wrong person'} onClose={() => setAct(null)}>
           <label>{act.what === 'recall' ? 'Why stop it?' : act.what === 'send-now' ? 'Why must it go now (clinically urgent)?' : 'What happened?'}<input value={reason} onChange={(e) => setReason(e.target.value)} /></label>
           <div className="row"><button className="btn btn-warn" disabled={!reason.trim()} onClick={doAct}>{act.what === 'recall' ? 'Stop it' : act.what === 'send-now' ? 'Send now' : 'Report it'}</button><button className="btn btn-light" onClick={() => setAct(null)}>Cancel</button></div>
-        </div>
+        </Modal>
       )}
       {tab !== 'letters' && (
         <section className="card">

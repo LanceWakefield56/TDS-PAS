@@ -4,6 +4,7 @@ import { addDays, api, ApiError, errText, fileToText, formatDate, money, nzDateT
 import { useSession } from '../App';
 import ExportButton from '../components/ExportButton';
 import PatientPicker from '../components/PatientPicker';
+import Modal from '../components/Modal';
 
 const errs = (e: unknown) => (e instanceof ApiError && e.body?.errors ? e.body.errors as string[] : [errText(e)]);
 const STATUS: Record<string, [string, string]> = {
@@ -421,7 +422,7 @@ export function ClaimsSettings() {
               <td>{admin && <button className="btn btn-light" onClick={() => setEdit({ ...f })}>Change</button>}</td></tr>)}</tbody></table>
           {admin && <div><button className="btn btn-light" onClick={() => setEdit({ id: null, code: '', name: '', kind: 'Insurer', submitBy: 'File', priorApprovalRequired: true, claimsEmail: '', providerNumber: '', isActive: true, notes: '' })}>Add a funder</button></div>}
           {edit && (
-            <div className="card inset stack">
+            <Modal title={edit.id ? `Change ${edit.name}` : 'New funder'} onClose={() => setEdit(null)}>
               <div className="form-grid">
                 <label>Code<input value={edit.code} onChange={(e) => setEdit({ ...edit, code: e.target.value })} /></label>
                 <label>Name<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
@@ -433,7 +434,7 @@ export function ClaimsSettings() {
               <label className="check"><input type="checkbox" checked={edit.priorApprovalRequired} onChange={(e) => setEdit({ ...edit, priorApprovalRequired: e.target.checked })} /> Needs prior approval</label>
               <label className="check"><input type="checkbox" checked={edit.isActive} onChange={(e) => setEdit({ ...edit, isActive: e.target.checked })} /> In use</label>
               <div className="row"><button className="btn btn-primary" onClick={() => void save(async () => { await api('/api/claims/funders', { body: { ...edit, claimsEmail: edit.claimsEmail || null, providerNumber: edit.providerNumber || null, notes: edit.notes || null } }); setEdit(null); await reload(); })}>Save</button><button className="btn btn-link" onClick={() => setEdit(null)}>Cancel</button></div>
-            </div>)}
+            </Modal>)}
         </section>)}
       {tab === 'xero' && xero && (
         <section className="card stack">

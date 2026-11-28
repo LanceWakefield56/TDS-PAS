@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased – **Easier editing**
+- **Edit and add forms open in a pop-up window** (`components/Modal.tsx`, the browser's own dialog) instead of further down the page, where pressing Edit looked like it did nothing. About 40 forms on 25 screens: organisation set-up, fees, medicines, roster, regular theatre lists, letters, practices, printers, credentialing, CSSD, assets, stock, suppliers, scribe, messaging interfaces and tables, funders, estimates admin, follow-up plans, coding (NBRS, advice, picklist), monitors, outbox confirmations and patient contact details. Esc, Cancel or × closes; the page behind is dimmed. Full screen on phones.
+- Forms that are always on the page for adding (endoscopy findings, polyps, tattoos, biopsies; scribe dictionary; coding picklist) stay in place for adding and open in a pop-up when Edit is pressed.
+- Test robot: the explorer also recognises open pop-ups (`dialog[open]`) and reloads the page before pressing the next button.
+
 ## 0.28.0 – 2026-11-25 – **Bookings from specialists' rooms**
 - **Bookings from rooms module (ADR 0041, guide H35)** – licence "ebookings"; permissions Send booking requests (Surgeon, PA, Specialist portal) and Manage booking requests (Reception / Booking); "Bookings from rooms" under Before surgery.
   - **Portal:** specialists and PAs send a booking request from the specialist portal – patient, procedure (from TDS's list or typed), side, anaesthetic, minutes, urgency, funding and approval/claim number, dates wanted and days to avoid, clinical notes, pre-op details (weight, height, BMI, ASA, diabetes, sleep apnoea, blood thinners, allergies, responsible adult, consent) and up to 8 letters/scans. They see each request's status, answer TDS's questions, add files, withdraw, and see the waitlist status and booked date once accepted. A possible duplicate must be confirmed.

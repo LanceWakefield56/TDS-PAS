@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import { addDays, api, errText, formatDate, nzDateTime, todayIso } from '../api';
 import ExportButton from '../components/ExportButton';
 import CalendarGrid, { AllDayItem, CalendarNav, CalItem, daysFor, weekStart } from '../components/CalendarGrid';
+import Modal from '../components/Modal';
 
 interface Staff { id: string; name: string; role: string; colour: number; isActive: boolean; userName: string | null; contractedHours: number | null; phone: string | null }
 interface ShiftV { id: string; staffId: string; staffName: string; role: string; colour: number; date: string; allDay: boolean; start: string | null; end: string | null; breakMinutes: number; hours: number; area: string | null; isTentative: boolean; note: string | null; onLeave: boolean }
@@ -192,7 +193,7 @@ function StaffTab() {
       <div className="row-between"><p className="hint">Everyone who is rostered. Link a staff member to their BrightPAS username so they can see the roster and request leave.</p>
         {!edit && <button className="btn btn-primary" onClick={() => setEdit({ role: 'Nurse', isActive: true, colour: -1 })}>Add staff member</button>}</div>
       {edit && (
-        <section className="card subtle stack">
+        <Modal title={edit.id ? `Edit ${edit.name}` : 'New staff member'} onClose={() => setEdit(null)}>
           <div className="form-grid">
             <label>Name<input value={edit.name ?? ''} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
             <label>Role<select value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value })}>{ROLES.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
@@ -206,7 +207,7 @@ function StaffTab() {
           </div>
           <Errs list={errors} />
           <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div>
-        </section>
+        </Modal>
       )}
       {rows && rows.length > 0 && (
         <table className="results compact">
@@ -242,7 +243,7 @@ function RegularTab() {
       <div className="row-between"><p className="hint">Each person's usual weekly shifts. Create the roster for the coming weeks in one step; existing shifts and approved leave are respected.</p>
         {!edit && <button className="btn btn-primary" onClick={() => setEdit({ staffId: staff[0]?.id, dayOfWeek: 'Monday', allDay: false, start: '08:00', end: '16:30', breakMinutes: 30, area: 'Theatre', everyWeeks: 1, startsOn: weekStart(todayIso()), endsOn: '', isActive: true })}>Add regular shift</button>}</div>
       {edit && (
-        <section className="card subtle stack">
+        <Modal title={edit.id ? 'Edit regular shift' : 'New regular shift'} onClose={() => setEdit(null)}>
           <div className="form-grid">
             <label>Staff<select value={edit.staffId} onChange={(e) => setEdit({ ...edit, staffId: e.target.value })}>{staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
             <label>Day<select value={edit.dayOfWeek} onChange={(e) => setEdit({ ...edit, dayOfWeek: e.target.value })}>{DAYS.map((d) => <option key={d}>{d}</option>)}</select></label>
@@ -258,7 +259,7 @@ function RegularTab() {
           </div>
           <Errs list={errors} />
           <div className="row"><button className="btn btn-primary" onClick={save}>Save</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div>
-        </section>
+        </Modal>
       )}
       {rows && rows.length > 0 && <>
         <table className="results compact">

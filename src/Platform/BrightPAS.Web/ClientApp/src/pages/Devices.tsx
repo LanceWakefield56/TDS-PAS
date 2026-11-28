@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { api, errText, nzDateTime, Perm } from '../api';
 import { useSession } from '../App';
 import FileImport from '../components/FileImport';
+import Modal from '../components/Modal';
 
 const fmt = (v: number, code: string) => Number(v).toFixed(code === 'Temp' ? 1 : 0);
 
@@ -70,8 +71,7 @@ function Monitors({ manage }: { manage: boolean }) {
           </section>))}
       </div>
       {manage && (edit ? (
-        <section className="card stack">
-          <h2>{edit.id ? 'Edit monitor' : 'Add a monitor'}</h2>
+        <Modal title={edit.id ? 'Edit monitor' : 'Add a monitor'} onClose={() => setEdit(null)}>
           <div className="form-grid">
             <label>Equipment<select value={edit.equipmentId} onChange={(e) => setEdit({ ...edit, equipmentId: e.target.value })}><option value="">Choose from the equipment register…</option>
               {eq.filter((x) => !x.used || x.id === edit.equipmentId).map((x) => <option key={x.id} value={x.id}>{x.assetNumber} – {x.name} ({x.make} {x.model})</option>)}</select></label>
@@ -80,7 +80,7 @@ function Monitors({ manage }: { manage: boolean }) {
           </div>
           <p className="hint">The GE gateway identifies each monitor by its care unit and bed label (PV1-3) or device id (OBX-18). Enter the same text here.</p>
           <div className="row"><button className="btn btn-primary" disabled={!edit.equipmentId || !edit.code} onClick={save}>Save monitor</button><button className="btn btn-light" onClick={() => setEdit(null)}>Cancel</button></div>
-        </section>) : <div><button className="btn btn-light" onClick={() => setEdit({ id: null, equipmentId: '', code: '', isActive: true })}>Add a monitor</button></div>)}
+        </Modal>) : <div><button className="btn btn-light" onClick={() => setEdit({ id: null, equipmentId: '', code: '', isActive: true })}>Add a monitor</button></div>)}
       <section className="card stack-sm">
         <h2>Interfaces</h2>
         {o.interfaces.length === 0 ? <p className="muted">No device interfaces in the messaging engine yet.</p> :

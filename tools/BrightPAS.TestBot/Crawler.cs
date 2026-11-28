@@ -191,7 +191,7 @@ public sealed partial class Crawler(Bot bot)
         {
             if (Dangerous().IsMatch(text)) { R.Add("buttons", s.Account, path, $"Button \"{text}\"", Outcome.Skip, "Not pressed by the explorer (changes or sends something); covered by scripted tests where it matters."); continue; }
             if (!_clicked.Add(pat + "|" + text)) continue;
-            if (!Pattern(p.Url.Replace(bot.O.Url, "")).Equals(pat, StringComparison.Ordinal) || await p.Locator("main [role=dialog]:visible, main .modal:visible").CountAsync() > 0)
+            if (!Pattern(p.Url.Replace(bot.O.Url, "")).Equals(pat, StringComparison.Ordinal) || await p.Locator("main [role=dialog]:visible, main dialog[open], main .modal:visible").CountAsync() > 0)
             {
                 await p.GotoAsync(bot.O.Url + path); await Settle(p, 300);
             }
