@@ -18,6 +18,9 @@ public sealed class ClaimsModule : IPasModule
         services.AddScoped<ClaimsService>();
         services.AddScoped<XeroService>();
         services.AddScoped<TerminalService>();
+        services.AddScoped<DirectClaimService>();
+        services.AddSingleton<IFunderApi, NoFunderApi>();
+        services.AddSingleton<ITerminalApi, NoTerminalApi>(); // the web app replaces this with the FHIR client
         services.AddSingleton<IXeroApi, NoXeroApi>(); // the web app replaces this with the HTTP client
     }
 }
@@ -29,6 +32,17 @@ public sealed class NoXeroApi : IXeroApi
     public Task<XeroTokens> RefreshAsync(string clientId, string clientSecret, string refreshToken, CancellationToken ct) => throw Off();
     public Task<string> CreateInvoiceAsync(string accessToken, string tenantId, XeroInvoice invoice, CancellationToken ct) => throw Off();
     public Task<string> CreatePaymentAsync(string accessToken, string tenantId, XeroPayment payment, CancellationToken ct) => throw Off();
+    public Task<string?> FindContactAsync(string accessToken, string tenantId, string name, string? email, CancellationToken ct) => throw Off();
+    public Task<string> CreateContactAsync(string accessToken, string tenantId, string name, string? email, CancellationToken ct) => throw Off();
+    public Task<string> CreateCreditNoteAsync(string accessToken, string tenantId, XeroCreditNote note, CancellationToken ct) => throw Off();
+}
+
+/// <summary>Placeholder until the web app registers the Windcave HIT client.</summary>
+public sealed class NoTerminalApi : ITerminalApi
+{
+    public Task<TerminalStart> StartAsync(string url, string user, string key, string station, bool refund, decimal amount, string txnRef, CancellationToken ct) =>
+        Task.FromResult(new TerminalStart(false, "The terminal connection is not available in this host."));
+    public Task<TerminalPoll> StatusAsync(string url, string user, string key, string station, string txnRef, CancellationToken ct) => Task.FromResult(new TerminalPoll(false, null));
 }
 
 public enum FunderKind { Acc = 1, Insurer = 2, HealthNz = 3 }
@@ -37,7 +51,9 @@ public enum SubmitBy { File = 1, Portal = 2, Api = 3 }
 public enum ApprovalStatus { Draft = 1, Requested = 2, Approved = 3, PartApproved = 4, Declined = 5, Expired = 6 }
 public enum ClaimStatus { Draft = 1, Ready = 2, Submitted = 3, Accepted = 4, Rejected = 5, PartPaid = 6, Paid = 7, WrittenOff = 8 }
 public enum XeroMode { Off = 0, File = 1, Api = 2 }
-public enum TerminalProvider { Manual = 1, Simulator = 2 }
+public enum TerminalProvider { Manual = 1, Simulator = 2, Windcave = 3 }
+/// <summary>How BrightPAS talks to a funder's claiming system (0.34.0): off (file/portal), the simulator, or a FHIR R4 Claim API.</summary>
+public enum FunderApi { Off = 0, Simulator = 1, Fhir = 2 }
 public enum TerminalStatus { Pending = 1, Approved = 2, Declined = 3, Cancelled = 4, Failed = 5 }
 public enum IdentityMode { Off = 0, Simulator = 1, Live = 2 }
 
@@ -67,6 +83,12 @@ public sealed class Funder
     public string? ProviderNumber { get; set; }
     public bool IsActive { get; set; } = true;
     public string? Notes { get; set; }
+    // Direct claiming (0.34.0)
+    public FunderApi Api { get; set; } = FunderApi.Off;
+    public string? ApiUrl { get; set; }
+    public string? ApiKeyProtected { get; set; }
+    public DateTimeOffset? LastApiAt { get; set; }
+    public string? LastApiError { get; set; }
 }
 
 /// <summary>Prior approval (insurer pre-approval / ACC approval) for a planned procedure.</summary>
@@ -90,6 +112,8 @@ public sealed class PriorApproval
     public string CreatedBy { get; set; } = "";
     public DateTimeOffset? DecidedAt { get; set; }
     public string? DecidedBy { get; set; }
+    /// <summary>The funder's reference when the request went by API (0.34.0).</summary>
+    public string? ExternalReference { get; set; }
 }
 
 public sealed class Claim
@@ -112,6 +136,9 @@ public sealed class Claim
     public string? ResponseText { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public string CreatedBy { get; set; } = "";
+    /// <summary>The funder's claim reference when sent by API (0.34.0).</summary>
+    public string? ExternalReference { get; set; }
+    public DateTimeOffset? LastCheckedAt { get; set; }
     public List<ClaimLine> Lines { get; set; } = [];
 }
 
@@ -217,6 +244,25 @@ public sealed class TerminalTransaction
     public string StartedBy { get; set; } = "";
     public DateTimeOffset? CompletedAt { get; set; }
     public bool PaymentRecorded { get; set; }
+    /// <summary>A refund back to the card (0.34.0); RefundOfId is the original purchase.</summary>
+    public bool IsRefund { get; set; }
+    public Guid? RefundOfId { get; set; }
+    public string? Reason { get; set; }
+    /// <summary>Amount refunded so far on this purchase.</summary>
+    public decimal Refunded { get; set; }
+}
+
+/// <summary>A Xero contact matched to a patient or payer (0.34.0), so invoices go to the same contact instead of making duplicates.</summary>
+public sealed class XeroContact
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    /// <summary>"NAME IN CAPITALS|EMAIL" – how BrightPAS knows it has already matched this contact.</summary>
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string XeroContactId { get; set; } = "";
+    /// <summary>Matched (an existing Xero contact with the same email or name) or Created by BrightPAS.</summary>
+    public string How { get; set; } = "";
+    public DateTimeOffset At { get; set; }
 }
 
 public sealed class ClaimsSettings
@@ -226,6 +272,10 @@ public sealed class ClaimsSettings
     public int NextApproval { get; set; } = 1;
     public TerminalProvider TerminalProvider { get; set; } = TerminalProvider.Manual;
     public string? TerminalId { get; set; }
+    // Windcave integrated terminal (0.34.0)
+    public string? WindcaveUrl { get; set; }
+    public string? WindcaveUser { get; set; }
+    public string? WindcaveKeyProtected { get; set; }
 }
 
 public sealed class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) : DbContext(options)
@@ -242,6 +292,7 @@ public sealed class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) :
     public DbSet<XeroExport> XeroExports => Set<XeroExport>();
     public DbSet<XeroLink> XeroLinks => Set<XeroLink>();
     public DbSet<TerminalTransaction> Terminal => Set<TerminalTransaction>();
+    public DbSet<XeroContact> XeroContacts => Set<XeroContact>();
     public DbSet<ClaimsSettings> Settings => Set<ClaimsSettings>();
     public DbSet<IdentitySettings> Identity => Set<IdentitySettings>();
 
@@ -262,6 +313,7 @@ public sealed class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) :
             e.ToTable("Funders"); e.Property(x => x.Code).HasMaxLength(20); e.HasIndex(x => x.Code).IsUnique();
             e.Property(x => x.Name).HasMaxLength(150); e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(10); e.Property(x => x.SubmitBy).HasConversion<string>().HasMaxLength(10);
             e.Property(x => x.ClaimsEmail).HasMaxLength(200); e.Property(x => x.ProviderNumber).HasMaxLength(50); e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.Api).HasConversion<string>().HasMaxLength(10); e.Property(x => x.ApiUrl).HasMaxLength(300); e.Property(x => x.ApiKeyProtected).HasMaxLength(1000); e.Property(x => x.LastApiError).HasMaxLength(500);
         });
         b.Entity<PriorApproval>(e =>
         {
@@ -269,7 +321,7 @@ public sealed class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) :
             e.Property(x => x.MemberNumber).HasMaxLength(50); e.Property(x => x.AccClaimNumber).HasMaxLength(20); e.Property(x => x.Procedure).HasMaxLength(200);
             e.Property(x => x.AmountRequested).HasPrecision(12, 2); e.Property(x => x.ApprovedAmount).HasPrecision(12, 2);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(14); e.Property(x => x.ApprovalReference).HasMaxLength(50); e.Property(x => x.Notes).HasMaxLength(1000);
-            e.Property(x => x.CreatedBy).HasMaxLength(100); e.Property(x => x.DecidedBy).HasMaxLength(100);
+            e.Property(x => x.CreatedBy).HasMaxLength(100); e.Property(x => x.DecidedBy).HasMaxLength(100); e.Property(x => x.ExternalReference).HasMaxLength(100);
             e.HasIndex(x => x.PatientId); e.HasIndex(x => x.BookingId); e.HasIndex(x => x.FunderId);
             e.HasOne<Funder>().WithMany().HasForeignKey(x => x.FunderId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -278,6 +330,7 @@ public sealed class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) :
             e.ToTable("Claims"); e.Property(x => x.Number).HasMaxLength(20); e.HasIndex(x => x.Number).IsUnique();
             e.Property(x => x.MemberNumber).HasMaxLength(50); e.Property(x => x.AccClaimNumber).HasMaxLength(20); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(12);
             e.Property(x => x.Amount).HasPrecision(12, 2); e.Property(x => x.Paid).HasPrecision(12, 2); e.Property(x => x.SubmittedBy).HasMaxLength(100); e.Property(x => x.ResponseText).HasMaxLength(1000); e.Property(x => x.CreatedBy).HasMaxLength(100);
+            e.Property(x => x.ExternalReference).HasMaxLength(100); e.HasIndex(x => x.ExternalReference);
             e.HasIndex(x => x.InvoiceId).IsUnique().HasFilter("[Status] <> 'WrittenOff'"); e.HasIndex(x => x.PatientId); e.HasIndex(x => x.FunderId); e.HasIndex(x => x.PriorApprovalId); e.HasIndex(x => x.BatchId); e.HasIndex(x => new { x.Status, x.SubmittedAt });
             e.HasOne<Funder>().WithMany().HasForeignKey(x => x.FunderId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<PriorApproval>().WithMany().HasForeignKey(x => x.PriorApprovalId).OnDelete(DeleteBehavior.Restrict);
@@ -323,6 +376,13 @@ public sealed class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) :
             e.Property(x => x.TerminalId).HasMaxLength(30); e.Property(x => x.MerchantReference).HasMaxLength(40); e.HasIndex(x => x.MerchantReference).IsUnique();
             e.Property(x => x.AuthCode).HasMaxLength(20); e.Property(x => x.CardType).HasMaxLength(20); e.Property(x => x.Last4).HasMaxLength(4).IsFixedLength(); e.Property(x => x.ResponseText).HasMaxLength(300); e.Property(x => x.StartedBy).HasMaxLength(100);
             e.HasIndex(x => x.InvoiceId); e.HasIndex(x => x.StartedAt);
+            e.Property(x => x.Refunded).HasPrecision(12, 2); e.Property(x => x.Reason).HasMaxLength(300); e.HasIndex(x => x.RefundOfId);
+            e.HasOne<TerminalTransaction>().WithMany().HasForeignKey(x => x.RefundOfId).OnDelete(DeleteBehavior.Restrict);
+        });
+        b.Entity<XeroContact>(e =>
+        {
+            e.ToTable("XeroContacts"); e.Property(x => x.Key).HasMaxLength(200); e.HasIndex(x => x.Key).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(200); e.Property(x => x.XeroContactId).HasMaxLength(50); e.Property(x => x.How).HasMaxLength(10);
         });
         b.Entity<IdentitySettings>(e =>
         {
@@ -335,6 +395,7 @@ public sealed class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) :
         {
             e.ToTable("Settings", t => t.HasCheckConstraint("CK_ClaimsSettings_SingleRow", "[Id] = 1")); e.Property(x => x.Id).ValueGeneratedNever();
             e.Property(x => x.TerminalProvider).HasConversion<string>().HasMaxLength(10); e.Property(x => x.TerminalId).HasMaxLength(30);
+            e.Property(x => x.WindcaveUrl).HasMaxLength(200); e.Property(x => x.WindcaveUser).HasMaxLength(100); e.Property(x => x.WindcaveKeyProtected).HasMaxLength(1000);
             e.HasData(new ClaimsSettings());
         });
     }

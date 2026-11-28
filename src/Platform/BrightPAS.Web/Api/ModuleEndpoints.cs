@@ -18,6 +18,7 @@ public static class ModuleEndpoints
     public sealed record AckRequest(string? Comment);
     public sealed record MatchRequest(Guid PatientId, string Reason);
     public sealed record ImportRequest(string Message);
+    public sealed record CreditNoteRequest(decimal Amount, string? Reason);
     public sealed record StatusRequest(BookingStatus Status, string? Reason);
     public sealed record ReorderRequest(Guid[] BookingIds);
     public sealed record GenerateRequest(DateOnly From, DateOnly To);
@@ -289,5 +290,10 @@ public static class ModuleEndpoints
             Done(await svc.SetStatusAsync(id, r.Status, r.Reason, Me(u)))).RequireAuthorization(Permissions.BillingManage);
         g.MapPost("/invoices/{id:guid}/payments", async (Guid id, NewPayment p, ClaimsPrincipal u, BillingService svc) =>
             Done(await svc.RecordPaymentAsync(id, p, Me(u)))).RequireAuthorization(Permissions.BillingManage);
+        g.MapPost("/invoices/{id:guid}/credit-note", async (Guid id, CreditNoteRequest r, ClaimsPrincipal u, BillingService svc) =>
+        {
+            var (number, error) = await svc.CreditNoteAsync(id, r.Amount, r.Reason ?? "", Me(u));
+            return number is null ? Results.BadRequest(new { error }) : Results.Ok(new { number });
+        }).RequireAuthorization(Permissions.BillingManage);
     }
 }

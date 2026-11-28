@@ -134,7 +134,7 @@ public static class Permissions
     public const string OnlinePayView = "onlinepay.view";
     public const string OnlinePayManage = "onlinepay.manage";
     public const string OnlinePaySettings = "onlinepay.settings";
-    /// <summary>Refund online card payments back to the card (0.32.0).</summary>
+    /// <summary>Refund card payments back to the card – online (0.32.0) and EFTPOS (0.34.0).</summary>
     public const string OnlinePayRefund = "onlinepay.refund";
     /// <summary>Set up and cancel payment plans (0.32.0, Finance).</summary>
     public const string OnlinePayPlans = "onlinepay.plans";

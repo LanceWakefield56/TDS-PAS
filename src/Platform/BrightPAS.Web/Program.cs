@@ -128,7 +128,10 @@ builder.Services.AddHttpClient("messaging", c => c.Timeout = TimeSpan.FromSecond
 builder.Services.AddHttpClient("ai", c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddHttpClient("xero", c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient("identity", c => c.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddHttpClient("funder", c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddSingleton<BrightPAS.Modules.Claims.IXeroApi, BrightPAS.Web.Integration.HttpXeroApi>();
+builder.Services.AddSingleton<BrightPAS.Modules.Claims.ITerminalApi, BrightPAS.Web.Integration.HttpTerminalApi>();
+builder.Services.AddSingleton<BrightPAS.Modules.Claims.IFunderApi, BrightPAS.Web.Integration.FhirFunderApi>();
 builder.Services.AddSingleton<BrightPAS.Web.Integration.HealthNzIdentityClient>();
 builder.Services.AddScoped<BrightPAS.Web.Integration.SimulatorIdentityClient>();
 builder.Services.AddScoped<BrightPAS.Web.Integration.HealthIdentityService>();

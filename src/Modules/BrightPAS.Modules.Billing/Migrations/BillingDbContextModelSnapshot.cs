@@ -186,6 +186,9 @@ namespace BrightPAS.Modules.Billing.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
+                    b.Property<int>("NextCreditNoteNumber")
+                        .HasColumnType("int");
+
                     b.Property<int>("NextEstimateNumber")
                         .IsConcurrencyToken()
                         .HasColumnType("int");
@@ -215,6 +218,7 @@ namespace BrightPAS.Modules.Billing.Migrations
                             AnaesthetistPercent = 20m,
                             EstimateValidDays = 30,
                             GstPercent = 15m,
+                            NextCreditNoteNumber = 1,
                             NextEstimateNumber = 1,
                             NextInvoiceNumber = 1,
                             PaymentTermsDays = 20,

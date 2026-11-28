@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.34.0 – 2026-11-28 – **Direct insurer claiming, linked EFTPOS and Xero**
+- **Direct claiming (ADR 0047, guide H41)** – Claims settings › Funders › Direct claiming: Off (claim file or portal), Training simulator or Connected (FHIR, needs the funder's provider agreement, address and key).
+  - Ready claims: **Send straight to the funder**. Draft prior approvals: **Send straight to funder**. Answers come back by themselves every 15 minutes (or **Check funders now**): accepted, rejected, part paid, paid – payments go onto the invoice; approvals get the funder's reference, amount and valid-until date.
+  - If the funder can't be reached the claim stays ready and can still go by file.
+- **Linked EFTPOS terminal (Windcave)** – the amount goes to the terminal by itself and the result comes back (card type and last four digits only). Needs a Windcave merchant agreement and HIT user and key.
+  - **Refund to card** on an approved EFTPOS payment (Finance): up to what is left, with a reason; comes off the invoice. Settlement shows refunds.
+- **Credit notes** – on an issued invoice: Credit note takes money off without a payment (numbered CN000001…).
+- **Xero** – contacts matched by name and email (or made) once and remembered; credit notes sent and allocated to the invoice (or as credit lines in the import file); refunds listed once to record by hand.
+- Demo data: Southern Cross on the claiming simulator with a prior approval sent, a goodwill credit note.
+- Test robot: refund to card and credit note; prior approval sent straight to Southern Cross and answered.
+
 ## 0.33.0 – 2026-11-28 – **Estimate follow-up**
 - **Estimate follow-up (ADR 0046, guide H40)** – Before surgery › Estimate follow-up, and a Follow-up box on each issued estimate:
   - **Where each estimate is up to:** waiting to hear, accepted, declined (with the reason), insurer approval requested / approved (approval number) / declined, deposit paid, booked, invoiced, expired – with the history of who recorded what and when, and an optional date to follow up again.

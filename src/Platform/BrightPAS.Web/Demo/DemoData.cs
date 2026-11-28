@@ -1410,6 +1410,12 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             if (k > 1) Ok(await cl.MarkRequestedAsync(pa!.Id, "reception", ct), "upcoming approval requested");
         }
 
+        // 0.34.0: Southern Cross on direct claiming (training simulator); the first upcoming approval goes straight to them.
+        var direct = S<BrightPAS.Modules.Claims.DirectClaimService>();
+        Ok(await direct.SaveApiAsync(Funder("Southern Cross"), new(BrightPAS.Modules.Claims.FunderApi.Simulator, null, null), "admin", ct), "direct claiming");
+        var draftPa = (await cl.ApprovalsAsync(null, null, true, ct)).Where(a => a.Status == BrightPAS.Modules.Claims.ApprovalStatus.Draft && a.FunderId == Funder("Southern Cross")).OrderBy(a => a.Number).FirstOrDefault();
+        if (draftPa is not null) Ok(await direct.RequestApprovalAsync(draftPa.Id, "reception", ct), "direct approval");
+
         // A self-funded invoice paid at the desk by EFTPOS (simulator), and one waiting at the terminal.
         var self = await S<BillingDbContext>().Documents.AsNoTracking().Include(d => d.Lines).Include(d => d.Payments)
             .Where(d => d.Kind == DocumentKind.Invoice && d.Payer == Payer.SelfFunded && (d.Status == DocumentStatus.Issued || d.Status == DocumentStatus.PartPaid)).OrderBy(d => d.IssuedOn).Take(1).ToListAsync(ct);
@@ -1421,6 +1427,13 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
                 var (t, e) = await term.StartAsync(d.Id, Math.Min(200m, bal), "reception", ct);
                 Ok(e, "eftpos");
             }
+
+        // 0.34.0: a goodwill credit note on another self-funded invoice.
+        var other = await S<BillingDbContext>().Documents.AsNoTracking()
+            .Where(d => d.Kind == DocumentKind.Invoice && d.Payer == Payer.SelfFunded && d.Status == DocumentStatus.Issued).OrderByDescending(d => d.IssuedOn).ThenBy(d => d.Number).FirstOrDefaultAsync(ct);
+        if (other is not null && !self.Any(x => x.Id == other.Id))
+            using (At(_today, 10))
+                Ok((await S<BillingService>().CreditNoteAsync(other.Id, 25m, "Goodwill – late start on the day", "finance", ct)).Error, "credit note");
     }
 
     private async Task FollowUpAsync(CancellationToken ct)

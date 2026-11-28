@@ -58,7 +58,7 @@ public sealed class HttpXeroApi(IHttpClientFactory http) : IXeroApi
             {
                 new
                 {
-                    Type = "ACCREC", Contact = new { Name = i.ContactName, EmailAddress = i.Email }, InvoiceNumber = i.InvoiceNumber, Reference = i.Reference,
+                    Type = "ACCREC", Contact = i.ContactId is null ? (object)new { Name = i.ContactName, EmailAddress = i.Email } : new { ContactID = i.ContactId }, InvoiceNumber = i.InvoiceNumber, Reference = i.Reference,
                     Date = i.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), DueDate = i.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                     LineAmountTypes = "Exclusive", Status = "AUTHORISED", CurrencyCode = "NZD",
                     LineItems = i.Lines.Select(l => new { l.Description, l.Quantity, l.UnitAmount, l.AccountCode, l.TaxType, ItemCode = (string?)null }).ToArray(),
@@ -76,25 +76,81 @@ public sealed class HttpXeroApi(IHttpClientFactory http) : IXeroApi
         using var doc = await SendAsync(c, Req("Payments", accessToken, tenantId, body), ct);
         return doc.RootElement.GetProperty("Payments")[0].GetProperty("PaymentID").GetString()!;
     }
+
+    public async Task<string?> FindContactAsync(string accessToken, string tenantId, string name, string? email, CancellationToken ct)
+    {
+        using var c = http.CreateClient("xero");
+        using var r = new HttpRequestMessage(HttpMethod.Get, ApiUrl + "Contacts?summaryOnly=true&searchTerm=" + Uri.EscapeDataString(name));
+        r.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        r.Headers.Add("xero-tenant-id", tenantId);
+        r.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        using var doc = await SendAsync(c, r, ct);
+        string? byName = null;
+        foreach (var x in doc.RootElement.GetProperty("Contacts").EnumerateArray())
+        {
+            var id = x.GetProperty("ContactID").GetString();
+            var mail = x.TryGetProperty("EmailAddress", out var e) ? e.GetString() : null;
+            if (email is not null && string.Equals(mail, email, StringComparison.OrdinalIgnoreCase)) return id;
+            if (byName is null && string.Equals(x.GetProperty("Name").GetString(), name, StringComparison.OrdinalIgnoreCase)) byName = id;
+        }
+        return byName;
+    }
+
+    public async Task<string> CreateContactAsync(string accessToken, string tenantId, string name, string? email, CancellationToken ct)
+    {
+        using var c = http.CreateClient("xero");
+        var body = new { Contacts = new[] { new { Name = name, EmailAddress = email } } };
+        using var doc = await SendAsync(c, Req("Contacts", accessToken, tenantId, body), ct);
+        return doc.RootElement.GetProperty("Contacts")[0].GetProperty("ContactID").GetString()!;
+    }
+
+    public async Task<string> CreateCreditNoteAsync(string accessToken, string tenantId, XeroCreditNote n, CancellationToken ct)
+    {
+        using var c = http.CreateClient("xero");
+        var date = n.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var body = new
+        {
+            CreditNotes = new[]
+            {
+                new
+                {
+                    Type = "ACCRECCREDIT", Contact = n.ContactId is null ? (object)new { Name = n.ContactName } : new { ContactID = n.ContactId }, CreditNoteNumber = n.Number, Reference = n.Reference,
+                    Date = date, LineAmountTypes = "Inclusive", Status = "AUTHORISED", CurrencyCode = "NZD",
+                    LineItems = new[] { new { Description = n.Reference ?? n.Number, Quantity = 1m, UnitAmount = n.Amount, n.AccountCode, n.TaxType } },
+                },
+            },
+        };
+        using var doc = await SendAsync(c, Req("CreditNotes", accessToken, tenantId, body), ct);
+        var id = doc.RootElement.GetProperty("CreditNotes")[0].GetProperty("CreditNoteID").GetString()!;
+        var alloc = new { Allocations = new[] { new { Invoice = new { InvoiceID = n.InvoiceXeroId }, Amount = n.Amount, Date = date } } };
+        using var _ = await SendAsync(c, Req($"CreditNotes/{id}/Allocations", accessToken, tenantId, alloc), ct);
+        return id;
+    }
 }
 
-/// <summary>Daily: expires prior approvals past their valid-until date.</summary>
+/// <summary>Hourly: expires prior approvals past their valid-until date. Every 15 minutes: asks funders for answers on claims sent directly (0.34.0).</summary>
 public sealed class ClaimsWorker(IServiceScopeFactory scopes, LicenceCache licence, ILogger<ClaimsWorker> log) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromHours(1));
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(15));
+        var tick = 0;
         do
         {
             if (licence.Status.AccessTo(ClaimsModule.Id) != ModuleAccess.Full) continue;
             try
             {
                 await using var scope = scopes.CreateAsyncScope();
-                var n = await scope.ServiceProvider.GetRequiredService<ClaimsService>().ExpireApprovalsAsync(stoppingToken);
-                if (n > 0) log.LogInformation("Claims: {Count} prior approval(s) expired.", n);
+                if (tick++ % 4 == 0)
+                {
+                    var n = await scope.ServiceProvider.GetRequiredService<ClaimsService>().ExpireApprovalsAsync(stoppingToken);
+                    if (n > 0) log.LogInformation("Claims: {Count} prior approval(s) expired.", n);
+                }
+                var r = await scope.ServiceProvider.GetRequiredService<DirectClaimService>().CheckAsync("system", stoppingToken);
+                if (r.Changed > 0 || r.Errors.Count > 0) log.LogInformation("Claims: direct check {Checked} checked, {Changed} changed, {Paid} paid, {Errors} errors.", r.Checked, r.Changed, r.Paid, r.Errors.Count);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception ex) { log.LogError(ex, "Claims housekeeping failed; it will run again in an hour."); }
+            catch (Exception ex) { log.LogError(ex, "Claims housekeeping failed; it will run again in 15 minutes."); }
         } while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 }

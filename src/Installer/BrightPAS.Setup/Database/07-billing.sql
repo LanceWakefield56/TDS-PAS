@@ -229,3 +229,34 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [billing].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070749_CreditNotes'
+)
+BEGIN
+    ALTER TABLE [billing].[Settings] ADD [NextCreditNoteNumber] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [billing].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070749_CreditNotes'
+)
+BEGIN
+    EXEC(N'UPDATE [billing].[Settings] SET [NextCreditNoteNumber] = 1
+    WHERE [Id] = 1;
+    SELECT @@ROWCOUNT');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [billing].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128070749_CreditNotes'
+)
+BEGIN
+    INSERT INTO [billing].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261128070749_CreditNotes', N'10.0.14');
+END;
+
+COMMIT;
+GO
+
