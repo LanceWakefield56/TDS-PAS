@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.36.0 – 2026-11-28 – **Early warning score on the day and anaesthetist reviews**
+- **Early warning score in triage (ADR 0049, guide H43)** – Triage rules › Settings: switch on "Use the early warning score from observations taken on the day". Observations on admission with a score of 5 or more (setting), or any single observation scoring 3, re-run triage and suggest an anaesthetist review before surgery; lower scores add "repeat observations". Off until switched on.
+- **Anaesthetist reviews** – on a triage: **Book review** with an anaesthetist by video (join link from the meeting link in settings), phone or in person, before the surgery date, no double-booking. The anaesthetist records what the review found; staff can mark did not attend or cancel. New worklist tab "Reviews booked".
+- Demo data: early warning score switched on, a video review done, a phone review booked.
+- Test robot: books a video review and checks only the anaesthetist can record it.
+
 ## 0.35.0 – 2026-11-28 – **Tasks, workflow steps and encrypted links**
 - **Tasks (ADR 0048, guide H42)** – new Tasks screen for everyone: My tasks, Late, All open, Finished. **I'll do it** takes a task; **Done** or **Not needed** (with a reason) finishes it. **New task** makes one for a role, with an optional time limit and a role to pass it to if late. Kept with who did what and when. New permission "Work on tasks" (every role).
 - **Flow designer** – two new steps: **Task** (makes a task when a message arrives; the title can use message fields like {PID-5.1}) and **Wait** (holds the message for a set time, then carries on). Test runs show what would happen.

@@ -43,6 +43,7 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_referrals_Referrals_Patient', N'[
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_referrals_Waitlist_Patient', N'[referrals].[Waitlist]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_msg_Messages_Patient', N'[msg].[Messages]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_msg_Tasks_Patient', N'[msg].[Tasks]', N'PatientId', N'[patients].[Patients]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_triage_Reviews_Patient', N'[triage].[Reviews]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_letters_Letters_Patient', N'[letters].[Letters]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_reminders_Messages_Patient', N'[reminders].[Messages]', N'PatientId', N'[patients].[Patients]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_reminders_Replies_Patient', N'[reminders].[Replies]', N'PatientId', N'[patients].[Patients]';
@@ -65,6 +66,7 @@ EXEC [maintenance].[usp_EnsureForeignKey] N'FK_theatre_Templates_Location', N'[t
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_theatre_Appointments_Location', N'[theatre].[Appointments]', N'LocationId', N'[core].[Locations]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_cred_Credentials_Clinician', N'[cred].[Credentials]', N'ClinicianId', N'[core].[Clinicians]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_cred_Privileges_Clinician', N'[cred].[Privileges]', N'ClinicianId', N'[core].[Clinicians]';
+EXEC [maintenance].[usp_EnsureForeignKey] N'FK_triage_Reviews_Anaesthetist', N'[triage].[Reviews]', N'AnaesthetistId', N'[core].[Clinicians]';
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_portal_Delegates_Clinician', N'[portal].[Delegates]', N'ClinicianId', N'[core].[Clinicians]';
 -- Clinicians on lists, templates, appointments, referrals and the waitlist (stored by id only, 0.10.2)
 EXEC [maintenance].[usp_EnsureForeignKey] N'FK_theatre_Sessions_Surgeon', N'[theatre].[Sessions]', N'SurgeonId', N'[core].[Clinicians]';

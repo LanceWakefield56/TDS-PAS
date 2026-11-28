@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using BrightPAS.Core;
 using BrightPAS.Core.Audit;
+using BrightPAS.Modules.Emr;
 using BrightPAS.Modules.Forms;
 using BrightPAS.Modules.Labs;
 using BrightPAS.Modules.Patients;
@@ -19,7 +20,7 @@ public sealed record WorkItem(Guid Id, Guid PatientId, string Patient, string? N
 
 /// <summary>Triage assessments: build facts, calculate, re-triage, sign off, worklists, the booking gate and the re-triage scan.</summary>
 public sealed class TriageService(TriageDbContext db, PatientsDbContext patients, FormsDbContext forms, TheatreDbContext theatre, LabsDbContext labs,
-    AuditWriter audit, TimeProvider clock)
+    EmrDbContext emr, AuditWriter audit, TimeProvider clock)
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
@@ -110,7 +111,36 @@ public sealed class TriageService(TriageDbContext db, PatientsDbContext patients
             if (key is not null && decimal.TryParse(o.Value, NumberStyles.Number, Inv, out _)) f[key] = o.Value;
         }
         foreach (var (k, v) in staff) f[k] = v;
+        // 0.36.0: the early warning score from the latest complete observations on the day of surgery.
+        if (planned.BookingId is { } bid && planned.Date == NzTime.Today(clock) && await LatestEwsAsync(bid, ct) is { } ews)
+        {
+            var s = await SettingsAsync(ct);
+            if (s.EwsOnTheDay)
+            {
+                f["ews"] = ews.Score.ToString(Inv);
+                f["ews_three"] = ews.AnyThree ? "Yes" : "No";
+                f["ews_at"] = ews.At.ToNz().ToString("HH:mm", Inv);
+                f["ews_review_at"] = s.EwsReviewAt.ToString(Inv);
+            }
+        }
         return (f, form?.Id);
+    }
+
+    private sealed record EwsReading(int Score, bool AnyThree, DateTimeOffset At);
+
+    private async Task<EwsReading?> LatestEwsAsync(Guid bookingId, CancellationToken ct)
+    {
+        var since = clock.GetUtcNow().AddHours(-24);
+        var o = await (from e in emr.Episodes.AsNoTracking()
+                       where e.BookingId == bookingId
+                       join x in emr.Observations.AsNoTracking() on e.Id equals x.EpisodeId
+                       where x.Ews != null && x.At >= since
+                       orderby x.At descending
+                       select x).FirstOrDefaultAsync(ct);
+        if (o is null) return null;
+        var (score, three) = EmrService.Ews(new ObservationRequest(o.At, o.RespiratoryRate, o.SpO2, o.OnOxygen, o.OxygenLitres, o.SystolicBp, o.DiastolicBp, o.HeartRate,
+            o.TemperatureC, o.Consciousness, o.Pain, o.Sedation));
+        return new(score ?? o.Ews!.Value, three, o.At);
     }
 
     /// <summary>Maps common NZ lab codes/names to triage facts.</summary>
@@ -330,6 +360,8 @@ public sealed class TriageService(TriageDbContext db, PatientsDbContext patients
             var newForm = await forms.Requests.AsNoTracking().AnyAsync(r => r.PatientId == b.PatientId && r.SubmittedAt > latest.CreatedAt && (r.Status == FormStatus.Submitted || r.Status == FormStatus.Triaged), ct);
             if (newForm) (trigger, why) = (TriageTrigger.NewAnswers, "New questionnaire answers");
             else if (await labs.Reports.AsNoTracking().AnyAsync(r => r.PatientId == b.PatientId && r.ReceivedAt > latest.CreatedAt, ct)) (trigger, why) = (TriageTrigger.NewResult, "New lab results");
+            else if (s.EwsOnTheDay && b.Date == today && await LatestEwsAsync(b.Id, ct) is { } ews && ews.At > latest.CreatedAt)
+                (trigger, why) = (TriageTrigger.Observations, $"Observations on the day: early warning score {ews.Score}{(ews.AnyThree ? " (a single parameter scored 3)" : "")}");
             else if (!string.Equals(latest.Procedure, b.Procedure.Length > 200 ? b.Procedure[..200] : b.Procedure, StringComparison.Ordinal) || latest.Anaesthetic != b.Anaesthetic.ToString() || latest.ProcedureDate != b.Date)
                 (trigger, why) = (TriageTrigger.BookingChanged, $"Booking changed: {b.Procedure}, {b.Anaesthetic}, {b.Date:d MMM yyyy}");
             else if (latest.Status == AssessmentStatus.SignedOff && latest.SignedOffAt is { } so && b.Date.DayNumber - so.NzDate().DayNumber > s.RetriageAfterDays)
@@ -347,11 +379,17 @@ public sealed class TriageService(TriageDbContext db, PatientsDbContext patients
     {
         if (input.RetriageAfterDays is < 7 or > 365) return ["Re-triage after must be 7–365 days."];
         if (input.SignOffDaysBefore is < 0 or > 60) return ["Sign-off days before surgery must be 0–60."];
+        if (input.EwsReviewAt is < 1 or > 20) return ["Early warning score for review must be 1–20."];
+        if (input.ReviewMinutes is < 5 or > 120) return ["Review length must be 5–120 minutes."];
+        var link = string.IsNullOrWhiteSpace(input.VideoLinkTemplate) ? null : input.VideoLinkTemplate.Trim();
+        if (link is not null && (!link.StartsWith("https://", StringComparison.Ordinal) || !link.Contains("{code}", StringComparison.Ordinal) || link.Length > 300))
+            return ["The video link must start with https:// and include {code}."];
         var s = await SettingsAsync(ct);
+        (s.EwsOnTheDay, s.EwsReviewAt, s.VideoLinkTemplate, s.ReviewMinutes) = (input.EwsOnTheDay, input.EwsReviewAt, link, input.ReviewMinutes);
         (s.HoldBookingUntilSignedOff, s.HoldProcedures, s.RetriageAfterDays, s.SignOffDaysBefore) =
             (input.HoldBookingUntilSignedOff, string.IsNullOrWhiteSpace(input.HoldProcedures) ? null : input.HoldProcedures.Trim(), input.RetriageAfterDays, input.SignOffDaysBefore);
         await db.SaveChangesAsync(ct);
-        await audit.WriteAsync(user, "Update", "TriageSettings", "1", reason: $"hold {s.HoldBookingUntilSignedOff} ({s.HoldProcedures ?? "all"}); re-triage {s.RetriageAfterDays} d; sign-off {s.SignOffDaysBefore} d before", ct: ct);
+        await audit.WriteAsync(user, "Update", "TriageSettings", "1", reason: $"hold {s.HoldBookingUntilSignedOff} ({s.HoldProcedures ?? "all"}); re-triage {s.RetriageAfterDays} d; sign-off {s.SignOffDaysBefore} d before; EWS {(s.EwsOnTheDay ? $"on, review at {s.EwsReviewAt}" : "off")}", ct: ct);
         return [];
     }
 

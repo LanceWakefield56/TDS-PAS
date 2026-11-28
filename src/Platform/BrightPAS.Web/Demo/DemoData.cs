@@ -1292,9 +1292,39 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             Ok(await svc.SignOffAsync(w.Id, new(w.Suggested, null, null, "Questionnaire reviewed; phoned patient to confirm escort.", null), false, "nurse", "Nurse", ct), "triage sign-off");
             n++;
         }
-        var review = open.FirstOrDefault(w => w.Suggested == BrightPAS.Modules.Triage.TriageOutcome.AnaesthetistReview);
+        // 0.36.0: early warning score on the day switched on; anaesthetist video reviews.
+        var ts = await svc.SettingsAsync(ct);
+        (ts.EwsOnTheDay, ts.EwsReviewAt, ts.VideoLinkTemplate) = (true, 5, "https://meet.example.nz/tds-{code}");
+        Ok(await svc.SaveSettingsAsync(ts, "fgrant", ct), "triage settings");
+        var rv = S<BrightPAS.Modules.Triage.ReviewService>();
+        var grant = (await rv.AnaesthetistsAsync(ct)).First(c => c.UserName == "fgrant");
+        var reviews = open.Where(w => w.Suggested == BrightPAS.Modules.Triage.TriageOutcome.AnaesthetistReview).ToList();
+        var review = reviews.FirstOrDefault();
+        if (review is not null)
+        {
+            BrightPAS.Modules.Triage.Review? r1;
+            using (At(_today.AddDays(-1), 9))
+            {
+                (r1, var re1) = await rv.BookAsync(new(review.Id, grant.Id, BrightPAS.Modules.Triage.ReviewMode.Video, _today.ToDateTime(new TimeOnly(8, 0)), null, null, "Pacemaker / cardiac history"), "nurse", ct);
+                Ok(re1, "review booked");
+            }
+            using (At(_today, 8, 20))
+                Ok(await rv.FinishAsync(r1!.Id, new(BrightPAS.Modules.Triage.ReviewStatus.Done, "Video review: device checked last month, exercise tolerance good. Suitable with precautions."), "fgrant", ct), "review done");
+        }
+        // A second one waiting for review gets a phone appointment tomorrow.
+        if (reviews.Skip(1).FirstOrDefault() is { } next && (next.ProcedureDate is null || next.ProcedureDate > _today.AddDays(1)))
+            Ok((await rv.BookAsync(new(next.Id, grant.Id, BrightPAS.Modules.Triage.ReviewMode.Phone, _today.AddDays(1).ToDateTime(new TimeOnly(12, 30)), null, "021 555 0142", "Discuss sleep apnoea and CPAP"), "nurse", ct)).Errors, "phone review");
         if (review is not null)
             Ok(await svc.SignOffAsync(review.Id, new(BrightPAS.Modules.Triage.TriageOutcome.SuitableWithPrecautions, 3, "First on the list; device check on admission", "Reviewed in pre-assessment clinic.", "Reviewed by anaesthetist – suitable with precautions"), true, "fgrant", "Anaesthetist", ct), "anaesthetist sign-off");
+        // Today's patients with observations: an early warning score of 5 on admission re-runs triage (anaesthetist to review).
+        var emrDb = S<Emr.EmrDbContext>();
+        var todayIds = _upcoming.Where(x => x.Session.Date == _today).Select(x => x.Booking.Id).ToList();
+        var todayEp = await emrDb.Episodes.AsNoTracking().Where(e => todayIds.Contains(e.BookingId)).OrderBy(e => e.Id).FirstOrDefaultAsync(ct);
+        if (todayEp is not null)
+        {
+            Ok((await S<Emr.EmrService>().ObserveAsync(todayEp.Id, new Emr.ObservationRequest(_clock.GetUtcNow(), 22, 95, false, null, 105, 70, 112, 37.2m, "A", 1, 0), "nurse", ct)).Errors, "EWS observations");
+            await svc.ScanAsync(ct);
+        }
     }
 
     /// <summary>0.25.0: outbox hold (short in the demo), form designer forms and an entry, de-identified extracts.</summary>

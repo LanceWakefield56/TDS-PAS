@@ -273,3 +273,119 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [triage].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128114328_EwsAndReviews'
+)
+BEGIN
+    ALTER TABLE [triage].[Settings] ADD [EwsOnTheDay] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [triage].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128114328_EwsAndReviews'
+)
+BEGIN
+    ALTER TABLE [triage].[Settings] ADD [EwsReviewAt] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [triage].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128114328_EwsAndReviews'
+)
+BEGIN
+    ALTER TABLE [triage].[Settings] ADD [ReviewMinutes] int NOT NULL DEFAULT 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [triage].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128114328_EwsAndReviews'
+)
+BEGIN
+    ALTER TABLE [triage].[Settings] ADD [VideoLinkTemplate] nvarchar(300) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [triage].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128114328_EwsAndReviews'
+)
+BEGIN
+    CREATE TABLE [triage].[Reviews] (
+        [Id] uniqueidentifier NOT NULL,
+        [AssessmentId] uniqueidentifier NOT NULL,
+        [PatientId] uniqueidentifier NOT NULL,
+        [BookingId] uniqueidentifier NULL,
+        [AnaesthetistId] uniqueidentifier NOT NULL,
+        [AnaesthetistName] nvarchar(200) NOT NULL,
+        [Mode] nvarchar(10) NOT NULL,
+        [StartsAt] datetimeoffset NOT NULL,
+        [Minutes] int NOT NULL,
+        [Status] nvarchar(15) NOT NULL,
+        [JoinLink] nvarchar(400) NULL,
+        [Phone] nvarchar(40) NULL,
+        [Reason] nvarchar(500) NULL,
+        [Outcome] nvarchar(2000) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [CreatedBy] nvarchar(100) NOT NULL,
+        [DoneAt] datetimeoffset NULL,
+        [DoneBy] nvarchar(100) NULL,
+        CONSTRAINT [PK_Reviews] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_Reviews_Assessments_AssessmentId] FOREIGN KEY ([AssessmentId]) REFERENCES [triage].[Assessments] ([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [triage].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128114328_EwsAndReviews'
+)
+BEGIN
+    EXEC(N'UPDATE [triage].[Settings] SET [EwsOnTheDay] = CAST(0 AS bit), [EwsReviewAt] = 5, [ReviewMinutes] = 15, [VideoLinkTemplate] = NULL
+    WHERE [Id] = 1;
+    SELECT @@ROWCOUNT');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [triage].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128114328_EwsAndReviews'
+)
+BEGIN
+    CREATE INDEX [IX_Reviews_AnaesthetistId_StartsAt] ON [triage].[Reviews] ([AnaesthetistId], [StartsAt]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [triage].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128114328_EwsAndReviews'
+)
+BEGIN
+    CREATE INDEX [IX_Reviews_AssessmentId] ON [triage].[Reviews] ([AssessmentId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [triage].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128114328_EwsAndReviews'
+)
+BEGIN
+    CREATE INDEX [IX_Reviews_BookingId] ON [triage].[Reviews] ([BookingId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [triage].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128114328_EwsAndReviews'
+)
+BEGIN
+    CREATE INDEX [IX_Reviews_PatientId] ON [triage].[Reviews] ([PatientId]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [triage].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261128114328_EwsAndReviews'
+)
+BEGIN
+    INSERT INTO [triage].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261128114328_EwsAndReviews', N'10.0.14');
+END;
+
+COMMIT;
+GO
+
