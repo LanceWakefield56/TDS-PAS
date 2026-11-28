@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSession } from '../App';
 import { Perm } from '../api';
 
-const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting', 'estimates', 'triage', 'medicines', 'followup', 'claims', 'ebookings'];
+const SETUP_MODULES = ['theatre', 'referrals', 'labs', 'forms', 'billing', 'reminders', 'letters', 'rostering', 'credentialing', 'portal', 'messaging', 'assets', 'emr', 'endoscopy', 'scribe', 'quality', 'devices', 'reporting', 'estimates', 'triage', 'medicines', 'followup', 'claims', 'ebookings', 'consent'];
 
 export default function Shell() {
   const { me, signOut, can, mod } = useSession();
@@ -49,8 +49,9 @@ export default function Shell() {
           {mod('followup') && (can(Perm.FollowUpView) || can(Perm.FollowUpRecord) || can(Perm.FollowUpSsi)) && <NavLink to="/followup" end className="primary-nav">Follow-up</NavLink>}
           {can(Perm.PatientRegister) && <NavLink to="/patients/new">Register a patient</NavLink>}
 
-          <Group title="Before surgery" paths={['/rooms-bookings', '/referrals', '/waitlist', '/estimates', '/forms', '/triage', '/reminders', '/letters', '/portal', '/calendar', '/outbox']}>
+          <Group title="Before surgery" paths={['/rooms-bookings', '/consent', '/referrals', '/waitlist', '/estimates', '/forms', '/triage', '/reminders', '/letters', '/portal', '/calendar', '/outbox']}>
             {mod('ebookings') && can(Perm.EBookingsManage) && <NavLink to="/rooms-bookings">Bookings from rooms</NavLink>}
+            {mod('consent') && [Perm.ConsentView, Perm.ConsentManage, Perm.ConsentConfirm, Perm.ConsentSheets, Perm.ConsentApprove].some(can) && <NavLink to="/consent">Consent</NavLink>}
             {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/referrals">Referrals</NavLink>}
             {mod('referrals') && can(Perm.ReferralsView) && <NavLink to="/waitlist">Waitlist</NavLink>}
             {mod('estimates') && (can(Perm.EstimatesBuild) || can(Perm.EstimatesManage)) && <NavLink to="/estimates" end>Procedure estimates</NavLink>}

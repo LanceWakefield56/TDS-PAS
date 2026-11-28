@@ -29,7 +29,7 @@ public sealed class RemindersModule : IPasModule
 public enum SmsProvider { Modica = 1, GenericHttp = 2, TestOutbox = 3, Off = 4 }
 public enum EmailProvider { Smtp = 1, TestOutbox = 2, Off = 3 }
 public enum Channel { Sms = 1, Email = 2 }
-public enum MessageKind { BookingConfirmation = 1, DayBeforeReminder = 2, FormLink = 3, ReplyConfirmed = 4, ReplyCancelRequested = 5, OptOutConfirmed = 6, Test = 7, PortalLink = 8, FollowUpCheckIn = 9 }
+public enum MessageKind { BookingConfirmation = 1, DayBeforeReminder = 2, FormLink = 3, ReplyConfirmed = 4, ReplyCancelRequested = 5, OptOutConfirmed = 6, Test = 7, PortalLink = 8, FollowUpCheckIn = 9, ConsentLink = 10 }
 public enum MessageStatus { Queued = 1, Sending = 2, Sent = 3, Delivered = 4, Failed = 5, Cancelled = 6, Suppressed = 7 }
 public enum ReplyMeaning { Confirm = 1, Cancel = 2, OptOut = 3, OptIn = 4, Unknown = 5 }
 public enum ReplyStatus { New = 1, Handled = 2 }

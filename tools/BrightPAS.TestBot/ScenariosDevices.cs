@@ -43,7 +43,7 @@ public sealed partial class Scenarios
         }
         if (nurse is null) return (Outcome.Skip, "No demonstration nurse may use Devices & SaferSleep (module off or no permission).");
         _deviceNurse = nurse;
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = DateOnly.FromDateTime(NzNow);
         for (var d = 0; d <= 14; d++)
         {
             var list = await nurse.GetAsync($"/api/emr/today?date={today.AddDays(d):yyyy-MM-dd}");
@@ -70,12 +70,15 @@ public sealed partial class Scenarios
     }
 
     // ------------------------------------------------------------------ virtual GE gateway
+    /// <summary>NZ wall-clock time: the monitors and SaferSleep send local NZ time, whatever clock the robot machine runs on.</summary>
+    private static DateTime NzNow => TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Pacific/Auckland")).DateTime;
+
     private static string Ts(DateTime t) => t.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
 
     /// <summary>One ORU^R01 as the CARESCAPE Gateway sends it (IHE PCD-01 style): PV1-3 the bed, OBX-3 IEEE 11073 (MDC) codes, OBX-18 the equipment.</summary>
     private static string MonitorOru(string bed, string? nhi, params (string Mdc, string Name, string Value, string Unit)[] values)
     {
-        var now = DateTime.Now;
+        var now = NzNow;
         var parts = bed.Split('/');
         var sb = new StringBuilder();
         sb.Append($"MSH|^~\\&|CARESCAPE_GW|TDS|BrightPAS|TDS|{Ts(now)}||ORU^R01^ORU_R01|GE{now:HHmmssfff}{Random.Shared.Next(100, 999)}|P|2.6\r");
@@ -259,7 +262,7 @@ public sealed partial class Scenarios
         static string T(DateTime t) => new DateTimeOffset(t).ToString("yyyyMMddHHmmsszzz", CultureInfo.InvariantCulture).Replace(":", "", StringComparison.Ordinal);
         var end = start.AddMinutes(40);
         var sb = new StringBuilder();
-        sb.Append($"MSH|^~\\&|SAFERSLEEP|TDS|BrightPAS|TDS|{T(DateTime.Now)}||ORU^R01|{control}|P|2.4\r");
+        sb.Append($"MSH|^~\\&|SAFERSLEEP|TDS|BrightPAS|TDS|{T(NzNow)}||ORU^R01|{control}|P|2.4\r");
         sb.Append($"PID|1||{nhi}^^^NZLMOH^NHI||{family}^{given}\r");
         sb.Append($"PV1|1|I|THEATRE 1|||||||||||||||||{visit}\r");
         sb.Append($"OBR|1|{visit}|{caseNo}|ANREC^Anaesthetic record^L|||{T(start)}|{T(end)}|||||||||||||||||{(correction ? "C" : "F")}|||||||ROBOT01&Robot&Anaesthetist\r");
@@ -300,7 +303,7 @@ public sealed partial class Scenarios
         var visit = c.EpisodeId.Replace("-", "", StringComparison.Ordinal);
         var stamp = DateTime.Now.ToString("HHmmss", CultureInfo.InvariantCulture);
         var caseNo = _robotCase = "SS-RBT-" + stamp;
-        var start = DateTime.Now.AddMinutes(-50);
+        var start = NzNow.AddMinutes(-50);
         string ack;
         try { ack = await SaferSleepSendsAsync(RecordOru("SSR" + stamp + "A", caseNo, visit, c.Nhi, c.Family, c.Given, start, false, "4"), $"Anaesthetic record {caseNo} (final)"); }
         catch (Exception ex) when (ex is System.Net.Sockets.SocketException or TimeoutException or IOException) { return (Outcome.Fail, $"Could not connect to the SaferSleep record interface on port {SaferSleepRecordPort}: {ex.Message}"); }
@@ -351,7 +354,7 @@ public sealed partial class Scenarios
         var stamp = DateTime.Now.ToString("HHmmss", CultureInfo.InvariantCulture);
         var caseNo = "SS-RBT-U" + stamp;
         // No visit number, and an anaesthetic on a day the patient was not here: BrightPAS must not guess.
-        var ack = await SaferSleepSendsAsync(RecordOru("SSU" + stamp, caseNo, null, c.Nhi, c.Family, c.Given, DateTime.Now.AddDays(-3), false, "4"), $"Record {caseNo} without a visit number, dated three days ago");
+        var ack = await SaferSleepSendsAsync(RecordOru("SSU" + stamp, caseNo, null, c.Nhi, c.Family, c.Given, NzNow.AddDays(-3), false, "4"), $"Record {caseNo} without a visit number, dated three days ago");
         if (!ack.Contains("MSA|AA", StringComparison.Ordinal)) return (Outcome.Fail, "BrightPAS refused a record it could have kept for filing by hand: " + ack.Replace('\r', ' '));
         var admin = await As("admin");
         var list = await admin.GetAsync("/api/devices/records?unmatched=true");

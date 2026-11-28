@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.29.0 – 2026-11-25 – **E-consent and patient education**
+- **E-consent module (ADR 0042, guide H36)** – licence "consent"; permissions View / Prepare and send / Confirm on the day / Write sheets / Approve sheets; "Consent" under Before surgery.
+  - **Information sheets:** what the procedure is, benefits, risks with how often they happen (serious risks first), alternatives, without the procedure, anaesthetic, getting ready, recovery, videos and web pages. Versioned; a second clinician approves before patients see a sheet; approved sheets never change (new version instead). Three example sheets (example wording only).
+  - **Consent per booking:** "To prepare" lists upcoming bookings without a consent with the suggested sheet; add risks for this patient and a note; send by text and email (secure link + date of birth, five tries then a 30-minute lock), or copy the link.
+  - **Patient page:** read each section and tick it, watch the videos, ask the surgeon's team a question (answered on the page), sign with a typed name and optional drawn signature – or a parent, guardian, welfare guardian or EPOA attorney signs; interpreter recorded. Withdraw at any time.
+  - **Paper consent** scanned in; **signed PDF** filed in the patient record and replaced by the confirmed copy; **confirm on the day** ticks the theatre consent check; withdrawal clears it.
+  - Points to check (question waiting, not signed close to the day, link expired, under 16, representative, interpreter), journey step and My list to-dos, optional "signed before confirming a booking" gate (off), set-up wizard, demo data, patient merge, self-test entries, reporting foreign keys.
+- Reminders: new message kind "Consent link" (text and email templates).
+- Test robot: **E-consent** steps (nurse sends; patient reads and signs on a phone; nurse confirms; reception cannot approve a sheet).
+
 ## 0.28.0 – 2026-11-25 – **Bookings from specialists' rooms**
 - **Bookings from rooms module (ADR 0041, guide H35)** – licence "ebookings"; permissions Send booking requests (Surgeon, PA, Specialist portal) and Manage booking requests (Reception / Booking); "Bookings from rooms" under Before surgery.
   - **Portal:** specialists and PAs send a booking request from the specialist portal – patient, procedure (from TDS's list or typed), side, anaesthetic, minutes, urgency, funding and approval/claim number, dates wanted and days to avoid, clinical notes, pre-op details (weight, height, BMI, ASA, diabetes, sleep apnoea, blood thinners, allergies, responsible adult, consent) and up to 8 letters/scans. They see each request's status, answer TDS's questions, add files, withdraw, and see the waitlist status and booked date once accepted. A possible duplicate must be confirmed.

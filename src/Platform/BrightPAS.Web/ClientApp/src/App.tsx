@@ -65,6 +65,7 @@ import FollowUp, { FollowUpContact, FollowUpPlans, FollowUpReport, PatientCheckI
 import Triage, { TriageAssessment, TriageReport, TriageRules } from './pages/Triage';
 import Medicines from './pages/Medicines';
 import RoomsBookings from './pages/RoomsBookings';
+import Consent, { ConsentDetail, PatientConsent, SheetEditor } from './pages/Consent';
 import { MessagingDashboard, MessagingInterfaces, MessagingMessage, MessagingMessages, MessagingSettings, MessagingTables } from './pages/Messaging';
 import { FlowEditor, MessagingFlows } from './pages/FlowDesigner';
 import { MappingEditor, MessagingMappings } from './pages/MappingDesigner';
@@ -111,6 +112,7 @@ export default function App() {
 
   if (location.pathname.startsWith('/q/')) return <Routes><Route path="/q/:token" element={<PatientQuestionnaire />} /></Routes>;
   if (location.pathname.startsWith('/c/')) return <Routes><Route path="/c/:token" element={<PatientCheckIn />} /></Routes>;
+  if (location.pathname.startsWith('/e/')) return <Routes><Route path="/e/:token" element={<PatientConsent />} /></Routes>;
   if (location.pathname.startsWith('/my/')) return <Routes><Route path="/my/:token" element={<MyPortal />} /></Routes>;
   if (loading) return <div className="splash"><div className="brand-mark">BrightPAS</div><p>Loading…</p></div>;
 
@@ -120,6 +122,7 @@ export default function App() {
     : <div className="card"><h1>Not available to you</h1><p>Your account does not include this page. If you need it for your work, ask your BrightPAS administrator.</p></div>;
   const triageAny = ['triage.view', 'triage.assess', 'triage.review', 'triage.rules', 'triage.approve'].some(can);
   const medsAny = ['medicines.view', 'medicines.catalogue', 'medicines.rules', 'medicines.approve'].some(can);
+  const consentAny = [Perm.ConsentView, Perm.ConsentManage, Perm.ConsentConfirm, Perm.ConsentSheets, Perm.ConsentApprove].some(can);
   const followAny = ['followup.view', 'followup.record', 'followup.plans', 'followup.ssi', 'followup.report'].some(can);
   const publicPaths = ['/signin', '/setup'];
   if (needsSetup && location.pathname !== '/setup') return <Navigate to="/setup" replace />;
@@ -163,6 +166,9 @@ export default function App() {
           <Route path="/outbox" element={allowed((mod('reminders') && can(Perm.RemindersView)) || (mod('letters') && can(Perm.LettersView)), <Outbox />)} />
           <Route path="/day" element={allowed(mod('theatre') && can(Perm.TheatreView), <DayBoard />)} />
           <Route path="/triage" element={allowed(mod('triage') && triageAny, <Triage />)} />
+          <Route path="/consent" element={allowed(mod('consent') && consentAny, <Consent />)} />
+          <Route path="/consent/sheets/:id" element={allowed(mod('consent') && consentAny, <SheetEditor />)} />
+          <Route path="/consent/:id" element={allowed(mod('consent') && consentAny, <ConsentDetail />)} />
           <Route path="/rooms-bookings" element={allowed(mod('ebookings') && can(Perm.EBookingsManage), <RoomsBookings />)} />
           <Route path="/medicines" element={allowed(mod('medicines') && medsAny, <Medicines />)} />
           <Route path="/triage/rules" element={allowed(mod('triage') && triageAny, <TriageRules />)} />

@@ -135,6 +135,7 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
         await EstimatesAsync(ct);
         await TriageAsync(ct);
         await FollowUpAsync(ct);
+        await ConsentAsync(ct);
         await SafetyFormsResearchAsync(ct);
         await ClaimsAsync(ct);
         await RemindersAsync(ct);
@@ -1450,6 +1451,48 @@ public sealed class DemoDataSeeder(IServiceProvider sp, ILogger<DemoDataSeeder> 
             else if (k < 10) Ok((await fu.RecordAsync(c.Id, new(BrightPAS.Modules.FollowUp.ContactStatus.Done, "Phone", fine, BrightPAS.Modules.FollowUp.Escalation.None, null, null), "nurse", ct)).Errors, "follow-up call");
         }
     }
+
+    /// <summary>E-consent (0.29.0): example sheets approved by a second surgeon, and consents at every stage for upcoming bookings (whatever the weekday).</summary>
+    private async Task ConsentAsync(CancellationToken ct)
+    {
+        var sheets = S<BrightPAS.Modules.Consent.ConsentSheetService>();
+        await sheets.SeedExamplesAsync("hreid", ct);
+        foreach (var sh in await sheets.ListAsync(false, ct))
+            if (sh.Status == BrightPAS.Modules.Consent.SheetStatus.Draft) Ok(await sheets.ApproveAsync(sh.Id, "Approved for demonstration only", "pnatarajan", ct), "approve consent sheet");
+        var svc = S<BrightPAS.Modules.Consent.ConsentService>();
+        Ok(await svc.SaveSettingsAsync("https://localhost:5001", 14, false, 28, "admin", ct), "consent settings");
+        var todo = (await svc.ToPrepareAsync(ct)).Where(r => r.SuggestedSheetId is not null).ToList();
+        var pdb = S<PatientsDbContext>();
+        for (var k = 0; k < todo.Count && k < 7; k++)
+        {
+            var r = todo[k];
+            var (c, errors) = await svc.PrepareAsync(r.BookingId, r.SuggestedSheetId!.Value, k == 2 ? "Higher chance of bleeding because you take a blood thinner (apixaban)." : null, null, "nurse", ct);
+            Ok(errors, "prepare consent");
+            if (k == 0) continue; // prepared, not sent
+            if (k == 5)
+            {
+                var (paper, pe) = await svc.RecordPaperAsync(new(r.BookingId, null, BrightPAS.Modules.Consent.SignerKind.Patient, r.Patient.Split(", ").Reverse().Aggregate((a, b) => a + " " + b), null, null, _today,
+                    "consent-paper.pdf", Convert.ToBase64String(DemoPaperConsent)), "reception", ct);
+                Ok(pe, "paper consent");
+                continue;
+            }
+            var (link, _, se) = await svc.SendAsync(c!.Id, "nurse", ct);
+            Ok(se, "send consent");
+            if (k == 1) continue; // waiting for the patient
+            var token = link!.Split("/e/")[1];
+            var dob = (await pdb.Patients.AsNoTracking().SingleAsync(p => p.Id == r.PatientId, ct)).DateOfBirth;
+            var (open, _, patient) = await svc.VerifyAsync(token, dob, ct: ct);
+            foreach (var sec in (await svc.ViewAsync(open!, patient!, ct)).Sections) Ok((await svc.MarkReadAsync(token, dob, sec.Key, ct)).Error, "read consent");
+            if (k == 3) { Ok(await svc.AskAsync(token, dob, "How long will I need off work afterwards?", ct), "consent question"); continue; } // question waiting
+            if (k == 6) { Ok(await svc.PatientWithdrawAsync(token, dob, "I would like to talk it over with my family first.", ct), "consent withdrawn"); continue; }
+            var name = $"{patient!.GivenNames} {patient.FamilyName}";
+            Ok(await svc.SignAsync(token, dob, new(BrightPAS.Modules.Consent.SignerKind.Patient, name, null, null, null, true, true, true), ct), "sign consent");
+            if (k == 4 && r.SurgeryDate == _today) Ok(await svc.ConfirmAsync(c.Id, "Gone through with the patient on admission.", "nurse", ct), "confirm consent");
+        }
+    }
+
+    /// <summary>A one-page PDF standing in for a scanned paper consent form.</summary>
+    private static readonly byte[] DemoPaperConsent = System.Text.Encoding.ASCII.GetBytes("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
 
     private async Task BillingAsync(CancellationToken ct)
     {

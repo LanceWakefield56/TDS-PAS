@@ -2,6 +2,7 @@ using BrightPAS.Core;
 using BrightPAS.Identity;
 using BrightPAS.Modules.Billing;
 using BrightPAS.Modules.Coding;
+using BrightPAS.Modules.Consent;
 using BrightPAS.Modules.Emr;
 using BrightPAS.Modules.Estimates;
 using BrightPAS.Modules.FollowUp;
@@ -46,7 +47,7 @@ public sealed record DayCard(Guid BookingId, Guid PatientId, string Patient, str
 public sealed class JourneyService(
     PatientsDbContext patients, TheatreDbContext theatre, ReferralsDbContext referrals, FormsDbContext forms, TriageDbContext triage,
     EstDbContext estimates, BillingDbContext billing, EmrDbContext emr, CodingDbContext coding, RemindersDbContext reminders, FollowUpDbContext followup,
-    BrightPAS.Modules.Claims.ClaimsDbContext claimsDb, LicenceCache licence, TimeProvider clock)
+    BrightPAS.Modules.Claims.ClaimsDbContext claimsDb, ConsentDbContext consentDb, LicenceCache licence, TimeProvider clock)
 {
     private bool On(string module) => licence.Status.AccessTo(module) != ModuleAccess.None;
 
@@ -73,6 +74,7 @@ public sealed class JourneyService(
         var eps = On("emr") ? await emr.Episodes.AsNoTracking().Where(e => e.PatientId == patientId).ToListAsync(ct) : [];
         var coded = On("reporting") || On("coding") ? await coding.Episodes.AsNoTracking().Where(c => c.PatientId == patientId).ToListAsync(ct) : [];
         var fus = On("followup") ? await followup.Contacts.AsNoTracking().Where(c => c.PatientId == patientId && c.Status != ContactStatus.Cancelled).ToListAsync(ct) : [];
+        var cons = On("consent") ? await consentDb.Consents.AsNoTracking().Include(c => c.Questions).Where(c => c.PatientId == patientId).ToListAsync(ct) : [];
         var msgs = On("reminders") ? await reminders.Messages.AsNoTracking().Where(m => m.PatientId == patientId && (m.Kind == MessageKind.BookingConfirmation || m.Kind == MessageKind.DayBeforeReminder)).ToListAsync(ct) : [];
 
         var cases = new List<JourneyCase>();
@@ -95,6 +97,7 @@ public sealed class JourneyService(
             stages.Add(EstimateStage(ests, docs, b.Date, patientId));
             stages.Add(QuestionnaireStage(frms, b.Id, patientId, b.Date, today));
             stages.Add(TriageStage(tri, b.Id, patientId));
+            if (On("consent")) stages.Add(ConsentStage(cons, b.Id, b.Status, b.Date, today));
             stages.Add(BookingStage(b.Id, b.Status, b.Date));
             stages.Add(ReminderStage(msgs, b.Id, b.Date, today));
             var ep = eps.FirstOrDefault(e => e.BookingId == b.Id);
@@ -231,6 +234,25 @@ public sealed class JourneyService(
             TriageOutcome.Suitable or TriageOutcome.SuitableWithPrecautions => new("triage", "Triage", StageState.Done, Outcomes.Labels[final] + (a.Precautions is null ? "" : " – " + a.Precautions.Replace('\n', ';')), a.SignedOffAt, open with { Label = "Open triage" }),
             TriageOutcome.NotSuitable => new("triage", "Triage", StageState.Blocked, "Not suitable for day surgery at TDS", a.SignedOffAt, open with { Label = "Open triage" }),
             _ => new("triage", "Triage", StageState.Waiting, Outcomes.Labels[final], a.SignedOffAt, open with { Label = "Open triage" })
+        };
+    }
+
+    private static JourneyStage ConsentStage(List<ConsentRecord> cons, Guid bookingId, BookingStatus st, DateOnly date, DateOnly today)
+    {
+        var c = cons.Where(x => x.BookingId == bookingId).OrderBy(x => x.Status == ConsentStatus.Withdrawn ? 1 : 0).ThenByDescending(x => x.CreatedAt).FirstOrDefault();
+        var finished = st is BookingStatus.InTheatre or BookingStatus.Recovery or BookingStatus.Discharged;
+        if (c is null || c.Status == ConsentStatus.Withdrawn)
+            return new("consent", "Consent", finished ? StageState.Skipped : date <= today.AddDays(21) ? StageState.Now : StageState.Later,
+                c is null ? "Not prepared" : "Withdrawn – " + c.WithdrawnReason, c?.WithdrawnAt, finished ? null : new("Prepare the consent", $"/consent?booking={bookingId}", Permissions.ConsentManage));
+        var open = new JourneyAction("Open the consent", $"/consent/{c.Id}", Permissions.ConsentView);
+        if (c.Questions.Any(q => q.AnsweredAt is null)) return new("consent", "Consent", StageState.Now, "The patient asked a question", c.Questions.Max(q => q.AskedAt), open with { Label = "Answer the question", Permission = Permissions.ConsentManage });
+        return c.Status switch
+        {
+            ConsentStatus.Draft => new("consent", "Consent", StageState.Now, $"{c.Number} prepared – not sent", c.CreatedAt, open with { Label = "Send to the patient", Permission = Permissions.ConsentManage }),
+            ConsentStatus.Sent => new("consent", "Consent", StageState.Waiting, c.OpenedAt is null ? "Sent – waiting for the patient" : "Opened by the patient – not signed", c.LinkSentAt, open),
+            ConsentStatus.Signed => new("consent", "Consent", date <= today && !finished ? StageState.Now : StageState.Done, $"Signed {(c.Method == ConsentMethod.Paper ? "on paper" : "online")} – confirm on the day", c.SignedAt,
+                open with { Label = "Confirm with the patient", Permission = Permissions.ConsentConfirm }),
+            _ => new("consent", "Consent", StageState.Done, $"Signed and confirmed by {c.ConfirmedBy}", c.ConfirmedAt, open),
         };
     }
 
@@ -414,6 +436,18 @@ public sealed class JourneyService(
             var w = await referrals.Waitlist.AsNoTracking().Where(x => x.Status == WaitlistStatus.Waiting && x.TargetDate <= today.AddDays(14)).OrderBy(x => x.TargetDate).Take(50).ToListAsync(ct);
             await Names(w.Select(x => x.PatientId));
             foreach (var x in w) Add("Before surgery", x.PatientId, "Book a theatre date", $"{x.Procedure}{(x.TargetDate < today ? " · past target" : " · target soon")}", x.TargetDate, new("Open the waitlist", $"/waitlist?patient={x.PatientId}", Permissions.TheatreBook), x.TargetDate < today ? 2 : 4);
+        }
+        if (On("consent") && (can(Permissions.ConsentManage) || can(Permissions.ConsentConfirm)))
+        {
+            var cq = await consentDb.Consents.AsNoTracking().Where(c => c.Status != ConsentStatus.Withdrawn && c.Questions.Any(q => q.AnsweredAt == null)).Take(50).ToListAsync(ct);
+            var bookingIds = await (from b in theatre.Bookings.AsNoTracking()
+                                    join x in theatre.Sessions.AsNoTracking() on b.SessionId equals x.Id
+                                    where x.Date == today && !x.IsCancelled
+                                    select b.Id).ToListAsync(ct);
+            var toConfirm = await consentDb.Consents.AsNoTracking().Where(c => c.Status == ConsentStatus.Signed && bookingIds.Contains(c.BookingId)).ToListAsync(ct);
+            await Names(cq.Concat(toConfirm).Select(c => c.PatientId));
+            foreach (var c in cq) Add("Before surgery", c.PatientId, "Answer the patient's consent question", $"{c.Number} {c.Procedure}", null, new("Open the consent", $"/consent/{c.Id}", Permissions.ConsentManage), 2);
+            foreach (var c in toConfirm) Add("Theatre today", c.PatientId, "Confirm consent with the patient", $"{c.Number} {c.Procedure}", today, new("Open the consent", $"/consent/{c.Id}", Permissions.ConsentConfirm), 1);
         }
         if (On("triage") && (can(Permissions.TriageAssess) || can(Permissions.TriageReview)))
         {

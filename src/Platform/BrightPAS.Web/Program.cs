@@ -51,7 +51,7 @@ builder.Services.AddPasModules([new PatientsModule(), new BrightPAS.Modules.Labs
     new BrightPAS.Modules.Forms.FormsModule(), new BrightPAS.Modules.Billing.BillingModule(), new BrightPAS.Modules.Reminders.RemindersModule(),
     new BrightPAS.Modules.Referrals.ReferralsModule(), new BrightPAS.Modules.Letters.LettersModule(),
     new BrightPAS.Modules.Rostering.RosteringModule(), new BrightPAS.Modules.Credentialing.CredentialingModule(), new BrightPAS.Modules.Portal.PortalModule(),
-    new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.Medicines.MedicinesModule(), new BrightPAS.Modules.EBookings.EBookingsModule(), new BrightPAS.Modules.FollowUp.FollowUpModule(), new BrightPAS.Modules.Research.ResearchModule(), new BrightPAS.Modules.Claims.ClaimsModule()]);
+    new BrightPAS.Modules.Messaging.MessagingModule(), new BrightPAS.Modules.Assets.AssetsModule(), new BrightPAS.Modules.Emr.EmrModule(), new BrightPAS.Modules.Endoscopy.EndoscopyModule(), new BrightPAS.Modules.Scribe.ScribeModule(), new BrightPAS.Modules.Devices.DevicesModule(), new BrightPAS.Modules.Quality.QualityModule(), new BrightPAS.Modules.Coding.CodingModule(), new BrightPAS.Modules.Estimates.EstimatesModule(), new BrightPAS.Modules.Triage.TriageModule(), new BrightPAS.Modules.Medicines.MedicinesModule(), new BrightPAS.Modules.EBookings.EBookingsModule(), new BrightPAS.Modules.FollowUp.FollowUpModule(), new BrightPAS.Modules.Research.ResearchModule(), new BrightPAS.Modules.Claims.ClaimsModule(), new BrightPAS.Modules.Consent.ConsentModule()]);
 builder.Services.AddScoped<BrightPAS.Core.Organisation.OrganisationService>();
 builder.Services.AddScoped<RoleAdminService>();
 builder.Services.AddSingleton<BrightPAS.Web.Security.SessionRevocations>();
@@ -67,7 +67,7 @@ builder.Services.AddScoped<BrightPAS.Modules.Patients.IDocumentTextExtractor, Br
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.DocumentTextWorker>();
 foreach (var t in new[] { typeof(BrightPAS.Web.Integration.TheatreMerge), typeof(BrightPAS.Web.Integration.FormsMerge), typeof(BrightPAS.Web.Integration.BillingMerge),
     typeof(BrightPAS.Web.Integration.LabsMerge), typeof(BrightPAS.Web.Integration.ReferralsMerge), typeof(BrightPAS.Web.Integration.LettersMerge),
-    typeof(BrightPAS.Web.Integration.RemindersMerge), typeof(BrightPAS.Web.Integration.PortalMerge), typeof(BrightPAS.Web.Integration.MessagingMerge), typeof(BrightPAS.Web.Integration.AssetsMerge), typeof(BrightPAS.Web.Integration.EmrMerge), typeof(BrightPAS.Web.Integration.EndoscopyMerge), typeof(BrightPAS.Web.Integration.ScribeMerge), typeof(BrightPAS.Web.Integration.DevicesMerge), typeof(BrightPAS.Web.Integration.QualityMerge), typeof(BrightPAS.Web.Integration.CodingMerge), typeof(BrightPAS.Web.Integration.EstimatesMerge), typeof(BrightPAS.Web.Integration.TriageMerge), typeof(BrightPAS.Web.Integration.MedicinesMerge), typeof(BrightPAS.Web.Integration.EBookingsMerge), typeof(BrightPAS.Web.Integration.FollowUpMerge), typeof(BrightPAS.Web.Integration.ClaimsMerge) })
+    typeof(BrightPAS.Web.Integration.RemindersMerge), typeof(BrightPAS.Web.Integration.PortalMerge), typeof(BrightPAS.Web.Integration.MessagingMerge), typeof(BrightPAS.Web.Integration.AssetsMerge), typeof(BrightPAS.Web.Integration.EmrMerge), typeof(BrightPAS.Web.Integration.EndoscopyMerge), typeof(BrightPAS.Web.Integration.ScribeMerge), typeof(BrightPAS.Web.Integration.DevicesMerge), typeof(BrightPAS.Web.Integration.QualityMerge), typeof(BrightPAS.Web.Integration.CodingMerge), typeof(BrightPAS.Web.Integration.EstimatesMerge), typeof(BrightPAS.Web.Integration.TriageMerge), typeof(BrightPAS.Web.Integration.MedicinesMerge), typeof(BrightPAS.Web.Integration.EBookingsMerge), typeof(BrightPAS.Web.Integration.ConsentMerge), typeof(BrightPAS.Web.Integration.FollowUpMerge), typeof(BrightPAS.Web.Integration.ClaimsMerge) })
     builder.Services.AddScoped(typeof(BrightPAS.Modules.Patients.IPatientMergeParticipant), t);
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.HealthLinkWorker>();
 builder.Services.AddScoped<BrightPAS.Web.Licensing.ModuleSetupService>();
@@ -99,6 +99,9 @@ builder.Services.AddScoped<BrightPAS.Web.Integration.MedicineFactsProvider>();
 builder.Services.AddScoped<BrightPAS.Core.Modules.IMedicineSafetyCheck, BrightPAS.Web.Integration.MedicineSafetyGate>();
 builder.Services.AddHttpClient("nzf", c => { c.Timeout = TimeSpan.FromMinutes(5); c.DefaultRequestHeaders.UserAgent.ParseAdd("BrightPAS-NZF-import"); });
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.NzfWorker>();
+// E-consent (0.29.0, ADR 0042): signed consent PDF; optional booking gate (off by default).
+builder.Services.AddSingleton<BrightPAS.Modules.Consent.IConsentPdf, BrightPAS.Web.Pdf.ConsentPdf>();
+builder.Services.AddScoped<BrightPAS.Core.Modules.IBookingConfirmGate, BrightPAS.Web.Integration.ConsentBookingGate>();
 // Bookings from specialists' rooms (0.28.0, ADR 0041): email the rooms contact when the booking office asks, accepts or declines; watched folder for practice-system files.
 builder.Services.AddScoped<BrightPAS.Modules.EBookings.IEBookingNotifier, BrightPAS.Web.Integration.EBookingEmailNotifier>();
 if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<BrightPAS.Web.Integration.EBookingFolderWorker>();
@@ -260,6 +263,7 @@ app.MapEstimatesEndpoints();
 app.MapTriageEndpoints();
 app.MapMedicinesEndpoints();
 app.MapEBookingsEndpoints();
+app.MapConsentEndpoints();
 app.MapFollowUpEndpoints();
 app.MapClaimsEndpoints();
 app.MapJourneyEndpoints();

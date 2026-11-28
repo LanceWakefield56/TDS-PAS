@@ -182,3 +182,9 @@ public sealed class ClaimsMerge(BrightPAS.Modules.Claims.ClaimsDbContext db) : I
         await db.Claims.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct)
         + await db.Approvals.Where(x => x.PatientId == from).ExecuteUpdateAsync(s => s.SetProperty(x => x.PatientId, to), ct);
 }
+
+public sealed class ConsentMerge(BrightPAS.Modules.Consent.ConsentService svc) : IPatientMergeParticipant
+{
+    public string Name => "Consents";
+    public Task<int> MoveAsync(Guid from, Guid to, CancellationToken ct) => svc.MergeAsync(to, from, ct);
+}
