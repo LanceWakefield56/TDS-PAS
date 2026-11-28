@@ -121,7 +121,7 @@ function Plans() {
       <p className="muted">A payment plan lets a patient pay their balance off in regular amounts. Any payment on the plan's invoices counts – at the desk, online or by bank. Patients get a reminder with a payment link before each instalment, and are left off statements and overdue reminders while they keep up.</p>
       <div className="row">
         <label>Show<select value={view} onChange={(e) => setView(e.target.value)}><option value="active">Active plans</option><option value="behind">Behind with payments</option><option value="all">All plans</option></select></label>
-        {can(Perm.OnlinePayManage) && <button className="btn btn-primary" onClick={() => setAdding(true)}>New payment plan</button>}
+        {can(Perm.OnlinePayPlans) && <button className="btn btn-primary" onClick={() => setAdding(true)}>New payment plan</button>}
       </div>
       {msg && <p className="notice" role="status">{msg}</p>}
       <Errors list={errors} />
@@ -212,7 +212,7 @@ function PlanView({ id, onClose, onChange }: { id: string; onClose: () => void; 
             <tbody>{d.progress.schedule.map((i: any) => <tr key={i.number}><td>{i.number}</td><td>{formatDate(i.dueOn)}</td><td>{money(i.amount)}</td><td>{i.paid ? 'Yes' : '—'}</td></tr>)}</tbody>
           </table>
         </div>
-        {d.plan.status === 'Active' && can(Perm.OnlinePayManage) && <div className="stack-sm">
+        {d.plan.status === 'Active' && can(Perm.OnlinePayPlans) && <div className="stack-sm">
           <label>Reason for cancelling<input value={reason} onChange={(e) => setReason(e.target.value)} /></label>
           <div><button className="btn btn-light" onClick={() => void cancel()}>Cancel plan</button></div>
         </div>}
